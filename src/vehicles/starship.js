@@ -31,7 +31,7 @@ const DOOR_PHI = Math.PI * 1.18;
 // Tile geometry: reported ≈12 in (0.305 m) point to point → circumradius ≈0.152 m,
 // ≈0.264 m across the flats. Instanced; ~13 500 of them cover the ship.
 const TILE_R = 0.152;
-const TILE_T = 0.028;
+const TILE_T = 0.016;
 
 // ---------------------------------------------------------------------------------------
 //  Shared sub-assemblies
@@ -252,14 +252,19 @@ export function buildShip(M) {
   // Coverage widens across the nose but never closes: the lee face of the nose cone is bare
   // steel to the tip on the vehicle, so a full wrap would read as a black cap.
   const coverage = (y) => {
-    const y0 = barrelTop - 2, y1 = SHIP_H - 2.5;
+    const y0 = barrelTop - 2, y1 = SHIP_H - 1.6;
     if (y < y0) return THREE.MathUtils.degToRad(103);
+    if (y > y1) return Math.PI;                       // small tiled cap over the tip
     const t = THREE.MathUtils.clamp((y - y0) / (y1 - y0), 0, 1);
-    return THREE.MathUtils.degToRad(103 + t * t * 47);
+    return THREE.MathUtils.degToRad(103) + t * t * (Math.PI - THREE.MathUtils.degToRad(103));
   };
   const tiles = new THREE.InstancedMesh(hexPrism(TILE_R, TILE_T), M.tile, 17000);
   tiles.name = 'tps';
-  tiles.castShadow = true; tiles.receiveShadow = true;
+  // The tiles are a skin a couple of centimetres thick: at any shadow-map resolution that
+  // covers a 124 m vehicle, letting them cast shadows only produces per-tile acne that reads
+  // as fish scales. The hull underneath casts the vehicle's shadow.
+  tiles.castShadow = false;
+  tiles.receiveShadow = true;
 
   // Ablative backing layer just under the tiles, so the gaps read as deep grooves.
   const tileBase = 1.0;
@@ -269,7 +274,7 @@ export function buildShip(M) {
 
   let count = tileSurfaceOfRevolution(tiles, profile, {
     y0: tileBase + 0.15, y1: SHIP_H - 0.3, phiCenter: 0, phiHalf: coverage,
-    circumradius: TILE_R, rng, minRadius: TILE_R * 1.4,
+    circumradius: TILE_R, rng, minRadius: TILE_R * 0.75,
   });
 
   // ---- Flaps -------------------------------------------------------------------------

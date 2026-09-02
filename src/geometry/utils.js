@@ -221,7 +221,7 @@ export function mat4(position = [0, 0, 0], rotation = [0, 0, 0], scale = [1, 1, 
  * always seated against a hull, so the back face is never visible. 28 triangles instead of the
  * ~48 an ExtrudeGeometry bevel costs, and the chamfer gives the edge a specular catch.
  */
-export function hexPrism(circumradius, thickness, chamfer = 0.11) {
+export function hexPrism(circumradius, thickness, chamfer = 0.022) {
   const c = Math.min(circumradius * chamfer, thickness * 0.6);
   const rings = [
     { r: circumradius - c, z: thickness, n: [0, 0, 1] },        // top face
@@ -293,8 +293,8 @@ export function profileAt(profile, y) {
 export function tileSurfaceOfRevolution(mesh, profile, opts) {
   const {
     y0, y1, phiCenter = 0, phiHalf = Math.PI / 2, circumradius, startIndex = 0,
-    colorJitter = 0.04, base = new THREE.Color(0x1b1b1d), rowOffsetY = 0, maskFn = null,
-    rng = Math.random, gap = 1.028, seat = 0.005, minRadius = null,
+    colorJitter = 0.022, patchAmount = 0.05, patchScale = 0.7, base = new THREE.Color(0x2f3035), rowOffsetY = 0, maskFn = null,
+    rng = Math.random, gap = 1.012, seat = 0.010, minRadius = null,
   } = opts;
   const halfAt = typeof phiHalf === 'function' ? phiHalf : () => phiHalf;
   const w = Math.sqrt(3) * circumradius * gap;        // flat-to-flat pitch (column spacing)
@@ -313,16 +313,17 @@ export function tileSurfaceOfRevolution(mesh, profile, opts) {
     if (half <= 0) continue;
     const full = half >= Math.PI - 1e-6;
     const dphi = w / p.r;
-    // Full wrap: distribute a whole number of columns so the seam closes cleanly.
-    const count = full ? Math.max(3, Math.round((Math.PI * 2) / dphi)) : Math.floor((2 * half) / dphi);
-    if (count < 1) continue;
-    const step = full ? (Math.PI * 2) / count : dphi;
+    // Always fit a whole number of columns into the arc. Letting the pitch float makes the
+    // column phase drift row to row, which on a cone spirals the tiles into scales.
+    const span = full ? Math.PI * 2 : 2 * half;
+    const count = Math.max(full ? 3 : 1, Math.round(span / dphi));
+    const step = span / count;
     const offset = (row % 2) * 0.5;
     for (let k = 0; k < count; k++) {
       const phi = full
         ? phiCenter + step * (k + offset)
-        : phiCenter - half + step * (k + 0.5 + offset);
-      if (!full && phi > phiCenter + half - step * 0.4) continue;
+        : phiCenter - half + step * (k + 0.5 + offset * 0.5);
+      if (!full && phi > phiCenter + half - step * 0.25) continue;
       if (maskFn && !maskFn(y, phi)) continue;
       if (i >= mesh.count) return i;
       const sn = Math.sin(phi), cs = Math.cos(phi);
@@ -334,7 +335,10 @@ export function tileSurfaceOfRevolution(mesh, profile, opts) {
       dummy.rotateZ((rng() - 0.5) * 0.018);           // manufacturing scatter
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
-      color.copy(base).offsetHSL(0, 0, (rng() - 0.5) * colorJitter);
+      // Tone varies in patches across the hull (batches of tiles, wear, replacements) with
+      // only a trace of per-tile scatter; pure per-tile noise reads as fish scales.
+      const patch = patchNoise(phi * p.r * patchScale, y * patchScale) - 0.5;
+      color.copy(base).offsetHSL(0, 0, patch * patchAmount + (rng() - 0.5) * colorJitter);
       mesh.setColorAt(i, color);
       i++;
     }
@@ -349,8 +353,8 @@ export function tileSurfaceOfRevolution(mesh, profile, opts) {
  */
 export function tilePolygon(mesh, polygon, matrix, opts) {
   const {
-    circumradius, startIndex = 0, colorJitter = 0.04, base = new THREE.Color(0x1b1b1d),
-    rng = Math.random, gap = 1.028, inset = 0, flip = false,
+    circumradius, startIndex = 0, colorJitter = 0.022, patchAmount = 0.05, patchScale = 0.7,
+    base = new THREE.Color(0x2f3035), rng = Math.random, gap = 1.012, inset = 0, flip = false,
   } = opts;
   const w = Math.sqrt(3) * circumradius * gap;
   const dy = 1.5 * circumradius * gap;
@@ -373,7 +377,8 @@ export function tilePolygon(mesh, polygon, matrix, opts) {
       dummy.updateMatrix();
       local.multiplyMatrices(matrix, dummy.matrix);
       mesh.setMatrixAt(i, local);
-      color.copy(base).offsetHSL(0, 0, (rng() - 0.5) * colorJitter);
+      const patch = patchNoise(x * patchScale + 37, y * patchScale + 91) - 0.5;
+      color.copy(base).offsetHSL(0, 0, patch * patchAmount + (rng() - 0.5) * colorJitter);
       mesh.setColorAt(i, color);
       i++;
     }
@@ -398,6 +403,29 @@ export function pointInPolygon(x, y, poly, margin = 0) {
     if (Math.hypot(x - (xi + t * dx), y - (yi + t * dy)) < margin) return false;
   }
   return true;
+}
+
+/**
+ * Smooth 2D value noise on a 256-cell lattice, used to give instanced detail a tone that
+ * varies in patches rather than as per-element white noise. Returns roughly 0..1.
+ */
+const _LAT = 256;
+const _lat = (() => {
+  let a = 0x9e3779b9;
+  const t = new Float32Array(_LAT * _LAT);
+  for (let i = 0; i < t.length; i++) {
+    a ^= a << 13; a ^= a >>> 17; a ^= a << 5; a >>>= 0;
+    t[i] = a / 4294967296;
+  }
+  return t;
+})();
+export function patchNoise(x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = x - ix, fy = y - iy;
+  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+  const at = (i, j) => _lat[((j & (_LAT - 1)) * _LAT) + (i & (_LAT - 1))];
+  const a = at(ix, iy), b = at(ix + 1, iy), c = at(ix, iy + 1), d = at(ix + 1, iy + 1);
+  return (a + (b - a) * sx) * (1 - sy) + (c + (d - c) * sx) * sy;
 }
 
 /** Deterministic PRNG (mulberry32) so procedural detail is stable between reloads. */

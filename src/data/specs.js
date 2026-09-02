@@ -108,8 +108,8 @@ export const VEHICLES = [
     presets: [
       { id: 'overview', label: 'Vista general', pos: [70, 35, 95], target: [0, 33, 0] },
       { id: 'octaweb', label: 'Octaweb · 9 Merlin', pos: [1.5, -5.6, 1.9], target: [0, 0.5, 0] },
-      { id: 'interstage', label: 'Interetapa y grid fins', pos: [10, 48, 12], target: [0, 45.5, 0] },
-      { id: 'fairing', label: 'Cofia', pos: [14, 66, 18], target: [0, 63, 0] },
+      { id: 'interstage', label: 'Interetapa y grid fins', pos: [9, 41, 11], target: [0, 38.5, 0] },
+      { id: 'fairing', label: 'Cofia', pos: [13, 66, 16], target: [0, 63.5, 0] },
       { id: 'legs', label: 'Patas de aterrizaje', pos: [8, 4, 10], target: [0, 4, 0] },
     ],
   },
@@ -140,8 +140,8 @@ export const VEHICLES = [
     presets: [
       { id: 'overview', label: 'Vista general', pos: [80, 38, 100], target: [0, 33, 0] },
       { id: 'engines', label: '27 Merlin', pos: [3.2, -5.8, 4.2], target: [0, 0.5, 0] },
-      { id: 'nosecones', label: 'Conos laterales', pos: [16, 50, 18], target: [0, 45, 0] },
-      { id: 'struts', label: 'Uniones entre núcleos', pos: [4, 44, 14], target: [2, 43, 0] },
+      { id: 'nosecones', label: 'Conos laterales', pos: [15, 41, 17], target: [0, 37.5, 0] },
+      { id: 'struts', label: 'Uniones entre núcleos', pos: [3, 38, 13], target: [2, 36.2, 0] },
     ],
   },
   {

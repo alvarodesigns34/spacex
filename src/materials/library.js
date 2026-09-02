@@ -42,24 +42,31 @@ export function createMaterials(onProgress = () => {}) {
   // UVs), which stretches the sun's highlight vertically the way it does on the vehicle.
   const steelBase = {
     metalness: 1.0, roughness: 1.0, color: 0xffffff,
-    anisotropy: 0.45, anisotropyRotation: 0, envMapIntensity: 1.15,
-    normalScale: new THREE.Vector2(0.7, 0.7),
+    anisotropy: 0.4, anisotropyRotation: 0, envMapIntensity: 0.85,
+    normalScale: new THREE.Vector2(0.85, 0.85),
   };
   M.steel = new THREE.MeshPhysicalMaterial({ ...steelBase, map: T.steel.map, roughnessMap: T.steel.roughnessMap, normalMap: T.steel.normalMap });
-  M.steelSkirt = new THREE.MeshPhysicalMaterial({ ...steelBase, anisotropy: 0.25, envMapIntensity: 0.9, map: T.steelSkirt.map, roughnessMap: T.steelSkirt.roughnessMap, normalMap: T.steelSkirt.normalMap });
-  M.steelWarm = new THREE.MeshPhysicalMaterial({ ...steelBase, anisotropy: 0.35, envMapIntensity: 1.0, map: T.steelWarm.map, roughnessMap: T.steelWarm.roughnessMap, normalMap: T.steelWarm.normalMap });
+  M.steelSkirt = new THREE.MeshPhysicalMaterial({ ...steelBase, anisotropy: 0.2, envMapIntensity: 0.7, map: T.steelSkirt.map, roughnessMap: T.steelSkirt.roughnessMap, normalMap: T.steelSkirt.normalMap });
+  M.steelWarm = new THREE.MeshPhysicalMaterial({ ...steelBase, anisotropy: 0.3, envMapIntensity: 0.78, map: T.steelWarm.map, roughnessMap: T.steelWarm.roughnessMap, normalMap: T.steelWarm.normalMap });
   // Payload-bay door seam: the same steel, darkened, so the outline reads without a decal.
-  M.steelDoor = new THREE.MeshPhysicalMaterial({ ...steelBase, color: 0xeceded, map: T.steel.map, roughnessMap: T.steel.roughnessMap, normalMap: T.steel.normalMap, envMapIntensity: 1.0 });
+  M.steelDoor = new THREE.MeshPhysicalMaterial({ ...steelBase, color: 0xeceded, map: T.steel.map, roughnessMap: T.steel.roughnessMap, normalMap: T.steel.normalMap });
   // Flap skins: the same steel, but rougher so the rounded leading edge catches a soft
   // highlight instead of drawing a mirror-bright outline against the sky.
-  M.steelFlap = new THREE.MeshPhysicalMaterial({ ...steelBase, color: 0xd9dade, anisotropy: 0.2, envMapIntensity: 0.45, map: T.steelWarm.map, roughnessMap: T.steelWarm.roughnessMap, normalMap: T.steel.normalMap, normalScale: new THREE.Vector2(0.5, 0.5) });
+  // Both faces of a Starship flap read dark grey in photographs — the lee face carries a
+  // dark blanket, not the mill finish of the tank sections.
+  M.steelFlap = new THREE.MeshStandardMaterial({
+    color: 0x53565c, metalness: 0.25, roughness: 0.72,
+    normalMap: T.steel.normalMap, normalScale: new THREE.Vector2(0.35, 0.35), envMapIntensity: 0.45,
+  });
   M.steelInner = new THREE.MeshStandardMaterial({ color: 0x7d8085, metalness: 0.9, roughness: 0.55 });
 
   // ---- Thermal protection ------------------------------------------------------------
   // Silica tiles are matte black and barely reflective; instanceColor supplies the
   // tile-to-tile variation, so the material itself stays white.
-  M.tile = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, metalness: 0.0, envMapIntensity: 0.22 });
-  M.tileUnder = new THREE.MeshStandardMaterial({ color: 0x4a463f, roughness: 0.98, envMapIntensity: 0.18 });
+  // Silica tiles photograph as a mottled charcoal mosaic, not as a black void: they need
+  // enough ambient response to show the form of the hull underneath.
+  M.tile = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.86, metalness: 0.0, envMapIntensity: 0.5 });
+  M.tileUnder = new THREE.MeshStandardMaterial({ color: 0x24242a, roughness: 0.98, envMapIntensity: 0.15 });
 
   // ---- Falcon airframe ---------------------------------------------------------------
   const paintBase = { metalness: 0.0, roughness: 1.0, clearcoat: 0.22, clearcoatRoughness: 0.42 };

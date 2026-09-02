@@ -101,7 +101,9 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
   // around the circumference.
   const colStreak = new Float32Array(size);
   for (let x = 0; x < size; x++) colStreak[x] = fbm(x * 0.55, 3.7, 2) * 0.45 + fbm(x * 1.9, 11.1, 2) * 0.55;
-  // Weld bead profile at v = 0.5 (one ring per tile) plus the narrow heat-affected zone.
+  // Ring weld at v = 0.5 (one ring per tile) with its heat-affected zone, and the vertical
+  // seam where two plates of a ring meet — the hull is rolled from plates, and photographs
+  // show both weld directions clearly.
   const bead = new Float32Array(size);
   const haz = new Float32Array(size);
   for (let y = 0; y < size; y++) {
@@ -109,12 +111,22 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
     bead[y] = Math.exp(-Math.pow((v - 0.5) * size / 3.0, 2));
     haz[y] = Math.exp(-Math.pow((v - 0.5) * size / 11.0, 2));
   }
+  const vseam = new Float32Array(size);
+  const vhaz = new Float32Array(size);
+  for (let x = 0; x < size; x++) {
+    const u = x / size;
+    vseam[x] = Math.exp(-Math.pow((u - 0.5) * size / 2.6, 2));
+    vhaz[x] = Math.exp(-Math.pow((u - 0.5) * size / 9.0, 2));
+    // Plates are slightly dished between welds; the shading falls off towards each seam.
+    vhaz[x] += 0.35 * Math.pow(Math.abs(u - 0.5) * 2, 2);
+  }
   shade(map, (x, y, u, v) => {
     const streak = (colStreak[x] - 0.5) * 0.16;
     const grain = (noise2(x * 0.6, y * 0.6) - 0.5) * 0.045;
     const blotch = (fbm(u * 6 + 7, v * 9 + 3, 4) - 0.5) * 0.05;
     // Mill-finish stainless is bright; the map is mostly reflectance modulation.
-    let base = 0.80 + streak * 0.7 + grain + blotch;
+    // Mill-finish stainless photographs as a matte mid grey, not a mirror.
+    let base = 0.70 + streak * 0.7 + grain + blotch - vhaz[x] * 0.045;
     let r = base, g = base, b = base;
     // Heat-affected zone next to each weld runs slightly straw/blue.
     const hazMix = haz[y] * (0.35 + 0.65 * fbm(u * 6 + 2, v * 4, 3));
@@ -131,14 +143,14 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
       const sm = soot * (0.35 + 0.65 * fbm(u * 5 + 11, v * 8, 4));
       r *= (1 - sm * 0.72); g *= (1 - sm * 0.72); b *= (1 - sm * 0.70);
     }
-    const dark = bead[y] * 0.30;
+    const dark = bead[y] * 0.28 + vseam[x] * 0.22;
     return [clamp(r * (1 - dark) * 255), clamp(g * (1 - dark) * 255), clamp(b * (1 - dark) * 255)];
   });
   shade(rough, (x, y, u, v) => {
     // Bright mill finish: low roughness on the panels, rough at the weld and where it is
     // sooted or heat-tinted, which is what makes the ring seams read at a distance.
-    const base = 0.22 + (colStreak[x] - 0.5) * 0.07 + (fbm(u * 7, v * 10, 3) - 0.5) * 0.07
-      + bead[y] * 0.42 + haz[y] * 0.10 + heat * 0.16 + soot * 0.34;
+    const base = 0.34 + (colStreak[x] - 0.5) * 0.08 + (fbm(u * 7, v * 10, 3) - 0.5) * 0.08
+      + bead[y] * 0.36 + haz[y] * 0.10 + vseam[x] * 0.32 + vhaz[x] * 0.06 + heat * 0.16 + soot * 0.34;
     const g = clamp(base * 255);
     return [g, g, g];
   });
@@ -146,14 +158,14 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
     const height = canvas(size, size);
     shade(height, (x, y, u, v) => {
       // Bead proud of the sheet, plus a shallow dish either side from weld shrinkage.
-      const h = 0.5 + bead[y] * 0.42 - haz[y] * 0.10
+      const h = 0.5 + bead[y] * 0.40 - haz[y] * 0.10 + vseam[x] * 0.34 - vhaz[x] * 0.07
         + (noise2(x * 0.6, y * 0.6) - 0.5) * 0.05 + (fbm(u * 1.5, v * 16, 2) - 0.5) * 0.05;
       const g = clamp(h * 255);
       return [g, g, g];
     });
-    _steelNormal = toTexture(heightToNormal(height, 1.8), { tileSize: ring, tileSizeU: ring * 6 });
+    _steelNormal = toTexture(heightToNormal(height, 1.8), { tileSize: ring, tileSizeU: ring * 4 });
   }
-  const U = ring * 6;
+  const U = ring * 4;
   return {
     map: toTexture(map, { srgb: true, tileSize: ring, tileSizeU: U }),
     roughnessMap: toTexture(rough, { tileSize: ring, tileSizeU: U }),
@@ -336,10 +348,9 @@ export function makeConcrete({ size = 768, tile = 12.0 } = {}) {
     const stain = Math.max(0, fbm(u * 2.2 + 8, v * 2.2 + 1, 4) - 0.52) * 0.5;
     const ju = Math.abs(((u * joints) % 1) - 0.5) < 0.004 ? 1 : 0;
     const jv = Math.abs(((v * joints) % 1) - 0.5) < 0.004 ? 1 : 0;
-    let c = 0.44 + (n - 0.5) * 0.16 + fine - stain;
+    let c = 0.40 + (n - 0.5) * 0.18 + fine - stain;
     if (ju || jv) c *= 0.55;
-    const warm = c * 0.985;
-    return [clamp(c * 255), clamp(c * 255), clamp(warm * 255)];
+    return [clamp(c * 1.035 * 255), clamp(c * 255), clamp(c * 0.93 * 255)];
   });
   shade(rough, (x, y, u, v) => { const g = clamp((0.82 + (fbm(u * 12, v * 12, 3) - 0.5) * 0.2) * 255); return [g, g, g]; });
   shade(height, (x, y, u, v) => {

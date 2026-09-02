@@ -324,7 +324,7 @@ async function main() {
 
   // expose for debugging / automated checks
   const verify = () => verifyExhibits(exhibits);
-  window.__vc = { scene, camera, rig, exhibits, select, goPreset, jump, renderer, env, setToggle, timings, verify };
+  window.__vc = { M, scene, camera, rig, exhibits, select, goPreset, jump, renderer, env, setToggle, timings, verify };
   if (new URLSearchParams(location.search).has('verify')) verify();
 }
 

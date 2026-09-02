@@ -11,8 +11,8 @@ export function createEnvironment(renderer, scene, M) {
   const sky = new Sky();
   sky.scale.setScalar(6000);
   const su = sky.material.uniforms;
-  su.turbidity.value = 2.4;
-  su.rayleigh.value = 1.4;
+  su.turbidity.value = 2.1;
+  su.rayleigh.value = 1.9;
   su.mieCoefficient.value = 0.0035;
   su.mieDirectionalG.value = 0.86;
   scene.add(sky);
@@ -24,7 +24,7 @@ export function createEnvironment(renderer, scene, M) {
   const envSky = new Sky();
   envSky.scale.setScalar(60);
   envScene.add(envSky);
-  const envGround = new THREE.Mesh(new THREE.CircleGeometry(80, 48), new THREE.MeshBasicMaterial({ color: 0x5a5852 }));
+  const envGround = new THREE.Mesh(new THREE.CircleGeometry(80, 48), new THREE.MeshBasicMaterial({ color: 0x4c4842 }));
   envGround.rotation.x = -Math.PI / 2;
   envGround.position.y = -0.4;
   envScene.add(envGround);
@@ -62,7 +62,7 @@ export function createEnvironment(renderer, scene, M) {
     markings.add(ring);
   }
 
-  const fog = new THREE.FogExp2(0xc9d3de, 0.00028);
+  const fog = new THREE.FogExp2(0xc9d3de, 0.00019);
   scene.fog = fog;
 
   function setSun(elevationDeg, azimuthDeg) {
@@ -84,7 +84,7 @@ export function createEnvironment(renderer, scene, M) {
     sun.intensity = THREE.MathUtils.lerp(1.6, 3.6, Math.pow(t, 0.65));
     hemi.color.setHSL(0.58, 0.32 - 0.12 * warmth, 0.62 + 0.08 * t);
     hemi.intensity = THREE.MathUtils.lerp(0.3, 0.55, t);
-    fog.color.setHSL(0.58, 0.16 + 0.14 * warmth, THREE.MathUtils.lerp(0.52, 0.74, t));
+    fog.color.setHSL(0.58, 0.18 + 0.14 * warmth, THREE.MathUtils.lerp(0.50, 0.70, t));
     if (envRT) envRT.dispose();
     envRT = pmrem.fromScene(envScene, 0.02);
     scene.environment = envRT.texture;

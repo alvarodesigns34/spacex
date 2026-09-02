@@ -131,6 +131,13 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
 
   // Second stage: LOX/RP-1 tank plus the payload interface below the fairing.
   g.add(mesh(lathe([{ r: R, y: S1_H }, { r: R, y: S2_TOP }], { segments: 128 }), M.white, { name: 'stage2' }));
+  // Common-dome band between the second stage's RP-1 and LOX tanks.
+  g.add(mesh(new THREE.TorusGeometry(R + 0.012, 0.035, 6, 96), M.darkMetal, { position: [0, S1_H + S2_H * 0.42, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false }));
+  // Cold-gas thruster pods used for second-stage attitude control.
+  for (const a of [Math.PI * 0.25, Math.PI * 1.25]) {
+    g.add(mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.3, 14), M.darkMetal,
+      { position: [Math.sin(a) * (R + 0.06), S2_TOP - 1.2, Math.cos(a) * (R + 0.06)], rotation: [0, 0, Math.PI / 2] }));
+  }
   g.add(mesh(lathe([{ r: R, y: S2_TOP }, { r: R * 0.97, y: FAIRING_BASE }], { segments: 128 }), M.whitePanel, { name: 'payload-adapter' }));
   g.add(mesh(new THREE.BoxGeometry(0.38, S2_H - 1.2, 0.18), M.blackMatte, { position: [0, S1_H + S2_H / 2, R + 0.08] }));
 
