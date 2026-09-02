@@ -134,3 +134,8 @@ a:hover { border-bottom-color: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* Annotations whose line of sight passes through the vehicle: kept in the layout but faded
+   right back, so the callout order stays stable while the far side reads as hidden. */
+.label.is-occluded { opacity: 0.14; filter: saturate(0.2); }
+.label { transition: opacity var(--dur-fast) linear; }

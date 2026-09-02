@@ -76,11 +76,15 @@ export function createEnvironment(renderer, scene, M) {
     envSky.material.uniforms.mieCoefficient.value = su.mieCoefficient.value;
     envSky.material.uniforms.mieDirectionalG.value = su.mieDirectionalG.value;
     // Colour temperature and intensity vs elevation (simple, plausible curve).
+    // Direct sunlight only turns strongly orange within a few degrees of the horizon; at
+    // working elevations it is close to neutral, and an over-saturated sun tints bare metal.
     const t = THREE.MathUtils.clamp(elevationDeg / 60, 0, 1);
-    sun.color.setHSL(0.09, 0.55, THREE.MathUtils.lerp(0.62, 0.98, Math.pow(t, 0.6)));
-    sun.intensity = THREE.MathUtils.lerp(1.4, 3.4, Math.pow(t, 0.7));
-    hemi.intensity = THREE.MathUtils.lerp(0.25, 0.5, t);
-    fog.color.setHSL(0.58, 0.22, THREE.MathUtils.lerp(0.55, 0.72, t));
+    const warmth = Math.pow(1 - t, 2.2);
+    sun.color.setHSL(0.085, 0.05 + 0.42 * warmth, THREE.MathUtils.lerp(0.72, 0.99, Math.pow(t, 0.5)));
+    sun.intensity = THREE.MathUtils.lerp(1.6, 3.6, Math.pow(t, 0.65));
+    hemi.color.setHSL(0.58, 0.32 - 0.12 * warmth, 0.62 + 0.08 * t);
+    hemi.intensity = THREE.MathUtils.lerp(0.3, 0.55, t);
+    fog.color.setHSL(0.58, 0.16 + 0.14 * warmth, THREE.MathUtils.lerp(0.52, 0.74, t));
     if (envRT) envRT.dispose();
     envRT = pmrem.fromScene(envScene, 0.02);
     scene.environment = envRT.texture;

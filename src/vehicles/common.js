@@ -30,7 +30,7 @@ export function buildMount(M, { radius = 8, inner = 4.6, height = 8, legs = 6, c
   const clampParts = [];
   for (let i = 0; i < clamps; i++) {
     const a = (i / clamps) * Math.PI * 2 + Math.PI / clamps;
-    clampParts.push({ geometry: new THREE.BoxGeometry(1.0, 0.9, 0.7), matrix: mat4([Math.sin(a) * (clampRadius + 0.35), height + 0.45, Math.cos(a) * (clampRadius + 0.35)], [0, a, 0]) });
+    clampParts.push({ geometry: new THREE.BoxGeometry(0.66, 0.62, 0.46), matrix: mat4([Math.sin(a) * (clampRadius + 0.26), height + 0.31, Math.cos(a) * (clampRadius + 0.26)], [0, a, 0]) });
   }
   if (clampParts.length) g.add(mesh(mergeAll(clampParts), M.mountYellow));
   // Safety rail

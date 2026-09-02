@@ -17,7 +17,7 @@ export class CameraRig {
     this.orbit.dampingFactor = 0.07;
     this.orbit.minDistance = 0.6;
     this.orbit.maxDistance = 1200;
-    this.orbit.maxPolarAngle = Math.PI - 0.02; // full range: engines are viewed from under the mount decks
+    this.minHeight = 0.35;   // apron clearance, enforced through maxPolarAngle each frame
     this.orbit.zoomSpeed = 0.9;
     this.orbit.rotateSpeed = 0.7;
     this.orbit.screenSpacePanning = true;
@@ -73,6 +73,7 @@ export class CameraRig {
       const d = Math.max(this.distance, 5);
       this.orbit.target.copy(this.camera.position).addScaledVector(dir, Math.min(d, 60));
       this.orbit.enabled = true;
+      this.applyPolarLimit();
       this.orbit.update();
     }
     this.onModeChange?.(mode);
@@ -94,7 +95,22 @@ export class CameraRig {
     if (this.mode === 'fly') this.setMode('orbit');
     this.camera.position.set(...position);
     this.orbit.target.set(...target);
+    this.applyPolarLimit();
     this.orbit.update();
+  }
+
+  /**
+   * Keeps the camera above the apron by limiting the polar angle rather than clamping its
+   * position afterwards, which would fight the controls' damping at the limit.
+   *
+   * The limit depends on the current target and distance, so it MUST be recomputed before
+   * every `orbit.update()`: applying the previous frame's value to a freshly framed view
+   * clamps the jump to the old geometry.
+   */
+  applyPolarLimit() {
+    const d = this.distance;
+    const cosMax = d > 1e-3 ? (this.minHeight - this.orbit.target.y) / d : -1;
+    this.orbit.maxPolarAngle = Math.acos(THREE.MathUtils.clamp(cosMax, -1, 1));
   }
 
   update(dt) {
@@ -104,13 +120,14 @@ export class CameraRig {
       const k = easeInOut(Math.min(t, 1));
       this.camera.position.lerpVectors(tr.from, tr.to, k);
       this.orbit.target.lerpVectors(tr.fromT, tr.toT, k);
+      this.applyPolarLimit();
       this.orbit.update();
       if (t >= 1) { this.transition = null; tr.resolve(); }
       return;
     }
     if (this.mode === 'orbit') {
+      this.applyPolarLimit();
       this.orbit.update();
-      if (this.camera.position.y < 0.3) { this.camera.position.y = 0.3; }
       return;
     }
 

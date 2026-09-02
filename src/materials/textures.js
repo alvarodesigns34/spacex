@@ -28,6 +28,9 @@ export function fbm(x, y, oct = 4, lac = 2.1, gain = 0.5) {
   return s / norm;
 }
 
+const clamp = (v, a = 0, b = 255) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+
 // ---------- canvas helpers ----------
 export function canvas(w, h) {
   const c = document.createElement('canvas');
@@ -86,56 +89,72 @@ export function toTexture(c, { srgb = false, tileSize = null, wrap = THREE.Repea
   return t;
 }
 
-const clamp = (v, a = 0, b = 255) => Math.max(a, Math.min(b, v));
-const lerp = (a, b, t) => a + (b - a) * t;
-
 // =====================================================================================
 //  STAINLESS STEEL (Starship / Super Heavy) — one ring (1.83 m) per tile, weld seam on top.
 // =====================================================================================
+let _steelNormal = null;
 export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) {
   const map = canvas(size, size);
-  const height = canvas(size, size);
   const rough = canvas(size, size);
-  const hd = [];
-  // Roll-forming leaves fine vertical brushing; column-based streaks + fine grain.
+  // Roll-forming leaves fine circumferential brushing; column-based streaks + fine grain.
   const colStreak = new Float32Array(size);
   for (let x = 0; x < size; x++) colStreak[x] = fbm(x * 0.09, 3.7, 3) * 0.6 + fbm(x * 0.9, 11.1, 2) * 0.4;
+  // Weld bead profile at v = 0.5 (one ring per tile) plus the narrow heat-affected zone.
+  const bead = new Float32Array(size);
+  const haz = new Float32Array(size);
+  for (let y = 0; y < size; y++) {
+    const v = y / size;
+    bead[y] = Math.exp(-Math.pow((v - 0.5) * size / 3.0, 2));
+    haz[y] = Math.exp(-Math.pow((v - 0.5) * size / 11.0, 2));
+  }
   shade(map, (x, y, u, v) => {
-    const seam = Math.exp(-Math.pow((v - 0.5) * size / 3.2, 2)); // weld bead at v = 0.5
-    const streak = (colStreak[x] - 0.5) * 0.18;
-    const grain = (noise2(x * 0.6, y * 0.6) - 0.5) * 0.05;
-    const blotch = (fbm(u * 5 + 7, v * 5 + 3, 4) - 0.5) * 0.12;
-    let base = 0.64 + streak * 1.4 + grain + blotch;
-    // Heat tint (bluish/straw) and soot darkening: used on skirts and near engines.
-    const heatMix = heat * (0.5 + 0.5 * fbm(u * 3 + 1, v * 3 + 9, 3));
+    const streak = (colStreak[x] - 0.5) * 0.16;
+    const grain = (noise2(x * 0.6, y * 0.6) - 0.5) * 0.045;
+    const blotch = (fbm(u * 5 + 7, v * 5 + 3, 3) - 0.5) * 0.10;
+    // Mill-finish stainless is bright; the map is mostly reflectance modulation.
+    let base = 0.80 + streak + grain + blotch;
     let r = base, g = base, b = base;
-    if (heatMix > 0) {
-      r = lerp(r, base * 0.92, heatMix); g = lerp(g, base * 0.78, heatMix); b = lerp(b, base * 0.62, heatMix);
-      const blue = Math.max(0, fbm(u * 6 + 4, v * 6 + 2, 3) - 0.55) * heatMix * 2;
-      r = lerp(r, base * 0.55, blue); g = lerp(g, base * 0.62, blue); b = lerp(b, base * 0.85, blue);
+    // Heat-affected zone next to each weld runs slightly straw/blue.
+    const hazMix = haz[y] * (0.35 + 0.65 * fbm(u * 7 + 2, v * 3, 2));
+    r = lerp(r, base * 0.97, hazMix); g = lerp(g, base * 0.93, hazMix); b = lerp(b, base * 0.88, hazMix);
+    if (heat > 0) {
+      const heatMix = heat * (0.5 + 0.5 * fbm(u * 3 + 1, v * 3 + 9, 3));
+      r = lerp(r, base * 0.90, heatMix); g = lerp(g, base * 0.76, heatMix); b = lerp(b, base * 0.60, heatMix);
+      // Weld/flame discolouration on stainless runs straw → light blue; keep it subtle so it
+      // reads as tempering rather than as paint.
+      const blue = Math.max(0, fbm(u * 6 + 4, v * 6 + 2, 3) - 0.58) * heat * 1.1;
+      r = lerp(r, base * 0.72, blue); g = lerp(g, base * 0.76, blue); b = lerp(b, base * 0.86, blue);
     }
     if (soot > 0) {
-      const s = soot * (0.35 + 0.65 * fbm(u * 2 + 11, v * 8, 4));
-      r *= (1 - s * 0.7); g *= (1 - s * 0.7); b *= (1 - s * 0.7);
+      const sm = soot * (0.35 + 0.65 * fbm(u * 2 + 11, v * 8, 3));
+      r *= (1 - sm * 0.72); g *= (1 - sm * 0.72); b *= (1 - sm * 0.70);
     }
-    // seam: slightly darker with a thin highlight above the bead
-    const dark = seam * 0.35;
-    const hi = Math.exp(-Math.pow((v - 0.5) * size / 3.2 - 1.6, 2)) * 0.12;
-    r = r * (1 - dark) + hi; g = g * (1 - dark) + hi; b = b * (1 - dark) + hi;
-    hd.push(seam * 0.9 + grain * 0.5);
-    return [clamp(r * 255), clamp(g * 255), clamp(b * 255)];
+    const dark = bead[y] * 0.30;
+    return [clamp(r * (1 - dark) * 255), clamp(g * (1 - dark) * 255), clamp(b * (1 - dark) * 255)];
   });
-  shade(height, (x, y) => { const h = clamp((0.5 + hd[y * size + x] * 0.5) * 255); return [h, h, h]; });
   shade(rough, (x, y, u, v) => {
-    const seam = Math.exp(-Math.pow((v - 0.5) * size / 4, 2));
-    const base = 0.30 + (colStreak[x] - 0.5) * 0.14 + (fbm(u * 8, v * 8, 3) - 0.5) * 0.12 + seam * 0.35 + heat * 0.15 + soot * 0.3;
+    // Bright mill finish: low roughness on the panels, rough at the weld and where it is
+    // sooted or heat-tinted, which is what makes the ring seams read at a distance.
+    const base = 0.20 + (colStreak[x] - 0.5) * 0.10 + (fbm(u * 8, v * 8, 3) - 0.5) * 0.10
+      + bead[y] * 0.42 + haz[y] * 0.10 + heat * 0.16 + soot * 0.34;
     const g = clamp(base * 255);
     return [g, g, g];
   });
+  if (!_steelNormal) {
+    const height = canvas(size, size);
+    shade(height, (x, y, u, v) => {
+      // Bead proud of the sheet, plus a shallow dish either side from weld shrinkage.
+      const h = 0.5 + bead[y] * 0.42 - haz[y] * 0.10
+        + (noise2(x * 0.6, y * 0.6) - 0.5) * 0.05 + (fbm(u * 4, v * 16, 2) - 0.5) * 0.06;
+      const g = clamp(h * 255);
+      return [g, g, g];
+    });
+    _steelNormal = toTexture(heightToNormal(height, 1.8), { tileSize: ring });
+  }
   return {
     map: toTexture(map, { srgb: true, tileSize: ring }),
     roughnessMap: toTexture(rough, { tileSize: ring }),
-    normalMap: toTexture(heightToNormal(height, 1.5), { tileSize: ring }),
+    normalMap: _steelNormal,
     tileSize: ring,
   };
 }
@@ -144,9 +163,9 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
 //  FALCON first-stage full-body texture (unwrapped: u = around, v = height fraction).
 //  Includes friction-stir-weld panel lines, soot streaks from a flown booster and markings.
 // =====================================================================================
-export function makeFalconBody({ w = 2048, h = 2048, height = 41.2, name = 'FALCON 9', flown = true } = {}) {
+export function makeFalconBody({ w = 1024, h = 2048, height = 41.2, name = 'FALCON 9', flown = true } = {}) {
   const map = canvas(w, h);
-  const rough = canvas(w, h);
+  const rough = canvas(Math.round(w / 2), Math.round(h / 2));
   const circumference = Math.PI * 3.7;
   // Panel (barrel section) lines every ~2.4 m in height, plus 4 longitudinal welds (approximation).
   const panelPitch = 2.4 / height;
@@ -201,7 +220,7 @@ export function makeFalconBody({ w = 2048, h = 2048, height = 41.2, name = 'FALC
 // =====================================================================================
 //  GENERIC WHITE PAINT (second stage, fairing, Dragon) with faint panel structure.
 // =====================================================================================
-export function makeWhitePaint({ size = 1024, tile = 2.0, grid = 0, tone = 0.94, dirt = 0.0 } = {}) {
+export function makeWhitePaint({ size = 512, tile = 2.0, grid = 0, tone = 0.94, dirt = 0.0 } = {}) {
   const map = canvas(size, size);
   const rough = canvas(size, size);
   const height = canvas(size, size);
@@ -264,7 +283,7 @@ export function makeCarbon({ size = 512, tile = 0.6 } = {}) {
 // =====================================================================================
 //  SOLAR CELLS
 // =====================================================================================
-export function makeSolar({ size = 1024, tile = 1.0, cell = 0.125, tint = [0.13, 0.18, 0.34] } = {}) {
+export function makeSolar({ size = 512, tile = 1.0, cell = 0.125, tint = [0.13, 0.18, 0.34] } = {}) {
   const map = canvas(size, size);
   const rough = canvas(size, size);
   const height = canvas(size, size);
@@ -303,7 +322,7 @@ export function makeSolar({ size = 1024, tile = 1.0, cell = 0.125, tint = [0.13,
 // =====================================================================================
 //  CONCRETE APRON (ground) with expansion joints.
 // =====================================================================================
-export function makeConcrete({ size = 1024, tile = 12.0 } = {}) {
+export function makeConcrete({ size = 768, tile = 12.0 } = {}) {
   const map = canvas(size, size);
   const rough = canvas(size, size);
   const height = canvas(size, size);
@@ -337,7 +356,7 @@ export function makeConcrete({ size = 1024, tile = 12.0 } = {}) {
 // =====================================================================================
 //  MULTI-LAYER INSULATION FOIL (crinkled)
 // =====================================================================================
-export function makeFoil({ size = 512, tile = 0.5 } = {}) {
+export function makeFoil({ size = 256, tile = 0.5 } = {}) {
   const map = canvas(size, size);
   const height = canvas(size, size);
   shade(height, (x, y, u, v) => {
@@ -356,7 +375,7 @@ export function makeFoil({ size = 512, tile = 0.5 } = {}) {
 // =====================================================================================
 //  PICA-X style ablative heat shield (Dragon): dark, matte, tiled in sectors.
 // =====================================================================================
-export function makePica({ size = 1024 } = {}) {
+export function makePica({ size = 512 } = {}) {
   const map = canvas(size, size);
   const rough = canvas(size, size);
   const height = canvas(size, size);
@@ -397,7 +416,7 @@ export function makePica({ size = 1024 } = {}) {
 // =====================================================================================
 //  DARK ALLOY (engine bells) — vertical gradient with heat discolouration bands.
 // =====================================================================================
-export function makeEngineBell({ size = 512, copper = 0.5 } = {}) {
+export function makeEngineBell({ size = 384, copper = 0.5 } = {}) {
   const map = canvas(size, size);
   const rough = canvas(size, size);
   shade(map, (x, y, u, v) => {
@@ -422,7 +441,7 @@ export function makeEngineBell({ size = 512, copper = 0.5 } = {}) {
 // =====================================================================================
 //  GRID (used on mount surfaces / small technical panels)
 // =====================================================================================
-export function makeGreyMetal({ size = 512, tile = 1.0, tone = 0.5 } = {}) {
+export function makeGreyMetal({ size = 256, tile = 1.0, tone = 0.5 } = {}) {
   const map = canvas(size, size);
   const rough = canvas(size, size);
   shade(map, (x, y, u, v) => {

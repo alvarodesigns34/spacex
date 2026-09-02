@@ -111,20 +111,56 @@ export function lathe(profile, opts = {}) {
   return g;
 }
 
-/** Tangent-ogive nose profile from radius R at y0 to a tip of radius `tipR` at y0 + L. */
-export function ogiveProfile(R, L, y0, steps = 24, tipR = 0.0, power = 1.0) {
+/**
+ * Tangent-ogive nose profile from radius R at y0 up to y0 + L.
+ *
+ * `bluntR` gives the nose a spherically blunted tip (real nose cones are never sharp): the
+ * ogive is truncated where its local slope matches a tangent sphere of that radius, and the
+ * cap is emitted as a circular arc. Returns points ordered from the base upward.
+ */
+export function ogiveProfile(R, L, y0, steps = 24, bluntR = 0, power = 1.0) {
+  const rho = (R * R + L * L) / (2 * R);          // ogive radius of curvature
   const pts = [];
-  // Ogive radius of curvature
-  const rho = (R * R + L * L) / (2 * R);
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const x = t * L; // distance along axis from base
-    let r = Math.sqrt(Math.max(0, rho * rho - x * x)) + R - rho;
-    r = Math.max(r, 0);
-    r = Math.pow(r / R, power) * R;
-    r = Math.max(r, tipR * (1 - t) + tipR * t);
-    pts.push({ r: i === steps ? tipR : r, y: y0 + x });
+  // Ogive radius as a function of the axial distance x measured from the base.
+  const ogiveR = (x) => {
+    const r = Math.sqrt(Math.max(0, rho * rho - x * x)) + R - rho;
+    return power === 1 ? Math.max(r, 0) : Math.pow(Math.max(r, 0) / R, power) * R;
+  };
+  if (bluntR <= 0) {
+    for (let i = 0; i <= steps; i++) {
+      const x = (i / steps) * L;
+      pts.push({ r: i === steps ? 0 : ogiveR(x), y: y0 + x });
+    }
+    return pts;
   }
+  // Spherically blunted tangent ogive. The standard construction is expressed with the axial
+  // coordinate measured from the *sharp* tip, so convert each station back to the base-relative
+  // coordinate this function works in.
+  const xoTip = L - Math.sqrt(Math.max(0, (rho - bluntR) * (rho - bluntR) - (rho - R) * (rho - R)));
+  const rT = (bluntR * (rho - R)) / (rho - bluntR);                    // radius at tangency
+  const xtTip = xoTip - Math.sqrt(Math.max(0, bluntR * bluntR - rT * rT));
+  const xT = L - xtTip;            // tangency station, from the base
+  const xCentre = L - xoTip;       // centre of the spherical cap, from the base
+  const xApex = xCentre + bluntR;  // where the blunted nose actually ends
+  if (!(xT > 0 && xT < L && xApex > xT)) {                             // degenerate blunting
+    return ogiveProfile(R, L, y0, steps, 0, power);
+  }
+  // Blunting shortens the cone; stretch it back so the tip lands exactly at y0 + L and the
+  // vehicle keeps its published overall height (the shape error is a few per cent).
+  const k = L / xApex;
+  const bodySteps = Math.max(4, Math.round(steps * 0.78));
+  for (let i = 0; i <= bodySteps; i++) {
+    const x = (i / bodySteps) * xT;
+    pts.push({ r: ogiveR(x), y: y0 + x * k });
+  }
+  const capSteps = Math.max(3, steps - bodySteps);
+  const aT = Math.asin(Math.min(1, rT / bluntR));
+  for (let i = 1; i <= capSteps; i++) {
+    const a = aT * (1 - i / capSteps);
+    pts.push({ r: bluntR * Math.sin(a), y: y0 + (xCentre + bluntR * Math.cos(a)) * k });
+  }
+  // Guard against a non-monotonic tail from numerical edge cases.
+  for (let i = 1; i < pts.length; i++) if (pts[i].y <= pts[i - 1].y) pts[i].y = pts[i - 1].y + 1e-4;
   return pts;
 }
 
@@ -179,20 +215,53 @@ export function mat4(position = [0, 0, 0], rotation = [0, 0, 0], scale = [1, 1, 
   return m;
 }
 
-/** Hexagonal prism (pointy-top in local XY, extruded along +Z) used for instanced TPS tiles. */
-export function hexPrism(circumradius, thickness, bevel = 0.15) {
-  const shape = new THREE.Shape();
-  for (let i = 0; i < 6; i++) {
-    const a = Math.PI / 6 + i * Math.PI / 3;
-    const x = circumradius * Math.cos(a), y = circumradius * Math.sin(a);
-    if (i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
+/**
+ * Tile solid for the thermal protection system: a pointy-top hexagon in local XY, extruded
+ * along +Z (the surface normal), with a chamfered top edge and **no bottom face** — tiles are
+ * always seated against a hull, so the back face is never visible. 28 triangles instead of the
+ * ~48 an ExtrudeGeometry bevel costs, and the chamfer gives the edge a specular catch.
+ */
+export function hexPrism(circumradius, thickness, chamfer = 0.11) {
+  const c = Math.min(circumradius * chamfer, thickness * 0.6);
+  const rings = [
+    { r: circumradius - c, z: thickness, n: [0, 0, 1] },        // top face
+    { r: circumradius - c, z: thickness, n: null },             // chamfer top (own normal)
+    { r: circumradius, z: thickness - c, n: null },             // chamfer bottom
+    { r: circumradius, z: thickness - c, n: null },             // side top
+    { r: circumradius, z: 0, n: null },                         // side bottom
+  ];
+  const N = 6;
+  const pos = [], nor = [], uv = [], idx = [];
+  const ang = (i) => Math.PI / 6 + (i / N) * Math.PI * 2;
+  // Ring vertices (N+1 columns so the seam has distinct UVs).
+  for (let ri = 0; ri < rings.length; ri++) {
+    const R = rings[ri];
+    for (let i = 0; i <= N; i++) {
+      const a = ang(i % N);
+      const ca = Math.cos(a), sa = Math.sin(a);
+      pos.push(R.r * ca, R.r * sa, R.z);
+      if (ri === 0) nor.push(0, 0, 1);
+      else if (ri <= 2) { const l = Math.SQRT1_2; nor.push(ca * l, sa * l, l); }  // chamfer ≈45°
+      else nor.push(ca, sa, 0);
+      uv.push(0.5 + 0.5 * ca, 0.5 + 0.5 * sa);
+    }
   }
-  shape.closePath();
-  const g = new THREE.ExtrudeGeometry(shape, {
-    depth: thickness, bevelEnabled: true, bevelThickness: thickness * bevel,
-    bevelSize: circumradius * 0.06, bevelSegments: 1, steps: 1, curveSegments: 1,
-  });
-  g.translate(0, 0, -thickness * bevel);
+  const row = N + 1;
+  // Top face fan (4 triangles) using ring 0.
+  for (let i = 1; i < N - 1; i++) idx.push(0, i, i + 1);
+  // Chamfer band (ring 1 → 2) and side band (ring 3 → 4).
+  for (const [a, b] of [[1, 2], [3, 4]]) {
+    for (let i = 0; i < N; i++) {
+      const p0 = a * row + i, p1 = p0 + 1, p2 = b * row + i, p3 = p2 + 1;
+      idx.push(p0, p2, p1, p1, p2, p3);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeBoundingSphere();
   return g;
 }
 
@@ -214,50 +283,58 @@ export function profileAt(profile, y) {
 }
 
 /**
- * Places instanced hex tiles on a surface of revolution between y0..y1 and an angular window
- * centred on `phiCenter` (radians) with half-width `phiHalf`. Returns the instance count.
- * `mesh` must be an InstancedMesh with enough capacity. Uses `THREE.Object3D` matrices.
+ * Places instanced hex tiles on a surface of revolution between y0..y1.
+ *
+ * Coverage is an angular window centred on `phiCenter`; its half-width may vary with height
+ * (`phiHalf` accepts a number or a function of y) so the heat shield can taper and then wrap
+ * fully around the nose, as it does on the real vehicle. Tiles are seated `seat` metres into
+ * the hull so only the exposed part reads. Returns the next free instance index.
  */
 export function tileSurfaceOfRevolution(mesh, profile, opts) {
   const {
     y0, y1, phiCenter = 0, phiHalf = Math.PI / 2, circumradius, startIndex = 0,
-    colorJitter = 0.06, base = new THREE.Color(0x1b1b1d), rowOffsetY = 0, maskFn = null,
-    rng = Math.random, gap = 1.06,
+    colorJitter = 0.04, base = new THREE.Color(0x1b1b1d), rowOffsetY = 0, maskFn = null,
+    rng = Math.random, gap = 1.028, seat = 0.005, minRadius = null,
   } = opts;
-  const w = Math.sqrt(3) * circumradius * gap;       // flat-to-flat pitch
-  const dy = 1.5 * circumradius * gap;                // row pitch
+  const halfAt = typeof phiHalf === 'function' ? phiHalf : () => phiHalf;
+  const w = Math.sqrt(3) * circumradius * gap;        // flat-to-flat pitch (column spacing)
+  const dy = 1.5 * circumradius * gap;                // row pitch for a pointy-top hex grid
+  const rMin = minRadius ?? circumradius * 0.9;
   const dummy = new THREE.Object3D();
   const up = new THREE.Vector3(0, 1, 0);
+  const alt = new THREE.Vector3(0, 0, 1);
   const color = new THREE.Color();
   let i = startIndex;
   let row = 0;
   for (let y = y0 + rowOffsetY; y <= y1; y += dy, row++) {
     const p = profileAt(profile, y);
-    if (!p || p.r < circumradius * 0.6) continue;
-    const arc = 2 * phiHalf * p.r;
-    const count = Math.max(1, Math.floor(arc / w));
+    if (!p || p.r < rMin) continue;
+    const half = halfAt(y);
+    if (half <= 0) continue;
+    const full = half >= Math.PI - 1e-6;
     const dphi = w / p.r;
+    // Full wrap: distribute a whole number of columns so the seam closes cleanly.
+    const count = full ? Math.max(3, Math.round((Math.PI * 2) / dphi)) : Math.floor((2 * half) / dphi);
+    if (count < 1) continue;
+    const step = full ? (Math.PI * 2) / count : dphi;
     const offset = (row % 2) * 0.5;
     for (let k = 0; k < count; k++) {
-      const phi = phiCenter - phiHalf + dphi * (k + 0.5 + offset);
-      if (phi > phiCenter + phiHalf - dphi * 0.4) continue;
+      const phi = full
+        ? phiCenter + step * (k + offset)
+        : phiCenter - half + step * (k + 0.5 + offset);
+      if (!full && phi > phiCenter + half - step * 0.4) continue;
       if (maskFn && !maskFn(y, phi)) continue;
       if (i >= mesh.count) return i;
       const sn = Math.sin(phi), cs = Math.cos(phi);
-      // surface normal
       const nx = p.nr * sn, ny = p.ny, nz = p.nr * cs;
-      dummy.position.set(p.r * sn, y, p.r * cs);
       _v.set(nx, ny, nz).normalize();
-      // Align local +Z to normal, keep local +Y towards vehicle axis (up) where possible.
-      const target = dummy.position.clone().add(_v);
-      dummy.up.copy(Math.abs(_v.y) > 0.98 ? new THREE.Vector3(0, 0, 1) : up);
-      dummy.lookAt(target);
-      // tiny manufacturing scatter
-      dummy.rotateZ((rng() - 0.5) * 0.02);
+      dummy.position.set(p.r * sn - _v.x * seat, y - _v.y * seat, p.r * cs - _v.z * seat);
+      dummy.up.copy(Math.abs(_v.y) > 0.98 ? alt : up);
+      dummy.lookAt(dummy.position.x + _v.x, dummy.position.y + _v.y, dummy.position.z + _v.z);
+      dummy.rotateZ((rng() - 0.5) * 0.018);           // manufacturing scatter
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
-      const j = (rng() - 0.5) * colorJitter;
-      color.copy(base).offsetHSL(0, 0, j);
+      color.copy(base).offsetHSL(0, 0, (rng() - 0.5) * colorJitter);
       mesh.setColorAt(i, color);
       i++;
     }
@@ -266,11 +343,15 @@ export function tileSurfaceOfRevolution(mesh, profile, opts) {
 }
 
 /**
- * Places hex tiles over a planar polygon (in the XY plane of `matrix`), with local +Z as the
- * tile normal. `polygon` is an array of [x, y].
+ * Places hex tiles over a planar polygon (in the XY plane of `matrix`), local +Z being the
+ * tile normal. `polygon` is an array of [x, y]. `inset` keeps tiles clear of the outline so
+ * the flap's machined edge stays bare, as it is on the vehicle.
  */
 export function tilePolygon(mesh, polygon, matrix, opts) {
-  const { circumradius, startIndex = 0, colorJitter = 0.06, base = new THREE.Color(0x1b1b1d), rng = Math.random, gap = 1.06 } = opts;
+  const {
+    circumradius, startIndex = 0, colorJitter = 0.04, base = new THREE.Color(0x1b1b1d),
+    rng = Math.random, gap = 1.028, inset = 0,
+  } = opts;
   const w = Math.sqrt(3) * circumradius * gap;
   const dy = 1.5 * circumradius * gap;
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -283,10 +364,10 @@ export function tilePolygon(mesh, polygon, matrix, opts) {
   for (let y = minY + circumradius; y <= maxY - circumradius * 0.5; y += dy, row++) {
     const off = (row % 2) * 0.5 * w;
     for (let x = minX + w * 0.5 + off; x <= maxX - w * 0.3; x += w) {
-      if (!pointInPolygon(x, y, polygon)) continue;
+      if (!pointInPolygon(x, y, polygon, inset + circumradius * 0.8)) continue;
       if (i >= mesh.count) return i;
       dummy.position.set(x, y, 0);
-      dummy.rotation.set(0, 0, (rng() - 0.5) * 0.02);
+      dummy.rotation.set(0, 0, (rng() - 0.5) * 0.018);
       dummy.updateMatrix();
       local.multiplyMatrices(matrix, dummy.matrix);
       mesh.setMatrixAt(i, local);
@@ -298,14 +379,23 @@ export function tilePolygon(mesh, polygon, matrix, opts) {
   return i;
 }
 
-export function pointInPolygon(x, y, poly) {
+export function pointInPolygon(x, y, poly, margin = 0) {
   let inside = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
     const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
     const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi + 1e-12) + xi);
     if (intersect) inside = !inside;
   }
-  return inside;
+  if (!inside || margin <= 0) return inside;
+  // Reject points closer than `margin` to any edge.
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+    const dx = xj - xi, dy = yj - yi;
+    const l2 = dx * dx + dy * dy || 1e-12;
+    const t = Math.max(0, Math.min(1, ((x - xi) * dx + (y - yi) * dy) / l2));
+    if (Math.hypot(x - (xi + t * dx), y - (yi + t * dy)) < margin) return false;
+  }
+  return true;
 }
 
 /** Deterministic PRNG (mulberry32) so procedural detail is stable between reloads. */
@@ -329,6 +419,47 @@ export function plate(outline, thickness, bevel = 0) {
   });
   g.translate(0, 0, -thickness / 2);
   return g;
+}
+
+/**
+ * Aerodynamic control surface: the planform `outline` (local XY) lofted into a solid with a
+ * rounded edge all round and a thickness that tapers across the span, which is what gives a
+ * Starship flap its wing-like read instead of the slab a plain extrusion produces.
+ *
+ * `taper(x)` returns a 0..1 thickness multiplier for the local x coordinate; by default the
+ * surface keeps full thickness at the root and thins to 45% at the outboard tip.
+ */
+export function aeroPlate(outline, thickness, opts = {}) {
+  const {
+    edge = thickness * 0.42,      // radius of the rounded edge
+    segments = 4,
+    taper = null,
+  } = opts;
+  const shape = new THREE.Shape();
+  outline.forEach(([x, y], i) => (i === 0 ? shape.moveTo(x, y) : shape.lineTo(x, y)));
+  shape.closePath();
+  const core = Math.max(thickness - edge * 2, thickness * 0.15);
+  const g = new THREE.ExtrudeGeometry(shape, {
+    depth: core, bevelEnabled: true, bevelThickness: (thickness - core) / 2,
+    bevelSize: edge, bevelSegments: segments, steps: 1, curveSegments: 1,
+  });
+  g.translate(0, 0, -core / 2);
+  if (taper) {
+    const pos = g.attributes.position;
+    for (let i = 0; i < pos.count; i++) pos.setZ(i, pos.getZ(i) * taper(pos.getX(i), pos.getY(i)));
+    pos.needsUpdate = true;
+    g.computeVertexNormals();
+  }
+  return g;
+}
+
+/** Linear taper helper for aeroPlate: full thickness at x0, `endScale` at x1. */
+export function spanTaper(x0, x1, endScale = 0.45) {
+  const d = (x1 - x0) || 1;
+  return (x) => {
+    const t = Math.max(0, Math.min(1, (x - x0) / d));
+    return 1 - (1 - endScale) * t * t;
+  };
 }
 
 /** Convenience: mesh with shadows enabled. */

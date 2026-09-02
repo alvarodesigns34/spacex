@@ -19,16 +19,22 @@ import { buildFalcon9, buildFalconHeavy } from './vehicles/falcon.js';
 import { buildDragon } from './vehicles/dragon.js';
 import { buildStarlink } from './vehicles/starlink.js';
 import { buildMount, buildPedestal, buildHuman } from './vehicles/common.js';
+import { verifyExhibits } from './data/verify.js';
 
 // Exhibit layout (world X, metres). Mount heights are presentation choices.
 const LAYOUT = {
   falcon9: { x: -118, mount: 6.5, mountRadius: 6.5, inner: 3.1, clampRadius: 1.85 },
   falconheavy: { x: -62, mount: 6.5, mountRadius: 11.5, inner: 7.2, clampRadius: 1.85 },
-  starship: { x: 0, mount: 9, mountRadius: 10, inner: 6.2, clampRadius: 4.5 },
+  starship: { x: 0, mount: 9, mountRadius: 10.5, inner: 6.9, clampRadius: 4.5 },
   dragon: { x: 46, mount: 1.6 },
   starlink: { x: 92, mount: 6.2 },
 };
 const OVERVIEW = { pos: [-25, 58, 235], target: [-22, 42, 0] };
+
+// Radius of the cylinder used to hide annotations that sit behind a vehicle. CSS2D labels
+// always draw on top of the scene, so without this the far-side callouts read as if they
+// were in front. Starlink is a flat panel and needs no occluder.
+const OCCLUDER = { starship: 4.5, falcon9: 1.9, falconheavy: 1.9, dragon: 2.0, starlink: 0 };
 
 const nextFrame = () => new Promise(r => requestAnimationFrame(r));
 
@@ -71,7 +77,8 @@ async function main() {
   hud.setProgress('Generando materiales procedurales…', 0.05);
   await nextFrame();
   let t0 = performance.now();
-  const { M } = createMaterials();
+  // Texture generation is the bulk of the start-up cost, so report it map by map.
+  const { M } = createMaterials((name, frac) => hud.setProgress(`Generando materiales · ${name}`, 0.05 + frac * 0.2));
   timings.materials = performance.now() - t0;
   hud.setProgress('Iluminación y entorno…', 0.25);
   await nextFrame();
@@ -137,7 +144,7 @@ async function main() {
     group.add(model);
     group.position.x = lay.x;
     scene.add(group);
-    exhibits[v.id] = { group, model, data: v, lay };
+    exhibits[v.id] = { group, model, data: v, lay, occluder: OCCLUDER[v.id] ?? 0, labels: null, hullTop: lay.mount + (model.userData.height ?? v.height) };
 
     // annotations
     const lg = new THREE.Group(); lg.name = `labels-${v.id}`; lg.visible = false;
@@ -150,6 +157,7 @@ async function main() {
       lg.add(obj);
     }
     labels.add(lg);
+    exhibits[v.id].labels = lg;
 
     // scale figures
     const baseY = 0;
@@ -253,6 +261,50 @@ async function main() {
   // ---- Loop ----
   const clock = new THREE.Clock();
   const tmp = new THREE.Vector3();
+  // Hides annotations whose line of sight to the camera passes through the vehicle body.
+  const _lab = new THREE.Vector3();
+  function updateLabelOcclusion() {
+    if (!active || !state.labels) return;
+    const ex = exhibits[active];
+    const lg = ex.labels;
+    if (!lg || !lg.visible) return;
+    const rr = ex.occluder;
+    if (rr <= 0) return;
+    const ax = ex.lay.x, az = 0;
+    const cx = camera.position.x - ax, cz = camera.position.z - az;
+    for (const obj of lg.children) {
+      obj.getWorldPosition(_lab);
+      // Callouts that sit essentially on the vehicle's axis (nose tip, engine centreline)
+      // are never meaningfully hidden by it, and the constant-radius cylinder is a poor
+      // model of the hull up in the nose, so leave them alone.
+      const lx = _lab.x - ax, lz = _lab.z - az;
+      const dx = lx - cx, dz = lz - cz;                          // camera → label
+      const a = dx * dx + dz * dz;
+      let hidden = false;
+      if (a > 1e-6 && lx * lx + lz * lz > rr * rr * 0.9) {
+        // Segment/cylinder intersection in the horizontal plane. Both roots matter: the near
+        // one catches a label on the far side seen from outside, the far one catches a label
+        // outside the hull seen from inside it (looking up into the engine bay, say).
+        const b = 2 * (cx * dx + cz * dz);
+        const c = cx * cx + cz * cz - rr * rr;
+        const disc = b * b - 4 * a * c;
+        if (disc > 0) {
+          const sq = Math.sqrt(disc);
+          const dy = _lab.y - camera.position.y;
+          for (const t of [(-b - sq) / (2 * a), (-b + sq) / (2 * a)]) {
+            if (t <= 0.02 || t >= 0.98) continue;
+            // Only count the hit if the hull actually spans that height.
+            const hy = camera.position.y + dy * t - ex.group.position.y;
+            if (hy > 0 && hy < ex.hullTop) { hidden = true; break; }
+          }
+        }
+      }
+      if (obj.element.classList.contains('is-occluded') !== hidden) {
+        obj.element.classList.toggle('is-occluded', hidden);
+      }
+    }
+  }
+
   function frame() {
     const dt = Math.min(clock.getDelta(), 0.05);
     rig.update(dt);
@@ -263,7 +315,7 @@ async function main() {
     const fovH = THREE.MathUtils.degToRad(camera.fov);
     const mpp = (2 * dist * Math.tan(fovH / 2)) / window.innerHeight;
     hud.setScale(mpp, dist);
-    // labels face the camera and fade with distance
+    updateLabelOcclusion();
     composer.render();
     labelRenderer.render(scene, camera);
     requestAnimationFrame(frame);
@@ -271,7 +323,9 @@ async function main() {
   frame();
 
   // expose for debugging / automated checks
-  window.__vc = { scene, camera, rig, exhibits, select, goPreset, jump, renderer, env, setToggle, timings };
+  const verify = () => verifyExhibits(exhibits);
+  window.__vc = { scene, camera, rig, exhibits, select, goPreset, jump, renderer, env, setToggle, timings, verify };
+  if (new URLSearchParams(location.search).has('verify')) verify();
 }
 
 function buildRuler(M, height, id) {

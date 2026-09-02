@@ -11,7 +11,8 @@ import { mesh, mergeAll, mat4 } from '../geometry/utils.js';
 const BUS_W = 2.7;   // along X (approx, derived)
 const BUS_L = 4.1;   // along Z (press)
 const BUS_T = 0.22;  // thickness (approx)
-const WING_L = 12.8; // derived from 52.5 m² per wing / 4.1 m
+// Sized so the deployed span is exactly the published 30 m: (30 − 2.7)/2 − 0.55 yoke.
+const WING_L = 13.1;
 const WING_W = 4.1;
 
 export function buildStarlink(M) {
@@ -21,8 +22,12 @@ export function buildStarlink(M) {
   // ---- Bus ----
   const bus = new THREE.BoxGeometry(BUS_W, BUS_T, BUS_L, 1, 1, 1);
   g.add(mesh(bus, M.aluminum, { name: 'bus' }));
-  // Zenith face: MLI foil blanket
-  g.add(mesh(new THREE.BoxGeometry(BUS_W - 0.1, 0.02, BUS_L - 0.1), M.goldKapton, { position: [0, BUS_T / 2 + 0.01, 0] }));
+  // Zenith face: white multi-layer insulation with the usual gold-taped seams. Photographs
+  // of a deployed V2 Mini show a mostly white blanket, not the gold of a deep-space bus.
+  g.add(mesh(new THREE.BoxGeometry(BUS_W - 0.1, 0.02, BUS_L - 0.1), M.mliWhite, { position: [0, BUS_T / 2 + 0.011, 0] }));
+  const tape = [];
+  for (const z of [-1.35, 1.35]) tape.push({ geometry: new THREE.BoxGeometry(BUS_W - 0.14, 0.006, 0.08), matrix: mat4([0, BUS_T / 2 + 0.024, z]) });
+  g.add(mesh(mergeAll(tape), M.goldKapton, { castShadow: false }));
   // Nadir face: dark radome/antenna deck
   g.add(mesh(new THREE.BoxGeometry(BUS_W - 0.06, 0.02, BUS_L - 0.06), M.blackMatte, { position: [0, -BUS_T / 2 - 0.01, 0] }));
   // Phased-array antennas (nadir): three large user-link arrays + two smaller gateway arrays (approx)
@@ -90,6 +95,7 @@ export function buildStarlink(M) {
   }
 
   g.userData.height = BUS_T;
+  g.userData.footprint = BUS_W + 2 * (0.55 + WING_L);
   g.userData.span = BUS_W + 2 * (0.55 + WING_L);
   g.userData.annotations = [
     { label: 'Bus (≈4,1 m de ancho)', position: [0, BUS_T + 0.4, 0] },

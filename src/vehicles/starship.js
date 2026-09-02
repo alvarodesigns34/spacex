@@ -3,239 +3,314 @@
  *
  * Verified figures (spacex.com unless noted): stack 124 m, diameter 9 m, booster 72 m,
  * ship 52 m, 33 Raptor on the booster (13 gimballing inner + 20 fixed outer, Wikipedia),
- * 3 Raptor + 3 RVac on the ship, Raptor 1.3 m × 2.9 m, RVac 2.3 m × 4.4 m, steel rings 1.83 m,
- * 3 grid fins in a 90°/90°/180° layout on Block 3 (Wikipedia), ~18 000 hexagonal TPS tiles.
- * Everything else (nose length, flap outlines, chines, raceways, fin size) is approximated.
+ * 3 Raptor + 3 RVac on the ship, Raptor 1.3 m × 2.9 m, RVac 2.3 m × 4.4 m, steel rings
+ * 1.83 m, 3 grid fins in a 90°/90°/180° layout ~1.5× the size of V1/V2 fins and integrated
+ * with the catch pins (Wikipedia), 1.8 m vented hot-stage section, ≈18 000 hexagonal silica
+ * tiles ≈0.26 m across the flats (≈12 in point to point, press reports).
+ *
+ * Section boundaries are DERIVED, not published: every station below is an integer number of
+ * 1.83 m rings, and the tank split follows the published propellant masses at LOX/LCH4
+ * density. Flap planforms, chines, raceways and fin lattices are approximations from imagery.
  */
 import * as THREE from 'three';
-import { lathe, ogiveProfile, mesh, mergeAll, mat4, hexPrism, tileSurfaceOfRevolution, tilePolygon, profileAt, seeded, plate } from '../geometry/utils.js';
+import {
+  lathe, ogiveProfile, mesh, mergeAll, mat4, hexPrism, tileSurfaceOfRevolution, tilePolygon,
+  profileAt, seeded, plate, aeroPlate, spanTaper,
+} from '../geometry/utils.js';
 import { raptorGeometry, raptorVacGeometry, instanceEngines, ringLayout } from './engines.js';
 
-const R = 4.5;               // 9 m diameter
-const BOOSTER_H = 72;        // spacex.com (V3)
-const SHIP_H = 52;           // spacex.com (V3)
-const RING = 1.83;           // ring height (Wikipedia)
-const TILE_CIRCUMRADIUS = 0.125; // derived: ~18 000 tiles over the windward half → ≈0.22 m flat-to-flat
+const R = 4.5;                 // 9 m diameter (spacex.com)
+const RING = 1.83;             // steel ring height (Wikipedia)
+const BOOSTER_H = 72;          // spacex.com
+const SHIP_H = 52;             // spacex.com
+const rings = (n) => n * RING; // helper: express a station as a ring count
+// Leeward-side furniture, kept clear of each other (φ measured from the belly, +Z).
+const RACE_PHI = Math.PI * 0.78;
+const DOOR_PHI = Math.PI * 1.18;
 
-// ----------------------------------------------------------------------------------------
-function gridFin(M, { span = 4.6, chord = 3.0, thickness = 0.5, cells = [7, 5] } = {}) {
-  // Lattice fin: frame + vanes. Local frame: +X outward (span), +Z chord, +Y vertical (thickness).
+// Tile geometry: reported ≈12 in (0.305 m) point to point → circumradius ≈0.152 m,
+// ≈0.264 m across the flats. Instanced; ~13 500 of them cover the ship.
+const TILE_R = 0.152;
+const TILE_T = 0.028;
+
+// ---------------------------------------------------------------------------------------
+//  Shared sub-assemblies
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Lattice control surface. Real grid fins are an orthogonal waffle of thin webs inside a
+ * closed frame; the cell count and web thickness here are read off photographs.
+ */
+function gridFin(M, { span = 5.4, chord = 3.5, depth = 0.42, cells = [8, 5], web = 0.05 } = {}) {
   const parts = [];
-  const t = 0.06;
-  parts.push({ geometry: new THREE.BoxGeometry(span, thickness, t), matrix: mat4([span / 2, 0, chord / 2]) });
-  parts.push({ geometry: new THREE.BoxGeometry(span, thickness, t), matrix: mat4([span / 2, 0, -chord / 2]) });
-  parts.push({ geometry: new THREE.BoxGeometry(t, thickness, chord), matrix: mat4([span, 0, 0]) });
-  for (let i = 1; i < cells[0]; i++) parts.push({ geometry: new THREE.BoxGeometry(t * 0.7, thickness, chord), matrix: mat4([(span * i) / cells[0], 0, 0]) });
-  for (let j = 1; j < cells[1]; j++) parts.push({ geometry: new THREE.BoxGeometry(span, thickness, t * 0.7), matrix: mat4([span / 2, 0, -chord / 2 + (chord * j) / cells[1]]) });
-  // Diagonal vanes (the fins use a lattice with diagonal members).
-  const d = Math.hypot(span / cells[0], chord / cells[1]);
-  for (let i = 0; i < cells[0]; i++) for (let j = 0; j < cells[1]; j++) {
-    const cx = (span * (i + 0.5)) / cells[0], cz = -chord / 2 + (chord * (j + 0.5)) / cells[1];
-    const ang = Math.atan2(chord / cells[1], span / cells[0]);
-    parts.push({ geometry: new THREE.BoxGeometry(d, thickness * 0.85, t * 0.5), matrix: mat4([cx, 0, cz], [0, ((i + j) % 2 ? 1 : -1) * ang, 0]) });
-  }
-  const fin = mesh(mergeAll(parts), M.steelWarm);
+  const frame = 0.09;
+  // Closed outer frame (span runs along +X, chord along ±Z, lattice depth along Y).
+  parts.push({ geometry: new THREE.BoxGeometry(span, depth, frame), matrix: mat4([span / 2, 0, chord / 2 - frame / 2]) });
+  parts.push({ geometry: new THREE.BoxGeometry(span, depth, frame), matrix: mat4([span / 2, 0, -chord / 2 + frame / 2]) });
+  parts.push({ geometry: new THREE.BoxGeometry(frame, depth, chord), matrix: mat4([span - frame / 2, 0, 0]) });
+  // Internal webs.
+  for (let i = 1; i < cells[0]; i++) parts.push({ geometry: new THREE.BoxGeometry(web, depth, chord), matrix: mat4([(span * i) / cells[0], 0, 0]) });
+  for (let j = 1; j < cells[1]; j++) parts.push({ geometry: new THREE.BoxGeometry(span, depth * 0.94, web), matrix: mat4([span / 2, 0, -chord / 2 + (chord * j) / cells[1]]) });
   const g = new THREE.Group();
-  g.add(fin);
-  // Root actuator housing / hinge shroud
-  g.add(mesh(new THREE.BoxGeometry(0.9, thickness + 0.5, chord + 0.4), M.steelSkirt, { position: [0.1, 0, 0] }));
-  g.add(mesh(new THREE.CylinderGeometry(0.28, 0.28, chord + 0.6, 20), M.darkMetal, { position: [0.1, 0, 0], rotation: [Math.PI / 2, 0, 0] }));
+  g.add(mesh(mergeAll(parts), M.steelWarm));
   return g;
 }
 
-function chine(M, { length = 18, width = 1.3, depth = 0.5 } = {}) {
-  // Aerodynamic fairing over plumbing/COPVs. Profile along Y (local): tapered both ends.
-  const outline = [[0, 0], [depth * 0.35, 0.8], [depth, 3.0], [depth, length - 3.0], [depth * 0.35, length - 0.8], [0, length]];
-  const g = plate(outline, width, 0.12);
-  return mesh(g, M.steel);
+/**
+ * Block 3 grid-fin assembly: the fin, its hinge shroud, the electric actuator housing and
+ * the catch pin, which Block 3 integrates into the fin root rather than mounting separately.
+ */
+function gridFinAssembly(M, { withPin = true, span = 5.4, chord = 3.5, depth = 0.42 } = {}) {
+  const g = new THREE.Group();
+  const fin = gridFin(M, { span, chord, depth });
+  fin.position.x = 0.75;
+  g.add(fin);
+  // Hinge shroud blended into the hull, and the actuator can behind it.
+  g.add(mesh(new THREE.CylinderGeometry(depth * 0.85, depth * 0.85, chord, 20), M.steelSkirt, { position: [0.62, 0, 0], rotation: [Math.PI / 2, 0, 0] }));
+  g.add(mesh(new THREE.BoxGeometry(1.0, depth + 0.85, chord * 0.88), M.steelSkirt, { position: [0.2, 0, 0] }));
+  g.add(mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.5, 20), M.darkMetal, { position: [0.3, -0.95, 0], rotation: [Math.PI / 2, 0, 0] }));
+  if (withPin) {
+    // Catch pin: a stub that the tower arms take the vehicle's weight on.
+    g.add(mesh(new THREE.CylinderGeometry(0.3, 0.34, 1.35, 24), M.darkMetal, { position: [0.95, -1.5, 0], rotation: [0, 0, -Math.PI / 2] }));
+    g.add(mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.18, 24), M.aluminum, { position: [1.6, -1.5, 0], rotation: [0, 0, -Math.PI / 2] }));
+    g.add(mesh(new THREE.BoxGeometry(0.8, 1.5, 1.5), M.steelSkirt, { position: [0.2, -1.5, 0] }));
+  }
+  return g;
 }
 
-function ventedRing(M) {
-  // Hot-stage ring: 1.8 m, with vent openings (Block 3 integrates it into the tank section).
+/**
+ * Longitudinal conduit fairing (the raceway that carries pressurisation lines and cabling
+ * up the outside of both stages). Built as a rounded half-section so it reads as sheet metal
+ * wrapped over pipework rather than a box.
+ */
+function raceway(M, length, { width = 0.62, depth = 0.4, material = null } = {}) {
   const g = new THREE.Group();
-  const H = 1.8;
-  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: H }], { segments: 128 }), M.steelSkirt));
-  const vents = [];
+  const half = new THREE.CylinderGeometry(depth, depth, length, 14, 1, false, -Math.PI / 2, Math.PI);
+  half.scale(1, 1, width / (depth * 2));
+  const body = mesh(half, material ?? M.conduit);
+  body.rotation.y = Math.PI / 2;
+  g.add(body);
+  // Tapered end caps so it does not read as a cut tube.
+  for (const s of [-1, 1]) {
+    const cap = new THREE.SphereGeometry(depth, 14, 8, -Math.PI / 2, Math.PI, 0, Math.PI / 2);
+    cap.scale(1, 0.9, width / (depth * 2));
+    const c = mesh(cap, material ?? M.conduit);
+    c.rotation.set(s > 0 ? 0 : Math.PI, Math.PI / 2, 0);
+    c.position.y = s * length / 2;
+    g.add(c);
+  }
+  return g;
+}
+
+/** Vented hot-stage section: on Block 3 this is built into the top of the methane tank. */
+function hotStageSection(M, height = 1.83) {
+  const g = new THREE.Group();
+  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: height }], { segments: 160 }), M.steelSkirt));
   const n = 24;
+  const vents = [];
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2;
-    vents.push({ geometry: new THREE.BoxGeometry(0.7, 0.9, 0.08), matrix: mat4([Math.sin(a) * (R + 0.02), H * 0.55, Math.cos(a) * (R + 0.02)], [0, a, 0]) });
-    // truss members between vents
-    vents.push({ geometry: new THREE.BoxGeometry(0.1, H * 0.9, 0.12), matrix: mat4([Math.sin(a + Math.PI / n) * (R + 0.06), H * 0.5, Math.cos(a + Math.PI / n) * (R + 0.06)], [0, a + Math.PI / n, 0]) });
+    // Vent apertures with the structural columns between them.
+    vents.push({ geometry: new THREE.BoxGeometry(0.72, 1.0, 0.1), matrix: mat4([Math.sin(a) * (R + 0.01), height * 0.52, Math.cos(a) * (R + 0.01)], [0, a, 0]) });
+    const b = a + Math.PI / n;
+    vents.push({ geometry: new THREE.BoxGeometry(0.16, height * 0.94, 0.16), matrix: mat4([Math.sin(b) * (R + 0.07), height * 0.5, Math.cos(b) * (R + 0.07)], [0, b, 0]) });
   }
   g.add(mesh(mergeAll(vents), M.blackMatte));
-  // Top interface flange
-  g.add(mesh(new THREE.TorusGeometry(R - 0.05, 0.12, 8, 128), M.darkMetal, { position: [0, H - 0.05, 0], rotation: [Math.PI / 2, 0, 0] }));
+  g.add(mesh(new THREE.TorusGeometry(R + 0.03, 0.08, 8, 160), M.darkMetal, { position: [0, height - 0.06, 0], rotation: [Math.PI / 2, 0, 0] }));
+  g.add(mesh(new THREE.TorusGeometry(R + 0.03, 0.06, 8, 160), M.darkMetal, { position: [0, 0.05, 0], rotation: [Math.PI / 2, 0, 0] }));
   return g;
 }
 
-// ----------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------
+//  Super Heavy
+// ---------------------------------------------------------------------------------------
 export function buildSuperHeavy(M) {
   const g = new THREE.Group();
   g.name = 'superheavy';
-  const skirtH = 6.9;                    // engine section (approx)
-  const ringTop = BOOSTER_H - 1.8;       // vented interstage occupies the top 1.8 m
 
-  // Hull sections
-  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: skirtH }], { segments: 160 }), M.steelSkirt, { name: 'skirt' }));
-  g.add(mesh(lathe([{ r: R, y: skirtH }, { r: R, y: ringTop }], { segments: 160 }), M.steel, { name: 'tanks' }));
-  const ring = ventedRing(M); ring.position.y = ringTop; g.add(ring);
-  // Inner skirt wall visible from below + thrust structure
-  g.add(mesh(lathe([{ r: R - 0.02, y: 0.1 }, { r: R - 0.02, y: 4.2 }], { segments: 96, flip: true }), M.steelInner, { castShadow: false }));
-  g.add(mesh(new THREE.CylinderGeometry(R - 0.02, R - 0.02, 0.5, 96), M.darkMetal, { position: [0, 4.2, 0] }));
-  // Engine shielding: individual bays for the 20 outer engines (approximation of the shielded skirt).
+  const skirtTop = rings(3.5);            // 6.41 m engine/thrust section
+  const hotStageH = RING;                 // 1.83 m vented section at the top
+  const ringTop = BOOSTER_H - hotStageH;  // 70.17 m
+  // Tank split from the published propellant loads at cryogenic density
+  // (2 700 t LOX / 1 141 kg·m⁻³ vs 700 t LCH4 / 422 kg·m⁻³ ⇒ 59 % / 41 % by volume).
+  const commonDome = skirtTop + (ringTop - skirtTop) * 0.59;
+
+  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: skirtTop }], { segments: 160 }), M.steelSkirt, { name: 'skirt' }));
+  g.add(mesh(lathe([{ r: R, y: skirtTop }, { r: R, y: ringTop }], { segments: 160 }), M.steel, { name: 'tanks' }));
+  const hs = hotStageSection(M, hotStageH); hs.position.y = ringTop; g.add(hs);
+
+  // Aft interior: skirt wall seen from below, thrust puck and engine-bay shielding.
+  g.add(mesh(lathe([{ r: R - 0.03, y: 0.1 }, { r: R - 0.03, y: 4.3 }], { segments: 96, flip: true }), M.steelInner, { castShadow: false }));
+  g.add(mesh(new THREE.CylinderGeometry(R - 0.03, R - 0.03, 0.5, 96), M.darkMetal, { position: [0, 4.35, 0] }));
   const bays = [];
   for (let i = 0; i < 20; i++) {
     const a = (i / 20) * Math.PI * 2 + Math.PI / 20;
-    bays.push({ geometry: new THREE.BoxGeometry(0.12, 3.2, 1.1), matrix: mat4([Math.sin(a) * 3.85, 1.9, Math.cos(a) * 3.85], [0, a, 0]) });
+    bays.push({ geometry: new THREE.BoxGeometry(0.14, 3.3, 1.15), matrix: mat4([Math.sin(a) * 3.86, 1.95, Math.cos(a) * 3.86], [0, a, 0]) });
   }
   g.add(mesh(mergeAll(bays), M.darkMetal));
 
-  // 33 Raptor 3: 3 inner + 10 middle (gimballing) + 20 outer (fixed).
+  // 33 Raptor 3: 3 + 10 gimballing on the thrust puck, 20 fixed on the outer ring.
   const raptor = raptorGeometry();
-  const transforms = [
+  g.add(instanceEngines(raptor, M, [
     ...ringLayout(3, 1.02, 0.45, { phase: Math.PI / 6 }),
     ...ringLayout(10, 2.48, 0.35, { phase: 0 }),
     ...ringLayout(20, 3.86, 0.25, { phase: Math.PI / 20 }),
-  ];
-  g.add(instanceEngines(raptor, M, transforms));
+  ]));
 
-  // Chines (4) over the lower tank section
+  // Raceway up the leeward side, clear of the grid fins.
+  const raceLen = ringTop - skirtTop - 1.2;
+  const race = raceway(M, raceLen, { width: 0.8, depth: 0.46 });
+  race.position.set(0, skirtTop + 0.6 + raceLen / 2, -(R + 0.2));
+  g.add(race);
+
+  // Grid fins: 3 in a 90°/90°/180° layout, catch pins integrated into two of them.
+  const finY = ringTop - 3.9;
+  const finPhis = [Math.PI / 2, Math.PI, Math.PI * 1.5];
+  finPhis.forEach((phi, i) => {
+    const a = gridFinAssembly(M, { withPin: i !== 1 });
+    a.position.set(Math.sin(phi) * R, finY, Math.cos(phi) * R);
+    a.rotation.y = phi - Math.PI / 2;
+    g.add(a);
+  });
+
+  // Common-dome stiffener band (the visible weld band between the two tanks).
+  g.add(mesh(new THREE.TorusGeometry(R + 0.025, 0.055, 6, 160), M.steelWarm, { position: [0, commonDome, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false }));
+  // Hold-down / lift points at the base.
+  const lugs = [];
   for (let i = 0; i < 4; i++) {
     const a = Math.PI / 4 + (i * Math.PI) / 2;
-    const c = chine(M);
-    c.position.set(Math.sin(a) * (R - 0.05), 5.0, Math.cos(a) * (R - 0.05));
-    c.rotation.y = a - Math.PI / 2; // depth radial, width tangential
-    g.add(c);
+    lugs.push({ geometry: new THREE.BoxGeometry(0.7, 0.5, 0.35), matrix: mat4([Math.sin(a) * (R + 0.15), skirtTop - 0.5, Math.cos(a) * (R + 0.15)], [0, a, 0]) });
   }
-  // Raceway (COPV / cable conduit) up the booster, opposite the empty grid-fin side
-  const raceway = mesh(new THREE.BoxGeometry(0.5, ringTop - skirtH - 0.5, 0.35), M.steelWarm);
-  raceway.position.set(Math.sin(Math.PI) * (R + 0.12), (ringTop + skirtH) / 2, Math.cos(Math.PI) * (R + 0.12));
-  raceway.rotation.y = Math.PI;
-  g.add(raceway);
-  const pipes = [];
-  for (const dx of [-0.32, 0.32]) pipes.push({ geometry: new THREE.CylinderGeometry(0.09, 0.09, ringTop - skirtH - 1, 10), matrix: mat4([dx, (ringTop + skirtH) / 2, -(R + 0.08)]) });
-  g.add(mesh(mergeAll(pipes), M.aluminum));
-
-  // Grid fins: 3, at 90°/90°/180° (fins at φ = 90°, 180°, 270°; the tower-facing side stays clear).
-  const finY = ringTop - 3.4;
-  for (const phi of [Math.PI / 2, Math.PI, Math.PI * 1.5]) {
-    const fin = gridFin(M);
-    fin.position.set(Math.sin(phi) * (R + 0.35), finY, Math.cos(phi) * (R + 0.35));
-    fin.rotation.y = phi - Math.PI / 2; // local +X (span) → radial
-    g.add(fin);
-  }
-  // Catch hardpoints (pins) integrated at the two opposite fins (φ = 90°, 270°).
-  for (const phi of [Math.PI / 2, Math.PI * 1.5]) {
-    const pin = mesh(new THREE.CylinderGeometry(0.28, 0.32, 1.5, 24), M.darkMetal);
-    pin.position.set(Math.sin(phi) * (R + 0.6), finY - 1.6, Math.cos(phi) * (R + 0.6));
-    pin.rotation.set(Math.PI / 2, phi, 0, 'YXZ'); // cylinder axis → radial
-    g.add(pin);
-    const boss = mesh(new THREE.BoxGeometry(0.9, 1.2, 1.4), M.steelSkirt);
-    boss.position.set(Math.sin(phi) * (R + 0.2), finY - 1.6, Math.cos(phi) * (R + 0.2));
-    boss.rotation.y = phi;
-    g.add(boss);
-  }
-  // Ring weld bands are in the steel texture; add the tank common-dome stiffener band on the outside.
-  g.add(mesh(new THREE.TorusGeometry(R + 0.02, 0.05, 6, 160), M.steelWarm, { position: [0, 30.0, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false }));
+  g.add(mesh(mergeAll(lugs), M.darkMetal));
 
   g.userData.annotations = [
     { label: '33 Raptor 3 · 3 + 10 + 20', position: [0, -0.3, 6.5] },
-    { label: 'Chine (carenado de COPV)', position: [Math.sin(Math.PI / 4) * 5.3, 14, Math.cos(Math.PI / 4) * 5.3] },
-    { label: 'Grid fin (3 en V3, 90°/90°/180°)', position: [R + 4.6, finY, 0] },
-    { label: 'Pin de captura', position: [-(R + 0.9), finY - 1.6, 0] },
-    { label: 'Anillo hot-staging integrado', position: [0, ringTop + 0.9, R + 0.6] },
-    { label: 'Tanque de oxígeno líquido', position: [0, 22, R + 0.4] },
-    { label: 'Tanque de metano líquido', position: [0, 55, R + 0.4] },
+    { label: 'Grid fin (3 en V3, 90°/90°/180°)', position: [R + 6.4, finY + 0.6, 0] },
+    { label: 'Pin de captura integrado', position: [-(R + 2.6), finY - 1.5, 0] },
+    { label: 'Sección hot-staging ventilada', position: [0, ringTop + 1.0, R + 0.8] },
+    { label: 'Tanque de oxígeno líquido', position: [0, (skirtTop + commonDome) / 2, R + 0.5] },
+    { label: 'Tanque de metano líquido', position: [0, (commonDome + ringTop) / 2, R + 0.5] },
+    { label: 'Raceway (conductos y cableado)', position: [0, skirtTop + 8, -(R + 1.4)] },
   ];
+  g.userData.stations = { skirtTop, commonDome, ringTop, finY, height: BOOSTER_H };
   return g;
 }
 
-// ----------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------
+//  Ship
+// ---------------------------------------------------------------------------------------
 export function buildShip(M) {
   const g = new THREE.Group();
   g.name = 'ship';
   const rng = seeded(7);
-  const skirtH = 6.0;
-  const barrelTop = 34.5;          // approx: nose section length ≈ 17.5 m
-  const nose = ogiveProfile(R, SHIP_H - barrelTop, barrelTop, 40, 0.0, 1.0);
-  // Round the very tip slightly by replacing the last points with a small cap.
-  const profile = [{ r: R, y: 0 }, { r: R, y: skirtH, sharp: false }, { r: R, y: barrelTop }, ...nose.slice(1)];
 
-  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: skirtH }], { segments: 160 }), M.steelWarm, { name: 'skirt' }));
+  // Stations, all ring-quantised. Tank split from the published loads at cryogenic density
+  // (1 170 t LOX vs 330 t LCH4 ⇒ 57 % / 43 % by volume).
+  const skirtTop = rings(2.5);      // 4.58 m aft/thrust section
+  const barrelTop = rings(21);      // 38.43 m — start of the nose curve
+  const payloadBase = rings(18);    // 32.94 m — payload bay above the methane tank
+  const commonDome = skirtTop + (payloadBase - skirtTop) * 0.57;
+  const noseLen = SHIP_H - barrelTop;   // 13.57 m (fineness ratio ≈1.5 D)
+
+  const nose = ogiveProfile(R, noseLen, barrelTop, 34, 0.75);
+  const profile = [
+    { r: R, y: 0 },
+    { r: R, y: skirtTop },
+    { r: R, y: barrelTop },
+    ...nose.slice(1),
+  ];
+
+  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: skirtTop }], { segments: 160 }), M.steelWarm, { name: 'skirt' }));
   g.add(mesh(lathe(profile.slice(1), { segments: 160 }), M.steel, { name: 'hull' }));
-  // Inner skirt + thrust puck
-  g.add(mesh(lathe([{ r: R - 0.02, y: 0.1 }, { r: R - 0.02, y: 4.9 }], { segments: 96, flip: true }), M.steelInner, { castShadow: false }));
-  g.add(mesh(new THREE.CylinderGeometry(R - 0.02, R - 0.02, 0.4, 96), M.darkMetal, { position: [0, 4.9, 0] }));
+  g.add(mesh(lathe([{ r: R - 0.03, y: 0.1 }, { r: R - 0.03, y: 3.9 }], { segments: 96, flip: true }), M.steelInner, { castShadow: false }));
+  g.add(mesh(new THREE.CylinderGeometry(R - 0.03, R - 0.03, 0.4, 96), M.darkMetal, { position: [0, 3.95, 0] }));
 
-  // Engines: 3 Raptor (centre, gimballing) + 3 RVac (outer, fixed)
-  const rap = raptorGeometry();
-  const rvac = raptorVacGeometry();
-  g.add(instanceEngines(rap, M, ringLayout(3, 0.95, 0.35, { phase: 0 })));
-  g.add(instanceEngines(rvac, M, ringLayout(3, 3.05, 0.25, { phase: Math.PI / 3 }), { bellMaterial: M.bellCool }));
+  // 3 Raptor (centre, gimballing) + 3 Raptor Vacuum (outer, fixed).
+  g.add(instanceEngines(raptorGeometry(), M, ringLayout(3, 0.95, 0.35, { phase: 0 })));
+  g.add(instanceEngines(raptorVacGeometry(), M, ringLayout(3, 3.05, 0.25, { phase: Math.PI / 3 }), { bellMaterial: M.bellCool }));
 
-  // ---- Thermal protection: instanced hexagonal tiles on the windward half (+Z) ----
-  const tileGeo = hexPrism(TILE_CIRCUMRADIUS, 0.03);
-  const capacity = 26000;
-  const tiles = new THREE.InstancedMesh(tileGeo, M.tile, capacity);
+  // ---- Thermal protection ------------------------------------------------------------
+  // Coverage: a little over half the circumference on the barrel, widening across the nose
+  // and wrapping fully at the tip, as photographed. Windward (belly) direction is +Z.
+  const coverage = (y) => {
+    if (y < barrelTop - 2) return THREE.MathUtils.degToRad(103);
+    if (y > SHIP_H - 4.2) return Math.PI;
+    const t = THREE.MathUtils.clamp((y - (barrelTop - 2)) / (SHIP_H - 4.2 - (barrelTop - 2)), 0, 1);
+    return THREE.MathUtils.degToRad(103 + t * t * 77);
+  };
+  const tiles = new THREE.InstancedMesh(hexPrism(TILE_R, TILE_T), M.tile, 17000);
   tiles.name = 'tps';
   tiles.castShadow = true; tiles.receiveShadow = true;
-  const windward = 0; // φ = 0 → +Z
-  const hullProfile = profile;
-  // Ablative backing layer (light) so tile gaps read correctly.
-  const backing = lathe(hullProfile.map(p => ({ r: p.r + 0.012, y: p.y })), { segments: 96, phiStart: -Math.PI * 0.53, phiLength: Math.PI * 1.06 });
-  g.add(mesh(backing, M.tileUnder, { castShadow: false }));
-  let count = tileSurfaceOfRevolution(tiles, hullProfile, {
-    y0: 0.35, y1: SHIP_H - 0.8, phiCenter: windward, phiHalf: Math.PI * 0.53, circumradius: TILE_CIRCUMRADIUS, rng,
-    maskFn: (y, phi) => {
-      // wrap fully around the nose tip above 49 m, taper coverage otherwise (approximation)
-      if (y > 49.5) return true;
-      return Math.abs(phi) < Math.PI * 0.53;
-    },
-  });
-  // Full wrap at the nose tip
-  count = tileSurfaceOfRevolution(tiles, hullProfile, { y0: 49.6, y1: SHIP_H - 0.6, phiCenter: Math.PI, phiHalf: Math.PI * 0.47, circumradius: TILE_CIRCUMRADIUS, rng, startIndex: count });
 
-  // ---- Flaps ----
-  const flapThickness = 0.55;
-  const makeFlap = (outline, phi, yBase, rootOffset) => {
-    // outline in local (x = radial outward from the hull surface, y = along vehicle)
-    const geo = plate(outline, flapThickness, 0.08);
+  // Ablative backing layer just under the tiles, so the gaps read as deep grooves.
+  const tileBase = 1.0;
+  const backProfile = profile.filter(p => p.y >= tileBase).map(p => ({ r: p.r + 0.002, y: p.y }));
+  backProfile.unshift({ r: profileAt(profile, tileBase).r + 0.002, y: tileBase });
+  g.add(mesh(lathe(backProfile, { segments: 112, phiStart: -Math.PI * 0.62, phiLength: Math.PI * 1.24 }), M.tileUnder, { castShadow: false }));
+
+  let count = tileSurfaceOfRevolution(tiles, profile, {
+    y0: tileBase + 0.15, y1: SHIP_H - 0.3, phiCenter: 0, phiHalf: coverage,
+    circumradius: TILE_R, rng, minRadius: TILE_R * 1.4,
+  });
+
+  // ---- Flaps -------------------------------------------------------------------------
+  const FLAP_T = 0.62;
+  /**
+   * Places one flap. `outline` is the planform in the local frame (x = radially outward from
+   * the hull surface, y = along the vehicle); the solid is lofted with a rounded edge and a
+   * span-wise thickness taper, and its windward face is tiled.
+   */
+  const makeFlap = (outline, phi, yBase, rootOffset, opts = {}) => {
+    const xs = outline.map(p => p[0]);
+    const geo = aeroPlate(outline, FLAP_T, {
+      edge: FLAP_T * 0.4,
+      taper: spanTaper(Math.min(...xs), Math.max(...xs), opts.tipScale ?? 0.4),
+    });
     const e1 = new THREE.Vector3(Math.sin(phi), 0, Math.cos(phi));
     const e2 = new THREE.Vector3(0, 1, 0);
-    const e3 = new THREE.Vector3().crossVectors(e1, e2);
-    const basis = new THREE.Matrix4().makeBasis(e1, e2, e3);
-    const m = new THREE.Matrix4().makeTranslation(e1.x * rootOffset, yBase, e1.z * rootOffset).multiply(basis);
+    const e3 = new THREE.Vector3().crossVectors(e1, e2);   // flap face normal
+    const m = new THREE.Matrix4()
+      .makeTranslation(e1.x * rootOffset, yBase, e1.z * rootOffset)
+      .multiply(new THREE.Matrix4().makeBasis(e1, e2, e3));
     const flap = mesh(geo, M.steel);
     flap.applyMatrix4(m);
     g.add(flap);
-    // tiles on the windward face
+
+    // Tiles on whichever face looks into the airstream (+Z, the belly side).
     const windwardIsPlusE3 = e3.z >= 0;
-    const faceM = m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, windwardIsPlusE3 ? flapThickness / 2 : -flapThickness / 2));
+    const faceM = m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, windwardIsPlusE3 ? FLAP_T * 0.34 : -FLAP_T * 0.34));
     if (!windwardIsPlusE3) faceM.multiply(new THREE.Matrix4().makeRotationX(Math.PI));
-    count = tilePolygon(tiles, outline, faceM, { circumradius: TILE_CIRCUMRADIUS, startIndex: count, rng });
-    // hinge fairing along the root
-    const len = Math.max(...outline.map(p => p[1])) - Math.min(...outline.map(p => p[1]));
-    const hinge = mesh(new THREE.CylinderGeometry(0.45, 0.45, len, 20), M.steelWarm);
-    hinge.position.copy(new THREE.Vector3(e1.x * (rootOffset - 0.15), yBase + len / 2, e1.z * (rootOffset - 0.15)));
+    count = tilePolygon(tiles, outline, faceM, { circumradius: TILE_R, startIndex: count, rng, inset: 0.14 });
+
+    // Hinge fairing blended into the hull along the root, capped so the ends do not read as
+    // bright spheres against the tiled hull.
+    const y0 = Math.min(...outline.map(p => p[1])), y1 = Math.max(...outline.map(p => p[1]));
+    const hr = opts.hinge ?? 0.5;
+    const hinge = mesh(new THREE.CapsuleGeometry(hr, Math.max(0.1, y1 - y0 - hr * 1.2), 6, 20), M.steelWarm);
+    hinge.position.set(e1.x * (rootOffset - 0.12), yBase + (y0 + y1) / 2, e1.z * (rootOffset - 0.12));
     g.add(hinge);
     return flap;
   };
-  // Aft flaps at the sides (±90°), slightly leeward. Outline approximate.
-  const aftOutline = [[0, 0], [4.4, 0.6], [4.6, 2.4], [3.2, 8.2], [2.4, 10.6], [0, 11.0]];
-  makeFlap(aftOutline, Math.PI / 2 + 0.12, 1.2, R - 0.05);
-  makeFlap(aftOutline.map(([x, y]) => [x, y]), -Math.PI / 2 - 0.12, 1.2, R - 0.05);
-  // Forward flaps: leeward, 140° apart (Block 2+). Root follows the nose profile.
-  const fwdBase = 40.5;
+
+  // Aft flaps: hinged about an axis parallel to the vehicle, just leeward of the sides.
+  const aftOutline = [[0, 0], [2.2, 0.35], [3.9, 1.5], [4.25, 3.2], [3.6, 6.1], [2.5, 7.5], [0, 7.8]];
+  const aftPhi = THREE.MathUtils.degToRad(96);
+  makeFlap(aftOutline, aftPhi, rings(1), R - 0.08, { hinge: 0.55 });
+  makeFlap(aftOutline, -aftPhi, rings(1), R - 0.08, { hinge: 0.55 });
+
+  // Forward flaps: leeward, 140° apart on Block 2+, straddling the barrel/nose transition.
+  const fwdBase = rings(20) - 0.6;                // 36.0 m
+  const fwdLen = 6.6;
+  const hullR = (y) => profileAt(profile, Math.min(fwdBase + y, SHIP_H - 0.05))?.r ?? R;
+  const rootAt = (y) => hullR(y) - R;             // local x of the root, following the hull
+  // Planform as a simple closed polygon: up the root, then back down the swept outer edge.
   const fwdOutline = [];
-  const fwdLen = 8.6;
-  const inner = [], outer = [];
-  const hullR = (y) => profileAt(hullProfile, fwdBase + y)?.r ?? R;
-  for (let i = 0; i <= 8; i++) { const y = (i / 8) * fwdLen; inner.push([hullR(y) - R, y]); }
-  // chord (outward width) tapers from ~2.9 m at the root to ~1.4 m near the tip (approximation)
-  for (const [y, w] of [[0.5, 2.6], [1.6, 2.9], [4.5, 2.5], [7.0, 1.8], [8.3, 1.2]]) outer.push([hullR(y) - R + w, y]);
-  fwdOutline.push(...inner, [hullR(fwdLen) - R + 0.5, fwdLen], ...outer.reverse());
-  for (const phi of [Math.PI - 1.222, -(Math.PI - 1.222)]) makeFlap(fwdOutline, phi, fwdBase, R - 0.05);
+  for (let i = 0; i <= 10; i++) { const y = (i / 10) * fwdLen; fwdOutline.push([rootAt(y), y]); }
+  fwdOutline.push([rootAt(fwdLen) + 0.45, fwdLen]);
+  for (const [y, w] of [[6.35, 1.1], [5.3, 2.4], [3.7, 3.35], [1.9, 3.5], [0.55, 2.0]]) fwdOutline.push([rootAt(y) + w, y]);
+  const fwdPhi = THREE.MathUtils.degToRad(110);   // ±110° ⇒ 140° apart across the lee side
+  makeFlap(fwdOutline, fwdPhi, fwdBase, R - 0.08, { hinge: 0.42, tipScale: 0.35 });
+  makeFlap(fwdOutline, -fwdPhi, fwdBase, R - 0.08, { hinge: 0.42, tipScale: 0.35 });
 
   tiles.count = count;
   tiles.instanceMatrix.needsUpdate = true;
@@ -243,23 +318,49 @@ export function buildShip(M) {
   g.add(tiles);
   g.userData.tileCount = count;
 
-  // Header tank access & nose tip cap
-  g.add(mesh(new THREE.SphereGeometry(0.16, 16, 12), M.steelWarm, { position: [0, SHIP_H - 0.12, 0] }));
-  // Payload bay / forward dome stiffener band
-  g.add(mesh(new THREE.TorusGeometry(R + 0.02, 0.05, 6, 160), M.steelWarm, { position: [0, 33.2, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false }));
-  // Raceway on the leeward side
-  const race = mesh(new THREE.BoxGeometry(0.45, barrelTop - skirtH - 1.0, 0.3), M.steelWarm);
-  race.position.set(0, (barrelTop + skirtH) / 2, -(R + 0.1));
+  // Leeward raceway over the LOX downcomer, stopping below the forward flaps.
+  const raceLen = barrelTop - skirtTop - 2.4;
+  const race = raceway(M, raceLen, { width: 1.15, depth: 0.34 });
+  race.position.set(Math.sin(RACE_PHI) * (R + 0.14), skirtTop + 1.2 + raceLen / 2, Math.cos(RACE_PHI) * (R + 0.14));
+  race.rotation.y = RACE_PHI;
   g.add(race);
+
+  // Payload-bay door on the leeward side, clear of the raceway. Drawn as a slightly proud
+  // panel inside a recessed outline so it reads as a hatch rather than as a painted patch.
+  const doorH = rings(3), doorW = 4.4;
+  const doorY = payloadBase + doorH / 2 - 0.4;
+  const dPhi = doorW / R;
+  const arc = (r, y0, y1, phi0, len, seg = 26) =>
+    lathe([{ r, y: y0 }, { r, y: y1 }], { segments: seg, phiStart: phi0, phiLength: len });
+  g.add(mesh(arc(R + 0.014, doorY - doorH / 2, doorY + doorH / 2, DOOR_PHI - dPhi / 2, dPhi),
+    M.steelDoor, { castShadow: false, name: 'payload-door' }));
+  const frame = [];
+  const fw = 0.05;
+  for (const s of [-1, 1]) {
+    frame.push(arc(R + 0.02, doorY + s * (doorH / 2), doorY + s * (doorH / 2 - s * fw * 2), DOOR_PHI - dPhi / 2 - 0.01, dPhi + 0.02));
+    frame.push(arc(R + 0.02, doorY - doorH / 2, doorY + doorH / 2, DOOR_PHI + s * dPhi / 2 - 0.008, 0.016, 2));
+  }
+  for (const f of frame) g.add(mesh(f, M.blackMatte, { castShadow: false }));
+
+  // Catch hardpoints under the forward flaps (Block 3 is caught by the ship's own pins).
+  for (const s of [1, -1]) {
+    const phi = s * fwdPhi;
+    const pin = mesh(new THREE.CylinderGeometry(0.26, 0.3, 1.1, 20), M.darkMetal);
+    pin.position.set(Math.sin(phi) * (R + 0.55), fwdBase - 0.9, Math.cos(phi) * (R + 0.55));
+    pin.rotation.set(Math.PI / 2, phi, 0, 'YXZ');
+    g.add(pin);
+  }
 
   g.userData.annotations = [
     { label: '3 Raptor + 3 Raptor Vacuum', position: [0, -0.4, 5.0] },
-    { label: 'Escudo térmico · ≈18 000 losetas hexagonales', position: [0, 20, R + 0.6] },
-    { label: 'Aleta trasera', position: [R + 4.6, 5, 0] },
-    { label: 'Aleta delantera (a sotavento)', position: [Math.sin(Math.PI - 1.222) * (R + 2.2), fwdBase + 4, Math.cos(Math.PI - 1.222) * (R + 2.2)] },
-    { label: 'Tanques de cabecera (morro)', position: [0, SHIP_H - 1.0, 1.2] },
-    { label: 'Bahía de carga', position: [0, 30, -(R + 0.6)] },
+    { label: 'Escudo térmico · ≈18 000 losetas hexagonales', position: [0, 18, R + 0.7] },
+    { label: 'Aleta trasera', position: [R + 4.4, rings(1) + 3.5, 1.2] },
+    { label: 'Aleta delantera (a sotavento)', position: [Math.sin(fwdPhi) * (R + 2.4), fwdBase + 3.2, Math.cos(fwdPhi) * (R + 2.4)] },
+    { label: 'Bahía de carga', position: [0, doorY, -(R + 0.9)] },
+    { label: 'Tanque de metano líquido', position: [0, (commonDome + payloadBase) / 2, R + 0.5] },
+    { label: 'Morro (tanques de cabecera)', position: [0, SHIP_H - 3.0, 1.6] },
   ];
+  g.userData.stations = { skirtTop, commonDome, payloadBase, barrelTop, noseLen, height: SHIP_H };
   return g;
 }
 
@@ -270,12 +371,12 @@ export function buildStarship(M) {
   const ship = buildShip(M);
   ship.position.y = BOOSTER_H;
   g.add(booster, ship);
-  const ann = [
+  g.userData.annotations = [
     ...booster.userData.annotations,
     ...ship.userData.annotations.map(a => ({ label: a.label, position: [a.position[0], a.position[1] + BOOSTER_H, a.position[2]] })),
   ];
-  g.userData.annotations = ann;
   g.userData.height = BOOSTER_H + SHIP_H;
   g.userData.tileCount = ship.userData.tileCount;
+  g.userData.stations = { booster: booster.userData.stations, ship: ship.userData.stations };
   return g;
 }
