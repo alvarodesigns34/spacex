@@ -2,7 +2,8 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main, master]
+    # The repository's default branch is the feature branch, so deploy from it too.
+    branches: [main, master, 'claude/**']
   workflow_dispatch:
 
 permissions:
