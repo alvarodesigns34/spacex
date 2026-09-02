@@ -179,19 +179,24 @@ async function main() {
       obj.position.set(lay.x + ax * cy + az * sy, model.position.y + ay, lay.z - ax * sy + az * cy);
       lg.add(obj);
     }
+    labels.add(lg);
+    exhibits[v.id].labels = lg;
     if (complex && v.id === 'starship') {
-      // Pad callouts live in the complex frame, which does not turn with the vehicle.
+      // Pad callouts live in the complex frame, which does not turn with the vehicle, and
+      // in a group of their own: twenty callouts at once buries the thing they point at, so
+      // the vehicle set and the pad set take turns depending on which view is up.
+      const pg = new THREE.Group(); pg.name = 'labels-pad'; pg.visible = false;
       for (const a of complex.userData.annotations) {
         const div = document.createElement('div');
         div.className = 'label';
         div.innerHTML = `<span class="label-dot"></span><span class="label-text">${a.label}</span>`;
         const obj = new CSS2DObject(div);
         obj.position.set(lay.x + a.position[0], a.position[1], lay.z + a.position[2]);
-        lg.add(obj);
+        pg.add(obj);
       }
+      labels.add(pg);
+      exhibits[v.id].padLabels = pg;
     }
-    labels.add(lg);
-    exhibits[v.id].labels = lg;
     // Vehicles may publish a near/far pair for detail that is only worth drawing up close.
     let lod = null;
     model.traverse(o => { if (o.userData && o.userData.lod) lod = o.userData.lod; });
@@ -251,6 +256,9 @@ async function main() {
   // ---- Interaction ----
   const state = { labels: true, ruler: true, humans: true };
   let launchFlying = false;
+  let activePreset = null;
+  // Views authored in the site frame are the ones the pad callouts belong to.
+  const SITE_VIEWS = new Set(VEHICLES.flatMap(v => (v.presets ?? []).filter(p => p.frame === 'site').map(p => p.id)));
   function setToggle(name, value) {
     state[name] = value;
     applyVisibility();
@@ -259,10 +267,12 @@ async function main() {
   function applyVisibility() {
     // Callouts, rulers and the scale figures are museum furniture: they belong on a vehicle
     // standing on its mount, not on one that has left it.
+    const site = SITE_VIEWS.has(activePreset);
     for (const [id, ex] of Object.entries(exhibits)) {
       const on = id === active && !launchFlying;
-      labels.getObjectByName(`labels-${id}`).visible = on && state.labels;
-      ex.ruler.visible = on && state.ruler;
+      labels.getObjectByName(`labels-${id}`).visible = on && state.labels && !(ex.padLabels && site);
+      if (ex.padLabels) ex.padLabels.visible = on && state.labels && site;
+      ex.ruler.visible = on && state.ruler && !site;
     }
     humans.visible = state.humans && !launchFlying;
   }
@@ -294,17 +304,21 @@ async function main() {
     active = id;
     hud.setActive(id);
     applyVisibility();
+    activePreset = 'overview';
+    applyVisibility();
     if (!id) { rig.flyTo(OVERVIEW.pos, OVERVIEW.target, 2.0); return; }
     const w = worldPreset(id, 'overview');
     rig.flyTo(w.pos, w.target, 1.9);
   }
   function goPreset(id, presetId) {
+    activePreset = presetId;
+    applyVisibility();
     const w = worldPreset(id, presetId);
     rig.flyTo(w.pos, w.target, 1.5);
   }
   function jump(id, presetId) {
     if (!id) { active = null; hud.setActive(null); applyVisibility(); rig.jumpTo(OVERVIEW.pos, OVERVIEW.target); return; }
-    active = id; hud.setActive(id); applyVisibility();
+    active = id; activePreset = presetId ?? 'overview'; hud.setActive(id); applyVisibility();
     const w = worldPreset(id, presetId ?? 'overview');
     rig.jumpTo(w.pos, w.target);
   }

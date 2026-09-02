@@ -31,7 +31,8 @@ for (const s of shots) {
     else window.__vc.rig.jumpTo(s.pos, s.target);
   }, s);
   await page.waitForTimeout(s.wait ?? 700);
-  await page.screenshot({ path: `${outdir}/${s.name}.png` });
+  const jpg = s.name.endsWith('.jpg');
+  await page.screenshot({ path: `${outdir}/${jpg ? s.name : `${s.name}.png`}`, ...(jpg ? { type: 'jpeg', quality: 88 } : {}) });
   console.log('shot', s.name);
 }
 const stats = await page.evaluate(()=>{

@@ -175,3 +175,6 @@ a:hover { border-bottom-color: var(--accent); }
 /* The scale bar occupies the same corner and means little while chasing a rocket, so the
    mission panel takes the corner for the duration. */
 body.is-flying .scale { display: none; }
+/* The preset row is a list of views of a vehicle on its mount; none of them mean anything
+   while it is 50 km up, and the panel needs the corner. */
+body.is-flying .presets { display: none; }
