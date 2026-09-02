@@ -26,14 +26,17 @@ import { verifyExhibits, verifyScene } from './data/verify.js';
 // bare steel on the lee side — and facing its belly straight at the default camera shows
 // nothing but the black shield. Turning it puts the tile line across the vehicle, which is
 // how it is almost always photographed and how the two finishes read against each other.
+// The four museum vehicles stand in a row on z = 0. Starship does not: it sits on a launch
+// complex of its own, set back behind the row, because a 144,5 m tower and a flame trench do
+// not belong in a line of display mounts and because the launch sequence needs the room.
 const LAYOUT = {
-  falcon9: { x: -118, mount: 6.5, mountRadius: 6.5, inner: 3.1, clampRadius: 1.85 },
-  falconheavy: { x: -62, mount: 6.5, mountRadius: 11.5, inner: 7.2, clampRadius: 1.85 },
-  starship: { x: 0, mount: 9, mountRadius: 10.5, inner: 6.9, clampRadius: 4.5, yaw: 132 },
-  dragon: { x: 46, mount: 1.6 },
-  starlink: { x: 92, mount: 6.2 },
+  falcon9: { x: -135, z: 0, mount: 6.5, mountRadius: 6.5, inner: 3.1, clampRadius: 1.85 },
+  falconheavy: { x: -62, z: 0, mount: 6.5, mountRadius: 11.5, inner: 7.2, clampRadius: 1.85 },
+  starship: { x: 0, z: -185, mount: 9, mountRadius: 10.5, inner: 6.9, clampRadius: 4.5, yaw: 132 },
+  dragon: { x: 18, z: 0, mount: 1.6 },
+  starlink: { x: 78, z: 0, mount: 6.2 },
 };
-const OVERVIEW = { pos: [-25, 58, 235], target: [-22, 42, 0] };
+const OVERVIEW = { pos: [-30, 78, 300], target: [-28, 48, -55] };
 
 // Radius of the cylinder used to hide annotations that sit behind a vehicle. CSS2D labels
 // always draw on top of the scene, so without this the far-side callouts read as if they
@@ -126,7 +129,7 @@ async function main() {
       group.add(ped);
       model.position.y = lay.mount;
       model.rotation.y = 0;
-      env.addStation(lay.x, 16);
+      env.addStation(lay.x, lay.z, 16);
     } else if (v.id === 'dragon') {
       const ped = buildPedestal(M, { radius: 2.3, height: lay.mount });
       // cradle: four supports under the trunk rim
@@ -139,16 +142,16 @@ async function main() {
       }
       group.add(ped);
       model.position.y = lay.mount + 0.6;
-      env.addStation(lay.x, 5);
+      env.addStation(lay.x, lay.z, 5);
     } else {
       group.add(buildMount(M, { radius: lay.mountRadius, inner: lay.inner, height: lay.mount, clampRadius: lay.clampRadius, clamps: v.id === 'falconheavy' ? 0 : 4 }));
       model.position.y = lay.mount;
-      env.addStation(lay.x, lay.mountRadius + 1.5);
+      env.addStation(lay.x, lay.z, lay.mountRadius + 1.5);
     }
     const yaw = THREE.MathUtils.degToRad(lay.yaw ?? 0);
     model.rotation.y = yaw;
     group.add(model);
-    group.position.x = lay.x;
+    group.position.set(lay.x, 0, lay.z);
     scene.add(group);
     exhibits[v.id] = { group, model, data: v, lay, occluder: OCCLUDER[v.id] ?? 0, labels: null, lod: null, hullTop: lay.mount + (model.userData.height ?? v.height) };
 
@@ -161,7 +164,7 @@ async function main() {
       div.innerHTML = `<span class="label-dot"></span><span class="label-text">${a.label}</span>`;
       const obj = new CSS2DObject(div);
       const [ax, ay, az] = a.position;
-      obj.position.set(lay.x + ax * cy + az * sy, model.position.y + ay, -ax * sy + az * cy);
+      obj.position.set(lay.x + ax * cy + az * sy, model.position.y + ay, lay.z - ax * sy + az * cy);
       lg.add(obj);
     }
     labels.add(lg);
@@ -176,14 +179,14 @@ async function main() {
     const people = v.id === 'starlink' ? [[3.2, 0, 2.4, 0.4], [-2.6, 0, 3.0, -1.2]] : v.id === 'dragon' ? [[3.4, 0, 1.6, 0.6], [-2.8, 0, 2.6, -0.8]] : [[lay.mountRadius + 3.5, 0, 2, 0.5], [lay.mountRadius + 2, 0, -4, -2.0], [-(lay.mountRadius + 3), 0, 3, 2.2]];
     for (const [px, py, pz, ry] of people) {
       const h = buildHuman(M, { suit: Math.random() > 0.5 ? 'white' : 'dark' });
-      h.position.set(lay.x + px, baseY + py, pz);
+      h.position.set(lay.x + px, baseY + py, lay.z + pz);
       h.rotation.y = ry;
       humans.add(h);
     }
     // person on the mount deck for the big vehicles
     if (lay.mountRadius) {
       const h = buildHuman(M, { suit: 'white' });
-      h.position.set(lay.x + lay.mountRadius - 1.2, lay.mount, 1.5);
+      h.position.set(lay.x + lay.mountRadius - 1.2, lay.mount, lay.z + 1.5);
       h.rotation.y = 2.4;
       humans.add(h);
     }
@@ -193,10 +196,10 @@ async function main() {
     const ruler = buildRuler(M, v.id === 'starlink' ? 30 : v.height, v.id);
     if (v.id === 'starlink') {
       ruler.rotation.z = -Math.PI / 2;
-      ruler.position.set(lay.x - 15, model.position.y - 1.2, 4.2);
+      ruler.position.set(lay.x - 15, model.position.y - 1.2, lay.z + 4.2);
     } else {
       const off = v.id === 'starship' ? 14 : v.id === 'falconheavy' ? 12 : v.id === 'falcon9' ? 8 : 4.2;
-      ruler.position.set(lay.x + off, model.position.y, 0);
+      ruler.position.set(lay.x + off, model.position.y, lay.z);
     }
     ruler.visible = false;
     rulers.add(ruler);
@@ -229,11 +232,11 @@ async function main() {
   function worldPreset(id, presetId) {
     const ex = exhibits[id];
     const p = ex.data.presets.find(x => x.id === presetId) ?? ex.data.presets[0];
-    const o = new THREE.Vector3(ex.lay.x, ex.model.position.y, 0);
+    const o = new THREE.Vector3(ex.lay.x, ex.model.position.y, ex.lay.z);
     // Views are authored in the vehicle's own frame, so they turn with it.
     const yaw = THREE.MathUtils.degToRad(ex.lay.yaw ?? 0);
     const cy = Math.cos(yaw), sy = Math.sin(yaw);
-    const put = ([x, y, z]) => [o.x + x * cy + z * sy, o.y + y, -x * sy + z * cy];
+    const put = ([x, y, z]) => [o.x + x * cy + z * sy, o.y + y, o.z - x * sy + z * cy];
     return { pos: put(p.pos), target: put(p.target) };
   }
   function select(id) {
@@ -286,7 +289,7 @@ async function main() {
     if (!lg || !lg.visible) return;
     const rr = ex.occluder;
     if (rr <= 0) return;
-    const ax = ex.lay.x, az = 0;
+    const ax = ex.lay.x, az = ex.lay.z;
     const cx = camera.position.x - ax, cz = camera.position.z - az;
     for (const obj of lg.children) {
       obj.getWorldPosition(_lab);
@@ -328,7 +331,7 @@ async function main() {
     const mpp = (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) / window.innerHeight;
     for (const ex of Object.values(exhibits)) {
       if (!ex.lod) continue;
-      _lodC.set(ex.lay.x, ex.hullTop * 0.5, 0);
+      _lodC.set(ex.lay.x, ex.hullTop * 0.5, ex.lay.z);
       const px = 0.26 / (camera.position.distanceTo(_lodC) * mpp);
       const near = px > 3.5;
       // Track the state explicitly: inferring it from the far group's visibility silently

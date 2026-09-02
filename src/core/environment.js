@@ -56,9 +56,9 @@ export function createEnvironment(renderer, scene, M) {
   const markings = new THREE.Group();
   markings.name = 'markings';
   scene.add(markings);
-  function addStation(x, radius) {
+  function addStation(x, z, radius) {
     const ring = new THREE.Mesh(new THREE.RingGeometry(radius - 0.18, radius, 96), markingMat);
-    ring.rotation.x = -Math.PI / 2; ring.position.set(x, 0.01, 0); ring.receiveShadow = true;
+    ring.rotation.x = -Math.PI / 2; ring.position.set(x, 0.01, z); ring.receiveShadow = true;
     markings.add(ring);
   }
 
