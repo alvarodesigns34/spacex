@@ -107,6 +107,15 @@ try {
   });
   const before = await snapshot();
 
+  // The button is the only way a visitor starts this, so exercise it rather than the API.
+  await page.click('#launch-btn');
+  const armed = await page.evaluate(() => {
+    const st = window.__vc.launch.state;
+    return { running: st.running, t: st.t, panel: !document.getElementById('mission').classList.contains('hidden') };
+  });
+  report(armed.running && armed.panel && armed.t < 0, 'el botón arranca la secuencia',
+    `reloj en ${armed.t.toFixed(0)} s, panel ${armed.panel ? 'visible' : 'oculto'}`);
+
   const times = [-10, -1, 2, 8, 20, 62, 110, 152, 161, 175, 194];
   const badT = [];
   let lastAlt = -1, lastVel = -1, monotonic = true;

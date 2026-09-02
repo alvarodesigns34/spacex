@@ -317,7 +317,7 @@ async function main() {
     rig.flyTo(w.pos, w.target, 1.5);
   }
   function jump(id, presetId) {
-    if (!id) { active = null; hud.setActive(null); applyVisibility(); rig.jumpTo(OVERVIEW.pos, OVERVIEW.target); return; }
+    if (!id) { active = null; activePreset = null; hud.setActive(null); applyVisibility(); rig.jumpTo(OVERVIEW.pos, OVERVIEW.target); return; }
     active = id; activePreset = presetId ?? 'overview'; hud.setActive(id); applyVisibility();
     const w = worldPreset(id, presetId ?? 'overview');
     rig.jumpTo(w.pos, w.target);
