@@ -42,7 +42,7 @@ export function createMaterials(onProgress = () => {}) {
   // UVs), which stretches the sun's highlight vertically the way it does on the vehicle.
   const steelBase = {
     metalness: 1.0, roughness: 1.0, color: 0xffffff,
-    anisotropy: 0.4, anisotropyRotation: 0, envMapIntensity: 0.85,
+    anisotropy: 0.4, anisotropyRotation: 0, envMapIntensity: 1.0,
     normalScale: new THREE.Vector2(0.85, 0.85),
   };
   M.steel = new THREE.MeshPhysicalMaterial({ ...steelBase, map: T.steel.map, roughnessMap: T.steel.roughnessMap, normalMap: T.steel.normalMap });
@@ -65,7 +65,7 @@ export function createMaterials(onProgress = () => {}) {
   // tile-to-tile variation, so the material itself stays white.
   // Silica tiles photograph as a mottled charcoal mosaic, not as a black void: they need
   // enough ambient response to show the form of the hull underneath.
-  M.tile = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.86, metalness: 0.0, envMapIntensity: 0.5 });
+  M.tile = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.82, metalness: 0.0, envMapIntensity: 0.62 });
   M.tileUnder = new THREE.MeshStandardMaterial({ color: 0x24242a, roughness: 0.98, envMapIntensity: 0.15 });
 
   // ---- Falcon airframe ---------------------------------------------------------------

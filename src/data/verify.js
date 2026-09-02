@@ -29,10 +29,19 @@ function measure(model, hullNames) {
   const box = new THREE.Box3();
   const hull = new THREE.Box3();
   model.updateWorldMatrix(true, true);
+  // Measure in the vehicle's own frame. Box3.expandByObject inflates the box of a rotated
+  // object to the AABB of its rotated AABB, so measuring in world space would report a
+  // 9 m cylinder as 12.7 m wide purely because the exhibit is turned on its mount.
+  const toLocal = new THREE.Matrix4().copy(model.matrixWorld).invert();
+  const m = new THREE.Matrix4();
+  const b = new THREE.Box3();
   model.traverse((o) => {
     if (!o.isMesh) return;
-    box.expandByObject(o);
-    if (hullNames && hullNames.includes(o.name)) hull.expandByObject(o);
+    if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+    m.multiplyMatrices(toLocal, o.matrixWorld);
+    b.copy(o.geometry.boundingBox).applyMatrix4(m);
+    box.union(b);
+    if (hullNames && hullNames.includes(o.name)) hull.union(b);
   });
   const size = box.getSize(new THREE.Vector3());
   const hullSize = hull.isEmpty() ? size : hull.getSize(new THREE.Vector3());

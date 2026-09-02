@@ -40,7 +40,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       <label class="tool"><input type="checkbox" id="tg-labels" checked> Etiquetas <kbd>L</kbd></label>
       <label class="tool"><input type="checkbox" id="tg-ruler" checked> Regla <kbd>R</kbd></label>
       <label class="tool"><input type="checkbox" id="tg-humans" checked> Figuras 1,80 m</label>
-      <label class="tool tool-sun">Sol <input type="range" id="sun" min="6" max="75" value="38" step="1"></label>
+      <label class="tool tool-sun">Sol <input type="range" id="sun" min="6" max="75" value="42" step="1"></label>
       <button class="tool tool-btn" id="mode-btn" title="Cambiar modo de cámara (F)">Órbita <kbd>F</kbd></button>
       <button class="tool tool-btn" id="help-btn" title="Ayuda (H)">Ayuda <kbd>H</kbd></button>
     </div>

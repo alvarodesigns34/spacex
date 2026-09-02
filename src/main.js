@@ -22,10 +22,14 @@ import { buildMount, buildPedestal, buildHuman } from './vehicles/common.js';
 import { verifyExhibits } from './data/verify.js';
 
 // Exhibit layout (world X, metres). Mount heights are presentation choices.
+// `yaw` turns an exhibit on its mount. Starship is asymmetric — heat shield on the belly,
+// bare steel on the lee side — and facing its belly straight at the default camera shows
+// nothing but the black shield. Turning it puts the tile line across the vehicle, which is
+// how it is almost always photographed and how the two finishes read against each other.
 const LAYOUT = {
   falcon9: { x: -118, mount: 6.5, mountRadius: 6.5, inner: 3.1, clampRadius: 1.85 },
   falconheavy: { x: -62, mount: 6.5, mountRadius: 11.5, inner: 7.2, clampRadius: 1.85 },
-  starship: { x: 0, mount: 9, mountRadius: 10.5, inner: 6.9, clampRadius: 4.5 },
+  starship: { x: 0, mount: 9, mountRadius: 10.5, inner: 6.9, clampRadius: 4.5, yaw: 132 },
   dragon: { x: 46, mount: 1.6 },
   starlink: { x: 92, mount: 6.2 },
 };
@@ -45,7 +49,7 @@ async function main() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.66;
+  renderer.toneMappingExposure = 0.72;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -67,7 +71,7 @@ async function main() {
     onPreset: (id, presetId) => goPreset(id, presetId),
     onToggle: (name, value) => setToggle(name, value),
     onMode: () => rig.setMode(rig.mode === 'fly' ? 'orbit' : 'fly'),
-    onSun: (elev) => env.setSun(elev, 155),
+    onSun: (elev) => env.setSun(elev, 34),
     onReset: () => select(null),
   });
   rig.onModeChange = (m) => hud.setMode(m);
@@ -141,6 +145,8 @@ async function main() {
       model.position.y = lay.mount;
       env.addStation(lay.x, lay.mountRadius + 1.5);
     }
+    const yaw = THREE.MathUtils.degToRad(lay.yaw ?? 0);
+    model.rotation.y = yaw;
     group.add(model);
     group.position.x = lay.x;
     scene.add(group);
@@ -148,12 +154,14 @@ async function main() {
 
     // annotations
     const lg = new THREE.Group(); lg.name = `labels-${v.id}`; lg.visible = false;
+    const cy = Math.cos(yaw), sy = Math.sin(yaw);
     for (const a of model.userData.annotations ?? []) {
       const div = document.createElement('div');
       div.className = 'label';
       div.innerHTML = `<span class="label-dot"></span><span class="label-text">${a.label}</span>`;
       const obj = new CSS2DObject(div);
-      obj.position.set(lay.x + a.position[0], model.position.y + a.position[1], a.position[2]);
+      const [ax, ay, az] = a.position;
+      obj.position.set(lay.x + ax * cy + az * sy, model.position.y + ay, -ax * sy + az * cy);
       lg.add(obj);
     }
     labels.add(lg);
@@ -218,7 +226,11 @@ async function main() {
     const ex = exhibits[id];
     const p = ex.data.presets.find(x => x.id === presetId) ?? ex.data.presets[0];
     const o = new THREE.Vector3(ex.lay.x, ex.model.position.y, 0);
-    return { pos: [o.x + p.pos[0], o.y + p.pos[1], o.z + p.pos[2]], target: [o.x + p.target[0], o.y + p.target[1], o.z + p.target[2]] };
+    // Views are authored in the vehicle's own frame, so they turn with it.
+    const yaw = THREE.MathUtils.degToRad(ex.lay.yaw ?? 0);
+    const cy = Math.cos(yaw), sy = Math.sin(yaw);
+    const put = ([x, y, z]) => [o.x + x * cy + z * sy, o.y + y, -x * sy + z * cy];
+    return { pos: put(p.pos), target: put(p.target) };
   }
   function select(id) {
     active = id;

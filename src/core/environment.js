@@ -105,7 +105,9 @@ export function createEnvironment(renderer, scene, M) {
     sun.target.updateMatrixWorld();
   }
 
-  setSun(38, 155);
+  // Azimuth is chosen so the exhibits are lit from the side the default views look from,
+  // raked about 35° off the camera axis for modelling rather than flat frontal light.
+  setSun(42, 34);
 
   return { sun, sky, hemi, ground, setSun, updateShadow, addStation, get sunDir() { return sunDir; } };
 }

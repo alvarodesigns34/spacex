@@ -251,12 +251,18 @@ export function buildShip(M) {
   // and wrapping fully at the tip, as photographed. Windward (belly) direction is +Z.
   // Coverage widens across the nose but never closes: the lee face of the nose cone is bare
   // steel to the tip on the vehicle, so a full wrap would read as a black cap.
+  // Photographs of the lee side show the nose cone is mostly bare steel: the tile line runs
+  // up it at roughly the same angle as on the barrel, widening only slightly, and only the
+  // last metre or so of the tip is wrapped all the way round. Growing the coverage to a full
+  // wrap across the whole nose turns the vehicle into a black bullet from every angle.
+  const COVER_BARREL = THREE.MathUtils.degToRad(97);
+  const COVER_NOSE = THREE.MathUtils.degToRad(112);
   const coverage = (y) => {
-    const y0 = barrelTop - 2, y1 = SHIP_H - 1.6;
-    if (y < y0) return THREE.MathUtils.degToRad(103);
+    const y0 = barrelTop - 3, y1 = SHIP_H - 1.2;
+    if (y < y0) return COVER_BARREL;
     if (y > y1) return Math.PI;                       // small tiled cap over the tip
     const t = THREE.MathUtils.clamp((y - y0) / (y1 - y0), 0, 1);
-    return THREE.MathUtils.degToRad(103) + t * t * (Math.PI - THREE.MathUtils.degToRad(103));
+    return COVER_BARREL + t * (COVER_NOSE - COVER_BARREL);
   };
   const tiles = new THREE.InstancedMesh(hexPrism(TILE_R, TILE_T), M.tile, 17000);
   tiles.name = 'tps';
@@ -270,7 +276,7 @@ export function buildShip(M) {
   const tileBase = 1.0;
   const backProfile = profile.filter(p => p.y >= tileBase).map(p => ({ r: p.r + 0.002, y: p.y }));
   backProfile.unshift({ r: profileAt(profile, tileBase).r + 0.002, y: tileBase });
-  g.add(mesh(lathe(backProfile, { segments: 112, phiStart: -Math.PI * 0.62, phiLength: Math.PI * 1.24 }), M.tileUnder, { castShadow: false }));
+  g.add(mesh(lathe(backProfile, { segments: 112, phiStart: -COVER_NOSE, phiLength: 2 * COVER_NOSE }), M.tileUnder, { castShadow: false }));
 
   let count = tileSurfaceOfRevolution(tiles, profile, {
     y0: tileBase + 0.15, y1: SHIP_H - 0.3, phiCenter: 0, phiHalf: coverage,

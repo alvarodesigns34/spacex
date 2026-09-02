@@ -293,7 +293,7 @@ export function profileAt(profile, y) {
 export function tileSurfaceOfRevolution(mesh, profile, opts) {
   const {
     y0, y1, phiCenter = 0, phiHalf = Math.PI / 2, circumradius, startIndex = 0,
-    colorJitter = 0.022, patchAmount = 0.05, patchScale = 0.7, base = new THREE.Color(0x2f3035), rowOffsetY = 0, maskFn = null,
+    colorJitter = 0.018, patchAmount = 0.022, patchScale = 2.4, base = new THREE.Color(0x41424a), rowOffsetY = 0, maskFn = null,
     rng = Math.random, gap = 1.012, seat = 0.010, minRadius = null,
   } = opts;
   const halfAt = typeof phiHalf === 'function' ? phiHalf : () => phiHalf;
@@ -353,8 +353,8 @@ export function tileSurfaceOfRevolution(mesh, profile, opts) {
  */
 export function tilePolygon(mesh, polygon, matrix, opts) {
   const {
-    circumradius, startIndex = 0, colorJitter = 0.022, patchAmount = 0.05, patchScale = 0.7,
-    base = new THREE.Color(0x2f3035), rng = Math.random, gap = 1.012, inset = 0, flip = false,
+    circumradius, startIndex = 0, colorJitter = 0.018, patchAmount = 0.022, patchScale = 2.4,
+    base = new THREE.Color(0x41424a), rng = Math.random, gap = 1.012, inset = 0, flip = false,
   } = opts;
   const w = Math.sqrt(3) * circumradius * gap;
   const dy = 1.5 * circumradius * gap;

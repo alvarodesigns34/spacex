@@ -126,7 +126,7 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
     const blotch = (fbm(u * 6 + 7, v * 9 + 3, 4) - 0.5) * 0.05;
     // Mill-finish stainless is bright; the map is mostly reflectance modulation.
     // Mill-finish stainless photographs as a matte mid grey, not a mirror.
-    let base = 0.70 + streak * 0.7 + grain + blotch - vhaz[x] * 0.045;
+    let base = 0.80 + streak * 0.7 + grain + blotch - vhaz[x] * 0.04;
     let r = base, g = base, b = base;
     // Heat-affected zone next to each weld runs slightly straw/blue.
     const hazMix = haz[y] * (0.35 + 0.65 * fbm(u * 6 + 2, v * 4, 3));
@@ -149,7 +149,7 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
   shade(rough, (x, y, u, v) => {
     // Bright mill finish: low roughness on the panels, rough at the weld and where it is
     // sooted or heat-tinted, which is what makes the ring seams read at a distance.
-    const base = 0.34 + (colStreak[x] - 0.5) * 0.08 + (fbm(u * 7, v * 10, 3) - 0.5) * 0.08
+    const base = 0.30 + (colStreak[x] - 0.5) * 0.08 + (fbm(u * 7, v * 10, 3) - 0.5) * 0.08
       + bead[y] * 0.36 + haz[y] * 0.10 + vseam[x] * 0.32 + vhaz[x] * 0.06 + heat * 0.16 + soot * 0.34;
     const g = clamp(base * 255);
     return [g, g, g];
