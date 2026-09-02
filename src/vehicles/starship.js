@@ -83,22 +83,38 @@ function gridFinAssembly(M, { withPin = true, span = 5.4, chord = 3.5, depth = 0
  * up the outside of both stages). Built as a rounded half-section so it reads as sheet metal
  * wrapped over pipework rather than a box.
  */
-function raceway(M, length, { width = 0.62, depth = 0.4, material = null } = {}) {
-  const g = new THREE.Group();
-  const half = new THREE.CylinderGeometry(depth, depth, length, 14, 1, false, -Math.PI / 2, Math.PI);
-  half.scale(1, 1, width / (depth * 2));
-  const body = mesh(half, material ?? M.conduit);
-  body.rotation.y = Math.PI / 2;
-  g.add(body);
-  // Tapered end caps so it does not read as a cut tube.
-  for (const s of [-1, 1]) {
-    const cap = new THREE.SphereGeometry(depth, 14, 8, -Math.PI / 2, Math.PI, 0, Math.PI / 2);
-    cap.scale(1, 0.9, width / (depth * 2));
-    const c = mesh(cap, material ?? M.conduit);
-    c.rotation.set(s > 0 ? 0 : Math.PI, Math.PI / 2, 0);
-    c.position.y = s * length / 2;
-    g.add(c);
+/**
+ * Longitudinal conduit fairing: a shallow half-section of sheet metal laid over the plumbing
+ * and faired out at both ends. Built in the frame the caller places it in — local +Z points
+ * radially outward, +Y runs along the vehicle, +X is tangential — so `width` is how far it
+ * wraps around the hull and `depth` how far it stands off it.
+ */
+function raceway(M, length, { width = 0.9, depth = 0.24, material = null } = {}) {
+  const taper = Math.min(length * 0.07, 2.2);
+  const stations = [
+    { s: 0.12, y: -length / 2 }, { s: 1, y: -length / 2 + taper },
+    { s: 1, y: length / 2 - taper }, { s: 0.12, y: length / 2 },
+  ];
+  const SEG = 14, row = SEG + 1;
+  const pts = [], idx = [];
+  for (const st of stations) {
+    for (let i = 0; i <= SEG; i++) {
+      const a = (i / SEG) * Math.PI;                       // 0 → π sweeps the dome
+      pts.push(Math.cos(a) * (width / 2) * st.s, st.y, Math.sin(a) * depth * st.s);
+    }
   }
+  for (let j = 0; j < stations.length - 1; j++) {
+    for (let i = 0; i < SEG; i++) {
+      const a0 = j * row + i, a1 = a0 + 1, b0 = a0 + row, b1 = b0 + 1;
+      idx.push(a0, a1, b0, a1, b1, b0);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  const g = new THREE.Group();
+  g.add(mesh(geo, material ?? M.conduit));
   return g;
 }
 
@@ -159,8 +175,9 @@ export function buildSuperHeavy(M) {
 
   // Raceway up the leeward side, clear of the grid fins.
   const raceLen = ringTop - skirtTop - 1.2;
-  const race = raceway(M, raceLen, { width: 0.8, depth: 0.46 });
-  race.position.set(0, skirtTop + 0.6 + raceLen / 2, -(R + 0.2));
+  const race = raceway(M, raceLen, { width: 1.2, depth: 0.42 });
+  race.position.set(0, skirtTop + 0.6 + raceLen / 2, -(R - 0.02));
+  race.rotation.y = Math.PI;                                // local +Z → radially outward
   g.add(race);
 
   // Grid fins: 3 in a 90°/90°/180° layout, catch pins integrated into two of them.
@@ -220,7 +237,7 @@ export function buildShip(M) {
     ...nose.slice(1),
   ];
 
-  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: skirtTop }], { segments: 160 }), M.steelWarm, { name: 'skirt' }));
+  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: skirtTop }], { segments: 160 }), M.steelSkirt, { name: 'skirt' }));
   g.add(mesh(lathe(profile.slice(1), { segments: 160 }), M.steel, { name: 'hull' }));
   g.add(mesh(lathe([{ r: R - 0.03, y: 0.1 }, { r: R - 0.03, y: 3.9 }], { segments: 96, flip: true }), M.steelInner, { castShadow: false }));
   g.add(mesh(new THREE.CylinderGeometry(R - 0.03, R - 0.03, 0.4, 96), M.darkMetal, { position: [0, 3.95, 0] }));
@@ -232,11 +249,13 @@ export function buildShip(M) {
   // ---- Thermal protection ------------------------------------------------------------
   // Coverage: a little over half the circumference on the barrel, widening across the nose
   // and wrapping fully at the tip, as photographed. Windward (belly) direction is +Z.
+  // Coverage widens across the nose but never closes: the lee face of the nose cone is bare
+  // steel to the tip on the vehicle, so a full wrap would read as a black cap.
   const coverage = (y) => {
-    if (y < barrelTop - 2) return THREE.MathUtils.degToRad(103);
-    if (y > SHIP_H - 4.2) return Math.PI;
-    const t = THREE.MathUtils.clamp((y - (barrelTop - 2)) / (SHIP_H - 4.2 - (barrelTop - 2)), 0, 1);
-    return THREE.MathUtils.degToRad(103 + t * t * 77);
+    const y0 = barrelTop - 2, y1 = SHIP_H - 2.5;
+    if (y < y0) return THREE.MathUtils.degToRad(103);
+    const t = THREE.MathUtils.clamp((y - y0) / (y1 - y0), 0, 1);
+    return THREE.MathUtils.degToRad(103 + t * t * 47);
   };
   const tiles = new THREE.InstancedMesh(hexPrism(TILE_R, TILE_T), M.tile, 17000);
   tiles.name = 'tps';
@@ -263,30 +282,39 @@ export function buildShip(M) {
   const makeFlap = (outline, phi, yBase, rootOffset, opts = {}) => {
     const xs = outline.map(p => p[0]);
     const geo = aeroPlate(outline, FLAP_T, {
-      edge: FLAP_T * 0.4,
+      edge: FLAP_T * 0.26,
       taper: spanTaper(Math.min(...xs), Math.max(...xs), opts.tipScale ?? 0.4),
     });
     const e1 = new THREE.Vector3(Math.sin(phi), 0, Math.cos(phi));
     const e2 = new THREE.Vector3(0, 1, 0);
     const e3 = new THREE.Vector3().crossVectors(e1, e2);   // flap face normal
+    const windwardIsPlusE3 = e3.z >= 0;
+    // On the pad the flaps are stowed, folded back around the hull towards the lee side, not
+    // held out perpendicular the way they are during entry. The hinge runs parallel to the
+    // vehicle axis, so the fold is a rotation about the flap's own +Y at the root.
+    const fold = (opts.fold ?? 0) * (windwardIsPlusE3 ? 1 : -1);
     const m = new THREE.Matrix4()
       .makeTranslation(e1.x * rootOffset, yBase, e1.z * rootOffset)
-      .multiply(new THREE.Matrix4().makeBasis(e1, e2, e3));
-    const flap = mesh(geo, M.steel);
+      .multiply(new THREE.Matrix4().makeBasis(e1, e2, e3))
+      .multiply(new THREE.Matrix4().makeRotationY(fold));
+    const flap = mesh(geo, M.steelFlap);
     flap.applyMatrix4(m);
     g.add(flap);
 
-    // Tiles on whichever face looks into the airstream (+Z, the belly side).
-    const windwardIsPlusE3 = e3.z >= 0;
-    const faceM = m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, windwardIsPlusE3 ? FLAP_T * 0.34 : -FLAP_T * 0.34));
-    if (!windwardIsPlusE3) faceM.multiply(new THREE.Matrix4().makeRotationX(Math.PI));
-    count = tilePolygon(tiles, outline, faceM, { circumradius: TILE_R, startIndex: count, rng, inset: 0.14 });
+    // Tiles on whichever face looks into the airstream (+Z, the belly side). The tile itself
+    // is turned to face −Z when needed; rotating the frame would mirror the planform and lay
+    // the patch out somewhere it does not belong.
+    const off = windwardIsPlusE3 ? FLAP_T * 0.34 : -FLAP_T * 0.34;
+    const faceM = m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, off));
+    count = tilePolygon(tiles, outline, faceM, {
+      circumradius: TILE_R, startIndex: count, rng, inset: 0.02, flip: !windwardIsPlusE3,
+    });
 
     // Hinge fairing blended into the hull along the root, capped so the ends do not read as
     // bright spheres against the tiled hull.
     const y0 = Math.min(...outline.map(p => p[1])), y1 = Math.max(...outline.map(p => p[1]));
     const hr = opts.hinge ?? 0.5;
-    const hinge = mesh(new THREE.CapsuleGeometry(hr, Math.max(0.1, y1 - y0 - hr * 1.2), 6, 20), M.steelWarm);
+    const hinge = mesh(new THREE.CapsuleGeometry(hr, Math.max(0.1, y1 - y0 - hr * 1.2), 6, 20), M.steelFlap);
     hinge.position.set(e1.x * (rootOffset - 0.12), yBase + (y0 + y1) / 2, e1.z * (rootOffset - 0.12));
     g.add(hinge);
     return flap;
@@ -295,8 +323,9 @@ export function buildShip(M) {
   // Aft flaps: hinged about an axis parallel to the vehicle, just leeward of the sides.
   const aftOutline = [[0, 0], [2.2, 0.35], [3.9, 1.5], [4.25, 3.2], [3.6, 6.1], [2.5, 7.5], [0, 7.8]];
   const aftPhi = THREE.MathUtils.degToRad(96);
-  makeFlap(aftOutline, aftPhi, rings(1), R - 0.08, { hinge: 0.55 });
-  makeFlap(aftOutline, -aftPhi, rings(1), R - 0.08, { hinge: 0.55 });
+  const AFT_FOLD = THREE.MathUtils.degToRad(46);
+  makeFlap(aftOutline, aftPhi, rings(1), R - 0.08, { hinge: 0.55, fold: AFT_FOLD, tipScale: 0.62 });
+  makeFlap(aftOutline, -aftPhi, rings(1), R - 0.08, { hinge: 0.55, fold: AFT_FOLD, tipScale: 0.62 });
 
   // Forward flaps: leeward, 140° apart on Block 2+, straddling the barrel/nose transition.
   const fwdBase = rings(20) - 0.6;                // 36.0 m
@@ -307,10 +336,11 @@ export function buildShip(M) {
   const fwdOutline = [];
   for (let i = 0; i <= 10; i++) { const y = (i / 10) * fwdLen; fwdOutline.push([rootAt(y), y]); }
   fwdOutline.push([rootAt(fwdLen) + 0.45, fwdLen]);
-  for (const [y, w] of [[6.35, 1.1], [5.3, 2.4], [3.7, 3.35], [1.9, 3.5], [0.55, 2.0]]) fwdOutline.push([rootAt(y) + w, y]);
+  for (const [y, w] of [[6.35, 0.95], [5.3, 2.1], [3.7, 2.95], [1.9, 3.05], [0.55, 1.75]]) fwdOutline.push([rootAt(y) + w, y]);
   const fwdPhi = THREE.MathUtils.degToRad(110);   // ±110° ⇒ 140° apart across the lee side
-  makeFlap(fwdOutline, fwdPhi, fwdBase, R - 0.08, { hinge: 0.42, tipScale: 0.35 });
-  makeFlap(fwdOutline, -fwdPhi, fwdBase, R - 0.08, { hinge: 0.42, tipScale: 0.35 });
+  const FWD_FOLD = THREE.MathUtils.degToRad(60);
+  makeFlap(fwdOutline, fwdPhi, fwdBase, R - 0.08, { hinge: 0.42, tipScale: 0.55, fold: FWD_FOLD });
+  makeFlap(fwdOutline, -fwdPhi, fwdBase, R - 0.08, { hinge: 0.42, tipScale: 0.55, fold: FWD_FOLD });
 
   tiles.count = count;
   tiles.instanceMatrix.needsUpdate = true;
@@ -320,8 +350,8 @@ export function buildShip(M) {
 
   // Leeward raceway over the LOX downcomer, stopping below the forward flaps.
   const raceLen = barrelTop - skirtTop - 2.4;
-  const race = raceway(M, raceLen, { width: 1.15, depth: 0.34 });
-  race.position.set(Math.sin(RACE_PHI) * (R + 0.14), skirtTop + 1.2 + raceLen / 2, Math.cos(RACE_PHI) * (R + 0.14));
+  const race = raceway(M, raceLen, { width: 1.0, depth: 0.34 });
+  race.position.set(Math.sin(RACE_PHI) * (R - 0.02), skirtTop + 1.2 + raceLen / 2, Math.cos(RACE_PHI) * (R - 0.02));
   race.rotation.y = RACE_PHI;
   g.add(race);
 
@@ -332,21 +362,21 @@ export function buildShip(M) {
   const dPhi = doorW / R;
   const arc = (r, y0, y1, phi0, len, seg = 26) =>
     lathe([{ r, y: y0 }, { r, y: y1 }], { segments: seg, phiStart: phi0, phiLength: len });
-  g.add(mesh(arc(R + 0.014, doorY - doorH / 2, doorY + doorH / 2, DOOR_PHI - dPhi / 2, dPhi),
+  g.add(mesh(arc(R + 0.005, doorY - doorH / 2, doorY + doorH / 2, DOOR_PHI - dPhi / 2, dPhi),
     M.steelDoor, { castShadow: false, name: 'payload-door' }));
   const frame = [];
   const fw = 0.05;
   for (const s of [-1, 1]) {
-    frame.push(arc(R + 0.02, doorY + s * (doorH / 2), doorY + s * (doorH / 2 - s * fw * 2), DOOR_PHI - dPhi / 2 - 0.01, dPhi + 0.02));
-    frame.push(arc(R + 0.02, doorY - doorH / 2, doorY + doorH / 2, DOOR_PHI + s * dPhi / 2 - 0.008, 0.016, 2));
+    frame.push(arc(R + 0.012, doorY + s * (doorH / 2), doorY + s * (doorH / 2 - s * fw * 2), DOOR_PHI - dPhi / 2 - 0.01, dPhi + 0.02));
+    frame.push(arc(R + 0.012, doorY - doorH / 2, doorY + doorH / 2, DOOR_PHI + s * dPhi / 2 - 0.008, 0.016, 2));
   }
   for (const f of frame) g.add(mesh(f, M.blackMatte, { castShadow: false }));
 
   // Catch hardpoints under the forward flaps (Block 3 is caught by the ship's own pins).
   for (const s of [1, -1]) {
     const phi = s * fwdPhi;
-    const pin = mesh(new THREE.CylinderGeometry(0.26, 0.3, 1.1, 20), M.darkMetal);
-    pin.position.set(Math.sin(phi) * (R + 0.55), fwdBase - 0.9, Math.cos(phi) * (R + 0.55));
+    const pin = mesh(new THREE.CylinderGeometry(0.24, 0.28, 0.7, 20), M.darkMetal);
+    pin.position.set(Math.sin(phi) * (R + 0.34), fwdBase - 0.9, Math.cos(phi) * (R + 0.34));
     pin.rotation.set(Math.PI / 2, phi, 0, 'YXZ');
     g.add(pin);
   }

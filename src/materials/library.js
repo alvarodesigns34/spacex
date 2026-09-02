@@ -49,7 +49,10 @@ export function createMaterials(onProgress = () => {}) {
   M.steelSkirt = new THREE.MeshPhysicalMaterial({ ...steelBase, anisotropy: 0.25, envMapIntensity: 0.9, map: T.steelSkirt.map, roughnessMap: T.steelSkirt.roughnessMap, normalMap: T.steelSkirt.normalMap });
   M.steelWarm = new THREE.MeshPhysicalMaterial({ ...steelBase, anisotropy: 0.35, envMapIntensity: 1.0, map: T.steelWarm.map, roughnessMap: T.steelWarm.roughnessMap, normalMap: T.steelWarm.normalMap });
   // Payload-bay door seam: the same steel, darkened, so the outline reads without a decal.
-  M.steelDoor = new THREE.MeshPhysicalMaterial({ ...steelBase, color: 0xb9bcc0, map: T.steelWarm.map, roughnessMap: T.steelWarm.roughnessMap, normalMap: T.steel.normalMap, envMapIntensity: 0.8 });
+  M.steelDoor = new THREE.MeshPhysicalMaterial({ ...steelBase, color: 0xeceded, map: T.steel.map, roughnessMap: T.steel.roughnessMap, normalMap: T.steel.normalMap, envMapIntensity: 1.0 });
+  // Flap skins: the same steel, but rougher so the rounded leading edge catches a soft
+  // highlight instead of drawing a mirror-bright outline against the sky.
+  M.steelFlap = new THREE.MeshPhysicalMaterial({ ...steelBase, color: 0xd9dade, anisotropy: 0.2, envMapIntensity: 0.45, map: T.steelWarm.map, roughnessMap: T.steelWarm.roughnessMap, normalMap: T.steel.normalMap, normalScale: new THREE.Vector2(0.5, 0.5) });
   M.steelInner = new THREE.MeshStandardMaterial({ color: 0x7d8085, metalness: 0.9, roughness: 0.55 });
 
   // ---- Thermal protection ------------------------------------------------------------
@@ -92,7 +95,7 @@ export function createMaterials(onProgress = () => {}) {
   M.bell = new THREE.MeshStandardMaterial({ map: T.bell.map, roughnessMap: T.bell.roughnessMap, metalness: 0.85, roughness: 1.0 });
   M.bellCool = new THREE.MeshStandardMaterial({ map: T.bellCool.map, roughnessMap: T.bellCool.roughnessMap, metalness: 0.8, roughness: 1.0 });
   M.bellInner = new THREE.MeshStandardMaterial({ color: 0x241f1d, metalness: 0.7, roughness: 0.55 });
-  M.conduit = new THREE.MeshPhysicalMaterial({ color: 0xa9aeb3, metalness: 0.55, roughness: 0.55, map: T.steelWarm.map, roughnessMap: T.steelWarm.roughnessMap, normalMap: T.steel.normalMap, normalScale: new THREE.Vector2(0.5, 0.5), envMapIntensity: 0.6 });
+  M.conduit = new THREE.MeshPhysicalMaterial({ color: 0x8f9499, metalness: 0.3, roughness: 0.7, map: T.steelWarm.map, roughnessMap: T.steelWarm.roughnessMap, envMapIntensity: 0.3 });
   M.darkMetal = new THREE.MeshStandardMaterial({ map: T.greyDark.map, roughnessMap: T.greyDark.roughnessMap, metalness: 0.85, roughness: 1.0 });
   M.titanium = new THREE.MeshPhysicalMaterial({ color: 0x8f8a83, metalness: 1.0, roughness: 0.44, anisotropy: 0.3 });
   M.blackMatte = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.78, metalness: 0.1 });

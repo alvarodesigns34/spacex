@@ -79,12 +79,12 @@ export function heightToNormal(src, strength = 2) {
   return out;
 }
 
-export function toTexture(c, { srgb = false, tileSize = null, wrap = THREE.RepeatWrapping, anisotropy = 8 } = {}) {
+export function toTexture(c, { srgb = false, tileSize = null, tileSizeU = null, wrap = THREE.RepeatWrapping, anisotropy = 8 } = {}) {
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = wrap;
   t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
   t.anisotropy = anisotropy;
-  if (tileSize) t.repeat.set(1 / tileSize, 1 / tileSize);
+  if (tileSize) t.repeat.set(1 / (tileSizeU ?? tileSize), 1 / tileSize);
   t.needsUpdate = true;
   return t;
 }
@@ -97,8 +97,10 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
   const map = canvas(size, size);
   const rough = canvas(size, size);
   // Roll-forming leaves fine circumferential brushing; column-based streaks + fine grain.
+  // Brushing runs fine and high-frequency: anything low-frequency here would tile visibly
+  // around the circumference.
   const colStreak = new Float32Array(size);
-  for (let x = 0; x < size; x++) colStreak[x] = fbm(x * 0.09, 3.7, 3) * 0.6 + fbm(x * 0.9, 11.1, 2) * 0.4;
+  for (let x = 0; x < size; x++) colStreak[x] = fbm(x * 0.55, 3.7, 2) * 0.45 + fbm(x * 1.9, 11.1, 2) * 0.55;
   // Weld bead profile at v = 0.5 (one ring per tile) plus the narrow heat-affected zone.
   const bead = new Float32Array(size);
   const haz = new Float32Array(size);
@@ -110,15 +112,15 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
   shade(map, (x, y, u, v) => {
     const streak = (colStreak[x] - 0.5) * 0.16;
     const grain = (noise2(x * 0.6, y * 0.6) - 0.5) * 0.045;
-    const blotch = (fbm(u * 5 + 7, v * 5 + 3, 3) - 0.5) * 0.10;
+    const blotch = (fbm(u * 6 + 7, v * 9 + 3, 4) - 0.5) * 0.05;
     // Mill-finish stainless is bright; the map is mostly reflectance modulation.
-    let base = 0.80 + streak + grain + blotch;
+    let base = 0.80 + streak * 0.7 + grain + blotch;
     let r = base, g = base, b = base;
     // Heat-affected zone next to each weld runs slightly straw/blue.
-    const hazMix = haz[y] * (0.35 + 0.65 * fbm(u * 7 + 2, v * 3, 2));
+    const hazMix = haz[y] * (0.35 + 0.65 * fbm(u * 6 + 2, v * 4, 3));
     r = lerp(r, base * 0.97, hazMix); g = lerp(g, base * 0.93, hazMix); b = lerp(b, base * 0.88, hazMix);
     if (heat > 0) {
-      const heatMix = heat * (0.5 + 0.5 * fbm(u * 3 + 1, v * 3 + 9, 3));
+      const heatMix = heat * (0.5 + 0.5 * fbm(u * 7 + 1, v * 5 + 9, 4));
       r = lerp(r, base * 0.90, heatMix); g = lerp(g, base * 0.76, heatMix); b = lerp(b, base * 0.60, heatMix);
       // Weld/flame discolouration on stainless runs straw → light blue; keep it subtle so it
       // reads as tempering rather than as paint.
@@ -126,7 +128,7 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
       r = lerp(r, base * 0.72, blue); g = lerp(g, base * 0.76, blue); b = lerp(b, base * 0.86, blue);
     }
     if (soot > 0) {
-      const sm = soot * (0.35 + 0.65 * fbm(u * 2 + 11, v * 8, 3));
+      const sm = soot * (0.35 + 0.65 * fbm(u * 5 + 11, v * 8, 4));
       r *= (1 - sm * 0.72); g *= (1 - sm * 0.72); b *= (1 - sm * 0.70);
     }
     const dark = bead[y] * 0.30;
@@ -135,7 +137,7 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
   shade(rough, (x, y, u, v) => {
     // Bright mill finish: low roughness on the panels, rough at the weld and where it is
     // sooted or heat-tinted, which is what makes the ring seams read at a distance.
-    const base = 0.20 + (colStreak[x] - 0.5) * 0.10 + (fbm(u * 8, v * 8, 3) - 0.5) * 0.10
+    const base = 0.22 + (colStreak[x] - 0.5) * 0.07 + (fbm(u * 7, v * 10, 3) - 0.5) * 0.07
       + bead[y] * 0.42 + haz[y] * 0.10 + heat * 0.16 + soot * 0.34;
     const g = clamp(base * 255);
     return [g, g, g];
@@ -145,15 +147,16 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
     shade(height, (x, y, u, v) => {
       // Bead proud of the sheet, plus a shallow dish either side from weld shrinkage.
       const h = 0.5 + bead[y] * 0.42 - haz[y] * 0.10
-        + (noise2(x * 0.6, y * 0.6) - 0.5) * 0.05 + (fbm(u * 4, v * 16, 2) - 0.5) * 0.06;
+        + (noise2(x * 0.6, y * 0.6) - 0.5) * 0.05 + (fbm(u * 1.5, v * 16, 2) - 0.5) * 0.05;
       const g = clamp(h * 255);
       return [g, g, g];
     });
-    _steelNormal = toTexture(heightToNormal(height, 1.8), { tileSize: ring });
+    _steelNormal = toTexture(heightToNormal(height, 1.8), { tileSize: ring, tileSizeU: ring * 6 });
   }
+  const U = ring * 6;
   return {
-    map: toTexture(map, { srgb: true, tileSize: ring }),
-    roughnessMap: toTexture(rough, { tileSize: ring }),
+    map: toTexture(map, { srgb: true, tileSize: ring, tileSizeU: U }),
+    roughnessMap: toTexture(rough, { tileSize: ring, tileSizeU: U }),
     normalMap: _steelNormal,
     tileSize: ring,
   };

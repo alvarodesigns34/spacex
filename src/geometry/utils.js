@@ -350,7 +350,7 @@ export function tileSurfaceOfRevolution(mesh, profile, opts) {
 export function tilePolygon(mesh, polygon, matrix, opts) {
   const {
     circumradius, startIndex = 0, colorJitter = 0.04, base = new THREE.Color(0x1b1b1d),
-    rng = Math.random, gap = 1.028, inset = 0,
+    rng = Math.random, gap = 1.028, inset = 0, flip = false,
   } = opts;
   const w = Math.sqrt(3) * circumradius * gap;
   const dy = 1.5 * circumradius * gap;
@@ -367,7 +367,9 @@ export function tilePolygon(mesh, polygon, matrix, opts) {
       if (!pointInPolygon(x, y, polygon, inset + circumradius * 0.8)) continue;
       if (i >= mesh.count) return i;
       dummy.position.set(x, y, 0);
-      dummy.rotation.set(0, 0, (rng() - 0.5) * 0.018);
+      // `flip` turns each tile to face −Z. Rotating the frame instead would mirror the
+      // polygon's Y axis and lay the whole patch out somewhere it does not belong.
+      dummy.rotation.set(flip ? Math.PI : 0, 0, (rng() - 0.5) * 0.018);
       dummy.updateMatrix();
       local.multiplyMatrices(matrix, dummy.matrix);
       mesh.setMatrixAt(i, local);
