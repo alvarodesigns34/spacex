@@ -9,12 +9,26 @@ export function createEnvironment(renderer, scene, M) {
 
   // --- Sky (physical atmosphere shader) ---
   const sky = new Sky();
-  sky.scale.setScalar(6000);
+  // Big enough that the camera stays inside it at any altitude the launch reaches; the
+  // shader only uses direction, so the box is re-centred on the camera every frame.
+  sky.scale.setScalar(400000);
   const su = sky.material.uniforms;
   su.turbidity.value = 2.1;
   su.rayleigh.value = 1.9;
   su.mieCoefficient.value = 0.0035;
   su.mieDirectionalG.value = 0.86;
+  // The atmosphere shader applies its own tone curve, so pulling its scattering to zero
+  // still leaves a grey-blue field rather than space. Fading the whole sky out over a black
+  // background is the honest way to reach a black sky at altitude.
+  const skyFade = { value: 1 };
+  sky.material.transparent = true;
+  sky.material.depthWrite = false;
+  sky.material.onBeforeCompile = (sh) => {
+    sh.uniforms.uFade = skyFade;
+    sh.fragmentShader = `uniform float uFade;\n${sh.fragmentShader}`
+      .replace('gl_FragColor = vec4( retColor, 1.0 );', 'gl_FragColor = vec4( retColor, uFade );');
+  };
+  scene.background = new THREE.Color(0x03050b);
   scene.add(sky);
 
   // --- Environment map for reflections: a private scene with the same sky + a ground disc ---
@@ -64,6 +78,33 @@ export function createEnvironment(renderer, scene, M) {
 
   const fog = new THREE.FogExp2(0xc9d3de, 0.00019);
   scene.fog = fog;
+  const GROUND_FOG = 0.00019;
+  let skyBase = { turbidity: 2.1, rayleigh: 1.9, mie: 0.0035 };
+  let envIntensity = 1.0, hemiBase = 0.45;
+
+  /** Keeps the sky centred on the viewer. Cheap, and the only way it survives an ascent. */
+  function followCamera(camera) { sky.position.copy(camera.position); }
+
+  /**
+   * Thins the atmosphere with altitude: the haze goes first, then the Rayleigh scattering
+   * that makes the sky blue, then the ambient fill, so the background darkens towards black
+   * the way it does on an ascent camera. Deliberately does NOT touch the PMREM environment
+   * map — setSun() regenerates it on every call, and doing that per frame would be ruinous.
+   */
+  function setAltitude(h) {
+    const k = THREE.MathUtils.clamp(h / 26000, 0, 1);      // fully thin by ~26 km
+    const j = 1 - Math.pow(1 - k, 2.2);
+    su.rayleigh.value = skyBase.rayleigh * (1 - j * 0.985);
+    su.turbidity.value = skyBase.turbidity * (1 - j * 0.97);
+    su.mieCoefficient.value = skyBase.mie * (1 - j * 0.9);
+    fog.density = GROUND_FOG * (1 - THREE.MathUtils.clamp(h / 9000, 0, 1));
+    skyFade.value = 1 - j * 0.94;
+    scene.environmentIntensity = envIntensity * (1 - j * 0.55);
+    hemi.intensity = hemiBase * (1 - j * 0.9);
+    // Stretch the apron so there is still a surface under the vehicle on the way up. The
+    // concrete tiles metrically, so it coarsens rather than smearing.
+    ground.scale.setScalar(THREE.MathUtils.clamp(1 + h / 900, 1, 34));
+  }
 
   function setSun(elevationDeg, azimuthDeg) {
     const phi = THREE.MathUtils.degToRad(90 - elevationDeg);
@@ -88,6 +129,8 @@ export function createEnvironment(renderer, scene, M) {
     if (envRT) envRT.dispose();
     envRT = pmrem.fromScene(envScene, 0.02);
     scene.environment = envRT.texture;
+    skyBase = { turbidity: su.turbidity.value, rayleigh: su.rayleigh.value, mie: su.mieCoefficient.value };
+    hemiBase = hemi.intensity;
     scene.environmentIntensity = 1.0;
   }
 
@@ -109,5 +152,5 @@ export function createEnvironment(renderer, scene, M) {
   // raked about 35° off the camera axis for modelling rather than flat frontal light.
   setSun(42, 34);
 
-  return { sun, sky, hemi, ground, setSun, updateShadow, addStation, get sunDir() { return sunDir; } };
+  return { sun, sky, hemi, ground, setSun, setAltitude, followCamera, updateShadow, addStation, get sunDir() { return sunDir; } };
 }

@@ -6,7 +6,7 @@ import { SOURCES, SOURCE_LABEL } from '../data/specs.js';
 
 const fmtHeight = (h) => (h >= 10 ? `${Math.round(h)} m` : `${String(h).replace('.', ',')} m`);
 
-export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSun, onReset }) {
+export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSun, onReset, onLaunch, onLaunchAbort, onLaunchSpeed }) {
   const root = document.getElementById('hud');
   root.innerHTML = `
     <header class="hud-header">
@@ -41,8 +41,29 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       <label class="tool"><input type="checkbox" id="tg-ruler" checked> Regla <kbd>R</kbd></label>
       <label class="tool"><input type="checkbox" id="tg-humans" checked> Figuras 1,80 m</label>
       <label class="tool tool-sun">Sol <input type="range" id="sun" min="6" max="75" value="42" step="1"></label>
+      <button class="tool tool-btn tool-launch" id="launch-btn" title="Secuencia de lanzamiento de Starship (G)">Lanzamiento <kbd>G</kbd></button>
       <button class="tool tool-btn" id="mode-btn" title="Cambiar modo de cámara (F)">Órbita <kbd>F</kbd></button>
       <button class="tool tool-btn" id="help-btn" title="Ayuda (H)">Ayuda <kbd>H</kbd></button>
+    </div>
+
+    <div class="mission hidden" id="mission">
+      <div class="mission-head">
+        <span class="mission-clock" id="mission-clock">T−00:00:12</span>
+        <span class="mission-phase" id="mission-phase">Cuenta atrás</span>
+      </div>
+      <div class="mission-telemetry">
+        <div><span>Altitud</span><b id="m-alt">0 m</b></div>
+        <div><span>Velocidad</span><b id="m-vel">0 km/h</b></div>
+        <div><span>Distancia</span><b id="m-down">0 m</b></div>
+        <div><span>Empuje</span><b id="m-thr">0 %</b></div>
+      </div>
+      <div class="mission-foot">
+        <div class="mission-speeds" id="mission-speeds">
+          <button data-k="1" class="active">×1</button><button data-k="2">×2</button><button data-k="5">×5</button><button data-k="10">×10</button>
+        </div>
+        <button class="mission-abort" id="mission-abort">Terminar</button>
+      </div>
+      <p class="mission-note">Hitos según la cronología publicada del vuelo (T+0:02 despegue · 1:02 Max-Q · 2:32 MECO · 2:40 separación en caliente). La curva de altitud y velocidad entre ellos es una reconstrucción.</p>
     </div>
 
     <div class="scale" id="scale">
@@ -59,6 +80,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
           <tr><td><kbd>1</kbd>–<kbd>5</kbd></td><td>seleccionar vehículo</td></tr>
           <tr><td><kbd>L</kbd> <kbd>R</kbd> <kbd>T</kbd></td><td>etiquetas · regla · ficha</td></tr>
           <tr><td><kbd>0</kbd></td><td>vista general del centro</td></tr>
+          <tr><td><kbd>G</kbd></td><td>secuencia de lanzamiento de Starship · durante la cuenta y el ascenso, arrastrar o girar la rueda devuelve el control de la cámara sin detenerla</td></tr>
         </table>
         <p class="help-note">Escala 1:1 — cada unidad de la escena es un metro. Las cifras marcadas <span class="chip chip-approx">≈</span> no tienen valor público exacto y se han reconstruido a partir de imágenes.</p>
         <button class="btn" id="help-close">Cerrar</button>
@@ -144,6 +166,45 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
   el('#help-btn').addEventListener('click', () => help.classList.toggle('hidden'));
   el('#help-close').addEventListener('click', () => help.classList.add('hidden'));
 
+  // ---- Mission panel ----
+  const mission = el('#mission');
+  const launchBtn = el('#launch-btn');
+  const mClock = el('#mission-clock'), mPhase = el('#mission-phase');
+  const mAlt = el('#m-alt'), mVel = el('#m-vel'), mDown = el('#m-down'), mThr = el('#m-thr');
+  const speeds = [...root.querySelectorAll('#mission-speeds button')];
+  launchBtn.addEventListener('click', () => onLaunch?.());
+  el('#mission-abort').addEventListener('click', () => onLaunchAbort?.());
+  for (const b of speeds) {
+    b.addEventListener('click', () => {
+      speeds.forEach(o => o.classList.toggle('active', o === b));
+      onLaunchSpeed?.(Number(b.dataset.k));
+    });
+  }
+  const clockText = (t) => {
+    const a = Math.abs(t);
+    return `T${t < 0 ? '−' : '+'}00:${String(Math.floor(a / 60)).padStart(2, '0')}:${String(Math.floor(a % 60)).padStart(2, '0')}`;
+  };
+  const dist = (m) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(m < 10000 ? 2 : 1).replace('.', ',')} km`);
+  /** Called every frame while a sequence runs; null puts the panel away. */
+  function setMission(st) {
+    if (!st) {
+      mission.classList.add('hidden');
+      document.body.classList.remove('is-flying');
+      launchBtn.classList.remove('is-live');
+      speeds.forEach((o, i) => o.classList.toggle('active', i === 0));
+      return;
+    }
+    mission.classList.remove('hidden');
+    document.body.classList.add('is-flying');
+    launchBtn.classList.add('is-live');
+    mClock.textContent = clockText(st.t);
+    mPhase.textContent = st.phase;
+    mAlt.textContent = dist(st.altitude);
+    mVel.textContent = `${Math.round(st.velocity * 3.6).toLocaleString('es-ES')} km/h`;
+    mDown.textContent = dist(st.downrange);
+    mThr.textContent = `${Math.round(st.throttle * 100)} %`;
+  }
+
   function setMode(mode) {
     el('#mode-btn').innerHTML = (mode === 'fly' ? 'Vuelo libre' : 'Órbita') + ' <kbd>F</kbd>';
     root.classList.toggle('fly', mode === 'fly');
@@ -175,5 +236,5 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     if (map[name]) el(map[name]).checked = value;
   }
 
-  return { setActive, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, showHelp: (s) => help.classList.toggle('hidden', !s) };
+  return { setActive, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, showHelp: (s) => help.classList.toggle('hidden', !s) };
 }

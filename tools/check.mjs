@@ -85,6 +85,53 @@ try {
     }
   }
   report(bad.length === 0, `${Object.values(presets).flat().length} vistas`, bad.length ? `inválidas: ${bad.join(', ')}` : 'todas válidas');
+  // ---- Launch sequence -----------------------------------------------------------------
+  // The sequence has to be checkable, which is why seek() reproduces the full state for a
+  // mission time rather than only advancing. Every milestone must leave finite transforms
+  // and a camera above the apron, the profile must never run backwards, and putting the
+  // sequence away must leave the scene byte-for-byte as it was found.
+  const snapshot = () => page.evaluate(() => {
+    const v = window.__vc;
+    const f = v.exhibits.starship.flight;
+    const parts = v.complex.userData.parts;
+    return JSON.stringify({
+      flight: [...f.position.toArray(), f.rotation.z],
+      ship: v.scene.getObjectByName('ship').position.y,
+      booster: [v.scene.getObjectByName('superheavy').position.x, v.scene.getObjectByName('superheavy').rotation.z],
+      qd: parts.qdArm.rotation.y,
+      clamps: parts.holddowns.children.map(c => c.position.toArray()),
+      camera: [v.camera.near, v.camera.far],
+      fog: v.scene.fog.density,
+      shadows: v.env.sun.castShadow,
+    });
+  });
+  const before = await snapshot();
+
+  const times = [-10, -1, 2, 8, 20, 62, 110, 152, 161, 175, 194];
+  const badT = [];
+  let lastAlt = -1, lastVel = -1, monotonic = true;
+  for (const t of times) {
+    const r = await page.evaluate((tt) => {
+      const v = window.__vc;
+      v.launch.seek(tt);
+      const f = v.exhibits.starship.flight;
+      const st = v.launch.state;
+      const nums = [...f.position.toArray(), f.rotation.z, ...v.camera.position.toArray(), st.altitude, st.velocity, st.throttle];
+      return { finite: nums.every(Number.isFinite), camY: v.camera.position.y, alt: st.altitude, vel: st.velocity };
+    }, t);
+    if (!r.finite || r.camY < 0.2) badT.push(`t=${t}`);
+    if (r.alt < lastAlt - 1e-6 || r.vel < lastVel - 1e-6) monotonic = false;
+    lastAlt = r.alt; lastVel = r.vel;
+  }
+  report(badT.length === 0, `${times.length} instantes de la secuencia`,
+    badT.length ? `inválidos: ${badT.join(', ')}` : 'transformadas finitas y cámara sobre la explanada');
+  report(monotonic, 'perfil de ascenso monótono', monotonic ? 'altitud y velocidad no retroceden' : 'la curva retrocede');
+
+  await page.evaluate(() => window.__vc.launch.reset(false));
+  const after = await snapshot();
+  report(before === after, 'la secuencia deja la escena como la encontró',
+    before === after ? 'vehículo, brazo, pinzas, cámara y niebla restaurados' : 'estado residual tras reset()');
+
   report(consoleErrors.length === 0, 'consola limpia', consoleErrors.slice(0, 5).join(' | '));
 } catch (err) {
   report(false, 'carga de la aplicación', err.message);

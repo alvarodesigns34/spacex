@@ -352,7 +352,8 @@ function buildField(M) {
   g.name = 'pad-field';
   const masts = [];
   for (const sz of [-1, 1]) {
-    const x = 52, z = sz * 62;
+    // Behind the tower, where they do not stand between the standard views and the vehicle.
+    const x = -96, z = sz * 78;
     masts.push({ geometry: new THREE.CylinderGeometry(0.35, 1.5, PAD.mastH, 12), matrix: mat4([x, PAD.mastH / 2, z]) });
     masts.push({ geometry: new THREE.CylinderGeometry(0.08, 0.2, 9, 8), matrix: mat4([x, PAD.mastH + 4.5, z]) });
   }

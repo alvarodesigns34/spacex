@@ -21,6 +21,7 @@ import { buildStarlink } from './vehicles/starlink.js';
 import { buildMount, buildPedestal, buildHuman } from './vehicles/common.js';
 import { buildLaunchComplex, PAD } from './vehicles/pad.js';
 import { verifyExhibits, verifyScene, verifyPad } from './data/verify.js';
+import { createLaunch } from './sim/launch.js';
 
 // Exhibit layout (world X, metres). Mount heights are presentation choices.
 // `yaw` turns an exhibit on its mount. Starship is asymmetric — heat shield on the belly,
@@ -77,6 +78,9 @@ async function main() {
     onMode: () => rig.setMode(rig.mode === 'fly' ? 'orbit' : 'fly'),
     onSun: (elev) => env.setSun(elev, 34),
     onReset: () => select(null),
+    onLaunch: () => toggleLaunch(),
+    onLaunchAbort: () => launch?.reset(),
+    onLaunchSpeed: (k) => launch?.setSpeed(k),
   });
   rig.onModeChange = (m) => hud.setMode(m);
   hud.setMode('orbit');
@@ -228,6 +232,14 @@ async function main() {
     exhibits[v.id].ruler = ruler;
   }
 
+  // ---- Launch sequence ----
+  const launch = createLaunch({
+    scene, exhibits, complex, env, rig, camera,
+    onState: (st) => hud.setMission(st.running ? st : null),
+    onFinish: () => goPreset('starship', 'site'),
+  });
+  launch.setVisibilityHook((flying) => { launchFlying = flying; applyVisibility(); });
+
   hud.setProgress('Compilando shaders…', 0.95);
   await nextFrame();
   renderer.compile(scene, camera);
@@ -238,18 +250,28 @@ async function main() {
 
   // ---- Interaction ----
   const state = { labels: true, ruler: true, humans: true };
+  let launchFlying = false;
   function setToggle(name, value) {
     state[name] = value;
-    if (name === 'humans') humans.visible = value;
     applyVisibility();
     hud.toggle(name, value);
   }
   function applyVisibility() {
+    // Callouts, rulers and the scale figures are museum furniture: they belong on a vehicle
+    // standing on its mount, not on one that has left it.
     for (const [id, ex] of Object.entries(exhibits)) {
-      const on = id === active;
+      const on = id === active && !launchFlying;
       labels.getObjectByName(`labels-${id}`).visible = on && state.labels;
       ex.ruler.visible = on && state.ruler;
     }
+    humans.visible = state.humans && !launchFlying;
+  }
+
+  function toggleLaunch() {
+    if (launch.running) { launch.reset(); return; }
+    active = 'starship';
+    hud.setActive('starship');
+    launch.start();
   }
   function worldPreset(id, presetId) {
     const ex = exhibits[id];
@@ -266,6 +288,9 @@ async function main() {
     return { pos: put(p.pos), target: put(p.target) };
   }
   function select(id) {
+    // Picking a vehicle is a request to look at the museum, so it ends a running sequence
+    // rather than fighting it for the camera.
+    if (launch.running) launch.reset(false);
     active = id;
     hud.setActive(id);
     applyVisibility();
@@ -289,6 +314,7 @@ async function main() {
     if (k >= '1' && k <= '5') select(VEHICLES[Number(k) - 1].id);
     else if (k === '0') select(null);
     else if (k === 'f') rig.setMode(rig.mode === 'fly' ? 'orbit' : 'fly');
+    else if (k === 'g') toggleLaunch();
     else if (k === 'l') setToggle('labels', !state.labels);
     else if (k === 'r') setToggle('ruler', !state.ruler);
     else if (k === 't') hud.toggleSheet();
@@ -357,7 +383,9 @@ async function main() {
     const mpp = (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) / window.innerHeight;
     for (const ex of Object.values(exhibits)) {
       if (!ex.lod) continue;
-      _lodC.set(ex.lay.x, ex.hullTop * 0.5, ex.lay.z);
+      // A vehicle that has left its mount is measured from where it actually is.
+      const f = ex.flight;
+      _lodC.set(ex.lay.x + (f ? f.position.x : 0), ex.hullTop * 0.5 + (f ? f.position.y : 0), ex.lay.z);
       const px = 0.26 / (camera.position.distanceTo(_lodC) * mpp);
       const near = px > 3.5;
       // Track the state explicitly: inferring it from the far group's visibility silently
@@ -372,6 +400,9 @@ async function main() {
   function frame() {
     const dt = Math.min(clock.getDelta(), 0.05);
     rig.update(dt);
+    launch.update(dt);
+    // The sky is a finite box; centring it on the viewer is what lets it survive an ascent.
+    env.followCamera(camera);
     const target = rig.mode === 'fly' ? tmp.copy(camera.position).addScaledVector(camera.getWorldDirection(new THREE.Vector3()), 25) : rig.target;
     const dist = rig.mode === 'fly' ? 25 : rig.distance;
     env.updateShadow(target, dist);
@@ -388,8 +419,13 @@ async function main() {
   frame();
 
   // expose for debugging / automated checks
-  const verify = () => ({ dimensions: verifyExhibits(exhibits), pad: verifyPad(complex), scene: verifyScene(scene) });
-  window.__vc = { M, scene, camera, rig, exhibits, complex, select, goPreset, jump, renderer, env, setToggle, timings, verify };
+  // Measuring a vehicle in mid-flight would measure the wrong thing, so verification always
+  // puts the sequence back on the pad first.
+  const verify = () => {
+    launch.reset(false);
+    return { dimensions: verifyExhibits(exhibits), pad: verifyPad(complex), scene: verifyScene(scene) };
+  };
+  window.__vc = { M, scene, camera, rig, exhibits, complex, launch, select, goPreset, jump, renderer, env, setToggle, timings, verify };
   if (new URLSearchParams(location.search).has('verify')) verify();
 }
 

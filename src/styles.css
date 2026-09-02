@@ -139,3 +139,39 @@ a:hover { border-bottom-color: var(--accent); }
    right back, so the callout order stays stable while the far side reads as hidden. */
 .label.is-occluded { opacity: 0.14; filter: saturate(0.2); }
 .label { transition: opacity var(--dur-fast) linear; }
+
+/* ---- Launch sequence ---------------------------------------------------------------- */
+.tool-launch { color: var(--ink); border-color: color-mix(in srgb, var(--accent) 55%, var(--surface-line)); }
+.tool-launch:hover { border-color: var(--accent); }
+.tool-launch.is-live { background: color-mix(in srgb, var(--accent) 22%, var(--surface-raised)); border-color: var(--accent); color: var(--ink); }
+
+.mission {
+  position: absolute; left: 24px; bottom: 28px;
+  width: min(440px, calc(100vw - 48px));
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px 16px 12px;
+  background: var(--surface-raised); border: 1px solid var(--surface-line);
+  border-radius: 8px; backdrop-filter: blur(8px);
+}
+.mission.hidden { display: none; }
+.mission-head { display: flex; align-items: baseline; gap: 14px; }
+.mission-clock { font-family: var(--font-mono); font-size: 1.28rem; font-variant-numeric: tabular-nums; color: var(--ink); letter-spacing: 0.02em; }
+.mission-phase { font-size: 0.84rem; color: var(--accent); letter-spacing: 0.03em; }
+.mission-telemetry { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.mission-telemetry div { display: flex; flex-direction: column; gap: 2px; }
+.mission-telemetry span { font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); }
+.mission-telemetry b { font-family: var(--font-mono); font-size: 0.94rem; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink); }
+.mission-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.mission-speeds { display: inline-flex; gap: 2px; }
+.mission-speeds button {
+  font-family: var(--font-mono); font-size: 0.76rem; padding: 4px 9px; cursor: pointer;
+  background: transparent; color: var(--ink-faint);
+  border: 1px solid var(--surface-line); border-radius: 4px;
+}
+.mission-speeds button.active { color: var(--ink); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.mission-abort { font-size: 0.78rem; padding: 5px 12px; cursor: pointer; background: transparent; color: var(--ink-muted); border: 1px solid var(--surface-line); border-radius: 4px; }
+.mission-abort:hover { color: var(--ink); border-color: var(--ink-muted); }
+.mission-note { margin: 0; font-size: 0.66rem; line-height: 1.45; color: var(--ink-faint); }
+/* The scale bar occupies the same corner and means little while chasing a rocket, so the
+   mission panel takes the corner for the duration. */
+body.is-flying .scale { display: none; }

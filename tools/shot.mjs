@@ -26,9 +26,9 @@ const outdir = process.argv[2];
 const shots = JSON.parse(await readFile(process.argv[3], 'utf8'));
 for (const s of shots) {
   await page.evaluate((s)=>{
-    if (s.jump) window.__vc.jump(s.jump[0], s.jump[1]);
+    if (s.seek !== undefined) { window.__vc.launch.setSpeed(s.speed ?? 1); window.__vc.launch.seek(s.seek); }
+    else if (s.jump) window.__vc.jump(s.jump[0], s.jump[1]);
     else window.__vc.rig.jumpTo(s.pos, s.target);
-    if (s.eval) eval(s.eval);
   }, s);
   await page.waitForTimeout(s.wait ?? 700);
   await page.screenshot({ path: `${outdir}/${s.name}.png` });
