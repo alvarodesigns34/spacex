@@ -10,7 +10,7 @@ Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones
 | Dragon | Crew Dragon con trunk (paneles solares en media circunferencia, radiadores, aletas) | 8,1 m |
 | Starlink | V2 Mini con las dos alas solares desplegadas | 30 m de envergadura |
 
-Todo el modelo es procedural (sin binarios): las geometrías se generan a partir de perfiles de revolución con normales analíticas y UV métricas, los materiales PBR usan texturas generadas en Canvas (acero laminado con soldadura de anillo cada 1,83 m y costura vertical de placa cada 7,3 m, hollín, composite de carbono, células solares, PICA, hormigón) y el escudo térmico de Starship son ~13 000 losetas hexagonales instanciadas de 0,26 m entre caras sobre la mitad expuesta del casco, el morro y las aletas.
+Todo el modelo es procedural (sin binarios): las geometrías se generan a partir de perfiles de revolución con normales analíticas y UV métricas, los materiales PBR usan texturas generadas en Canvas (acero laminado con soldadura de anillo cada 1,83 m y costura vertical de placa cada 7,3 m, hollín, composite de carbono, células solares, PICA, hormigón) y el escudo térmico de Starship son ~13 300 losetas hexagonales instanciadas de 0,26 m entre caras sobre la mitad expuesta del casco, el morro y las aletas.
 
 Los acabados están calibrados contra fotografías del vehículo real: el acero inoxidable es **mate**, no espejo, y muestra las dos direcciones de soldadura; las losetas forman un **mosaico de gris carbón con variación en manchas** — no ruido por loseta, que se lee como escamas de pez — y no proyectan sombra sobre sí mismas; y las aletas son **oscuras por ambas caras**, con la de barlovento texturada.
 
@@ -62,9 +62,11 @@ El modelo no las oculta:
 - Los ≈30 m de envergadura y los ≈116 m² de superficie del Starlink V2 Mini no son compatibles con un ala de 4,1 m de ancho; el modelo respeta la envergadura y queda un 8 % por debajo en superficie.
 - Los 12,2 m del Falcon Heavy se miden entre cilindros; las patas plegadas sobresalen unos 0,3 m.
 
-### Verificación dimensional automática
+### Verificación automática
 
-`src/data/verify.js` mide la caja envolvente real de cada modelo construido y la compara con lo declarado. Se ejecuta con `?verify` en la URL o llamando a `window.__vc.verify()`:
+`src/data/verify.js` hace dos pasadas independientes, disponibles con `?verify` en la URL o llamando a `window.__vc.verify()`:
+
+**1. Dimensional** — mide la caja envolvente real de cada modelo construido, en su propio sistema de referencia, y la compara con lo declarado:
 
 ```
 vehicle       measure                 declared   built   err%
@@ -78,6 +80,12 @@ dragon        altura                  8.1        8.1        0
 dragon        envergadura / diámetro  4          4          0
 starlink      envergadura             30         30         0
 ```
+
+**2. Integridad de la escena** — recorre todas las mallas y detecta los modos de fallo que realmente han ocurrido en este proyecto: material que muestrea una textura sobre una geometría **sin atributo `uv`** (Three.js deriva las tangentes de las derivadas de `vUv`, así que un `vUv` constante las degenera y la superficie sale negra o reventada), geometría sin normales, y vértices no finitos. La comprobación está auto-testeada: romper una malla a propósito la hace saltar, repararla la devuelve a cero.
+
+### Puerta de validación en CI
+
+`npm run check` (`tools/check.mjs`) levanta el sitio, lo carga en Chromium headless y ejecuta las dos pasadas anteriores, recorre las 24 vistas autorizadas comprobando que la cámara resultante es finita y queda sobre la explanada, y exige consola limpia. Sale con código distinto de cero si algo falla, y el flujo de GitHub Actions **bloquea el despliegue** con ella.
 
 ## Capturas
 
@@ -114,10 +122,10 @@ Medido en la vista general con los cinco vehículos cargados:
 | | |
 |---|---|
 | Triángulos en vista general | ≈474 000 (escudo en su nivel de detalle lejano) |
-| Triángulos de cerca | ≈830 000 (de los cuales ≈365 000 son las losetas instanciadas) |
+| Triángulos de cerca | ≈857 000 (de los cuales ≈372 000 son las losetas instanciadas) |
 | Memoria de texturas | ≈81 MB en 37 mapas |
 | Generación de materiales | ≈2,8 s en el arranque |
-| Losetas instanciadas | 13 025 en 1 draw call |
+| Losetas instanciadas | 13 274 en 1 draw call |
 
 Las losetas usan un prisma hexagonal de 28 triángulos sin cara trasera (nunca visible, siempre apoyada en el casco) y un chaflán superior que da el brillo del borde.
 

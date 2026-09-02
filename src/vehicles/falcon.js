@@ -99,11 +99,31 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
   // Stage separation flange.
   g.add(mesh(new THREE.TorusGeometry(R + 0.015, 0.05, 6, 96), M.darkMetal, { position: [0, TANK_TOP, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false }));
 
+  // Four titanium grid fins, stowed flat. Every Falcon booster that flies back carries them,
+  // side boosters included — they perform their own boostback and landing burns.
+  const addGridFins = (y) => {
+    for (let i = 0; i < 4; i++) {
+      const a = Math.PI / 4 + (i * Math.PI) / 2;
+      const holder = new THREE.Group();
+      const fin = titaniumGridFin(M);
+      fin.rotation.set(0, Math.PI / 2, Math.PI / 2);   // span → vertical, depth → radial
+      holder.add(fin);
+      holder.position.set(Math.sin(a) * (R + 0.09), y, Math.cos(a) * (R + 0.09));
+      holder.rotation.y = a;
+      g.add(holder);
+      const hinge = mesh(new THREE.BoxGeometry(1.35, 0.34, 0.4), M.darkMetal);
+      hinge.position.set(Math.sin(a) * (R + 0.11), y - 0.1, Math.cos(a) * (R + 0.11));
+      hinge.rotation.y = a;
+      g.add(hinge);
+    }
+  };
+
   if (variant === 'fh-side') {
     // Nose cone in place of the interstage (spacex.com); length approximated from imagery.
     const noseL = 6.5;
     const prof = [{ r: R, y: TANK_TOP }, { r: R, y: TANK_TOP + 0.5 }, ...ogiveProfile(R, noseL - 0.5, TANK_TOP + 0.5, 30, 0.16).slice(1)];
     g.add(mesh(lathe(prof, { segments: 128 }), M.whiteFresh, { name: 'nosecone' }));
+    addGridFins(TANK_TOP - 1.6);
     g.userData.top = TANK_TOP + noseL;
     return g;
   }
@@ -113,21 +133,7 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
   g.add(mesh(lathe([{ r: R - 0.03, y: TANK_TOP + 0.2 }, { r: R - 0.03, y: S1_H }], { segments: 64, flip: true }), M.blackMatte, { castShadow: false }));
   g.add(instanceEngines(merlinVacGeometry(), M, [{ position: [0, TANK_TOP + 0.9, 0], tilt: [0, 0], spin: 0 }], { bellMaterial: M.bellCool }));
 
-  // Four titanium grid fins, stowed flat at the top of the interstage.
-  for (let i = 0; i < 4; i++) {
-    const a = Math.PI / 4 + (i * Math.PI) / 2;
-    const holder = new THREE.Group();
-    const fin = titaniumGridFin(M);
-    fin.rotation.set(0, Math.PI / 2, Math.PI / 2);   // span → vertical, depth → radial
-    holder.add(fin);
-    holder.position.set(Math.sin(a) * (R + 0.09), S1_H - 1.95, Math.cos(a) * (R + 0.09));
-    holder.rotation.y = a;
-    g.add(holder);
-    const hinge = mesh(new THREE.BoxGeometry(1.35, 0.34, 0.4), M.darkMetal);
-    hinge.position.set(Math.sin(a) * (R + 0.11), S1_H - 2.05, Math.cos(a) * (R + 0.11));
-    hinge.rotation.y = a;
-    g.add(hinge);
-  }
+  addGridFins(S1_H - 1.95);   // at the top of the interstage
 
   // Second stage: LOX/RP-1 tank plus the payload interface below the fairing.
   g.add(mesh(lathe([{ r: R, y: S1_H }, { r: R, y: S2_TOP }], { segments: 128 }), M.white, { name: 'stage2' }));

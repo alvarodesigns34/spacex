@@ -63,6 +63,53 @@ const HULLS = {
   starlink: null,
 };
 
+/**
+ * Scene-integrity pass. The dimensional table above only proves the envelope is the right
+ * size; it says nothing about whether the geometry inside it is well formed. These are the
+ * failure modes that have actually bitten this project:
+ *
+ *  - a mesh whose material samples a texture but whose geometry carries no `uv`. Three.js
+ *    derives tangent-space normals from screen-space derivatives of vUv, so a constant vUv
+ *    makes them degenerate and the surface renders as black or blown-out garbage;
+ *  - non-finite vertices, which silently stretch a triangle across the whole frame;
+ *  - a geometry with no normals, which shades flat black under a physical material.
+ */
+export function verifyScene(root, { log = true } = {}) {
+  const issues = [];
+  const TEX_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap'];
+  const seen = new Set();
+  root.traverse((o) => {
+    if (!o.isMesh || seen.has(o.geometry.uuid + o.material.uuid)) return;
+    seen.add(o.geometry.uuid + o.material.uuid);
+    const g = o.geometry;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    const label = o.name || `${o.parent?.name || '?'}/${o.type}`;
+    const slots = TEX_SLOTS.filter(k => mats.some(m => m && m[k]));
+    if (slots.length && !g.attributes.uv) {
+      issues.push({ mesh: label, problem: `usa ${slots.join(', ')} sin atributo uv`, severity: 'error' });
+    }
+    if (!g.attributes.normal) {
+      issues.push({ mesh: label, problem: 'geometría sin normales', severity: 'error' });
+    }
+    const pos = g.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      if (!isFinite(pos.getX(i)) || !isFinite(pos.getY(i)) || !isFinite(pos.getZ(i))) {
+        issues.push({ mesh: label, problem: `vértice no finito (índice ${i})`, severity: 'error' });
+        break;
+      }
+    }
+  });
+  if (log) {
+    /* eslint-disable no-console */
+    console.groupCollapsed(`%cIntegridad de la escena — ${issues.length ? `${issues.length} problema(s)` : 'sin problemas'}`,
+      `color:${issues.length ? '#e07a5f' : '#7fb069'};font-weight:600`);
+    if (issues.length) console.table(issues); else console.log('Todas las mallas tienen uv, normales y vértices finitos.');
+    console.groupEnd();
+    /* eslint-enable no-console */
+  }
+  return issues;
+}
+
 export function verifyExhibits(exhibits, { log = true } = {}) {
   const rows = [];
   for (const [id, ex] of Object.entries(exhibits)) {

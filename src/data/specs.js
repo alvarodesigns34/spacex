@@ -22,6 +22,7 @@ export const SOURCES = {
   wiki_dragon2: { label: 'Wikipedia — SpaceX Dragon 2', url: 'https://en.wikipedia.org/wiki/SpaceX_Dragon_2' },
   sfn_v2mini: { label: 'Spaceflight Now — Starlink V2 Mini (feb 2023)', url: 'https://spaceflightnow.com/2023/02/26/spacex-unveils-first-batch-of-larger-upgraded-starlink-satellites/' },
   nsf_flight12: { label: 'NASASpaceflight — Starship Flight 12 (Block 3)', url: 'https://www.nasaspaceflight.com/2026/05/starship-flight-12-block-3-pad-2/' },
+  nsf_sh_block3: { label: 'NASASpaceflight — Super Heavy Block 3, el propulsor del futuro', url: 'https://www.nasaspaceflight.com/2026/05/super-heavy-block-3-booster-future/' },
   space_tiles: { label: 'Space.com — losetas hexagonales del escudo de Starship', url: 'https://www.space.com/spacex-starship-hexagon-heat-shield-tile-test.html' },
   wiki_dragon_crew: { label: 'Wikipedia — Crew Dragon (dimensiones de la cápsula)', url: 'https://en.wikipedia.org/wiki/Dragon_2' },
   starlink_gen2: { label: 'starlink.com — Second generation satellites (PDF)', url: 'https://starlink.com/public-files/Gen2StarlinkSatellites.pdf' },
@@ -44,6 +45,7 @@ export const VEHICLES = [
       { label: 'Super Heavy · empuje', value: '8 240 tf', source: 'spacex', ref: 'spacex_starship' },
       { label: 'Super Heavy · motores', value: '33 Raptor (13 interiores orientables, 20 exteriores fijos)', source: 'wiki', ref: 'wiki_superheavy' },
       { label: 'Super Heavy · grid fins', value: '3 (V3), 1,5× el tamaño de las de V1/V2, disposición 90°/90°/180°', source: 'wiki', ref: 'wiki_superheavy' },
+      { label: 'Super Heavy · chines', value: '4 carenados con COPVs, aviónica y baterías; en Block 3 el par junto al raceway es más alto y más junto', source: 'press', ref: 'nsf_sh_block3' },
       { label: 'Starship · altura', value: '52 m', source: 'spacex', ref: 'spacex_starship' },
       { label: 'Starship · propelente', value: '1 600 t', source: 'spacex', ref: 'spacex_starship' },
       { label: 'Starship · empuje', value: '1 614 tf', source: 'spacex', ref: 'spacex_starship' },
@@ -58,12 +60,12 @@ export const VEHICLES = [
       { label: 'Estaciones de sección', value: 'múltiplos enteros del anillo de 1,83 m (faldón 3,5 · morro desde el anillo 21)', source: 'derived', approx: true },
     ],
     approximations: [
-      'Longitud del cono de morro, geometría exacta de aletas y grid fins, chines y conductos exteriores: reconstruidos a partir de imágenes, sin cifra oficial.',
+      'Longitud del cono de morro, planta de las aletas, tamaño de grid fins y chines, y conductos exteriores: reconstruidos a partir de fotografías; el número y la función de los chines sí están documentados, no sus cotas.',
       'Distribución radial de los 33 Raptor (anillos de 3 / 10 / 20): disposición documentada, radios ajustados para que las toberas exteriores queden dentro del faldón de 9 m.',
       'Losetas: el recuento (~18 000, Wikipedia) y el tamaño publicado (≈12 in entre vértices) no cuadran exactamente entre sí; el modelo usa el tamaño y cubre unas 13 700 losetas sobre la mitad expuesta, el morro y las aletas.',
       'Las estaciones internas (faldón, cúpula común, base del morro, bahía de carga) no son públicas: se derivan del anillo de 1,83 m y de las masas de propelente publicadas.',
     ],
-    sources: ['spacex_starship', 'wiki_starship', 'wiki_superheavy', 'wiki_raptor', 'space_tiles', 'nsf_flight12'],
+    sources: ['spacex_starship', 'wiki_starship', 'wiki_superheavy', 'wiki_raptor', 'space_tiles', 'nsf_sh_block3', 'nsf_flight12'],
     presets: [
       { id: 'overview', label: 'Vista general', pos: [150, 70, 190], target: [0, 58, 0] },
       { id: 'engines', label: '33 Raptor', pos: [1.6, -7.6, 2.0], target: [0, 2.4, 0] },
@@ -147,7 +149,7 @@ export const VEHICLES = [
   {
     id: 'dragon',
     name: 'Dragon',
-    subtitle: 'Crew Dragon · cápsula y trunk',
+    subtitle: 'Crew Dragon (Dragon 2) · cápsula y trunk',
     height: 8.1,
     footprint: 4,
     summary: 'Nave para tripulación y carga. Cápsula presurizada con 16 propulsores Draco, 8 SuperDraco para escape en lanzamiento, escudo térmico PICA y morro abatible sobre el adaptador de acoplamiento; trunk no presurizado con paneles solares en una mitad y aletas de estabilización.',
@@ -170,6 +172,7 @@ export const VEHICLES = [
     ],
     approximations: [
       'Ángulo de la pared cónica (≈14°), posición de ventanas, escotilla y vainas SuperDraco: reconstruidos a partir de fotografías.',
+      'Se modela Dragon 2 (Crew Dragon), el vehículo en servicio: células solares fijas en el trunk. La Dragon 1 de carga, retirada en 2020, llevaba alas solares desplegables y un mecanismo de atraque pasivo (CBM) en lugar del adaptador IDSS.',
       'Las aletas del trunk son las de Crew Dragon; Cargo Dragon no las lleva.',
     ],
     sources: ['spacex_dragon', 'wiki_dragon2', 'wiki_dragon_crew'],

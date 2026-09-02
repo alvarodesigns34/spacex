@@ -96,11 +96,12 @@ function raceway(M, length, { width = 0.9, depth = 0.24, material = null } = {})
     { s: 1, y: length / 2 - taper }, { s: 0.12, y: length / 2 },
   ];
   const SEG = 14, row = SEG + 1;
-  const pts = [], idx = [];
+  const pts = [], uvs = [], idx = [];
   for (const st of stations) {
     for (let i = 0; i <= SEG; i++) {
       const a = (i / SEG) * Math.PI;                       // 0 → π sweeps the dome
       pts.push(Math.cos(a) * (width / 2) * st.s, st.y, Math.sin(a) * depth * st.s);
+      uvs.push((i / SEG) * width, st.y);                   // metric, as the steel maps expect
     }
   }
   for (let j = 0; j < stations.length - 1; j++) {
@@ -111,6 +112,7 @@ function raceway(M, length, { width = 0.9, depth = 0.24, material = null } = {})
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geo.setIndex(idx);
   geo.computeVertexNormals();
   const g = new THREE.Group();
@@ -153,6 +155,46 @@ function coverageShell(profile, coverage, y0, y1, offset = 0.022, rows = 120, co
   g.computeVertexNormals();
   g.computeBoundingSphere();
   return g;
+}
+
+/**
+ * Chine: one of the four elongated tapered fairings low on the booster that house the COPVs,
+ * avionics and batteries (NASASpaceflight). Block 3 nearly doubled the COPV count and made
+ * the set asymmetric — the pair flanking the raceway is taller and closer together, the pair
+ * on the opposite side shorter and further apart, which gives a little more lift during the
+ * glide-back. Built here as a swept triangular fairing: blunt at the base, faired to nothing
+ * at the top.
+ */
+function chine(M, { length = 22, width = 1.9, depth = 0.85 } = {}) {
+  const stations = [
+    { s: 0.15, y: 0 }, { s: 0.85, y: length * 0.10 }, { s: 1.0, y: length * 0.30 },
+    { s: 0.82, y: length * 0.62 }, { s: 0.34, y: length * 0.88 }, { s: 0.04, y: length },
+  ];
+  const SEG = 12, row = SEG + 1;
+  const pts = [], uvs = [], idx = [];
+  for (const st of stations) {
+    for (let i = 0; i <= SEG; i++) {
+      const a = (i / SEG) * Math.PI;
+      // A flattened half-ellipse whose crown is pulled outward into a soft ridge.
+      const crown = Math.pow(Math.sin(a), 0.7);
+      pts.push(Math.cos(a) * (width / 2) * st.s, st.y, crown * depth * st.s);
+      // Metric UVs: the steel maps are keyed to metres, and a normal map with no UVs at all
+      // makes the shader's tangent derivatives degenerate.
+      uvs.push((i / SEG) * width, st.y);
+    }
+  }
+  for (let j = 0; j < stations.length - 1; j++) {
+    for (let i = 0; i < SEG; i++) {
+      const a0 = j * row + i, a1 = a0 + 1, b0 = a0 + row, b1 = b0 + 1;
+      idx.push(a0, a1, b0, a1, b1, b0);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return mesh(geo, M.steel);
 }
 
 /** Vented hot-stage section: on Block 3 this is built into the top of the methane tank. */
@@ -209,6 +251,19 @@ export function buildSuperHeavy(M) {
     ...ringLayout(10, 2.48, 0.35, { phase: 0 }),
     ...ringLayout(20, 3.86, 0.25, { phase: Math.PI / 20 }),
   ]));
+
+  // Four chines low on the tank section. Block 3 spacing: the pair either side of the
+  // raceway sits closer together and runs taller than the pair opposite it.
+  const chineBase = skirtTop + 0.6;
+  for (const [phi, len] of [
+    [RACE_PHI - 0.50, 23.0], [RACE_PHI + 0.50, 23.0],
+    [RACE_PHI + Math.PI - 0.95, 17.0], [RACE_PHI + Math.PI + 0.95, 17.0],
+  ]) {
+    const c = chine(M, { length: len, width: 2.0, depth: 0.9 });
+    c.position.set(Math.sin(phi) * (R - 0.06), chineBase, Math.cos(phi) * (R - 0.06));
+    c.rotation.y = phi;
+    g.add(c);
+  }
 
   // Raceway up the leeward side, clear of the grid fins.
   const raceLen = ringTop - skirtTop - 1.2;
@@ -295,7 +350,7 @@ export function buildShip(M) {
   const COVER_BARREL = THREE.MathUtils.degToRad(97);
   const COVER_NOSE = THREE.MathUtils.degToRad(112);
   const coverage = (y) => {
-    const y0 = barrelTop - 3, y1 = SHIP_H - 1.2;
+    const y0 = barrelTop - 3, y1 = SHIP_H - 3.4;
     if (y < y0) return COVER_BARREL;
     if (y > y1) return Math.PI;                       // small tiled cap over the tip
     const t = THREE.MathUtils.clamp((y - y0) / (y1 - y0), 0, 1);
@@ -332,7 +387,7 @@ export function buildShip(M) {
   const makeFlap = (outline, phi, yBase, rootOffset, opts = {}) => {
     const xs = outline.map(p => p[0]);
     const geo = aeroPlate(outline, FLAP_T, {
-      edge: FLAP_T * 0.26,
+      edge: FLAP_T * 0.16,
       taper: spanTaper(Math.min(...xs), Math.max(...xs), opts.tipScale ?? 0.4),
     });
     const e1 = new THREE.Vector3(Math.sin(phi), 0, Math.cos(phi));
@@ -376,7 +431,9 @@ export function buildShip(M) {
   };
 
   // Aft flaps: hinged about an axis parallel to the vehicle, just leeward of the sides.
-  const aftOutline = [[0, 0], [2.2, 0.35], [3.9, 1.5], [4.25, 3.2], [3.6, 6.1], [2.5, 7.5], [0, 7.8]];
+  // Straight-edged swept trapezoid, as photographed: a near-perpendicular lower edge, an
+  // almost straight outboard edge, and a long diagonal sweeping back to the root.
+  const aftOutline = [[0, 0], [1.5, 0.05], [4.30, 1.25], [4.35, 5.20], [2.35, 7.55], [0, 7.9]];
   const aftPhi = THREE.MathUtils.degToRad(96);
   const AFT_FOLD = THREE.MathUtils.degToRad(46);
   makeFlap(aftOutline, aftPhi, rings(1), R - 0.08, { hinge: 0.55, fold: AFT_FOLD, tipScale: 0.62 });
@@ -391,7 +448,7 @@ export function buildShip(M) {
   const fwdOutline = [];
   for (let i = 0; i <= 10; i++) { const y = (i / 10) * fwdLen; fwdOutline.push([rootAt(y), y]); }
   fwdOutline.push([rootAt(fwdLen) + 0.45, fwdLen]);
-  for (const [y, w] of [[6.35, 0.95], [5.3, 2.1], [3.7, 2.95], [1.9, 3.05], [0.55, 1.75]]) fwdOutline.push([rootAt(y) + w, y]);
+  for (const [y, w] of [[6.5, 0.55], [5.45, 2.25], [2.05, 3.05], [0.75, 2.35], [0.1, 0.9]]) fwdOutline.push([rootAt(y) + w, y]);
   const fwdPhi = THREE.MathUtils.degToRad(110);   // ±110° ⇒ 140° apart across the lee side
   const FWD_FOLD = THREE.MathUtils.degToRad(60);
   makeFlap(fwdOutline, fwdPhi, fwdBase, R - 0.08, { hinge: 0.42, tipScale: 0.55, fold: FWD_FOLD });

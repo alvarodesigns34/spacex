@@ -19,7 +19,7 @@ import { buildFalcon9, buildFalconHeavy } from './vehicles/falcon.js';
 import { buildDragon } from './vehicles/dragon.js';
 import { buildStarlink } from './vehicles/starlink.js';
 import { buildMount, buildPedestal, buildHuman } from './vehicles/common.js';
-import { verifyExhibits } from './data/verify.js';
+import { verifyExhibits, verifyScene } from './data/verify.js';
 
 // Exhibit layout (world X, metres). Mount heights are presentation choices.
 // `yaw` turns an exhibit on its mount. Starship is asymmetric — heat shield on the belly,
@@ -359,7 +359,7 @@ async function main() {
   frame();
 
   // expose for debugging / automated checks
-  const verify = () => verifyExhibits(exhibits);
+  const verify = () => ({ dimensions: verifyExhibits(exhibits), scene: verifyScene(scene) });
   window.__vc = { M, scene, camera, rig, exhibits, select, goPreset, jump, renderer, env, setToggle, timings, verify };
   if (new URLSearchParams(location.search).has('verify')) verify();
 }

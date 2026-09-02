@@ -1,0 +1,94 @@
+/**
+ * Headless validation gate.
+ *
+ * Serves the site, loads it in Chromium and runs the checks the app exposes on
+ * `window.__vc.verify()`:
+ *   - dimensional: every built model measured against its published envelope;
+ *   - integrity:   every mesh checked for uv/normals/finite vertices.
+ * It also walks every authored camera view, because a preset that frames the wrong station
+ * or produces a non-finite camera is a regression the other two cannot see.
+ *
+ * Exits non-zero on any failure, so it can gate a deployment.
+ *
+ * Usage: node tools/check.mjs
+ */
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { extname, join, normalize } from 'node:path';
+import { chromium } from 'playwright';
+
+const ROOT = new URL('..', import.meta.url).pathname;
+const PORT = 8799;
+const TYPES = {
+  '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
+  '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png',
+};
+
+const server = createServer(async (req, res) => {
+  try {
+    const rel = normalize(decodeURIComponent(req.url.split('?')[0])).replace(/^(\.\.[/\\])+/, '');
+    const path = join(ROOT, rel === '/' ? 'index.html' : rel);
+    const body = await readFile(path);
+    res.writeHead(200, { 'Content-Type': TYPES[extname(path)] ?? 'application/octet-stream' });
+    res.end(body);
+  } catch {
+    res.writeHead(404).end('not found');
+  }
+});
+await new Promise(r => server.listen(PORT, '127.0.0.1', r));
+
+const browser = await chromium.launch({
+  args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox'],
+});
+const page = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
+
+const consoleErrors = [];
+page.on('pageerror', e => consoleErrors.push(`uncaught: ${e.message}`));
+page.on('console', m => {
+  if (m.type() !== 'error') return;
+  // The resource URL lives on location(), not in the message text, so both have to be
+  // checked: web fonts are a progressive enhancement and are blocked on some CI networks.
+  const where = `${m.text()} ${m.location()?.url ?? ''}`;
+  if (/fonts\.(googleapis|gstatic)/.test(where)) return;
+  consoleErrors.push(where.trim());
+});
+
+let failures = 0;
+const report = (ok, label, detail = '') => {
+  if (!ok) failures++;
+  console.log(`${ok ? '  ok  ' : ' FAIL '} ${label}${detail ? ` — ${detail}` : ''}`);
+};
+
+try {
+  await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'load', timeout: 120000 });
+  await page.waitForFunction(() => window.__vc && !document.getElementById('loading'), null, { timeout: 300000 });
+
+  const { dimensions, scene } = await page.evaluate(() => window.__vc.verify());
+  for (const d of dimensions) {
+    report(d.ok, `${d.vehicle} · ${d.label}`, `declarado ${d.declared}, construido ${d.built} (${d.errorPct} %)`);
+  }
+  report(scene.length === 0, 'integridad de la escena',
+    scene.length ? scene.map(i => `${i.mesh}: ${i.problem}`).join('; ') : 'uv, normales y vértices correctos');
+
+  // Every authored view must produce a finite camera that stays above the apron.
+  const presets = await page.evaluate(() => Object.fromEntries(
+    Object.entries(window.__vc.exhibits).map(([id, e]) => [id, e.data.presets.map(p => p.id)])));
+  let bad = [];
+  for (const [id, list] of Object.entries(presets)) {
+    for (const pr of list) {
+      await page.evaluate(([i, q]) => window.__vc.jump(i, q), [id, pr]);
+      const c = await page.evaluate(() => window.__vc.camera.position.toArray());
+      if (!c.every(Number.isFinite) || c[1] < 0.2) bad.push(`${id}/${pr}`);
+    }
+  }
+  report(bad.length === 0, `${Object.values(presets).flat().length} vistas`, bad.length ? `inválidas: ${bad.join(', ')}` : 'todas válidas');
+  report(consoleErrors.length === 0, 'consola limpia', consoleErrors.slice(0, 5).join(' | '));
+} catch (err) {
+  report(false, 'carga de la aplicación', err.message);
+} finally {
+  await browser.close();
+  server.close();
+}
+
+console.log(failures ? `\n${failures} comprobación(es) fallida(s)` : '\nTodas las comprobaciones pasan');
+process.exit(failures ? 1 : 0);

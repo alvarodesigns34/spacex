@@ -114,7 +114,7 @@ export function createMaterials(onProgress = () => {}) {
   M.bellInner = new THREE.MeshStandardMaterial({ color: 0x241f1d, metalness: 0.7, roughness: 0.55 });
   M.conduit = new THREE.MeshPhysicalMaterial({ color: 0x8f9499, metalness: 0.3, roughness: 0.7, map: T.steelWarm.map, roughnessMap: T.steelWarm.roughnessMap, envMapIntensity: 0.3 });
   M.darkMetal = new THREE.MeshStandardMaterial({ map: T.greyDark.map, roughnessMap: T.greyDark.roughnessMap, metalness: 0.85, roughness: 1.0 });
-  M.titanium = new THREE.MeshPhysicalMaterial({ color: 0x8f8a83, metalness: 1.0, roughness: 0.44, anisotropy: 0.3 });
+  M.titanium = new THREE.MeshPhysicalMaterial({ color: 0xa08a63, metalness: 1.0, roughness: 0.46, anisotropy: 0.3 });
   M.blackMatte = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.78, metalness: 0.1 });
   M.blackGloss = new THREE.MeshPhysicalMaterial({ color: 0x0c0d10, roughness: 0.25, metalness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.15 });
   M.glass = new THREE.MeshPhysicalMaterial({ color: 0x0b1420, roughness: 0.05, metalness: 0.35, clearcoat: 1.0, clearcoatRoughness: 0.04, envMapIntensity: 1.6 });
