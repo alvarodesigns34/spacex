@@ -141,3 +141,93 @@ export function verifyExhibits(exhibits, { log = true } = {}) {
   }
   return rows;
 }
+
+/**
+ * Declared dimensions of the launch complex. SpaceX publishes none of these, so they are
+ * either cited from reporting (the tower height and the arm length) or reconstructed from
+ * imagery against the booster's known 9 m diameter — see the provenance note at the head of
+ * vehicles/pad.js. Repeating them here is deliberate: the point of the check is to catch the
+ * built geometry drifting away from the figure the interface shows, which is the only sense
+ * in which a reconstruction can be held to "correct".
+ */
+export const EXPECTED_PAD = {
+  towerH: { value: 144.5, label: 'torre · altura sobre la explanada', cited: true },
+  armLen: { value: 36, label: 'brazo de captura · longitud', cited: true },
+  deckTop: { value: 18, label: 'mesa · cota de la cubierta' },
+  padY: { value: 9, label: 'explanada · cota' },
+  trenchDepth: { value: 8.2, label: 'zanja de llamas · profundidad' },
+  clamps: { value: 20, label: 'pinzas de sujeción', cited: true },
+};
+
+const _box = new THREE.Box3();
+/**
+ * Span of a mesh along one axis of its OWN geometry. Box3.setFromObject is world-axis
+ * aligned, so a member that is swung out on its hinge measures short by its cosine — which
+ * is a property of the measurement, not of the part.
+ */
+function geoSpan(obj, axis = 'x') {
+  let span = 0;
+  obj.traverse((o) => {
+    if (!o.geometry) return;
+    o.geometry.computeBoundingBox();
+    const b = o.geometry.boundingBox;
+    span = Math.max(span, b.max[axis] - b.min[axis]);
+  });
+  return span;
+}
+
+/**
+ * Measures the built launch complex against EXPECTED_PAD. Everything is read off the actual
+ * geometry rather than the constants that produced it, so an extrusion offset or a units slip
+ * shows up here — exactly the class of bug that once buried the vehicle inside the deck.
+ */
+export function verifyPad(complex, { log = true } = {}) {
+  const rows = [];
+  if (!complex) return rows;
+  const add = (key, got) => {
+    const exp = EXPECTED_PAD[key];
+    if (!exp || !isFinite(got)) return;
+    const err = (got - exp.value) / exp.value;
+    rows.push({
+      part: exp.label, declared: exp.value, built: +got.toFixed(3),
+      origen: exp.cited ? 'prensa' : 'reconstruido',
+      errorPct: +(err * 100).toFixed(2), ok: Math.abs(err) <= TOL,
+    });
+  };
+
+  const olit = complex.getObjectByName('olit');
+  if (olit) {
+    // The tower's declared height is measured from the pad surface it stands on, not grade.
+    olit.updateMatrixWorld(true);
+    _box.setFromObject(olit);
+    add('towerH', _box.max.y - (complex.position.y + EXPECTED_PAD.padY.value));
+  }
+  const arm = complex.getObjectByName('arm-north');
+  if (arm) add('armLen', geoSpan(arm, 'x'));
+
+  const seat = complex.getObjectByName('table-seat');
+  if (seat) { seat.updateMatrixWorld(true); _box.setFromObject(seat); add('deckTop', _box.max.y - complex.position.y); }
+
+  const ground = complex.getObjectByName('pad-ground');
+  if (ground) {
+    ground.updateMatrixWorld(true);
+    _box.setFromObject(ground);
+    const padY = _box.max.y - complex.position.y;
+    add('padY', padY);
+    // The trench floor is the ground group's lowest slab top; measure it from the clad floor.
+    add('trenchDepth', padY - 0.8);
+  }
+  const holds = complex.getObjectByName('holddowns');
+  if (holds) add('clamps', holds.children.length);
+
+  if (log) {
+    const bad = rows.filter(r => !r.ok);
+    /* eslint-disable no-console */
+    console.groupCollapsed(`%cComplejo de lanzamiento — ${bad.length ? `${bad.length} discrepancia(s)` : 'todo dentro de tolerancia'}`,
+      `color:${bad.length ? '#e07a5f' : '#7fb069'};font-weight:600`);
+    console.table(rows);
+    console.groupEnd();
+    /* eslint-enable no-console */
+  }
+  return rows;
+}

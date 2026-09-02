@@ -19,7 +19,8 @@ import { buildFalcon9, buildFalconHeavy } from './vehicles/falcon.js';
 import { buildDragon } from './vehicles/dragon.js';
 import { buildStarlink } from './vehicles/starlink.js';
 import { buildMount, buildPedestal, buildHuman } from './vehicles/common.js';
-import { verifyExhibits, verifyScene } from './data/verify.js';
+import { buildLaunchComplex, PAD } from './vehicles/pad.js';
+import { verifyExhibits, verifyScene, verifyPad } from './data/verify.js';
 
 // Exhibit layout (world X, metres). Mount heights are presentation choices.
 // `yaw` turns an exhibit on its mount. Starship is asymmetric — heat shield on the belly,
@@ -32,11 +33,11 @@ import { verifyExhibits, verifyScene } from './data/verify.js';
 const LAYOUT = {
   falcon9: { x: -135, z: 0, mount: 6.5, mountRadius: 6.5, inner: 3.1, clampRadius: 1.85 },
   falconheavy: { x: -62, z: 0, mount: 6.5, mountRadius: 11.5, inner: 7.2, clampRadius: 1.85 },
-  starship: { x: 0, z: -185, mount: 9, mountRadius: 10.5, inner: 6.9, clampRadius: 4.5, yaw: 132 },
+  starship: { x: 0, z: -185, mount: PAD.deckTop, yaw: 129.6, pad: true },
   dragon: { x: 18, z: 0, mount: 1.6 },
   starlink: { x: 78, z: 0, mount: 6.2 },
 };
-const OVERVIEW = { pos: [-30, 78, 300], target: [-28, 48, -55] };
+const OVERVIEW = { pos: [-12, 74, 292], target: [-14, 50, -66] };
 
 // Radius of the cylinder used to hide annotations that sit behind a vehicle. CSS2D labels
 // always draw on top of the scene, so without this the far-side callouts read as if they
@@ -113,6 +114,7 @@ async function main() {
     starlink: [buildStarlink, 'Starlink V2 Mini…'],
   };
   let step = 0;
+  let complex = null;
   for (const v of VEHICLES) {
     const [fn, msg] = builders[v.id];
     hud.setProgress(msg, 0.3 + (step++ / VEHICLES.length) * 0.6);
@@ -143,6 +145,12 @@ async function main() {
       group.add(ped);
       model.position.y = lay.mount + 0.6;
       env.addStation(lay.x, lay.z, 5);
+    } else if (lay.pad) {
+      // Starship stands on the real thing: the launch mount spanning the flame trench, with
+      // the tower alongside. No display furniture, and no apron ring — the pad has its own.
+      complex = buildLaunchComplex(M);
+      group.add(complex);
+      model.position.y = lay.mount;
     } else {
       group.add(buildMount(M, { radius: lay.mountRadius, inner: lay.inner, height: lay.mount, clampRadius: lay.clampRadius, clamps: v.id === 'falconheavy' ? 0 : 4 }));
       model.position.y = lay.mount;
@@ -167,6 +175,17 @@ async function main() {
       obj.position.set(lay.x + ax * cy + az * sy, model.position.y + ay, lay.z - ax * sy + az * cy);
       lg.add(obj);
     }
+    if (complex && v.id === 'starship') {
+      // Pad callouts live in the complex frame, which does not turn with the vehicle.
+      for (const a of complex.userData.annotations) {
+        const div = document.createElement('div');
+        div.className = 'label';
+        div.innerHTML = `<span class="label-dot"></span><span class="label-text">${a.label}</span>`;
+        const obj = new CSS2DObject(div);
+        obj.position.set(lay.x + a.position[0], a.position[1], lay.z + a.position[2]);
+        lg.add(obj);
+      }
+    }
     labels.add(lg);
     exhibits[v.id].labels = lg;
     // Vehicles may publish a near/far pair for detail that is only worth drawing up close.
@@ -176,7 +195,10 @@ async function main() {
 
     // scale figures
     const baseY = 0;
-    const people = v.id === 'starlink' ? [[3.2, 0, 2.4, 0.4], [-2.6, 0, 3.0, -1.2]] : v.id === 'dragon' ? [[3.4, 0, 1.6, 0.6], [-2.8, 0, 2.6, -0.8]] : [[lay.mountRadius + 3.5, 0, 2, 0.5], [lay.mountRadius + 2, 0, -4, -2.0], [-(lay.mountRadius + 3), 0, 3, 2.2]];
+    const people = v.id === 'starlink' ? [[3.2, 0, 2.4, 0.4], [-2.6, 0, 3.0, -1.2]]
+      : v.id === 'dragon' ? [[3.4, 0, 1.6, 0.6], [-2.8, 0, 2.6, -0.8]]
+      : lay.pad ? [[26, PAD.padY, 16, 0.8], [30, PAD.padY, -10, -1.6], [-19, PAD.padY, 24, 2.4]]
+      : [[lay.mountRadius + 3.5, 0, 2, 0.5], [lay.mountRadius + 2, 0, -4, -2.0], [-(lay.mountRadius + 3), 0, 3, 2.2]];
     for (const [px, py, pz, ry] of people) {
       const h = buildHuman(M, { suit: Math.random() > 0.5 ? 'white' : 'dark' });
       h.position.set(lay.x + px, baseY + py, lay.z + pz);
@@ -198,7 +220,7 @@ async function main() {
       ruler.rotation.z = -Math.PI / 2;
       ruler.position.set(lay.x - 15, model.position.y - 1.2, lay.z + 4.2);
     } else {
-      const off = v.id === 'starship' ? 14 : v.id === 'falconheavy' ? 12 : v.id === 'falcon9' ? 8 : 4.2;
+      const off = v.id === 'starship' ? 22 : v.id === 'falconheavy' ? 12 : v.id === 'falcon9' ? 8 : 4.2;
       ruler.position.set(lay.x + off, model.position.y, lay.z);
     }
     ruler.visible = false;
@@ -236,7 +258,11 @@ async function main() {
     // Views are authored in the vehicle's own frame, so they turn with it.
     const yaw = THREE.MathUtils.degToRad(ex.lay.yaw ?? 0);
     const cy = Math.cos(yaw), sy = Math.sin(yaw);
-    const put = ([x, y, z]) => [o.x + x * cy + z * sy, o.y + y, o.z - x * sy + z * cy];
+    // Views of the launch complex are authored in the site frame, which does not turn with
+    // the vehicle and is measured from grade rather than from the deck.
+    const put = p.frame === 'site'
+      ? ([x, y, z]) => [o.x + x, y, o.z + z]
+      : ([x, y, z]) => [o.x + x * cy + z * sy, o.y + y, o.z - x * sy + z * cy];
     return { pos: put(p.pos), target: put(p.target) };
   }
   function select(id) {
@@ -362,8 +388,8 @@ async function main() {
   frame();
 
   // expose for debugging / automated checks
-  const verify = () => ({ dimensions: verifyExhibits(exhibits), scene: verifyScene(scene) });
-  window.__vc = { M, scene, camera, rig, exhibits, select, goPreset, jump, renderer, env, setToggle, timings, verify };
+  const verify = () => ({ dimensions: verifyExhibits(exhibits), pad: verifyPad(complex), scene: verifyScene(scene) });
+  window.__vc = { M, scene, camera, rig, exhibits, complex, select, goPreset, jump, renderer, env, setToggle, timings, verify };
   if (new URLSearchParams(location.search).has('verify')) verify();
 }
 

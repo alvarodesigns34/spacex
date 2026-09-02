@@ -63,9 +63,12 @@ try {
   await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'load', timeout: 120000 });
   await page.waitForFunction(() => window.__vc && !document.getElementById('loading'), null, { timeout: 300000 });
 
-  const { dimensions, scene } = await page.evaluate(() => window.__vc.verify());
+  const { dimensions, pad, scene } = await page.evaluate(() => window.__vc.verify());
   for (const d of dimensions) {
     report(d.ok, `${d.vehicle} · ${d.label}`, `declarado ${d.declared}, construido ${d.built} (${d.errorPct} %)`);
+  }
+  for (const d of pad) {
+    report(d.ok, `pad · ${d.part}`, `declarado ${d.declared} (${d.origen}), construido ${d.built} (${d.errorPct} %)`);
   }
   report(scene.length === 0, 'integridad de la escena',
     scene.length ? scene.map(i => `${i.mesh}: ${i.problem}`).join('; ') : 'uv, normales y vértices correctos');

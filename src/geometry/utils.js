@@ -492,6 +492,34 @@ export function spanTaper(x0, x1, endScale = 0.45) {
   };
 }
 
+/**
+ * Metric box-projected UVs, applied in place. Structural geometry is built from boxes,
+ * slabs and cylinders, each of which is born with its own 0..1 UVs; the materials here
+ * repeat by the metre (concrete every 12 m, structural grey every 1 m), so without this a
+ * 24 m slab and a 0.3 m handrail would show the same number of texels. Each vertex is
+ * projected on the plane its normal faces most, in metres, which is exact for boxes and
+ * good enough for everything else at these distances.
+ *
+ * Call it after mergeAll — the matrices have to be baked in for the projection to be in
+ * world metres, and the merged result is already non-indexed with normals computed.
+ */
+export function boxUV(geometry, scale = 1) {
+  const pos = geometry.attributes.position;
+  const nor = geometry.attributes.normal;
+  if (!pos || !nor) return geometry;
+  const uv = new Float32Array(pos.count * 2);
+  for (let i = 0; i < pos.count; i++) {
+    const nx = Math.abs(nor.getX(i)), ny = Math.abs(nor.getY(i)), nz = Math.abs(nor.getZ(i));
+    let u, v;
+    if (ny >= nx && ny >= nz) { u = pos.getX(i); v = pos.getZ(i); }        // floors and decks
+    else if (nx >= nz) { u = pos.getZ(i); v = pos.getY(i); }               // walls facing X
+    else { u = pos.getX(i); v = pos.getY(i); }                             // walls facing Z
+    uv[i * 2] = u * scale; uv[i * 2 + 1] = v * scale;
+  }
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  return geometry;
+}
+
 /** Convenience: mesh with shadows enabled. */
 export function mesh(geometry, material, opts = {}) {
   const m = new THREE.Mesh(geometry, material);
