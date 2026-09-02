@@ -23,6 +23,7 @@ export function createMaterials(onProgress = () => {}) {
     ['solar', () => TX.makeSolar()],
     ['concrete', () => TX.makeConcrete()],
     ['foil', () => TX.makeFoil()],
+    ['tps', () => TX.makeTpsPattern()],
     ['pica', () => TX.makePica()],
     ['bell', () => TX.makeEngineBell({ copper: 0.6 })],
     ['bellCool', () => TX.makeEngineBell({ copper: 0.12 })],
@@ -67,6 +68,15 @@ export function createMaterials(onProgress = () => {}) {
   // enough ambient response to show the form of the hull underneath.
   M.tile = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.82, metalness: 0.0, envMapIntensity: 0.62 });
   M.tileUnder = new THREE.MeshStandardMaterial({ color: 0x24242a, roughness: 0.98, envMapIntensity: 0.15 });
+  // Distant stand-in for the instanced tiles: the same mosaic baked into a map, so the shield
+  // reads as one clean panel instead of dissolving into sub-pixel sparkle.
+  M.tpsShell = new THREE.MeshStandardMaterial({
+    map: T.tps.map, roughnessMap: T.tps.roughnessMap, normalMap: T.tps.normalMap,
+    normalScale: new THREE.Vector2(0.5, 0.5), roughness: 1.0, metalness: 0.0, envMapIntensity: 0.62,
+    // It sits a couple of centimetres off the hull it covers; at a few hundred metres that is
+    // inside the depth buffer's precision, so bias it forward as well.
+    polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
+  });
 
   // ---- Falcon airframe ---------------------------------------------------------------
   const paintBase = { metalness: 0.0, roughness: 1.0, clearcoat: 0.22, clearcoatRoughness: 0.42 };

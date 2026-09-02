@@ -500,6 +500,7 @@ export function mesh(geometry, material, opts = {}) {
   if (opts.name) m.name = opts.name;
   if (opts.position) m.position.set(...opts.position);
   if (opts.rotation) m.rotation.set(...opts.rotation);
+  if (opts.matrix) m.applyMatrix4(opts.matrix);
   return m;
 }
 

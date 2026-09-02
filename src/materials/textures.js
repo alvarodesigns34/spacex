@@ -264,6 +264,70 @@ export function makeWhitePaint({ size = 512, tile = 2.0, grid = 0, tone = 0.94, 
 }
 
 // =====================================================================================
+//  THERMAL PROTECTION MOSAIC (distant level of detail for Starship's heat shield)
+//
+//  Thirteen thousand instanced hexagons of 0.26 m turn into sub-pixel noise as soon as the
+//  vehicle is more than a few tens of metres away: the shield stops reading as a surface and
+//  becomes a speckled smear with a frayed edge. This bakes the same mosaic into a tileable
+//  map so the far view gets a clean panel, and the instanced tiles are kept for close range.
+// =====================================================================================
+export function makeTpsPattern({ size = 512, circumradius = 0.152, gap = 1.012, cols = 4, rows = 4 } = {}) {
+  const w = Math.sqrt(3) * circumradius * gap;   // column pitch (flat to flat)
+  const dy = 1.5 * circumradius * gap;           // row pitch
+  const W = cols * w, H = rows * dy;             // physical size the texture covers
+  const map = canvas(size, size);
+  const rough = canvas(size, size);
+  const height = canvas(size, size);
+  const hash = (a, b) => {
+    let h = Math.imul(a * 374761393 + b * 668265263, 1274126177);
+    h = (h ^ (h >>> 13)) >>> 0;
+    return h / 4294967296;
+  };
+  // Nearest and second-nearest lattice centre give both the cell id and the seam distance.
+  const cell = (x, y) => {
+    let d1 = Infinity, d2 = Infinity, ca = 0, cb = 0;
+    const r0 = Math.floor(y / dy);
+    for (let rr = r0 - 1; rr <= r0 + 1; rr++) {
+      const off = (((rr % 2) + 2) % 2) * w * 0.5;
+      const c0 = Math.floor((x - off) / w);
+      for (let cc = c0 - 1; cc <= c0 + 1; cc++) {
+        const cx = cc * w + off, cy = rr * dy;
+        const d = Math.hypot(x - cx, y - cy);
+        if (d < d1) { d2 = d1; d1 = d; ca = cc; cb = rr; }
+        else if (d < d2) d2 = d;
+      }
+    }
+    return { d1, seam: d2 - d1, ca, cb };
+  };
+  const seamWidth = circumradius * 0.09;
+  shade(map, (px, py, u, v) => {
+    const { seam, ca, cb } = cell(u * W, v * H);
+    const tone = 0.155 + (hash(ca, cb) - 0.5) * 0.05 + (fbm(u * 2.5, v * 2.5, 3) - 0.5) * 0.035;
+    const g = Math.min(1, seam / seamWidth);            // 0 on the seam, 1 in the tile
+    const c = tone * (0.42 + 0.58 * g);
+    return [clamp(c * 246), clamp(c * 250), clamp(c * 262)];
+  });
+  shade(rough, (px, py, u, v) => {
+    const { seam } = cell(u * W, v * H);
+    const g = Math.min(1, seam / seamWidth);
+    const c = clamp((0.80 + (1 - g) * 0.16) * 255);
+    return [c, c, c];
+  });
+  shade(height, (px, py, u, v) => {
+    const { seam } = cell(u * W, v * H);
+    const g = Math.min(1, seam / seamWidth);
+    const c = clamp((0.30 + g * 0.62) * 255);
+    return [c, c, c];
+  });
+  return {
+    map: toTexture(map, { srgb: true, tileSize: H, tileSizeU: W }),
+    roughnessMap: toTexture(rough, { tileSize: H, tileSizeU: W }),
+    normalMap: toTexture(heightToNormal(height, 0.8), { tileSize: H, tileSizeU: W }),
+    tileSize: H,
+  };
+}
+
+// =====================================================================================
 //  CARBON COMPOSITE (interstage, landing legs, fairing inside)
 // =====================================================================================
 export function makeCarbon({ size = 512, tile = 0.6 } = {}) {

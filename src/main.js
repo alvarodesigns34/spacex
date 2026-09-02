@@ -150,7 +150,7 @@ async function main() {
     group.add(model);
     group.position.x = lay.x;
     scene.add(group);
-    exhibits[v.id] = { group, model, data: v, lay, occluder: OCCLUDER[v.id] ?? 0, labels: null, hullTop: lay.mount + (model.userData.height ?? v.height) };
+    exhibits[v.id] = { group, model, data: v, lay, occluder: OCCLUDER[v.id] ?? 0, labels: null, lod: null, hullTop: lay.mount + (model.userData.height ?? v.height) };
 
     // annotations
     const lg = new THREE.Group(); lg.name = `labels-${v.id}`; lg.visible = false;
@@ -166,6 +166,10 @@ async function main() {
     }
     labels.add(lg);
     exhibits[v.id].labels = lg;
+    // Vehicles may publish a near/far pair for detail that is only worth drawing up close.
+    let lod = null;
+    model.traverse(o => { if (o.userData && o.userData.lod) lod = o.userData.lod; });
+    exhibits[v.id].lod = lod;
 
     // scale figures
     const baseY = 0;
@@ -317,6 +321,25 @@ async function main() {
     }
   }
 
+  // Swaps the heat shield between instanced tiles and a textured shell. A 0.26 m tile stops
+  // resolving at roughly a couple of pixels; past that the instances only add sparkle.
+  const _lodC = new THREE.Vector3();
+  function updateLOD() {
+    const mpp = (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) / window.innerHeight;
+    for (const ex of Object.values(exhibits)) {
+      if (!ex.lod) continue;
+      _lodC.set(ex.lay.x, ex.hullTop * 0.5, 0);
+      const px = 0.26 / (camera.position.distanceTo(_lodC) * mpp);
+      const near = px > 3.5;
+      // Track the state explicitly: inferring it from the far group's visibility silently
+      // no-ops on the first evaluation, when both halves are still visible.
+      if (ex.lod.state === near) continue;
+      ex.lod.state = near;
+      ex.lod.far.visible = !near;
+      for (const o of ex.lod.near) o.visible = near;
+    }
+  }
+
   function frame() {
     const dt = Math.min(clock.getDelta(), 0.05);
     rig.update(dt);
@@ -328,6 +351,7 @@ async function main() {
     const mpp = (2 * dist * Math.tan(fovH / 2)) / window.innerHeight;
     hud.setScale(mpp, dist);
     updateLabelOcclusion();
+    updateLOD();
     composer.render();
     labelRenderer.render(scene, camera);
     requestAnimationFrame(frame);

@@ -113,12 +113,15 @@ Medido en la vista general con los cinco vehículos cargados:
 
 | | |
 |---|---|
-| Triángulos en escena | ≈830 000 (de los cuales ≈365 000 son las losetas instanciadas) |
+| Triángulos en vista general | ≈474 000 (escudo en su nivel de detalle lejano) |
+| Triángulos de cerca | ≈830 000 (de los cuales ≈365 000 son las losetas instanciadas) |
 | Memoria de texturas | ≈81 MB en 37 mapas |
 | Generación de materiales | ≈2,8 s en el arranque |
 | Losetas instanciadas | 13 025 en 1 draw call |
 
 Las losetas usan un prisma hexagonal de 28 triángulos sin cara trasera (nunca visible, siempre apoyada en el casco) y un chaflán superior que da el brillo del borde.
+
+**Nivel de detalle del escudo térmico.** Trece mil hexágonos de 0,26 m se convierten en ruido sub-píxel en cuanto el vehículo está a más de unas decenas de metros: el escudo deja de leerse como una superficie y pasa a ser una mancha moteada de borde deshilachado. A partir de unos 90 m (cuando una loseta baja de ~3,5 px) las instancias se sustituyen por una superficie de revolución con el mismo mosaico horneado en textura, que cubre exactamente la misma ventana angular. De cerca se ve la geometría real; de lejos, un panel limpio con el borde nítido — y 373 000 triángulos menos.
 
 ## Despliegue
 

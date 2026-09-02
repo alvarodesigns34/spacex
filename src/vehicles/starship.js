@@ -118,6 +118,43 @@ function raceway(M, length, { width = 0.9, depth = 0.24, material = null } = {})
   return g;
 }
 
+/**
+ * Surface of revolution spanning a height-dependent angular window — the same window the
+ * instanced tiles fill. Used as the far level of detail for the heat shield: one clean
+ * surface with metric UVs, instead of thousands of sub-pixel hexagons.
+ */
+function coverageShell(profile, coverage, y0, y1, offset = 0.022, rows = 120, cols = 72) {
+  const pos = [], uv = [], idx = [];
+  let arc = 0, prevR = null, prevY = null;
+  for (let j = 0; j <= rows; j++) {
+    const y = y0 + (y1 - y0) * (j / rows);
+    const p = profileAt(profile, y);
+    const r = (p ? p.r : 0) + offset;
+    if (prevR !== null) arc += Math.hypot(r - prevR, y - prevY);
+    prevR = r; prevY = y;
+    const half = coverage(y);
+    for (let i = 0; i <= cols; i++) {
+      const phi = -half + (2 * half) * (i / cols);
+      pos.push(Math.sin(phi) * r, y, Math.cos(phi) * r);
+      uv.push(phi * r, arc);                       // metric UVs, as the lathe helper emits
+    }
+  }
+  const row = cols + 1;
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const a = j * row + i, b = a + 1, c = a + row, d = c + 1;
+      idx.push(a, b, c, b, d, c);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  g.computeBoundingSphere();
+  return g;
+}
+
 /** Vented hot-stage section: on Block 3 this is built into the top of the methane tank. */
 function hotStageSection(M, height = 1.83) {
   const g = new THREE.Group();
@@ -276,7 +313,8 @@ export function buildShip(M) {
   const tileBase = 1.0;
   const backProfile = profile.filter(p => p.y >= tileBase).map(p => ({ r: p.r + 0.002, y: p.y }));
   backProfile.unshift({ r: profileAt(profile, tileBase).r + 0.002, y: tileBase });
-  g.add(mesh(lathe(backProfile, { segments: 112, phiStart: -COVER_NOSE, phiLength: 2 * COVER_NOSE }), M.tileUnder, { castShadow: false }));
+  const backing = mesh(lathe(backProfile, { segments: 112, phiStart: -COVER_NOSE, phiLength: 2 * COVER_NOSE }), M.tileUnder, { castShadow: false });
+  g.add(backing);
 
   let count = tileSurfaceOfRevolution(tiles, profile, {
     y0: tileBase + 0.15, y1: SHIP_H - 0.3, phiCenter: 0, phiHalf: coverage,
@@ -285,6 +323,7 @@ export function buildShip(M) {
 
   // ---- Flaps -------------------------------------------------------------------------
   const FLAP_T = 0.62;
+  const flapFaces = [];          // thin plates matching each tiled flap face, for the far LOD
   /**
    * Places one flap. `outline` is the planform in the local frame (x = radially outward from
    * the hull surface, y = along the vehicle); the solid is lofted with a rounded edge and a
@@ -319,6 +358,11 @@ export function buildShip(M) {
     const faceM = m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, off));
     count = tilePolygon(tiles, outline, faceM, {
       circumradius: TILE_R, startIndex: count, rng, inset: 0.02, flip: !windwardIsPlusE3,
+    });
+    // ExtrudeGeometry's cap UVs are already in metres, which is what the mosaic map expects.
+    flapFaces.push({
+      geometry: plate(outline, 0.03),
+      matrix: faceM.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, windwardIsPlusE3 ? 0.01 : -0.01)),
     });
 
     // Hinge fairing blended into the hull along the root, capped so the ends do not read as
@@ -358,6 +402,15 @@ export function buildShip(M) {
   if (tiles.instanceColor) tiles.instanceColor.needsUpdate = true;
   g.add(tiles);
   g.userData.tileCount = count;
+
+  // Far level of detail: the shield as one textured surface, plus a face plate on each flap.
+  const far = new THREE.Group();
+  far.name = 'tps-far';
+  far.add(mesh(coverageShell(profile, coverage, tileBase + 0.1, SHIP_H - 0.25), M.tpsShell, { castShadow: false }));
+  for (const f of flapFaces) far.add(mesh(f.geometry, M.tpsShell, { castShadow: false, matrix: f.matrix }));
+  far.visible = false;              // the pair starts in the near state; main.js drives it
+  g.add(far);
+  g.userData.lod = { near: [tiles, backing], far, state: true };
 
   // Leeward raceway over the LOX downcomer, stopping below the forward flaps.
   const raceLen = barrelTop - skirtTop - 2.4;
