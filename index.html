@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SpaceX Vehicle Center — visualización 3D a escala real</title>
+  <meta name="description" content="Recreaciones 3D a escala 1:1 de Starship + Super Heavy, Falcon 9, Falcon Heavy, Dragon y un satélite Starlink V2 Mini, con ficha técnica verificada y cámara libre.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="src/styles.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/build/three.module.js",
+      "three/addons/": "./vendor/three/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <canvas id="scene" aria-label="Escena 3D del SpaceX Vehicle Center"></canvas>
+  <div id="labels"></div>
+  <div id="hud"></div>
+  <div id="loading" role="status" aria-live="polite">
+    <div class="loading-card">
+      <div class="eyebrow">SpaceX Vehicle Center</div>
+      <div class="loading-title">Construyendo los vehículos a escala 1:1</div>
+      <div class="loading-track"><div class="loading-fill"></div></div>
+      <div class="loading-text">Iniciando…</div>
+    </div>
+  </div>
+  <noscript>Esta experiencia necesita JavaScript y WebGL 2.</noscript>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
