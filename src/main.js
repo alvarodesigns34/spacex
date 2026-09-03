@@ -18,6 +18,7 @@ import { buildStarship } from './vehicles/starship.js';
 import { buildFalcon9, buildFalconHeavy } from './vehicles/falcon.js';
 import { buildDragon } from './vehicles/dragon.js';
 import { buildStarlink } from './vehicles/starlink.js';
+import { buildRoadster } from './vehicles/roadster.js';
 import { buildMount, buildPedestal, buildHuman } from './vehicles/common.js';
 import { buildLaunchComplex, PAD } from './vehicles/pad.js';
 import { verifyExhibits, verifyScene, verifyPad } from './data/verify.js';
@@ -37,13 +38,14 @@ const LAYOUT = {
   starship: { x: 0, z: -185, mount: PAD.deckTop, yaw: 129.6, pad: true },
   dragon: { x: 18, z: 0, mount: 1.6 },
   starlink: { x: 78, z: 0, mount: 6.2 },
+  roadster: { x: 136, z: 0, mount: 1.4, yaw: 25 },
 };
 const OVERVIEW = { pos: [-12, 74, 292], target: [-14, 50, -66] };
 
 // Radius of the cylinder used to hide annotations that sit behind a vehicle. CSS2D labels
 // always draw on top of the scene, so without this the far-side callouts read as if they
 // were in front. Starlink is a flat panel and needs no occluder.
-const OCCLUDER = { starship: 4.5, falcon9: 1.9, falconheavy: 1.9, dragon: 2.0, starlink: 0 };
+const OCCLUDER = { starship: 4.5, falcon9: 1.9, falconheavy: 1.9, dragon: 2.0, starlink: 0, roadster: 1.0 };
 
 const nextFrame = () => new Promise(r => requestAnimationFrame(r));
 
@@ -116,6 +118,7 @@ async function main() {
     falconheavy: [buildFalconHeavy, 'Falcon Heavy…'],
     dragon: [buildDragon, 'Dragon…'],
     starlink: [buildStarlink, 'Starlink V2 Mini…'],
+    roadster: [buildRoadster, 'Tesla Roadster y Starman…'],
   };
   let step = 0;
   let complex = null;
@@ -149,6 +152,11 @@ async function main() {
       group.add(ped);
       model.position.y = lay.mount + 0.6;
       env.addStation(lay.x, lay.z, 5);
+    } else if (v.id === 'roadster') {
+      const ped = buildPedestal(M, { radius: 2.5, height: lay.mount });
+      group.add(ped);
+      model.position.y = lay.mount;
+      env.addStation(lay.x, lay.z, 6);
     } else if (lay.pad) {
       // Starship stands on the real thing: the launch mount spanning the flame trench, with
       // the tower alongside. No display furniture, and no apron ring — the pad has its own.
@@ -206,6 +214,7 @@ async function main() {
     const baseY = 0;
     const people = v.id === 'starlink' ? [[3.2, 0, 2.4, 0.4], [-2.6, 0, 3.0, -1.2]]
       : v.id === 'dragon' ? [[3.4, 0, 1.6, 0.6], [-2.8, 0, 2.6, -0.8]]
+      : v.id === 'roadster' ? [[2.8, 0, 1.8, 0.5], [-2.8, 0, 1.2, -1.8]]
       : lay.pad ? [[26, PAD.padY, 16, 0.8], [30, PAD.padY, -10, -1.6], [-19, PAD.padY, 24, 2.4]]
       : [[lay.mountRadius + 3.5, 0, 2, 0.5], [lay.mountRadius + 2, 0, -4, -2.0], [-(lay.mountRadius + 3), 0, 3, 2.2]];
     for (const [px, py, pz, ry] of people) {
@@ -325,7 +334,7 @@ async function main() {
   window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return;
     const k = e.key.toLowerCase();
-    if (k >= '1' && k <= '5') select(VEHICLES[Number(k) - 1].id);
+    if (k >= '1' && k <= String(VEHICLES.length)) select(VEHICLES[Number(k) - 1].id);
     else if (k === '0') select(null);
     else if (k === 'f') rig.setMode(rig.mode === 'fly' ? 'orbit' : 'fly');
     else if (k === 'g') toggleLaunch();
