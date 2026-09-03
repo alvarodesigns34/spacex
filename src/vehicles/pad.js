@@ -72,6 +72,7 @@ function buildGround(M) {
   g.name = 'pad-ground';
   const { bermY, padY, trenchHalfW: tw, trenchFloorY } = PAD;
   const concrete = [];
+
   // Outer berm and the pad surface on top of it, in two halves either side of the trench.
   for (const s of [-1, 1]) {
     const inner = s < 0 ? -tw : tw;
@@ -82,17 +83,22 @@ function buildGround(M) {
   concrete.push(block(-tw, tw, trenchFloorY - 0.6, trenchFloorY, -52, 52));
   g.add(mesh(boxUV(mergeAll(concrete)), M.concrete));
 
-  // Stainless cladding on the trench walls and floor. The trench is the one part of the pad
-  // that is lined rather than bare concrete, because it takes the exhaust directly.
+  // Refractory stainless steel armor cladding on the trench walls and floor.
   const clad = [];
   for (const s of [-1, 1]) {
     clad.push(block(s * tw - 0.12, s * tw + 0.12, trenchFloorY, padY, -46, 46));
   }
   clad.push(block(-tw, tw, trenchFloorY, trenchFloorY + 0.12, -46, 46));
-  g.add(mesh(boxUV(mergeAll(clad)), M.darkMetal));
+  // Vertical structural armor panel retaining ribs along the trench walls
+  for (let z = -44; z <= 44; z += 4) {
+    for (const s of [-1, 1]) {
+      clad.push(block(s * (tw - 0.08) - 0.05, s * (tw - 0.08) + 0.05, trenchFloorY, padY, z - 0.12, z + 0.12));
+    }
+  }
+  g.add(mesh(boxUV(mergeAll(clad)), M.trenchArmor || M.darkMetal));
 
-  // Bidirectional flame diverter: a ridge under the engine opening that splits the plume
-  // down both arms of the trench. Modelled as two ramps meeting at the crest.
+  // Bidirectional flame diverter: aerodynamic wedge under the engine opening that splits the plume
+  // down both arms of the trench, reinforced with structural stiffener ribs.
   const ramps = [];
   const crest = trenchFloorY + 4.2, run = 15.0;
   for (const s of [-1, 1]) {
@@ -103,12 +109,19 @@ function buildGround(M) {
     shape.lineTo(s * run, trenchFloorY);
     shape.closePath();
     const e = new THREE.ExtrudeGeometry(shape, { depth: tw * 2, bevelEnabled: false });
-    // Extruded in XY along +Z; rotate so the ramp runs along Z and spans the trench in X.
     e.rotateY(Math.PI / 2);
     e.translate(-tw, 0, 0);
     ramps.push({ geometry: e });
   }
-  g.add(mesh(boxUV(mergeAll(ramps)), M.darkMetal));
+  // Diverter central splitter spine and transverse stiffener ribs along the flame slope
+  ramps.push(block(-tw, tw, crest - 0.25, crest + 0.18, -0.35, 0.35));
+  for (const sz of [-1, 1]) {
+    for (let r = 2.5; r < run; r += 3.2) {
+      const yr = crest - (r / run) * (crest - trenchFloorY - 0.35);
+      ramps.push(block(-tw + 0.2, tw - 0.2, yr - 0.1, yr + 0.18, sz * r - 0.18, sz * r + 0.18));
+    }
+  }
+  g.add(mesh(boxUV(mergeAll(ramps)), M.trenchArmor || M.darkMetal));
   return g;
 }
 
@@ -132,33 +145,65 @@ function buildMountTable(M) {
   deck.translate(0, deckTop - deckThick, 0);
   g.add(mesh(boxUV(mergeAll([{ geometry: deck }])), M.mount));
 
-  // Piers and their bracing, standing on the pad surface clear of the trench walls.
+  // Concrete foundation plinths and heavy steel baseplates under the four piers
+  const plinths = [];
+  const baseplates = [];
   const steel = [];
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
     const x = sx * pierAt, z = sz * pierAt;
-    steel.push(block(x - pierHalf, x + pierHalf, padY, deckBottom, z - pierHalf, z + pierHalf));
+    // Reinforced concrete plinth rising from pad level
+    plinths.push(block(x - pierHalf - 0.45, x + pierHalf + 0.45, padY, padY + 1.1, z - pierHalf - 0.45, z + pierHalf + 0.45));
+    // Heavy steel baseplate with gusset stiffeners
+    baseplates.push(block(x - pierHalf - 0.2, x + pierHalf + 0.2, padY + 1.1, padY + 1.35, z - pierHalf - 0.2, z + pierHalf + 0.2));
+    // Structural steel column
+    steel.push(block(x - pierHalf, x + pierHalf, padY + 1.35, deckBottom, z - pierHalf, z + pierHalf));
   }
+  g.add(mesh(boxUV(mergeAll(plinths)), M.concrete));
+  g.add(mesh(boxUV(mergeAll(baseplates)), M.darkMetal));
+
   // Girders under the deck, spanning pier to pier both ways.
   for (const s of [-1, 1]) {
     steel.push(block(-pierAt, pierAt, deckBottom - 1.6, deckBottom, s * pierAt - 0.7, s * pierAt + 0.7));
     steel.push(block(s * pierAt - 0.7, s * pierAt + 0.7, deckBottom - 1.6, deckBottom, -pierAt, pierAt));
   }
   // Diagonal bracing in the four bays between the piers.
-  const braceH = deckBottom - 1.6 - padY;
+  const braceH = deckBottom - 1.6 - (padY + 1.35);
   const diag = Math.hypot(braceH, pierAt * 2);
   for (const s of [-1, 1]) {
     for (const d of [-1, 1]) {
       steel.push({
         geometry: B(0.55, diag, 0.55),
-        matrix: mat4([s * pierAt, padY + braceH / 2, 0], [Math.atan2(pierAt * 2 * d, braceH), 0, 0]),
+        matrix: mat4([s * pierAt, padY + 1.35 + braceH / 2, 0], [Math.atan2(pierAt * 2 * d, braceH), 0, 0]),
       });
       steel.push({
         geometry: B(0.55, diag, 0.55),
-        matrix: mat4([0, padY + braceH / 2, s * pierAt], [0, 0, Math.atan2(pierAt * 2 * d, braceH)]),
+        matrix: mat4([0, padY + 1.35 + braceH / 2, s * pierAt], [0, 0, Math.atan2(pierAt * 2 * d, braceH)]),
       });
     }
   }
   g.add(mesh(boxUV(mergeAll(steel)), M.mount));
+
+  // Intermediate service mezzanine catwalk under the table (Y = 13.5 m)
+  const catwalk = [];
+  const catwalkRail = [];
+  for (const s of [-1, 1]) {
+    catwalk.push(block(-pierAt + pierHalf, pierAt - pierHalf, 13.5, 13.62, s * pierAt - 1.2, s * pierAt + 1.2));
+    catwalk.push(block(s * pierAt - 1.2, s * pierAt + 1.2, 13.5, 13.62, -pierAt + pierHalf, pierAt - pierHalf));
+    catwalkRail.push(block(-pierAt + pierHalf, pierAt - pierHalf, 14.65, 14.75, s * (pierAt - 1.25) - 0.04, s * (pierAt - 1.25) + 0.04));
+    catwalkRail.push(block(s * (pierAt - 1.25) - 0.04, s * (pierAt - 1.25) + 0.04, 14.65, 14.75, -pierAt + pierHalf, pierAt - pierHalf));
+  }
+  g.add(mesh(boxUV(mergeAll(catwalk)), M.steelGrating || M.mount));
+  g.add(mesh(boxUV(mergeAll(catwalkRail)), M.mount, { castShadow: false }));
+
+  // Deluge water supply risers climbing the piers to the table manifold
+  const risers = [];
+  for (const sx of [-1, 1]) {
+    risers.push({
+      geometry: new THREE.CylinderGeometry(0.38, 0.38, deckBottom - 0.4 - (padY + 1.35), 16),
+      matrix: mat4([sx * (pierAt - 1.2), padY + 1.35 + (deckBottom - 0.4 - padY - 1.35) / 2, -pierAt - pierHalf - 0.45]),
+    });
+  }
+  g.add(mesh(boxUV(mergeAll(risers)), M.pipeBlue || M.conduit));
 
   // Water-cooled table seat: an annular steel plate cantilevered inboard of the deck opening
   // for the booster skirt to sit on. Its inner edge is what actually sets the size of the
@@ -379,6 +424,153 @@ function buildField(M) {
 }
 
 // =========================================================================================
+//  Pad infrastructure: trench coping parapets, safety handrails, deluge water pipelines,
+//  cryogenic pipe bridge, equipment housekeeping skids, and industrial floodlight towers.
+// =========================================================================================
+function buildPadInfrastructure(M) {
+  const g = new THREE.Group();
+  g.name = 'pad-infrastructure';
+  const { padY, trenchHalfW: tw, farmX } = PAD;
+
+  // 1. Trench parapet coping curbs (reinforced concrete edge beam with hazard striping)
+  const curbs = [];
+  const curbYellow = [];
+  for (const s of [-1, 1]) {
+    const cx = s * (tw + 0.32);
+    curbs.push(block(cx - 0.28, cx + 0.28, padY, padY + 0.45, -46, 46));
+    curbYellow.push(block(s < 0 ? cx - 0.28 : cx + 0.14, s < 0 ? cx - 0.14 : cx + 0.28, padY + 0.42, padY + 0.46, -46, 46));
+  }
+  g.add(mesh(boxUV(mergeAll(curbs)), M.concrete));
+  g.add(mesh(boxUV(mergeAll(curbYellow)), M.safetyYellow));
+
+  // 2. Trench perimeter safety handrails (prevent falling 8.2 m into the pit)
+  const rails = [];
+  const railYellow = [];
+  for (const s of [-1, 1]) {
+    const rx = s * (tw + 0.65);
+    for (const [z0, z1] of [[-45, -15], [15, 45]]) {
+      for (const ry of [padY + 0.55, padY + 1.1]) {
+        rails.push(block(rx - 0.03, rx + 0.03, ry - 0.02, ry + 0.02, z0, z1));
+      }
+      for (let z = z0; z <= z1; z += 3) {
+        railYellow.push(block(rx - 0.04, rx + 0.04, padY, padY + 1.12, z - 0.04, z + 0.04));
+      }
+    }
+  }
+  g.add(mesh(boxUV(mergeAll(rails)), M.mount, { castShadow: false }));
+  g.add(mesh(boxUV(mergeAll(railYellow)), M.safetyYellow, { castShadow: false }));
+
+  // 3. Maintenance access stairs into trench
+  const stairs = [];
+  for (const s of [-1, 1]) {
+    const sx = s * (tw - 1.2);
+    for (let st = 0; st < 16; st++) {
+      const frac = st / 16;
+      const sy = 0.8 + frac * (padY - 0.8);
+      const sz = (s > 0 ? 40 : -40) - frac * 5 * s;
+      stairs.push(block(sx - 0.6, sx + 0.6, sy, sy + 0.12, sz - 0.35, sz + 0.35));
+    }
+  }
+  g.add(mesh(boxUV(mergeAll(stairs)), M.steelGrating || M.mount));
+
+  // 4. Vertical High-Pressure Deluge Tanks (Water Battery next to the pad)
+  const delugeTankGroup = [];
+  const delugeTankPipes = [];
+  const tankX = 72;
+  delugeTankGroup.push(block(tankX - 6, tankX + 6, -0.4, 1.2, -26, 26));
+  for (let i = 0; i < 7; i++) {
+    const tz = -21 + i * 7;
+    delugeTankPipes.push({
+      geometry: new THREE.CylinderGeometry(2.1, 2.1, 17, 24),
+      matrix: mat4([tankX, 1.2 + 8.5, tz]),
+    });
+    delugeTankPipes.push({
+      geometry: new THREE.SphereGeometry(2.1, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+      matrix: mat4([tankX, 1.2 + 17, tz]),
+    });
+  }
+  delugeTankPipes.push({
+    geometry: new THREE.CylinderGeometry(0.3, 0.3, 44, 16),
+    matrix: mat4([tankX, 1.2 + 18.5, 0], [Math.PI / 2, 0, 0]),
+  });
+  g.add(mesh(boxUV(mergeAll(delugeTankGroup)), M.concrete));
+  g.add(mesh(boxUV(mergeAll(delugeTankPipes)), M.pipeBlue));
+
+  // 5. Massive 48-Inch (1.2 m diameter) Deluge Water Supply Mains
+  const bigPipes = [];
+  const saddles = [];
+  for (const pz of [-26, 26]) {
+    bigPipes.push({
+      geometry: new THREE.CylinderGeometry(0.6, 0.6, 58, 24),
+      matrix: mat4([(tankX + 14) / 2, padY + 1.2, pz], [0, 0, Math.PI / 2]),
+    });
+    bigPipes.push({
+      geometry: new THREE.CylinderGeometry(0.6, 0.6, 6.5, 24),
+      matrix: mat4([14, padY - 2.0, pz]),
+    });
+    for (let px = 20; px <= tankX - 4; px += 10) {
+      saddles.push(block(px - 0.8, px + 0.8, padY, padY + 0.6, pz - 1.0, pz + 1.0));
+    }
+  }
+  g.add(mesh(boxUV(mergeAll(bigPipes)), M.pipeBlue));
+  g.add(mesh(boxUV(mergeAll(saddles)), M.concrete));
+
+  // 6. Cryogenic Pipe Bridge & Racks (connecting Tank Farm to the Pad)
+  const bridgeSteel = [];
+  const bridgePipes = [];
+  const bridgeCryo = [];
+  const bz = -30;
+  for (let bx = 66; bx <= farmX - 10; bx += 16) {
+    bridgeSteel.push(block(bx - 0.25, bx + 0.25, 0, 8.5, bz - 2.2, bz - 1.8));
+    bridgeSteel.push(block(bx - 0.25, bx + 0.25, 0, 8.5, bz + 1.8, bz + 2.2));
+    bridgeSteel.push(block(bx - 0.3, bx + 0.3, 5.0, 5.3, bz - 2.2, bz + 2.2));
+    bridgeSteel.push(block(bx - 0.3, bx + 0.3, 8.2, 8.5, bz - 2.2, bz + 2.2));
+  }
+  bridgeSteel.push(block(64, farmX, 8.2, 8.5, bz - 2.0, bz - 1.8));
+  bridgeSteel.push(block(64, farmX, 8.2, 8.5, bz + 1.8, bz + 2.0));
+
+  for (const oy of [5.7, 6.5]) {
+    bridgeCryo.push({
+      geometry: new THREE.CylinderGeometry(0.32, 0.32, farmX - 64, 16),
+      matrix: mat4([(64 + farmX) / 2, oy, bz - 0.9], [0, 0, Math.PI / 2]),
+    });
+  }
+  for (const oy of [5.7, 6.5]) {
+    bridgePipes.push({
+      geometry: new THREE.CylinderGeometry(0.28, 0.28, farmX - 64, 16),
+      matrix: mat4([(64 + farmX) / 2, oy, bz + 0.9], [0, 0, Math.PI / 2]),
+    });
+  }
+  g.add(mesh(boxUV(mergeAll(bridgeSteel)), M.mount));
+  g.add(mesh(boxUV(mergeAll(bridgeCryo)), M.pipeCryo || M.conduit));
+  g.add(mesh(boxUV(mergeAll(bridgePipes)), M.conduit));
+
+  // 7. Pad Housekeeping Equipment Skids
+  const skids = [];
+  const cabinets = [];
+  for (const sz of [-34, 34]) {
+    skids.push(block(26 - 4, 26 + 4, padY, padY + 0.3, sz - 3, sz + 3));
+    cabinets.push(block(26 - 2.5, 26 - 0.5, padY + 0.3, padY + 2.6, sz - 2, sz + 0.5));
+    cabinets.push(block(26 + 0.5, 26 + 2.5, padY + 0.3, padY + 2.2, sz - 1.5, sz + 1.5));
+  }
+  g.add(mesh(boxUV(mergeAll(skids)), M.concrete));
+  g.add(mesh(boxUV(mergeAll(cabinets)), M.darkMetal));
+
+  // 8. Perimeter High-Mast Industrial Floodlight Towers
+  const floodlights = [];
+  for (const fx of [-54, 54]) for (const fz of [-44, 44]) {
+    floodlights.push({
+      geometry: new THREE.CylinderGeometry(0.25, 0.8, 28, 8),
+      matrix: mat4([fx, padY + 14, fz]),
+    });
+    floodlights.push(block(fx - 2.2, fx + 2.2, padY + 27.5, padY + 28.5, fz - 0.6, fz + 0.6));
+  }
+  g.add(mesh(boxUV(mergeAll(floodlights)), M.alumDark));
+
+  return g;
+}
+
+// =========================================================================================
 export function buildLaunchComplex(M) {
   const g = new THREE.Group();
   g.name = 'launch-complex';
@@ -391,6 +583,7 @@ export function buildLaunchComplex(M) {
   const qd = buildQdArm(M);
   g.add(qd);
   g.add(buildField(M));
+  g.add(buildPadInfrastructure(M));
 
   g.userData.stations = {
     padY: PAD.padY,
