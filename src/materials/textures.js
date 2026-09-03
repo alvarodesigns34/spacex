@@ -408,25 +408,112 @@ export function makeConcrete({ size = 768, tile = 12.0 } = {}) {
   const joints = 2; // joints per tile => 6 m slabs
   shade(map, (x, y, u, v) => {
     const n = fbm(u * 6 + 2, v * 6 + 9, 5);
-    const fine = (noise2(x * 0.9, y * 0.9) - 0.5) * 0.06;
-    const stain = Math.max(0, fbm(u * 2.2 + 8, v * 2.2 + 1, 4) - 0.52) * 0.5;
-    const ju = Math.abs(((u * joints) % 1) - 0.5) < 0.004 ? 1 : 0;
-    const jv = Math.abs(((v * joints) % 1) - 0.5) < 0.004 ? 1 : 0;
-    let c = 0.40 + (n - 0.5) * 0.18 + fine - stain;
-    if (ju || jv) c *= 0.55;
-    return [clamp(c * 1.035 * 255), clamp(c * 255), clamp(c * 0.93 * 255)];
+    const fine = (noise2(x * 0.9, y * 0.9) - 0.5) * 0.05;
+    const stain = Math.max(0, fbm(u * 2.2 + 8, v * 2.2 + 1, 4) - 0.52) * 0.4;
+    const du = Math.abs(((u * joints) % 1) - 0.5);
+    const dv = Math.abs(((v * joints) % 1) - 0.5);
+    const jointDist = Math.min(du, dv);
+    const joint = Math.max(0, 1 - jointDist / 0.008);
+    const sealant = Math.max(0, 1 - jointDist / 0.0035);
+    let c = 0.48 + (n - 0.5) * 0.14 + fine - stain * 0.5;
+    c -= joint * 0.06 + sealant * 0.12;
+    return [clamp(c * 1.025 * 255), clamp(c * 255), clamp(c * 0.95 * 255)];
   });
-  shade(rough, (x, y, u, v) => { const g = clamp((0.82 + (fbm(u * 12, v * 12, 3) - 0.5) * 0.2) * 255); return [g, g, g]; });
+  shade(rough, (x, y, u, v) => {
+    const du = Math.abs(((u * joints) % 1) - 0.5);
+    const dv = Math.abs(((v * joints) % 1) - 0.5);
+    const jointDist = Math.min(du, dv);
+    const sealant = Math.max(0, 1 - jointDist / 0.0035);
+    const g = clamp((0.84 + (fbm(u * 12, v * 12, 3) - 0.5) * 0.15 - sealant * 0.25) * 255);
+    return [g, g, g];
+  });
   shade(height, (x, y, u, v) => {
-    const ju = Math.abs(((u * joints) % 1) - 0.5) < 0.004 ? 1 : 0;
-    const jv = Math.abs(((v * joints) % 1) - 0.5) < 0.004 ? 1 : 0;
-    const g = clamp((0.5 + (fbm(u * 24, v * 24, 3) - 0.5) * 0.3 - (ju || jv ? 0.4 : 0)) * 255);
+    const du = Math.abs(((u * joints) % 1) - 0.5);
+    const dv = Math.abs(((v * joints) % 1) - 0.5);
+    const jointDist = Math.min(du, dv);
+    const joint = Math.max(0, 1 - jointDist / 0.008);
+    const sealant = Math.max(0, 1 - jointDist / 0.0035);
+    const g = clamp((0.5 + (fbm(u * 24, v * 24, 3) - 0.5) * 0.18 - joint * 0.22 - sealant * 0.32) * 255);
     return [g, g, g];
   });
   return {
     map: toTexture(map, { srgb: true, tileSize: tile, anisotropy: 16 }),
     roughnessMap: toTexture(rough, { tileSize: tile, anisotropy: 16 }),
-    normalMap: toTexture(heightToNormal(height, 1.0), { tileSize: tile, anisotropy: 16 }),
+    normalMap: toTexture(heightToNormal(height, 0.8), { tileSize: tile, anisotropy: 16 }),
+    tileSize: tile,
+  };
+}
+
+// =====================================================================================
+//  GROUND TERRAIN (Boca Chica / Starbase coastal plain)
+// =====================================================================================
+export function makeGroundTerrain({ size = 768, tile = 48.0 } = {}) {
+  const map = canvas(size, size);
+  const rough = canvas(size, size);
+  const height = canvas(size, size);
+  shade(map, (x, y, u, v) => {
+    const macro = fbm(u * 3 + 1, v * 3 + 4, 4);
+    const meso = fbm(u * 12 + 7, v * 12 + 2, 4);
+    const micro = (noise2(x * 0.8, y * 0.8) - 0.5) * 0.05;
+    const scrub = Math.max(0, fbm(u * 5 + 3, v * 5 + 8, 3) - 0.55) * 1.5;
+    let r = 0.50 + (macro - 0.5) * 0.12 + (meso - 0.5) * 0.06 + micro;
+    let g = 0.47 + (macro - 0.5) * 0.11 + (meso - 0.5) * 0.05 + micro;
+    let b = 0.42 + (macro - 0.5) * 0.10 + (meso - 0.5) * 0.05 + micro;
+    r = lerp(r, 0.41, scrub * 0.35);
+    g = lerp(g, 0.44, scrub * 0.35);
+    b = lerp(b, 0.35, scrub * 0.35);
+    return [clamp(r * 255), clamp(g * 255), clamp(b * 255)];
+  });
+  shade(rough, (x, y, u, v) => {
+    const g = clamp((0.88 + (fbm(u * 10, v * 10, 3) - 0.5) * 0.14) * 255);
+    return [g, g, g];
+  });
+  shade(height, (x, y, u, v) => {
+    const g = clamp((0.5 + (fbm(u * 16, v * 16, 3) - 0.5) * 0.28) * 255);
+    return [g, g, g];
+  });
+  return {
+    map: toTexture(map, { srgb: true, tileSize: tile, anisotropy: 16 }),
+    roughnessMap: toTexture(rough, { tileSize: tile, anisotropy: 16 }),
+    normalMap: toTexture(heightToNormal(height, 1.1), { tileSize: tile, anisotropy: 16 }),
+    tileSize: tile,
+  };
+}
+
+// =====================================================================================
+//  TRENCH REFRACTORY ARMOR (heat-scorched stainless steel flame deflector lining)
+// =====================================================================================
+export function makeTrenchArmor({ size = 512, tile = 8.0 } = {}) {
+  const map = canvas(size, size);
+  const rough = canvas(size, size);
+  const height = canvas(size, size);
+  const panels = 2;
+  shade(map, (x, y, u, v) => {
+    const streak = fbm(u * 24 + 4, v * 4 + 1, 4);
+    const soot = Math.max(0, fbm(u * 5, v * 2, 3) - 0.42) * 0.55;
+    const pu = Math.abs(((u * panels) % 1) - 0.5);
+    const seam = pu < 0.008 ? 1 : 0;
+    let base = 0.44 + (streak - 0.5) * 0.09 - soot * 0.35;
+    let r = base * 0.96, g = base * 0.97, b = base * 1.02;
+    const heat = Math.max(0, fbm(u * 8 + 2, v * 3 + 7, 3) - 0.5) * 0.22;
+    r += heat * 0.12; g += heat * 0.05;
+    if (seam) { r *= 0.55; g *= 0.55; b *= 0.55; }
+    return [clamp(r * 255), clamp(g * 255), clamp(b * 255)];
+  });
+  shade(rough, (x, y, u, v) => {
+    const g = clamp((0.46 + (fbm(u * 14, v * 14, 3) - 0.5) * 0.16) * 255);
+    return [g, g, g];
+  });
+  shade(height, (x, y, u, v) => {
+    const pu = Math.abs(((u * panels) % 1) - 0.5);
+    const seam = pu < 0.008 ? 1 : 0;
+    const g = clamp((0.5 + (fbm(u * 18, v * 18, 2) - 0.5) * 0.1 - seam * 0.28) * 255);
+    return [g, g, g];
+  });
+  return {
+    map: toTexture(map, { srgb: true, tileSize: tile, anisotropy: 16 }),
+    roughnessMap: toTexture(rough, { tileSize: tile, anisotropy: 16 }),
+    normalMap: toTexture(heightToNormal(height, 1.3), { tileSize: tile, anisotropy: 16 }),
     tileSize: tile,
   };
 }
