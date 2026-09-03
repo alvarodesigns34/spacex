@@ -154,24 +154,59 @@ export class Plume {
 //  Ground cloud
 // -----------------------------------------------------------------------------------------
 function puffTexture() {
+  const size = 256;
   const c = document.createElement('canvas');
-  c.width = c.height = 128;
-  const x = c.getContext('2d');
-  const img = x.createImageData(128, 128);
-  for (let j = 0; j < 128; j++) {
-    for (let i = 0; i < 128; i++) {
-      const dx = (i - 63.5) / 63.5, dy = (j - 63.5) / 63.5;
-      const r = Math.hypot(dx, dy);
-      // Soft-edged blob with a little internal structure so a cluster does not read as
-      // a field of identical circles.
-      const n = 0.82 + 0.18 * Math.sin(i * 0.42) * Math.cos(j * 0.37);
-      const a = Math.max(0, 1 - r) ** 2.1 * n;
-      const k = (j * 128 + i) * 4;
-      img.data[k] = img.data[k + 1] = img.data[k + 2] = 255;
-      img.data[k + 3] = Math.round(a * 255);
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(size, size);
+  const data = img.data;
+  const half = size / 2;
+
+  // Multi-lobed cumulus core: gives non-spherical, organic clump structure
+  const lobes = [
+    { x: 0, y: 0, r: 0.48, w: 1.0 },
+    { x: -0.16, y: -0.12, r: 0.38, w: 0.85 },
+    { x: 0.18, y: -0.14, r: 0.36, w: 0.80 },
+    { x: 0.20, y: 0.15, r: 0.34, w: 0.75 },
+    { x: -0.18, y: 0.16, r: 0.35, w: 0.78 },
+    { x: 0.02, y: 0.22, r: 0.32, w: 0.70 },
+  ];
+
+  for (let y = 0; y < size; y++) {
+    const ny = (y - half) / half;
+    for (let x = 0; x < size; x++) {
+      const nx = (x - half) / half;
+      const r = Math.hypot(nx, ny);
+      if (r >= 1.0) continue;
+
+      let d = 0;
+      for (let k = 0; k < lobes.length; k++) {
+        const lb = lobes[k];
+        const dist = Math.hypot(nx - lb.x, ny - lb.y);
+        const lAlpha = Math.max(0, 1 - dist / lb.r);
+        d += lb.w * (lAlpha * lAlpha * (3 - 2 * lAlpha));
+      }
+      d = Math.min(1.0, d);
+
+      // Multi-frequency harmonic billow noise for fibrous steam wisps
+      const a1 = Math.sin(x * 0.12 + Math.cos(y * 0.09) * 2.0);
+      const a2 = Math.sin(y * 0.18 + Math.cos(x * 0.15) * 1.5);
+      const a3 = Math.sin((x + y) * 0.25);
+      const noise = 0.78 + 0.14 * a1 + 0.08 * a2 + 0.04 * a3;
+
+      // Soft rim falloff: smooth erosion near edge
+      const edge = Math.max(0, 1 - r);
+      const alpha = Math.min(1, Math.max(0, d * noise * Math.pow(edge, 1.4)));
+      const coreDensity = Math.round(210 + 45 * Math.max(0, 1 - r * 1.2));
+
+      const idx = (y * size + x) * 4;
+      data[idx] = coreDensity;
+      data[idx + 1] = coreDensity;
+      data[idx + 2] = coreDensity;
+      data[idx + 3] = Math.round(alpha * 255);
     }
   }
-  x.putImageData(img, 0, 0);
+  ctx.putImageData(img, 0, 0);
   const t = new THREE.CanvasTexture(c);
   t.needsUpdate = true;
   return t;
@@ -184,39 +219,48 @@ const CLOUD_VERT = /* glsl */`
   attribute float aRot;
   varying vec2 vUv;
   varying float vAlpha;
+  varying float vFire;
+  uniform float uFlame;
   void main() {
     vUv = uv;
-    // Billboard built in view space: the quad is sized in metres and always faces the
-    // camera. Point sprites would be cheaper, but gl_PointSize above the driver's limit is
-    // undefined behaviour, and a puff a few metres from the camera asks for tens of
-    // thousands of pixels — which on ANGLE/D3D rasterises as a solid block.
     vec3 c = (modelViewMatrix * vec4(aOffset, 1.0)).xyz;
     float s = sin(aRot), k = cos(aRot);
     vec2 q = vec2(position.x * k - position.y * s, position.x * s + position.y * k) * aSize;
-    // Fade out anything about to swallow the camera, rather than let it fill the frame.
+    // Fade out smoothly if approaching near plane or camera position
     vAlpha = aAlpha * smoothstep(1.0, 14.0, -c.z);
+    // Fire illumination is intense near the flame trench deflectors and pad base (Y < 18m):
+    float dFlame = length(vec3(aOffset.x * 1.5, max(0.0, aOffset.y - 4.0) * 2.2, aOffset.z * 0.6));
+    float heightFade = smoothstep(22.0, 2.0, aOffset.y);
+    vFire = uFlame * smoothstep(65.0, 8.0, dFlame) * heightFade;
     gl_Position = projectionMatrix * vec4(c + vec3(q, 0.0), 1.0);
   }`;
+
 const CLOUD_FRAG = /* glsl */`
   uniform sampler2D uMap;
   uniform vec3 uColor;
+  uniform vec3 uFireColor;
   varying vec2 vUv;
   varying float vAlpha;
+  varying float vFire;
   void main() {
-    float a = texture2D(uMap, vUv).a * vAlpha;
-    if (!(a >= 0.004)) discard;
-    gl_FragColor = vec4(uColor, a);
+    vec4 tex = texture2D(uMap, vUv);
+    float a = tex.a * vAlpha;
+    if (a < 0.003) discard;
+    // Clean daylight water steam with internal density shading
+    float dens = tex.r / 255.0;
+    vec3 steam = uColor * (0.88 + 0.12 * dens);
+    // Warm incandescent amber/golden fire illumination from below
+    vec3 fireGlow = uFireColor * (1.1 + 0.4 * dens);
+    vec3 col = mix(steam, fireGlow, clamp(vFire * 0.85, 0.0, 1.0));
+    gl_FragColor = vec4(col, a);
   }`;
 
 /**
- * The steam and dust that leaves the flame trench. Deterministic: the same seed produces the
- * same cloud on every run, which is what lets the headless check compare frames at all.
+ * The steam, deluge spray and dust that leaves the flame trench.
+ * Deterministic: the same seed produces the same cloud on every run.
  */
 export class GroundCloud {
-  // The budget here is fill rate, not triangles. Every live puff is a translucent quad tens
-  // of metres across, so a few hundred of them already cover the frame several times over;
-  // pushing past that buys nothing visible and starts to cost frames.
-  constructor({ count = 360, rng = Math.random } = {}) {
+  constructor({ count = 720, rng = Math.random } = {}) {
     this.count = count;
     this.rng = rng;
     this.pos = new Float32Array(count * 3);
@@ -226,18 +270,14 @@ export class GroundCloud {
     this.size = new Float32Array(count);
     this.alpha = new Float32Array(count);
     this.rot = new Float32Array(count);
+    this.rotSpeed = new Float32Array(count);
     this.next = 0;
 
     const geo = new THREE.InstancedBufferGeometry();
-    // A unit quad, written out rather than borrowed from a PlaneGeometry that is then
-    // disposed: sharing attributes with a disposed geometry works today and is a trap.
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
       -0.5, 0.5, 0, 0.5, 0.5, 0, -0.5, -0.5, 0, 0.5, -0.5, 0,
     ]), 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 1, 1, 1, 0, 0, 1, 0]), 2));
-    // The billboard shader never reads normals, but the scene-integrity check requires every
-    // geometry to carry them, and that rule is worth more without exceptions than with a
-    // list of them. Four vectors.
     geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array([
       0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1,
     ]), 3));
@@ -257,8 +297,9 @@ export class GroundCloud {
     const mat = new THREE.ShaderMaterial({
       uniforms: {
         uMap: { value: this.map },
-        // The composer renders linear and converts at the end, so the tint goes in linear.
-        uColor: { value: new THREE.Color(0xe6e3da).convertSRGBToLinear() },
+        uColor: { value: new THREE.Color(0xf2efe9).convertSRGBToLinear() },
+        uFireColor: { value: new THREE.Color(0xffb255).convertSRGBToLinear() },
+        uFlame: { value: 0.0 },
       },
       vertexShader: CLOUD_VERT, fragmentShader: CLOUD_FRAG,
       transparent: true, depthWrite: false, side: THREE.FrontSide,
@@ -270,37 +311,44 @@ export class GroundCloud {
     this.reset();
   }
 
+  setFlame(intensity) {
+    this.points.material.uniforms.uFlame.value = intensity;
+  }
+
   reset() {
     for (let i = 0; i < this.count; i++) {
       this.age[i] = 1; this.life[i] = 1; this.alpha[i] = 0; this.size[i] = 0;
       this.pos[i * 3] = 0; this.pos[i * 3 + 1] = -9999; this.pos[i * 3 + 2] = 0;
+      this.rotSpeed[i] = 0;
     }
+    this.points.material.uniforms.uFlame.value = 0.0;
     this.next = 0;
     this.flush();
   }
 
-  /** Spawns `n` puffs from one of the trench mouths, blown outward along its axis. */
+  /** Spawns `n` puffs from one of the trench mouths or pad zones. */
   emit(n, origin, dir, speed, spread) {
     const r = this.rng;
     for (let k = 0; k < n; k++) {
       const i = this.next; this.next = (this.next + 1) % this.count;
       const j = i * 3;
       this.pos[j] = origin[0] + (r() - 0.5) * spread;
-      this.pos[j + 1] = origin[1] + r() * spread * 0.35;
+      this.pos[j + 1] = Math.max(1.2, origin[1] + (r() - 0.2) * spread * 0.3);
       this.pos[j + 2] = origin[2] + (r() - 0.5) * spread;
-      const s = speed * (0.45 + r() * 0.9);
-      this.vel[j] = dir[0] * s + (r() - 0.5) * speed * 0.45;
-      this.vel[j + 1] = dir[1] * s + r() * speed * 0.35 + 2.5;
-      this.vel[j + 2] = dir[2] * s + (r() - 0.5) * speed * 0.45;
+      const s = speed * (0.5 + r() * 0.85);
+      this.vel[j] = dir[0] * s + (r() - 0.5) * speed * 0.4;
+      this.vel[j + 1] = dir[1] * s + r() * speed * 0.28 + 2.0;
+      this.vel[j + 2] = dir[2] * s + (r() - 0.5) * speed * 0.4;
       this.age[i] = 0;
-      this.life[i] = 6 + r() * 8;
-      this.size[i] = 5 + r() * 7;
+      this.life[i] = 7 + r() * 11;
+      this.size[i] = 7 + r() * 9;
       this.rot[i] = r() * Math.PI * 2;
+      this.rotSpeed[i] = (r() - 0.5) * 0.32;
     }
   }
 
   update(dt) {
-    const { pos, vel, age, life, size, alpha } = this;
+    const { pos, vel, age, life, size, alpha, rot, rotSpeed } = this;
     for (let i = 0; i < this.count; i++) {
       if (age[i] >= life[i]) { if (alpha[i] !== 0) { alpha[i] = 0; size[i] = 0; } continue; }
       age[i] += dt;
@@ -309,15 +357,23 @@ export class GroundCloud {
       pos[j] += vel[j] * dt;
       pos[j + 1] += vel[j + 1] * dt;
       pos[j + 2] += vel[j + 2] * dt;
-      // Drag, plus just enough buoyancy for the steam to roll upward as it slows. The lift
-      // has to stay small: a cloud that keeps rising becomes a wall across the whole frame
-      // instead of something spreading out along the ground.
-      const k = Math.exp(-dt * 0.95);
+      // Keep puffs above the ground surface
+      if (pos[j + 1] < 1.0) pos[j + 1] = 1.0;
+
+      // Aerodynamic drag on horizontal motion + thermal buoyancy
+      const k = Math.exp(-dt * 0.72);
       vel[j] *= k; vel[j + 2] *= k;
-      vel[j + 1] = vel[j + 1] * k + 1.1 * dt;
+      vel[j + 1] = vel[j + 1] * k + 2.2 * dt;
+
+      rot[i] += rotSpeed[i] * dt;
+
       const u = age[i] / life[i];
-      size[i] = (6 + u * 21) * (1 + (i % 3) * 0.22);
-      alpha[i] = 0.62 * Math.min(1, u * 6) * Math.max(0, 1 - u) ** 1.5;
+      // Billowing expansion from trench exit (8-16m) up to massive rolling cloud (48-80m)
+      size[i] = (8 + u * 48) * (1 + (i % 4) * 0.2);
+      // Smooth fade-in and long natural atmospheric decay
+      const fadeIn = Math.min(1.0, u * 5.0);
+      const fadeOut = Math.max(0.0, 1.0 - u);
+      alpha[i] = 0.56 * fadeIn * Math.pow(fadeOut, 1.5);
     }
     this.flush();
   }
