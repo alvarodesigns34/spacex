@@ -4,13 +4,14 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-const ROOT = '/home/user/spacex/';
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const PORT = 8801;
 const TYPES = { '.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.png':'image/png' };
 const server = createServer(async (req,res)=>{ try{
   const rel = normalize(decodeURIComponent(req.url.split('?')[0])).replace(/^(\.\.[/\\])+/,'');
-  const p = join(ROOT, rel==='/'?'index.html':rel);
+  const p = join(ROOT, (rel === '/' || rel === '\\' || rel === '') ? 'index.html' : rel);
   const b = await readFile(p);
   res.writeHead(200,{'Content-Type':TYPES[extname(p)]??'application/octet-stream'}); res.end(b);
 }catch{ res.writeHead(404).end('nf'); } });

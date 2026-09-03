@@ -28,7 +28,7 @@ const TYPES = {
 const server = createServer(async (req, res) => {
   try {
     const rel = normalize(decodeURIComponent(req.url.split('?')[0])).replace(/^(\.\.[/\\])+/, '');
-    const path = join(ROOT, rel === '/' ? 'index.html' : rel);
+    const path = join(ROOT, (rel === '/' || rel === '\\' || rel === '') ? 'index.html' : rel);
     const body = await readFile(path);
     res.writeHead(200, { 'Content-Type': TYPES[extname(path)] ?? 'application/octet-stream' });
     res.end(body);
