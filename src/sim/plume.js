@@ -404,7 +404,12 @@ export class GroundCloud {
 
   update(dt, camera, sun) {
     if (camera && sun) {
-      _sunDir.copy(sun.position).normalize().transformDirection(camera.matrixWorldInverse);
+      if (sun.target) {
+        _sunDir.subVectors(sun.position, sun.target.position).normalize();
+      } else {
+        _sunDir.copy(sun.position).normalize();
+      }
+      _sunDir.transformDirection(camera.matrixWorldInverse);
       this.points.material.uniforms.uSunDir.value.copy(_sunDir);
     }
     const { pos, vel, age, life, size, alpha, rot, rotSpeed } = this;
