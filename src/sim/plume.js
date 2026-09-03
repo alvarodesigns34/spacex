@@ -40,12 +40,15 @@ const PLUME_VERT = /* glsl */`
     float w = mix(1.0, uSpread, smoothstep(0.0, 0.45, v)) * (1.0 - 0.4 * smoothstep(0.7, 1.0, v));
     vec3 p = vec3(position.x * w, position.y, position.z * w);
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
-    vec3 n = normalize(normalMatrix * vec3(normal.x, normal.y / max(uSpread, 1.0), normal.z));
+    vec3 norm = normalMatrix * vec3(normal.x, normal.y / max(uSpread, 1.0), normal.z);
+    vec3 n = length(norm) > 1e-4 ? normalize(norm) : vec3(0.0, 1.0, 0.0);
+    float mvLen = length(mv.xyz);
+    vec3 viewDir = mvLen > 1e-4 ? -mv.xyz / mvLen : vec3(0.0, 0.0, 1.0);
     // A plume is a volume, not a shell. Weighting by how squarely the surface faces the
     // camera approximates the path length a ray takes through it: brightest through the
     // middle, falling to nothing at the silhouette. Without this the cone shows a hard
     // bright rim, which is the single thing that makes a rendered plume look like a cone.
-    vFace = abs(dot(n, -mv.xyz / max(length(mv.xyz), 1e-4)));
+    vFace = clamp(abs(dot(n, viewDir)), 0.0, 1.0);
     gl_Position = projectionMatrix * mv;
   }`;
 const PLUME_FRAG = /* glsl */`
@@ -58,10 +61,12 @@ const PLUME_FRAG = /* glsl */`
     vec3 c = v < 0.35 ? mix(uHot, uWarm, v / 0.35) : mix(uWarm, uCool, (v - 0.35) / 0.65);
     // Shock train: only meaningful while the flow is over-expanded, so uDiamond is driven
     // by ambient pressure at run time.
-    float shock = 1.0 + uDiamond * pow(abs(sin(v * 14.14)), 6.0) * (1.0 - v);
-    float a = uAlpha * pow(1.0 - v, uFalloff) * pow(vFace, 1.4) * uOpacity;
-    if (a < 0.002) discard;
-    gl_FragColor = vec4(c * shock, a);
+    float shock = 1.0 + uDiamond * pow(max(abs(sin(v * 14.14)), 1e-4), 6.0) * (1.0 - v);
+    float safeFace = max(vFace, 1e-4);
+    float safeAxis = max(1.0 - v, 1e-4);
+    float a = uAlpha * pow(safeAxis, uFalloff) * pow(safeFace, 1.4) * uOpacity;
+    if (a < 0.002 || a != a) discard;
+    gl_FragColor = vec4(c * shock, clamp(a, 0.0, 1.0));
   }`;
 
 /**
