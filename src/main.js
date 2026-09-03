@@ -440,7 +440,14 @@ async function main() {
     return { dimensions: verifyExhibits(exhibits), pad: verifyPad(complex), scene: verifyScene(scene) };
   };
   window.__vc = { M, scene, camera, rig, exhibits, complex, launch, select, goPreset, jump, renderer, env, setToggle, timings, verify };
-  if (new URLSearchParams(location.search).has('verify')) verify();
+  const params = new URLSearchParams(location.search);
+  if (params.has('verify')) verify();
+  if (params.has('autolaunch')) {
+    select('starship');
+    const t = parseFloat(params.get('t') || '0');
+    if (params.has('seek')) launch.seek(t);
+    else launch.start();
+  }
 }
 
 function buildRuler(M, height, id) {
