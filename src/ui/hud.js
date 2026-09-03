@@ -77,7 +77,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
         <table>
           <tr><td>Arrastrar</td><td>orbitar · <em>rueda</em> acercar · <em>botón derecho</em> desplazar</td></tr>
           <tr><td><kbd>F</kbd></td><td>vuelo libre: <kbd>W A S D</kbd> mover · <kbd>Q</kbd>/<kbd>E</kbd> bajar/subir · arrastrar para mirar · <kbd>Shift</kbd> ×4 · <kbd>Ctrl</kbd> ×0,2 · rueda ajusta la velocidad</td></tr>
-          <tr><td><kbd>1</kbd>–<kbd>5</kbd></td><td>seleccionar vehículo</td></tr>
+          <tr><td><kbd>1</kbd>–<kbd>6</kbd></td><td>seleccionar vehículo</td></tr>
           <tr><td><kbd>L</kbd> <kbd>R</kbd> <kbd>T</kbd></td><td>etiquetas · regla · ficha</td></tr>
           <tr><td><kbd>0</kbd></td><td>vista general del centro</td></tr>
           <tr><td><kbd>G</kbd></td><td>secuencia de lanzamiento de Starship · durante la cuenta y el ascenso, arrastrar o girar la rueda devuelve el control de la cámara sin detenerla</td></tr>
@@ -150,7 +150,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     if (v) { renderSheet(v); sheet.classList.remove('hidden'); el('#presets').classList.remove('hidden'); }
     else {
       el('#hud-title').textContent = 'Vista general';
-      el('#hud-subtitle').textContent = 'Cinco vehículos a escala 1:1';
+      el('#hud-subtitle').textContent = `${vehicles.length} vehículos a escala 1:1`;
       sheet.classList.add('hidden');
       el('#presets').classList.add('hidden');
     }
