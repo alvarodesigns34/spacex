@@ -296,24 +296,43 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
   }
 
   /**
-   * Steam and dust leaving the two trench mouths and boiling off the deck. The rate follows
-   * the throttle and dies away once the vehicle is high enough that the trench no longer
-   * matters.
+   * Steam, water deluge and dust leaving the two trench mouths and boiling off the deck.
+   * Deluge activates prior to ignition, then vaporizes violently upon engine start.
    */
-  const CLOUD_UNTIL = EVENTS.liftoff + 26;
+  const CLOUD_UNTIL = EVENTS.liftoff + 34;
   function emitCloud(t, dt) {
-    if (t <= EVENTS.ignition || t >= CLOUD_UNTIL) return;
-    const drive = boosterThrottle(t) * Math.max(0, 1 - altitudeAt(t) / 340);
-    // Matched to the buffer: 360 puffs over a mean life of ~10 s. Emitting faster only
-    // recycles them before they have finished growing and fading away.
-    const n = drive * 34 * dt;
+    if (t < -6.0 || t >= CLOUD_UNTIL) return;
+
+    // 1. Water deluge pre-ignition activation (T-6 to T-3)
+    if (t < EVENTS.ignition) {
+      const deluge = THREE.MathUtils.smoothstep(t, -6.0, -3.0);
+      const nWater = deluge * 16 * dt;
+      if (nWater < 0.05) return;
+      const m = Math.max(1, Math.round(nWater * 0.5));
+      cloud.emit(m, [0, 2.5, 48], [0, 0.12, 1], 32, 16);
+      cloud.emit(m, [0, 2.5, -48], [0, 0.12, -1], 32, 16);
+      return;
+    }
+
+    // 2. High-energy rocket ignition and liftoff deluge vaporization (T-3 to T+34)
+    const alt = altitudeAt(t);
+    const drive = boosterThrottle(t) * Math.max(0, 1 - alt / 380);
+    const n = drive * 48 * dt;
     if (n < 0.05) return;
-    // The trench does the work: two mouths, blown out along its axis and kept low. Only a
-    // little boils off the deck itself, or it stands as a curtain in front of the vehicle.
-    const half = Math.max(1, Math.round(n * 0.46));
-    cloud.emit(half, [0, 3, 52], [0, 0.16, 1], 58, 18);
-    cloud.emit(half, [0, 3, -52], [0, 0.16, -1], 58, 18);
-    cloud.emit(Math.max(1, Math.round(n * 0.08)), [0, 11, 0], [0, 0.45, 0], 16, 16);
+
+    // North and South main flame trench exhausts
+    const trenchCount = Math.max(1, Math.round(n * 0.38));
+    cloud.emit(trenchCount, [0, 3.0, 52], [0, 0.12, 1], 70, 20);
+    cloud.emit(trenchCount, [0, 3.0, -52], [0, 0.12, -1], 70, 20);
+
+    // Lateral radial pad wash (East & West spread around the base)
+    const sideCount = Math.max(1, Math.round(n * 0.10));
+    cloud.emit(sideCount, [22, 2.0, 0], [1, 0.08, 0], 40, 18);
+    cloud.emit(sideCount, [-22, 2.0, 0], [-1, 0.08, 0], 40, 18);
+
+    // Pad deck boiling mist rising gently around the OLM base
+    const deckCount = Math.max(1, Math.round(n * 0.12));
+    cloud.emit(deckCount, [0, 4.0, 0], [0, 0.22, 0], 16, 18);
   }
 
   // ---- The one function that maps a mission time to the whole scene ---------------------
@@ -333,6 +352,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
 
     boosterPlume.setThrottle(bt, alt);
     shipPlume.setThrottle(st, alt);
+    cloud.setFlame(bt * Math.max(0, 1 - alt / 160));
 
     env.setAltitude(alt);
     // A 340 m shadow frustum is meaningless once the vehicle is kilometres up, and it costs
@@ -408,7 +428,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
     if (!state.running) { state.running = true; state.armed = true; visibilityHook?.(true); rig.external = true; }
     cloud.reset();
     const step = 1 / 30;
-    for (let u = EVENTS.ignition; u < Math.min(t, CLOUD_UNTIL); u += step) {
+    for (let u = -6.0; u < Math.min(t, CLOUD_UNTIL); u += step) {
       emitCloud(u, step);
       cloud.update(step);
     }
