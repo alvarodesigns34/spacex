@@ -8,10 +8,10 @@
  *  - Documented Dimensions (Gen 1 Tesla Roadster official specifications):
  *      Overall length:  3.946 m (declared 3.95 m)
  *      Wheelbase:       2.352 m (front axle z = +1.176 m, rear axle z = -1.176 m)
- *      Overall width:   1.727 m (body) / 1.873 m (with exterior mirrors)
- *      Overall height:  1.127 m (declared 1.13 m)
+ *      Overall width:   1.728 m (body) / 1.873 m (with exterior mirrors)
+ *      Overall height:  1.128 m (declared 1.13 m)
  *      Front track:     1.455 m, Rear track: 1.490 m
- *      Wheel sizes:     Front 175/55 R16 (ø 0.60 m), Rear 225/45 R17 (ø 0.63 m)
+ *      Wheel sizes:     Front 175/55 R16 (ø 0.60 m), Rear 225/45 R17 (ø 0.634 m)
  *  - Finish: Midnight Cherry Red metallic car paint with deep tinted clearcoat.
  *  - Configuration: Open cockpit (hardtop roof removed for flight).
  *  - Passenger: Starman mannequin in authentic white/black SpaceX IVA flight spacesuit.
@@ -42,11 +42,57 @@ export const ROADSTER_SPECS = {
   trackRear: 1.490,
   rideHeight: 0.13,   // ground clearance
   wheelRadiusFront: 0.30,
-  wheelRadiusRear: 0.315,
+  wheelRadiusRear: 0.317,
 };
 
 // -----------------------------------------------------------------------------------------
-//  Procedural Textures for In-Cockpit & Structural Displays
+//  Parametric Surface Generator (Smooth, Watertight, Analytical Normals & Metric UVs)
+// -----------------------------------------------------------------------------------------
+function createParametricSurface(Nu, Nv, evalFn, flip = false) {
+  const positions = new Float32Array(Nu * Nv * 3);
+  const uvs = new Float32Array(Nu * Nv * 2);
+  const indices = [];
+
+  for (let i = 0; i < Nu; i++) {
+    const u = i / (Nu - 1);
+    for (let j = 0; j < Nv; j++) {
+      const v = j / (Nv - 1);
+      const pt = evalFn(u, v);
+      const idx = i * Nv + j;
+      positions[idx * 3 + 0] = pt.x;
+      positions[idx * 3 + 1] = pt.y;
+      positions[idx * 3 + 2] = pt.z;
+      uvs[idx * 2 + 0] = pt.u !== undefined ? pt.u : v;
+      uvs[idx * 2 + 1] = pt.v !== undefined ? pt.v : u;
+    }
+  }
+
+  for (let i = 0; i < Nu - 1; i++) {
+    for (let j = 0; j < Nv - 1; j++) {
+      const a = i * Nv + j;
+      const b = (i + 1) * Nv + j;
+      const c = (i + 1) * Nv + (j + 1);
+      const d = i * Nv + (j + 1);
+      if (flip) {
+        indices.push(a, d, b);
+        indices.push(b, d, c);
+      } else {
+        indices.push(a, b, d);
+        indices.push(b, c, d);
+      }
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// -----------------------------------------------------------------------------------------
+//  Procedural Textures for In-Cockpit Displays & Circuitry
 // -----------------------------------------------------------------------------------------
 function makeDontPanicTexture() {
   const c = document.createElement('canvas');
@@ -56,29 +102,33 @@ function makeDontPanicTexture() {
   ctx.fillStyle = '#050608';
   ctx.fillRect(0, 0, 512, 256);
 
-  // Subtle bezel frame
-  ctx.strokeStyle = '#1e2634';
+  // Bezel edge
+  ctx.strokeStyle = '#222b3a';
   ctx.lineWidth = 6;
   ctx.strokeRect(8, 8, 496, 240);
 
-  // Header
-  ctx.font = '600 22px system-ui, -apple-system, sans-serif';
-  ctx.fillStyle = '#8396b2';
+  // Top system banner
+  ctx.font = '600 20px "IBM Plex Sans", system-ui, sans-serif';
+  ctx.fillStyle = '#788ca6';
   ctx.textAlign = 'center';
-  ctx.fillText('SPACEX  ·  FALCON HEAVY 001', 256, 44);
+  ctx.fillText('SPACEX  ·  FALCON HEAVY 001  ·  STARMAN', 256, 42);
 
-  // "DON'T PANIC!" typography
-  ctx.font = '900 66px "Arial Black", Impact, sans-serif';
+  // "DON'T PANIC!" main headline
+  ctx.font = '900 68px "Arial Black", Impact, sans-serif';
   ctx.fillStyle = '#ffffff';
   ctx.fillText("DON'T PANIC!", 256, 134);
 
-  // Status subtitle
-  ctx.font = '600 20px monospace';
+  // Mission status
+  ctx.font = '600 18px "IBM Plex Mono", monospace';
   ctx.fillStyle = '#e53935';
-  ctx.fillText('PAYLOAD STATUS: HELIOCENTRIC ORBIT', 256, 186);
+  ctx.fillText('PAYLOAD STATUS: HELIOCENTRIC ORBIT', 256, 184);
 
-  // CRT scanlines
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+  ctx.font = '500 14px "IBM Plex Mono", monospace';
+  ctx.fillStyle = '#4caf50';
+  ctx.fillText('APHELION: 1.67 AU  ·  PERIHELION: 0.98 AU', 256, 214);
+
+  // Scanline overlay
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
   for (let y = 0; y < 256; y += 4) {
     ctx.fillRect(0, y, 512, 2);
   }
@@ -93,42 +143,42 @@ function makePcbTexture() {
   c.width = 512;
   c.height = 256;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#0c341e';
+  ctx.fillStyle = '#0b2b17';
   ctx.fillRect(0, 0, 512, 256);
 
-  // Gold copper traces
+  // Gold circuit traces
   ctx.strokeStyle = '#d4af37';
   ctx.lineWidth = 3;
   ctx.beginPath();
-  for (let y = 24; y < 240; y += 36) {
-    ctx.moveTo(12, y);
+  for (let y = 20; y < 240; y += 32) {
+    ctx.moveTo(16, y);
     ctx.lineTo(84, y);
-    ctx.lineTo(120, y + 16);
-    ctx.lineTo(210, y + 16);
-    ctx.moveTo(310, y);
-    ctx.lineTo(390, y);
-    ctx.lineTo(430, y - 14);
-    ctx.lineTo(500, y - 14);
+    ctx.lineTo(124, y + 14);
+    ctx.lineTo(210, y + 14);
+    ctx.moveTo(300, y);
+    ctx.lineTo(380, y);
+    ctx.lineTo(420, y - 12);
+    ctx.lineTo(496, y - 12);
   }
   ctx.stroke();
 
-  // Integrated circuit pads
+  // IC contact pads
   ctx.fillStyle = '#c5a028';
-  for (let i = 0; i < 9; i++) {
-    ctx.fillRect(40 + i * 16, 20, 9, 14);
-    ctx.fillRect(40 + i * 16, 52, 9, 14);
-    ctx.fillRect(390 + i * 11, 190, 7, 12);
+  for (let i = 0; i < 10; i++) {
+    ctx.fillRect(36 + i * 16, 18, 9, 14);
+    ctx.fillRect(36 + i * 16, 50, 9, 14);
+    ctx.fillRect(380 + i * 11, 186, 7, 12);
   }
 
   // Silk screen inscription: "Made on Earth by humans"
   ctx.font = 'bold 32px "Trebuchet MS", sans-serif';
   ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
-  ctx.fillText('Made on Earth by humans', 256, 138);
+  ctx.fillText('Made on Earth by humans', 256, 136);
 
-  ctx.font = '16px monospace';
+  ctx.font = '15px "IBM Plex Mono", monospace';
   ctx.fillStyle = '#f0d775';
-  ctx.fillText('TESLA ROADSTER · STARMAN AVIONICS PCB', 256, 174);
+  ctx.fillText('TESLA ROADSTER · STARMAN AVIONICS PCB', 256, 172);
 
   const tex = new THREE.CanvasTexture(c);
   tex.anisotropy = 4;
@@ -140,10 +190,10 @@ function makeGrilleTexture() {
   c.width = 128;
   c.height = 128;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#0f1114';
+  ctx.fillStyle = '#0a0c0e';
   ctx.fillRect(0, 0, 128, 128);
 
-  ctx.fillStyle = '#1c1f24';
+  ctx.fillStyle = '#1c2026';
   for (let y = 0; y < 128; y += 8) {
     for (let x = (y % 16 === 0 ? 0 : 4); x < 128; x += 8) {
       ctx.beginPath();
@@ -160,70 +210,73 @@ function makeGrilleTexture() {
 }
 
 // -----------------------------------------------------------------------------------------
-//  Internal Material Factory
+//  Material Factory
 // -----------------------------------------------------------------------------------------
 function createRoadsterMaterials(M) {
-  // Midnight Cherry Red: Deep, rich cherry wine with metallic luster and high-gloss clearcoat
+  // Midnight Cherry Red: Deep, lustrous ruby metallic with clearcoat gloss
   const cherryRed = new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color(0x5a0815),
-    metalness: 0.86,
-    roughness: 0.20,
-    clearcoat: 0.98,
-    clearcoatRoughness: 0.05,
-    reflectivity: 0.92,
-    envMapIntensity: 1.4,
+    color: new THREE.Color(0x520914),
+    metalness: 0.88,
+    roughness: 0.18,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.04,
+    reflectivity: 0.94,
+    envMapIntensity: 1.5,
     side: THREE.DoubleSide,
   });
 
   const blackTrim = new THREE.MeshStandardMaterial({
-    color: 0x141517,
-    metalness: 0.25,
+    color: 0x121316,
+    metalness: 0.30,
     roughness: 0.65,
+    side: THREE.DoubleSide,
   });
 
   const satinBlack = new THREE.MeshStandardMaterial({
-    color: 0x1e2024,
+    color: 0x1a1c20,
     metalness: 0.35,
     roughness: 0.45,
+    side: THREE.DoubleSide,
   });
 
   const chromeTrim = new THREE.MeshStandardMaterial({
-    color: 0xeeeeee,
+    color: 0xf2f4f7,
     metalness: 0.96,
     roughness: 0.10,
+    envMapIntensity: 1.8,
   });
 
   const tyreRubber = new THREE.MeshStandardMaterial({
-    color: 0x18191c,
-    metalness: 0.05,
+    color: 0x151618,
+    metalness: 0.06,
     roughness: 0.90,
   });
 
   const brakeRotor = new THREE.MeshStandardMaterial({
-    color: 0x8e9299,
-    metalness: 0.88,
-    roughness: 0.35,
-  });
-
-  const brakeCaliper = new THREE.MeshStandardMaterial({
-    color: 0xc41424,
-    metalness: 0.45,
+    color: 0x8a8e94,
+    metalness: 0.90,
     roughness: 0.32,
   });
 
+  const brakeCaliper = new THREE.MeshStandardMaterial({
+    color: 0xc61224,
+    metalness: 0.50,
+    roughness: 0.28,
+  });
+
   const suspensionYellow = new THREE.MeshStandardMaterial({
-    color: 0xd4a017,
-    metalness: 0.25,
-    roughness: 0.40,
+    color: 0xd6a218,
+    metalness: 0.30,
+    roughness: 0.38,
   });
 
   const windshieldGlass = new THREE.MeshPhysicalMaterial({
-    color: 0xa0c0d8,
+    color: 0xa8c4dc,
     transparent: true,
-    opacity: 0.42,
-    roughness: 0.04,
-    metalness: 0.1,
-    transmission: 0.75,
+    opacity: 0.38,
+    roughness: 0.03,
+    metalness: 0.12,
+    transmission: 0.80,
     ior: 1.52,
     depthWrite: false,
     side: THREE.DoubleSide,
@@ -232,44 +285,44 @@ function createRoadsterMaterials(M) {
   const headlightLens = new THREE.MeshPhysicalMaterial({
     color: 0xf5f8ff,
     transparent: true,
-    opacity: 0.60,
-    roughness: 0.06,
-    metalness: 0.12,
-    transmission: 0.70,
+    opacity: 0.55,
+    roughness: 0.04,
+    metalness: 0.10,
+    transmission: 0.75,
     ior: 1.50,
     depthWrite: false,
     side: THREE.DoubleSide,
   });
 
   const taillightRed = new THREE.MeshStandardMaterial({
-    color: 0xdd0c18,
-    emissive: 0x550308,
-    roughness: 0.22,
-    metalness: 0.3,
+    color: 0xd80a16,
+    emissive: 0x5a040a,
+    roughness: 0.20,
+    metalness: 0.35,
   });
 
   const starmanSuitWhite = new THREE.MeshStandardMaterial({
     color: 0xf4f5f8,
-    roughness: 0.65,
+    roughness: 0.62,
     metalness: 0.08,
   });
 
   const starmanVisor = new THREE.MeshPhysicalMaterial({
-    color: 0x090a0f,
-    metalness: 0.95,
-    roughness: 0.08,
+    color: 0x08090d,
+    metalness: 0.96,
+    roughness: 0.06,
     clearcoat: 1.0,
-    clearcoatRoughness: 0.04,
-    envMapIntensity: 2.4,
+    clearcoatRoughness: 0.03,
+    envMapIntensity: 2.6,
   });
 
   const quartzDisc = new THREE.MeshPhysicalMaterial({
     color: 0xddeef8,
     transparent: true,
-    opacity: 0.82,
-    roughness: 0.05,
-    metalness: 0.25,
-    transmission: 0.85,
+    opacity: 0.85,
+    roughness: 0.04,
+    metalness: 0.20,
+    transmission: 0.88,
     ior: 1.46,
     depthWrite: false,
   });
@@ -288,283 +341,384 @@ function createRoadsterMaterials(M) {
 }
 
 // -----------------------------------------------------------------------------------------
-//  CAD-Grade Body Shell: Smooth Parametric Double-Curvature Surface with Stamped Shut Lines
+//  CAD-Grade Body Shell: Watertight, Zero-Hole Parametric Surfaces
 // -----------------------------------------------------------------------------------------
 function buildBodyShell(mats, M) {
   const g = new THREE.Group();
   g.name = 'body-shell';
 
-  const Nz = 64;
-  const Ntheta = 40;
-  const zMin = -1.95, zMax = 1.95;
-  const positions = [];
-  const uvs = [];
-  const indices = [];
+  // Z stations defining key structural cross-sections
+  const zNose = 1.975;
+  const zCowl = 0.38;
+  const zBulkhead = -0.66;
+  const zRearFascia = -1.975;
 
-  function getHalfWidth(z) {
-    if (z > 1.70) {
-      const t = (z - 1.70) / 0.25;
-      return 0.72 * Math.sqrt(Math.max(0.01, 1 - t * t * 0.76));
-    } else if (z > 0.55) {
-      const t = (z - 1.176) / 0.50;
-      return 0.77 + 0.075 * Math.exp(-t * t);
-    } else if (z > -0.65) {
-      // Coke-bottle waistline tuck
-      const t = (z - -0.10) / 0.55;
-      return 0.765 + 0.045 * (t * t);
-    } else if (z > -1.65) {
-      // Muscular rear haunches over rear wheels
-      const t = (z - -1.176) / 0.50;
-      return 0.79 + 0.082 * Math.exp(-t * t);
+  // 1. FRONT CLAMSHELL (Nose, Grille, Hood, Front Fenders, Front Rockers)
+  // Evaluated from z = zCowl (u = 0) to z = zNose (u = 1)
+  const frontClamGeo = createParametricSurface(32, 28, (u, v) => {
+    const z = zCowl + u * (zNose - zCowl);
+    const s = (v - 0.5) * 2; // -1 to +1 across width
+    const absS = Math.abs(s);
+    const sign = s < 0 ? -1 : 1;
+
+    const t = (z - zCowl) / (zNose - zCowl); // 0 at cowl, 1 at nose
+    // Half width along front section
+    const W = 0.81 + 0.05 * Math.sin(t * Math.PI) - 0.58 * Math.pow(t, 2.5);
+
+    // Wheel arch cutout around front axle z = 1.176
+    const dz = Math.abs(z - 1.176);
+    let archY = 0.15;
+    if (dz < 0.34) {
+      archY = 0.30 + Math.sqrt(Math.max(0, 0.345 * 0.345 - dz * dz));
+    }
+    let rockerY = 0.15;
+    if (z > 1.52) rockerY = 0.15 + 0.03 * Math.pow((z - 1.52) / 0.455, 1.2);
+    const targetY = (dz < 0.34) ? archY : rockerY;
+
+    // Centerline height
+    const yCenter = 0.70 - 0.24 * Math.pow(t, 0.9);
+
+    // Fender crown height over front wheel
+    const fenderHump = 0.16 * Math.exp(-Math.pow((z - 1.176) / 0.44, 2));
+    const yFender = (0.71 - 0.18 * Math.pow(t, 0.85)) + fenderHump;
+
+    let x, y;
+    if (absS < 0.55) {
+      // Hood top surface
+      const th = absS / 0.55;
+      x = s * W * 0.72;
+      y = yCenter * (1 - Math.pow(th, 2.0)) + (yCenter * 0.4 + yFender * 0.6) * Math.pow(th, 2.0);
+
+      // Twin hood heat extractor depressions
+      if (z > 0.95 && z < 1.45 && Math.abs(absS - 0.28) < 0.11) {
+        const fz = 1 - Math.pow((z - 1.20) / 0.25, 2);
+        const fx = 1 - Math.pow((absS - 0.28) / 0.11, 2);
+        y -= 0.024 * fz * fx;
+      }
+    } else if (absS < 0.80) {
+      // Fender crown
+      const tf = (absS - 0.55) / 0.25;
+      x = sign * (W * 0.72 * (1 - tf) + W * tf);
+      y = (yCenter * 0.4 + yFender * 0.6) * (1 - tf) + yFender * tf;
     } else {
-      const t = (-1.65 - z) / 0.30;
-      return 0.85 - 0.09 * t;
-    }
-  }
-
-  function getCenterY(z) {
-    if (z > 1.70) {
-      const t = (z - 1.70) / 0.25;
-      return 0.52 - 0.08 * t;
-    } else if (z > 0.38) {
-      const t = Math.max(0, Math.min(1, (z - 0.38) / 1.32));
-      return 0.69 - 0.17 * Math.pow(t, 0.85);
-    } else if (z > -0.68) {
-      // Floor line of the interior tub
-      return 0.24;
-    } else if (z > -1.60) {
-      const t = (z - -0.68) / -0.92;
-      return 0.85 - 0.04 * t;
-    } else {
-      const t = Math.max(0, Math.min(1, (-1.60 - z) / 0.35));
-      return 0.81 + 0.08 * Math.pow(t, 1.3);
-    }
-  }
-
-  function getFenderY(z) {
-    if (z > 0.38) {
-      const base = 0.69 - 0.17 * Math.pow(Math.max(0, (z - 0.38) / 1.32), 0.85);
-      return base + 0.165 * Math.exp(-Math.pow((z - 1.176) / 0.46, 2));
-    } else if (z > -0.68) {
-      const u = (z - -0.68) / 1.06;
-      return 0.69 - 0.03 * Math.sin(u * Math.PI);
-    } else if (z > -1.60) {
-      const base = 0.85 - 0.04 * ((z - -0.68) / -0.92);
-      return base + 0.085 * Math.exp(-Math.pow((z - -1.176) / 0.48, 2));
-    } else {
-      const t = Math.max(0, Math.min(1, (-1.60 - z) / 0.35));
-      return (0.81 + 0.08 * Math.pow(t, 1.3)) + 0.02 * (1 - t);
-    }
-  }
-
-  for (let i = 0; i < Nz; i++) {
-    const u = i / (Nz - 1);
-    const z = zMax - u * (zMax - zMin);
-    const W = getHalfWidth(z);
-    const yCenter = getCenterY(z);
-    const yFender = getFenderY(z);
-
-    // Circular wheel arch cutouts
-    const isFrontWheel = Math.abs(z - 1.176) < 0.36;
-    const isRearWheel = Math.abs(z - -1.176) < 0.38;
-    let archY = 0.16;
-    if (isFrontWheel) {
-      const dz = Math.abs(z - 1.176);
-      archY = Math.max(0.16, 0.30 + Math.sqrt(Math.max(0, 0.35 * 0.35 - dz * dz)));
-    } else if (isRearWheel) {
-      const dz = Math.abs(z - -1.176);
-      archY = Math.max(0.16, 0.315 + Math.sqrt(Math.max(0, 0.37 * 0.37 - dz * dz)));
+      // Outer fender dropping down to wheel arch / rocker
+      const td = (absS - 0.80) / 0.20;
+      x = sign * (W * (1 - td * 0.05));
+      y = yFender * (1 - Math.pow(td, 1.4)) + targetY * Math.pow(td, 1.4);
     }
 
-    const inCockpit = (z > -0.68 && z < 0.38);
+    // Nose curvature closure towards tip
+    if (z > 1.82) {
+      const tn = (z - 1.82) / (zNose - 1.82);
+      x *= Math.sqrt(Math.max(0.001, 1 - tn * tn));
+    }
 
-    for (let j = 0; j < Ntheta; j++) {
-      const v = j / (Ntheta - 1);
-      const s = (v - 0.5) * 2;
-      const absS = Math.abs(s);
-      const sign = Math.sign(s);
+    return { x, y, z };
+  });
+
+  // 2. SIDE DOORS & ROCKERS (Left and Right)
+  // Smoothly bridges z = zCowl (0.38) down to z = zBulkhead (-0.66)
+  function createDoorGeometry(side) {
+    return createParametricSurface(20, 16, (u, v) => {
+      const z = zCowl + u * (zBulkhead - zCowl);
+      const tz = (z - zBulkhead) / (zCowl - zBulkhead);
+      const W = 0.765 + 0.05 * Math.pow(tz - 0.5, 2) * 4;
+      const yTop = 0.71 + 0.02 * (1 - tz);
+      const yBottom = 0.15;
 
       let x, y;
-      if (inCockpit) {
-        if (absS < 0.55) {
-          // Open cockpit tub interior depression
-          const t = absS / 0.55;
-          x = s * W * 0.70;
-          y = yCenter + 0.04 * (t * t);
-        } else {
-          // Continuous outer door sill and flank
-          const t = (absS - 0.55) / 0.45;
-          const xSill = sign * W * 0.75;
-          const xOuter = sign * W;
-          x = xSill * (1 - t) + xOuter * t;
-          y = yFender * (1 - Math.pow(t, 1.3)) + 0.16 * Math.pow(t, 1.3);
-        }
+      if (v < 0.30) {
+        // Horizontal door sill top return (matches cockpit rim at |x| = 0.64)
+        const ts = v / 0.30;
+        x = side * (0.64 * (1 - ts) + (W * 0.95) * ts);
+        y = yTop + 0.01 * Math.sin(ts * Math.PI);
+      } else if (v < 0.75) {
+        // Outer door flank with subtle aerodynamic waistline
+        const td = (v - 0.30) / 0.45;
+        x = side * (W * 0.95 * (1 - td) + W * td);
+        y = yTop * (1 - Math.pow(td, 1.2)) + (yBottom + 0.22) * Math.pow(td, 1.2);
       } else {
-        if (absS < 0.70) {
-          // Hood or decklid top surface
-          const t = absS / 0.70;
-          x = s * W * 0.80;
-          y = yCenter * (1 - Math.pow(t, 2.2)) + yFender * Math.pow(t, 2.2);
-
-          // Twin hood heat extractor depressions on front hood
-          if (z > 0.85 && z < 1.45 && Math.abs(absS - 0.32) < 0.14) {
-            y -= 0.022 * (1 - Math.pow((absS - 0.32) / 0.14, 2));
-          }
-        } else {
-          // Muscular fender curves down to wheel arches or rocker
-          const t = (absS - 0.70) / 0.30;
-          const xCrest = sign * W * 0.80;
-          const xEdge = sign * W;
-          x = xCrest * (1 - t) + xEdge * t;
-          const targetY = (u < 0.12 || u > 0.88) ? (0.16 + Math.abs(u - 0.5) * 0.08) : archY;
-          y = yFender * (1 - Math.pow(t, 1.4)) + targetY * Math.pow(t, 1.4);
-        }
+        // Lower rocker turning under to belly pan
+        const tr = (v - 0.75) / 0.25;
+        x = side * (W * (1 - tr * 0.10));
+        y = (yBottom + 0.22) * (1 - tr) + yBottom * tr;
       }
-
-      positions.push(x, y, z);
-      uvs.push(v, u);
-    }
+      return { x, y, z };
+    }, side < 0);
   }
 
-  for (let i = 0; i < Nz - 1; i++) {
-    for (let j = 0; j < Ntheta - 1; j++) {
-      const a = i * Ntheta + j;
-      const b = (i + 1) * Ntheta + j;
-      const c = (i + 1) * Ntheta + (j + 1);
-      const d = i * Ntheta + (j + 1);
-      indices.push(a, b, d);
-      indices.push(b, c, d);
+  const leftDoorGeo = createDoorGeometry(-1);
+  const rightDoorGeo = createDoorGeometry(1);
+
+  // 3. REAR CLAMSHELL (Rear Decklid, Haunches, Ducktail Spoiler, Rear Fascia, Diffuser Return)
+  // Evaluated from z = zBulkhead (-0.66) to z = zRearFascia (-1.975)
+  const rearClamGeo = createParametricSurface(32, 28, (u, v) => {
+    const z = zBulkhead + u * (zRearFascia - zBulkhead);
+    const s = (v - 0.5) * 2;
+    const absS = Math.abs(s);
+    const sign = s < 0 ? -1 : 1;
+
+    const tz = (zBulkhead - z) / (zBulkhead - zRearFascia);
+    const haunch = 0.082 * Math.exp(-Math.pow((z - -1.176) / 0.46, 2));
+    const W = (0.80 + haunch) * (1 - Math.pow(Math.max(0, tz - 0.8) / 0.2, 2) * 0.45);
+
+    // Rear wheel arch cutout around rear axle z = -1.176
+    const dz = Math.abs(z - -1.176);
+    let archY = 0.15;
+    if (dz < 0.36) {
+      archY = 0.315 + Math.sqrt(Math.max(0, 0.365 * 0.365 - dz * dz));
     }
+    const rockerY = 0.15 + 0.05 * Math.pow(Math.max(0, (-1.55 - z) / 0.425), 1.2);
+    const targetY = (dz < 0.36) ? archY : rockerY;
+
+    // Decklid height with integrated ducktail spoiler sweep
+    let yDeck = 0.81 - 0.035 * Math.min(1.0, (zBulkhead - z) / 0.80);
+    if (z < -1.45) {
+      const sp = Math.min(1.0, (-1.45 - z) / 0.41);
+      yDeck += 0.09 * Math.pow(sp, 1.8);
+    }
+    if (z < -1.86) {
+      const rf = (-1.86 - z) / (-1.86 - zRearFascia);
+      yDeck = 0.865 * (1 - Math.pow(rf, 1.2)) + 0.20 * Math.pow(rf, 1.2);
+    }
+
+    // Rear haunch crown height
+    const haunchHump = 0.085 * Math.exp(-Math.pow((z - -1.176) / 0.45, 2));
+    const yHaunch = yDeck + 0.02 + haunchHump;
+
+    let x, y;
+    if (absS < 0.55) {
+      // Rear decklid / engine cover
+      const th = absS / 0.55;
+      x = s * W * 0.72;
+      y = yDeck * (1 - th * th * 0.25);
+    } else if (absS < 0.80) {
+      // Haunch crown
+      const tf = (absS - 0.55) / 0.25;
+      x = sign * (W * 0.72 * (1 - tf) + W * tf);
+      y = yDeck * (1 - tf) + yHaunch * tf;
+    } else {
+      // Outer haunch flank down to wheel arch / bumper
+      const td = (absS - 0.80) / 0.20;
+      x = sign * (W * (1 - td * 0.04));
+      y = yHaunch * (1 - Math.pow(td, 1.3)) + targetY * Math.pow(td, 1.3);
+    }
+
+    // Rear bumper curvature closure
+    if (z < -1.90) {
+      const tr = (-1.90 - z) / (-1.90 - zRearFascia);
+      x *= Math.sqrt(Math.max(0.001, 1 - tr * tr));
+    }
+
+    return { x, y, z };
+  }, true);
+
+  // Merge the entire body painted monocoque into ONE seamless master mesh
+  const masterBodyPaintGeo = mergeAll([
+    { geometry: frontClamGeo },
+    { geometry: leftDoorGeo },
+    { geometry: rightDoorGeo },
+    { geometry: rearClamGeo },
+  ]);
+
+  g.add(mesh(masterBodyPaintGeo, mats.cherryRed, { name: 'body-paint' }));
+
+  // 4. WATERTIGHT COCKPIT TUB (Floor, Firewall, Tunnel, Bulkhead, Inner Door Panels)
+  // Spans z from zCowl (0.38) to zBulkhead (-0.66), width x from -0.64 to +0.64
+  const cockpitTubGeo = createParametricSurface(24, 20, (u, v) => {
+    const z = zCowl + u * (zBulkhead - zCowl);
+    const s = (v - 0.5) * 2;
+    const absS = Math.abs(s);
+    const sign = s < 0 ? -1 : 1;
+    const x = s * 0.64;
+
+    // Rim heights matching outer body
+    const yFrontRim = 0.70;
+    const yRearRim = 0.81;
+    const ySillRim = 0.71;
+
+    let y;
+    if (u < 0.15) {
+      // Front firewall dipping down to floor
+      const tf = u / 0.15;
+      y = yFrontRim * (1 - tf) + 0.18 * tf;
+    } else if (u > 0.82) {
+      // Rear engine bulkhead rising to roll hoop base
+      const tb = (u - 0.82) / 0.18;
+      y = 0.18 * (1 - tb) + yRearRim * tb;
+    } else {
+      // Cockpit floor
+      y = 0.18;
+      // Center transmission tunnel
+      if (absS < 0.22) {
+        const tt = 1 - Math.pow(absS / 0.22, 2);
+        y += 0.16 * tt;
+      }
+      // Inner side door card curvature rising to sill
+      if (absS > 0.75) {
+        const ts = (absS - 0.75) / 0.25;
+        y += (ySillRim - 0.18) * Math.pow(ts, 1.6);
+      }
+    }
+
+    return { x, y, z };
+  }, true);
+
+  g.add(mesh(cockpitTubGeo, mats.blackTrim, { name: 'cockpit-tub' }));
+
+  // 5. WATERTIGHT CLOSED WHEEL ARCH LINER TUBS
+  const wheelLinerParts = [];
+  // Front liners (z = 1.176, r = 0.35)
+  for (const s of [-1, 1]) {
+    const xOut = s * 0.74;
+    const xIn = s * 0.52;
+    const linerCurv = lathe([
+      { r: 0.35, y: xOut },
+      { r: 0.35, y: xIn },
+      { r: 0.05, y: xIn }, // closed inner bulkhead
+    ], { segments: 24, phiStart: Math.PI * 0.05, phiLength: Math.PI * 0.90 });
+    linerCurv.rotateZ(s > 0 ? -Math.PI / 2 : Math.PI / 2);
+    linerCurv.rotateY(Math.PI / 2);
+    wheelLinerParts.push({
+      geometry: linerCurv,
+      matrix: mat4([0, 0.30, 1.176]),
+    });
+  }
+  // Rear liners (z = -1.176, r = 0.37)
+  for (const s of [-1, 1]) {
+    const xOut = s * 0.76;
+    const xIn = s * 0.50;
+    const linerCurv = lathe([
+      { r: 0.37, y: xOut },
+      { r: 0.37, y: xIn },
+      { r: 0.05, y: xIn },
+    ], { segments: 24, phiStart: Math.PI * 0.05, phiLength: Math.PI * 0.90 });
+    linerCurv.rotateZ(s > 0 ? -Math.PI / 2 : Math.PI / 2);
+    linerCurv.rotateY(Math.PI / 2);
+    wheelLinerParts.push({
+      geometry: linerCurv,
+      matrix: mat4([0, 0.317, -1.176]),
+    });
+  }
+  g.add(mesh(mergeAll(wheelLinerParts), mats.satinBlack, { name: 'wheel-well-liners' }));
+
+  // 6. UNDERBODY AERO PAN (Full length belly tray from chin to diffuser)
+  const bellyPan = new THREE.BoxGeometry(1.50, 0.03, 3.82);
+  g.add(mesh(bellyPan, mats.blackTrim, { position: [0, 0.14, 0], name: 'underbody-belly-pan' }));
+
+  // Front chin aerodynamic splitter with support struts
+  const splitterPts = [
+    [-0.74, 0.15, 1.70],
+    [-0.52, 0.15, 1.94],
+    [0.0, 0.15, 1.98],
+    [0.52, 0.15, 1.94],
+    [0.74, 0.15, 1.70],
+  ];
+  g.add(mesh(tube(splitterPts, 0.022, { tubular: 24, radial: 8 }), mats.blackTrim, { name: 'front-splitter' }));
+  for (const sx of [-0.28, 0.28]) {
+    g.add(mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.12, 8), mats.chromeTrim, {
+      position: [sx, 0.21, 1.93],
+      rotation: [0.35, 0, 0],
+    }));
   }
 
-  const shellGeo = new THREE.BufferGeometry();
-  shellGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  shellGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  shellGeo.setIndex(indices);
-  shellGeo.computeVertexNormals();
+  // Front lower radiator intake mouth & aluminum cooling matrix
+  const grilleMouth = new THREE.BoxGeometry(0.80, 0.16, 0.14);
+  g.add(mesh(grilleMouth, mats.grilleMesh, {
+    position: [0, 0.24, 1.86],
+    name: 'front-grille-mouth',
+  }));
+  const radiatorCore = new THREE.BoxGeometry(0.74, 0.14, 0.02);
+  g.add(mesh(radiatorCore, M.aluminum || mats.chromeTrim, {
+    position: [0, 0.24, 1.79],
+    name: 'radiator-cooling-core',
+  }));
 
-  g.add(mesh(shellGeo, mats.cherryRed, { name: 'body-paint' }));
+  // Twin hood extraction vent louvers (Angled black aerodynamic slats)
+  const hoodLouvers = [];
+  for (const s of [-1, 1]) {
+    for (let l = 0; l < 4; l++) {
+      hoodLouvers.push({
+        geometry: new THREE.BoxGeometry(0.12, 0.006, 0.035),
+        matrix: mat4([s * 0.22, 0.605 + l * 0.012, 1.05 + l * 0.07], [0.35, 0, 0]),
+      });
+    }
+  }
+  g.add(mesh(mergeAll(hoodLouvers), mats.blackTrim, { name: 'hood-extractor-louvers' }));
 
-  // Stamped Panel Shut Lines (Hood and Door seams)
+  // Chrome Tesla nose crest medallion
+  const emblem = new THREE.CylinderGeometry(0.022, 0.022, 0.008, 16);
+  g.add(mesh(emblem, mats.chromeTrim, {
+    position: [0, 0.50, 1.82],
+    rotation: [0.45, 0, 0],
+    name: 'tesla-nose-emblem',
+  }));
+
+  // Rear aerodynamic racing diffuser with 4 vertical strakes
+  const diffPlate = new THREE.BoxGeometry(1.44, 0.05, 0.42);
+  g.add(mesh(diffPlate, mats.blackTrim, {
+    position: [0, 0.18, -1.76],
+    name: 'rear-diffuser-tray',
+  }));
+  for (let sx = -0.45; sx <= 0.45; sx += 0.30) {
+    const strake = new THREE.BoxGeometry(0.016, 0.13, 0.40);
+    g.add(mesh(strake, mats.blackTrim, {
+      position: [sx, 0.17, -1.76],
+      name: 'diffuser-strake',
+    }));
+  }
+
+  // Rear recessed license plate well with "STARMAN" plate
+  const recessGeo = new THREE.BoxGeometry(0.54, 0.16, 0.04);
+  g.add(mesh(recessGeo, mats.blackTrim, {
+    position: [0, 0.48, -1.96],
+    name: 'rear-license-recess',
+  }));
+  const plateText = new THREE.PlaneGeometry(0.34, 0.09);
+  plateText.rotateY(Math.PI);
+  g.add(mesh(plateText, mats.chromeTrim, {
+    position: [0, 0.48, -1.975],
+    name: 'rear-license-plate',
+  }));
+
+  // Chrome "TESLA" rear script lettering bar
+  const rearScript = new THREE.BoxGeometry(0.28, 0.025, 0.006);
+  g.add(mesh(rearScript, mats.chromeTrim, {
+    position: [0, 0.72, -1.96],
+    name: 'rear-tesla-script',
+  }));
+
+  // Dual lower rear cooling exhaust ports
+  for (const s of [-0.35, 0.35]) {
+    g.add(mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.03, 16), mats.blackTrim, {
+      position: [s, 0.28, -1.95],
+      rotation: [Math.PI / 2, 0, 0],
+      name: 'rear-cooling-port',
+    }));
+  }
+
+  // Stamped panel shut lines (Hood cut line & Door seams)
   const shutLines = [];
-  // Hood perimeter cut line
   const hoodSeamPts = [
     [-0.52, 0.69, 0.40],
     [-0.52, 0.60, 1.20],
-    [-0.42, 0.50, 1.65],
-    [0.0, 0.46, 1.70],
-    [0.42, 0.50, 1.65],
+    [-0.40, 0.50, 1.66],
+    [0.0, 0.46, 1.72],
+    [0.40, 0.50, 1.66],
     [0.52, 0.60, 1.20],
     [0.52, 0.69, 0.40],
   ];
   shutLines.push({ geometry: tube(hoodSeamPts, 0.005, { tubular: 24, radial: 6 }) });
-  // Door vertical shut lines
   for (const s of [-1, 1]) {
     shutLines.push({ geometry: tube([[s * 0.77, 0.68, 0.36], [s * 0.76, 0.22, 0.36]], 0.005, { tubular: 8, radial: 6 }) });
     shutLines.push({ geometry: tube([[s * 0.79, 0.72, -0.66], [s * 0.78, 0.22, -0.66]], 0.005, { tubular: 8, radial: 6 }) });
   }
   g.add(mesh(mergeAll(shutLines), mats.blackTrim, { name: 'body-shut-lines' }));
 
-  // Wheel arch inner liners (prevents seeing through into the car)
-  const liners = [];
-  for (const [wz, wr, wy, track] of [
-    [1.176, 0.35, 0.30, 1.455],
-    [-1.176, 0.37, 0.315, 1.490],
-  ]) {
-    for (const side of [-1, 1]) {
-      const linerGeo = new THREE.CylinderGeometry(wr, wr, 0.18, 20, 1, true, 0, Math.PI);
-      linerGeo.rotateZ(Math.PI / 2);
-      liners.push({
-        geometry: linerGeo,
-        matrix: mat4([side * (track / 2), wy, wz]),
-      });
-    }
-  }
-  g.add(mesh(mergeAll(liners), mats.satinBlack, { name: 'wheel-well-liners' }));
-
-  // Front lower air intake mouth (trapezoidal radiator grille with 3D depth)
-  const grilleTunnel = new THREE.BoxGeometry(0.82, 0.16, 0.18);
-  g.add(mesh(grilleTunnel, mats.grilleMesh, {
-    position: [0, 0.24, 1.86],
-    name: 'front-grille',
-  }));
-  // Aluminum radiator core visible inside mouth
-  const radiatorCore = new THREE.BoxGeometry(0.76, 0.14, 0.02);
-  g.add(mesh(radiatorCore, M.aluminum || mats.chromeTrim, {
-    position: [0, 0.24, 1.78],
-    name: 'radiator-core',
-  }));
-
-  // Front chin aerodynamic splitter with support struts
-  const splitterPts = [
-    [-0.72, 0.15, 1.68],
-    [-0.45, 0.15, 1.94],
-    [0.0, 0.15, 1.96],
-    [0.45, 0.15, 1.94],
-    [0.72, 0.15, 1.68],
-  ];
-  g.add(mesh(tube(splitterPts, 0.024, { tubular: 24, radial: 8 }), mats.blackTrim, { name: 'front-splitter' }));
-  // Splitter support struts
-  for (const sx of [-0.28, 0.28]) {
-    g.add(mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.12, 6), mats.chromeTrim, {
-      position: [sx, 0.21, 1.92],
-      rotation: [0.35, 0, 0],
-    }));
-  }
-
-  // Twin hood extraction vents (black mesh inserts)
-  for (const s of [-1, 1]) {
-    const ventGeo = new THREE.PlaneGeometry(0.18, 0.44);
-    ventGeo.rotateX(-Math.PI / 2);
-    const vent = mesh(ventGeo, mats.blackTrim, {
-      position: [s * 0.24, 0.605, 1.12],
-      rotation: [0.12, 0, 0],
-      name: 'hood-vent-' + (s < 0 ? 'l' : 'r'),
-    });
-    g.add(vent);
-  }
-
-  // Rear vertical bumper fascia plate
-  const fasciaGeo = new THREE.PlaneGeometry(1.54, 0.62, 16, 8);
-  fasciaGeo.rotateY(Math.PI);
-  const fascia = mesh(fasciaGeo, mats.cherryRed, {
-    position: [0, 0.54, zMin],
-    name: 'rear-fascia',
-  });
-  g.add(fascia);
-
-  // Rear license plate recess with Tesla emblem
-  const recessGeo = new THREE.BoxGeometry(0.56, 0.16, 0.04);
-  g.add(mesh(recessGeo, mats.blackTrim, {
-    position: [0, 0.48, zMin + 0.01],
-    name: 'rear-license-recess',
-  }));
-  const plateText = new THREE.PlaneGeometry(0.32, 0.08);
-  plateText.rotateY(Math.PI);
-  g.add(mesh(plateText, mats.chromeTrim, {
-    position: [0, 0.48, zMin - 0.001],
-    name: 'rear-license-plate',
-  }));
-
-  // Rear lower racing diffuser with 4 vertical strakes
-  const diffPlate = new THREE.BoxGeometry(1.48, 0.06, 0.42);
-  g.add(mesh(diffPlate, mats.blackTrim, {
-    position: [0, 0.19, zMin + 0.20],
-    name: 'rear-diffuser-tray',
-  }));
-
-  for (let sx = -0.52; sx <= 0.52; sx += 0.26) {
-    const strake = new THREE.BoxGeometry(0.018, 0.14, 0.38);
-    g.add(mesh(strake, mats.blackTrim, {
-      position: [sx, 0.16, zMin + 0.20],
-      name: 'diffuser-strake',
-    }));
-  }
-
-  // Exterior side mirrors
+  // Exterior side mirrors on aerodynamic stalks
   for (const side of [-1, 1]) {
     const mirrorStem = tube([
-      [side * 0.77, 0.70, 0.32],
+      [side * 0.76, 0.70, 0.32],
       [side * 0.88, 0.75, 0.33],
     ], 0.014, { tubular: 12, radial: 6 });
     g.add(mesh(mirrorStem, mats.blackTrim));
@@ -583,7 +737,7 @@ function buildBodyShell(mats, M) {
 
     g.add(mirrorHousing);
 
-    // Recessed door handle pulls
+    // Recessed door handles
     const handleGeo = new THREE.BoxGeometry(0.015, 0.04, 0.12);
     g.add(mesh(handleGeo, mats.blackTrim, {
       position: [side * 0.785, 0.63, -0.10],
@@ -595,7 +749,7 @@ function buildBodyShell(mats, M) {
 }
 
 // -----------------------------------------------------------------------------------------
-//  Headlights: Swept Almond Projectors Recessed in Fender Curves
+//  Headlights: Swept Almond Projector Clusters with LED Halo Rings
 // -----------------------------------------------------------------------------------------
 function buildHeadlights(mats, M) {
   const g = new THREE.Group();
@@ -604,7 +758,7 @@ function buildHeadlights(mats, M) {
   for (const s of [-1, 1]) {
     const hlGroup = new THREE.Group();
     hlGroup.name = `headlight-${s < 0 ? 'left' : 'right'}`;
-    hlGroup.position.set(s * 0.54, 0.58, 1.70);
+    hlGroup.position.set(s * 0.54, 0.57, 1.70);
     hlGroup.rotation.set(-0.32, s * 0.24, -s * 0.12);
 
     // Chrome reflector bucket
@@ -612,7 +766,7 @@ function buildHeadlights(mats, M) {
     bucket.scale(0.85, 0.55, 1.4);
     hlGroup.add(mesh(bucket, mats.chromeTrim, { rotation: [Math.PI / 2, 0, 0] }));
 
-    // Dual LED projector lamps with illuminated halos
+    // Dual bi-xenon projector lamps with illuminated halos
     for (const [lx, lz, lr] of [[-0.035, 0.05, 0.038], [0.035, -0.05, 0.032]]) {
       hlGroup.add(mesh(new THREE.CylinderGeometry(lr, lr, 0.06, 16), M.lens || mats.chromeTrim, {
         position: [lx, 0, lz],
@@ -623,10 +777,16 @@ function buildHeadlights(mats, M) {
       }));
     }
 
-    // Amber corner indicator strip
+    // Amber corner indicator reflector strip
     hlGroup.add(mesh(new THREE.BoxGeometry(0.02, 0.015, 0.12), mats.suspensionYellow, {
       position: [s * 0.055, 0.01, 0.0],
       rotation: [0, 0, s * 0.3],
+    }));
+
+    // Gasket bezel seal around outer lens
+    hlGroup.add(mesh(new THREE.TorusGeometry(0.125, 0.008, 6, 24), mats.blackTrim, {
+      position: [0, 0, 0.01],
+      scale: new THREE.Vector3(0.86, 0.56, 1.42),
     }));
 
     // Curved aerodynamic polycarbonate outer lens
@@ -644,7 +804,7 @@ function buildHeadlights(mats, M) {
 }
 
 // -----------------------------------------------------------------------------------------
-//  Taillights: Rocket-Style Protruding Round Circular LED Lamps
+//  Taillights: Rocket-Style Circular LED Jewel Lamps
 // -----------------------------------------------------------------------------------------
 function buildTaillights(mats, M) {
   const g = new THREE.Group();
@@ -654,15 +814,15 @@ function buildTaillights(mats, M) {
     for (let t = 0; t < 2; t++) {
       const tx = s * (0.42 + t * 0.20);
       const tl = new THREE.Group();
-      tl.position.set(tx, 0.69, -1.952);
+      tl.position.set(tx, 0.69, -1.956);
 
-      // Chrome outer bezel ring
+      // Chrome outer bezel
       tl.add(mesh(new THREE.TorusGeometry(0.064, 0.010, 8, 24), mats.chromeTrim));
-      // Dark red lens body
+      // Red jewel LED lens
       tl.add(mesh(new THREE.CylinderGeometry(0.060, 0.060, 0.03, 24), mats.taillightRed, {
         rotation: [Math.PI / 2, 0, 0],
       }));
-      // Inner clear reverse/indicator lamp
+      // Inner reverse/indicator lens
       tl.add(mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.035, 16), mats.chromeTrim, {
         rotation: [Math.PI / 2, 0, 0],
       }));
@@ -681,26 +841,26 @@ function buildWindshieldAndRollHoop(mats, M) {
   const g = new THREE.Group();
   g.name = 'windshield-and-roll-hoop';
 
-  // Raked A-pillars (slender composite frame)
+  // Raked A-pillars (slender composite structural frame)
   const aPillarLeft = tube([
-    [-0.68, 0.70, 0.38],
-    [-0.60, 0.94, 0.12],
-    [-0.54, 1.127, -0.16],
+    [-0.66, 0.70, 0.38],
+    [-0.59, 0.94, 0.12],
+    [-0.53, 1.128, -0.15],
   ], 0.024, { tubular: 16, radial: 8 });
   g.add(mesh(aPillarLeft, mats.blackTrim));
 
   const aPillarRight = tube([
-    [0.68, 0.70, 0.38],
-    [0.60, 0.94, 0.12],
-    [0.54, 1.127, -0.16],
+    [0.66, 0.70, 0.38],
+    [0.59, 0.94, 0.12],
+    [0.53, 1.128, -0.15],
   ], 0.024, { tubular: 16, radial: 8 });
   g.add(mesh(aPillarRight, mats.blackTrim));
 
   // Upper windshield header rail
   const headerRail = tube([
-    [-0.54, 1.127, -0.16],
-    [0.0, 1.13, -0.15],
-    [0.54, 1.127, -0.16],
+    [-0.53, 1.128, -0.15],
+    [0.0, 1.130, -0.15],
+    [0.53, 1.128, -0.15],
   ], 0.022, { tubular: 16, radial: 8 });
   g.add(mesh(headerRail, mats.blackTrim));
 
@@ -712,21 +872,20 @@ function buildWindshieldAndRollHoop(mats, M) {
   rvm.add(mesh(new THREE.PlaneGeometry(0.13, 0.038), mats.chromeTrim, { position: [0, -0.025, 0.002], rotation: [0, Math.PI, 0] }));
   g.add(rvm);
 
-  // Single aerodynamic windshield wiper blade parked at cowl
+  // Single aerodynamic wiper blade parked at cowl
   const wiper = tube([
     [-0.45, 0.72, 0.35],
     [0.10, 0.73, 0.32],
   ], 0.009, { tubular: 12, radial: 6 });
   g.add(mesh(wiper, mats.blackTrim, { name: 'windshield-wiper' }));
 
-  // Curved Panoramic Windshield Glass
-  const wGeo = new THREE.PlaneGeometry(1.18, 0.62, 20, 12);
+  // Curved Panoramic Windshield Glass (Cylindrical aerodynamic bow)
+  const wGeo = new THREE.PlaneGeometry(1.18, 0.62, 24, 16);
   const pos = wGeo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const y = pos.getY(i);
-    // Cylindrical aerodynamic curve across width
-    pos.setZ(i, -(x * x) * 0.14 - (y * y) * 0.04);
+    pos.setZ(i, -(x * x) * 0.14 - (y * y) * 0.035);
   }
   wGeo.computeVertexNormals();
 
@@ -737,12 +896,12 @@ function buildWindshieldAndRollHoop(mats, M) {
   });
   g.add(wMesh);
 
-  // Black Ceramic Frit Border on Windshield Glass
+  // Ceramic Frit Border (Conforming to glass curvature)
   const fritParts = [
-    { geometry: new THREE.BoxGeometry(1.18, 0.04, 0.01), matrix: mat4([0, 0.28, 0]) },
-    { geometry: new THREE.BoxGeometry(1.18, 0.05, 0.01), matrix: mat4([0, -0.28, 0]) },
-    { geometry: new THREE.BoxGeometry(0.04, 0.56, 0.01), matrix: mat4([-0.57, 0, 0]) },
-    { geometry: new THREE.BoxGeometry(0.04, 0.56, 0.01), matrix: mat4([0.57, 0, 0]) },
+    { geometry: new THREE.BoxGeometry(1.16, 0.035, 0.008), matrix: mat4([0, 0.28, 0]) },
+    { geometry: new THREE.BoxGeometry(1.16, 0.045, 0.008), matrix: mat4([0, -0.28, 0]) },
+    { geometry: new THREE.BoxGeometry(0.035, 0.56, 0.008), matrix: mat4([-0.56, 0, 0]) },
+    { geometry: new THREE.BoxGeometry(0.035, 0.56, 0.008), matrix: mat4([0.56, 0, 0]) },
   ];
   const fritMesh = mesh(mergeAll(fritParts), mats.satinBlack, {
     position: [0, 0.91, 0.11],
@@ -751,7 +910,7 @@ function buildWindshieldAndRollHoop(mats, M) {
   });
   g.add(fritMesh);
 
-  // Structural Roll Hoop behind headrests
+  // Structural Targa Roll Hoop directly behind headrests
   const rollHoop = tube([
     [-0.45, 0.84, -0.66],
     [-0.38, 1.05, -0.66],
@@ -763,11 +922,18 @@ function buildWindshieldAndRollHoop(mats, M) {
   ], 0.028, { tubular: 28, radial: 8 });
   g.add(mesh(rollHoop, mats.blackTrim, { name: 'roll-hoop' }));
 
+  // Integrated high-mounted 3rd brake light strip
+  const chmsl = new THREE.BoxGeometry(0.18, 0.02, 0.015);
+  g.add(mesh(chmsl, mats.taillightRed, {
+    position: [0, 0.93, -0.66],
+    name: 'chmsl-brake-light',
+  }));
+
   return g;
 }
 
 // -----------------------------------------------------------------------------------------
-//  Double Wishbone Suspension, Disc Brakes & Forged Alloy Wheels
+//  Double Wishbone Suspension, Ventilated Disc Brakes & Forged Alloy Wheels
 // -----------------------------------------------------------------------------------------
 function buildWheels(mats, M) {
   const g = new THREE.Group();
@@ -799,6 +965,10 @@ function buildWheels(mats, M) {
     susp.push({
       geometry: tube([[0, -0.12, 0], [inboardX, -0.10, 0.14], [inboardX, -0.10, -0.14], [0, -0.12, 0]], 0.016, { tubular: 16, radial: 6 }),
     });
+    // Steering tie rod
+    susp.push({
+      geometry: tube([[0, 0.0, 0.12], [inboardX, 0.02, 0.14]], 0.012, { tubular: 8, radial: 6 }),
+    });
     // Coilover damper spring
     susp.push({
       geometry: new THREE.CylinderGeometry(0.024, 0.024, 0.26, 12),
@@ -806,7 +976,7 @@ function buildWheels(mats, M) {
     });
     wGroup.add(mesh(mergeAll(susp), M.aluminum || mats.chromeTrim, { name: 'suspension-wishbones' }));
 
-    // 2. Lathed Tyre with Rounded Shoulders and Radial Tread Grooves
+    // 2. High-Performance Tyre with Realistic Rounded Shoulder Profile
     const rimRadius = wc.r * 0.68;
     const tyreProfile = [
       { r: rimRadius, y: -wc.w / 2 },
@@ -816,12 +986,12 @@ function buildWheels(mats, M) {
       { r: wc.r * 0.94, y: wc.w / 2 * 0.95 },
       { r: rimRadius, y: wc.w / 2 },
     ];
-    const tyreGeo = lathe(tyreProfile, { segments: 32 });
+    const tyreGeo = lathe(tyreProfile, { segments: 36 });
     tyreGeo.rotateZ(Math.PI / 2);
     wGroup.add(mesh(tyreGeo, mats.tyreRubber, { name: 'tyre' }));
 
     // 3. Forged Alloy Wheel Rim Barrel
-    const rimGeo = new THREE.CylinderGeometry(rimRadius, rimRadius, wc.w * 0.88, 24, 1, true);
+    const rimGeo = new THREE.CylinderGeometry(rimRadius, rimRadius, wc.w * 0.88, 28, 1, true);
     rimGeo.rotateZ(Math.PI / 2);
     wGroup.add(mesh(rimGeo, mats.chromeTrim, { name: 'rim-barrel' }));
 
@@ -868,15 +1038,11 @@ function buildWheels(mats, M) {
 }
 
 // -----------------------------------------------------------------------------------------
-//  Cockpit Interior, Sculpted Bucket Seats, Seatbelts & Easter Eggs
+//  Cockpit Interior: Sculpted Bucket Seats, Momo Wheel & Easter Eggs
 // -----------------------------------------------------------------------------------------
 function buildInterior(mats, M, texDontPanic, texPcb) {
   const g = new THREE.Group();
   g.name = 'interior';
-
-  // Interior floor tub & footwell
-  const floorGeo = new THREE.BoxGeometry(1.24, 0.04, 1.25);
-  g.add(mesh(floorGeo, mats.blackTrim, { position: [0, 0.18, -0.15] }));
 
   // Driver foot pedals (accelerator, brake, dead pedal)
   for (const [px, pw, ph] of [[-0.42, 0.045, 0.08], [-0.34, 0.055, 0.08], [-0.26, 0.038, 0.12]]) {
@@ -886,14 +1052,10 @@ function buildInterior(mats, M, texDontPanic, texPcb) {
     }));
   }
 
-  // Center console / transmission tunnel
-  const tunnelGeo = new THREE.BoxGeometry(0.18, 0.22, 1.10);
-  g.add(mesh(tunnelGeo, mats.blackTrim, { position: [0, 0.30, -0.15] }));
-
   // Gear selector buttons on console (P, R, N, D)
   for (let b = 0; b < 4; b++) {
     g.add(mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.008, 12), mats.chromeTrim, {
-      position: [0, 0.415, 0.10 - b * 0.04],
+      position: [0, 0.35, 0.10 - b * 0.04],
     }));
   }
 
@@ -930,7 +1092,7 @@ function buildInterior(mats, M, texDontPanic, texPcb) {
       position: [0, 0.88, -0.55],
       rotation: [-0.34, 0, 0],
     }));
-    // Harness slot
+    // Harness eyelet slot
     seat.add(mesh(new THREE.BoxGeometry(0.12, 0.035, 0.09), mats.satinBlack, {
       position: [0, 0.84, -0.55],
       rotation: [-0.34, 0, 0],
@@ -946,7 +1108,6 @@ function buildInterior(mats, M, texDontPanic, texPcb) {
     [-0.18, 0.32, -0.24], // Center buckle
   ];
   g.add(mesh(tube(beltPts, 0.015, { tubular: 16, radial: 6 }), mats.satinBlack, { name: 'starman-seatbelt' }));
-  // Silver buckle
   g.add(mesh(new THREE.BoxGeometry(0.035, 0.05, 0.02), mats.chromeTrim, { position: [-0.18, 0.32, -0.24] }));
 
   // Sculpted Dashboard
@@ -957,12 +1118,24 @@ function buildInterior(mats, M, texDontPanic, texPcb) {
   const dashBody = new THREE.BoxGeometry(1.24, 0.18, 0.28);
   dashGroup.add(mesh(dashBody, mats.blackTrim));
 
-  // Instrument binnacle cowl (in front of driver at x = -0.35)
+  // Instrument binnacle cowl in front of driver
   const cowlGeo = new THREE.CylinderGeometry(0.16, 0.18, 0.20, 16, 1, false, 0, Math.PI);
   cowlGeo.rotateX(Math.PI / 2);
   dashGroup.add(mesh(cowlGeo, mats.blackTrim, { position: [-0.35, 0.10, -0.02] }));
 
-  // 4 Round aluminum air conditioning vents with direction louvers
+  // Dual instrument dials (speedometer & battery kW power meter)
+  for (const gx of [-0.40, -0.30]) {
+    dashGroup.add(mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.005, 16), mats.chromeTrim, {
+      position: [gx, 0.09, 0.06],
+      rotation: [Math.PI / 2, 0, 0],
+    }));
+    dashGroup.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.006, 16), mats.blackTrim, {
+      position: [gx, 0.09, 0.062],
+      rotation: [Math.PI / 2, 0, 0],
+    }));
+  }
+
+  // 4 Round aluminum eyeball A/C vents
   for (const vx of [-0.48, -0.20, 0.20, 0.48]) {
     dashGroup.add(mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.015, 16), mats.chromeTrim, {
       position: [vx, 0.04, 0.14],
@@ -981,13 +1154,13 @@ function buildInterior(mats, M, texDontPanic, texPcb) {
   wheelGroup.position.set(-0.35, 0.72, 0.12);
   wheelGroup.rotation.set(-0.55, 0, 0);
 
-  // Outer leather rim with thumb rests
+  // Outer leather rim
   wheelGroup.add(mesh(new THREE.TorusGeometry(0.165, 0.016, 12, 32), mats.blackTrim));
-  // Center metallic horn boss with Tesla emblem
+  // Center horn boss with Tesla red medallion
   wheelGroup.add(mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 16), mats.chromeTrim, { rotation: [Math.PI / 2, 0, 0] }));
   wheelGroup.add(mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.022, 16), mats.cherryRed, { rotation: [Math.PI / 2, 0, 0] }));
 
-  // 3 Spokes with perforated lightening holes
+  // 3 Spokes with drilled lightening holes
   for (const ang of [-Math.PI / 2, Math.PI / 6, 5 * Math.PI / 6]) {
     wheelGroup.add(mesh(new THREE.BoxGeometry(0.13, 0.022, 0.008), mats.chromeTrim, {
       position: [Math.cos(ang) * 0.08, Math.sin(ang) * 0.08, 0],
@@ -1022,7 +1195,6 @@ function buildInterior(mats, M, texDontPanic, texPcb) {
   hwGroup.position.set(0.08, 0.775, 0.28);
   hwGroup.rotation.set(-0.16, 0.20, 0);
 
-  // Miniature red car body
   hwGroup.add(mesh(new THREE.BoxGeometry(0.028, 0.014, 0.062), mats.cherryRed));
   for (const hx of [-0.014, 0.014]) for (const hz of [-0.018, 0.018]) {
     hwGroup.add(mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.004, 8), mats.blackTrim, {
@@ -1082,7 +1254,7 @@ function buildStarman(mats, M) {
   }
   g.add(torso);
 
-  // 2. Legs: Bent naturally at knees towards the pedals
+  // 2. Legs: Bent naturally at knees towards pedals
   for (const s of [-1, 1]) {
     const leg = new THREE.Group();
     const lx = sx + s * 0.11;
@@ -1090,6 +1262,10 @@ function buildStarman(mats, M) {
     leg.add(mesh(new THREE.CylinderGeometry(0.070, 0.062, 0.42, 12), starmanSuitWhite, {
       position: [lx, 0.36, -0.05],
       rotation: [1.32, 0, 0],
+    }));
+    // Knee joint protector pad
+    leg.add(mesh(new THREE.SphereGeometry(0.064, 10, 8), starmanSuitWhite, {
+      position: [lx, 0.35, 0.14],
     }));
     // Shin extending down to floor pedals
     leg.add(mesh(new THREE.CylinderGeometry(0.060, 0.052, 0.38, 12), starmanSuitWhite, {
@@ -1107,17 +1283,14 @@ function buildStarman(mats, M) {
   // 3. Right Arm: Reaching forward to grip the steering wheel at 2 o'clock
   const rightArm = new THREE.Group();
   rightArm.name = 'right-arm-steering';
-  // Upper arm
   rightArm.add(mesh(new THREE.CylinderGeometry(0.054, 0.046, 0.30, 12), starmanSuitWhite, {
     position: [sx + 0.14, 0.64, -0.14],
     rotation: [1.15, -0.22, -0.45],
   }));
-  // Forearm reaching to rim
   rightArm.add(mesh(new THREE.CylinderGeometry(0.046, 0.040, 0.28, 12), starmanSuitWhite, {
     position: [sx + 0.06, 0.68, 0.02],
     rotation: [1.35, -0.35, -0.75],
   }));
-  // Right glove gripping steering wheel
   rightArm.add(mesh(new THREE.SphereGeometry(0.046, 12, 10), starmanSuitWhite, {
     position: [-0.22, 0.78, 0.10],
   }));
@@ -1129,7 +1302,6 @@ function buildStarman(mats, M) {
   // 4. Left Arm (THE ICONIC STARMAN POSE): Resting casually on top of the door sill
   const leftArm = new THREE.Group();
   leftArm.name = 'left-arm-door-sill';
-  // Shoulder extending to door
   leftArm.add(mesh(new THREE.CylinderGeometry(0.056, 0.050, 0.32, 12), starmanSuitWhite, {
     position: [sx - 0.20, 0.66, -0.22],
     rotation: [0.32, 0, 1.15],
@@ -1139,7 +1311,6 @@ function buildStarman(mats, M) {
     position: [sx - 0.44, 0.74, -0.10],
     rotation: [1.52, 0, 0.12],
   }));
-  // Left glove draped forward
   leftArm.add(mesh(new THREE.SphereGeometry(0.048, 12, 10), starmanSuitWhite, {
     position: [sx - 0.45, 0.74, 0.10],
   }));
@@ -1285,28 +1456,21 @@ export function buildRoadster(M) {
   const texPcb = makePcbTexture();
   const mats = createRoadsterMaterials(M);
 
-  // Continuous Seamless Parametric Body Components
+  // Continuous Watertight Body Components
   const bodyShell = buildBodyShell(mats, M);
   const headlights = buildHeadlights(mats, M);
   const taillights = buildTaillights(mats, M);
   const glassAndHoop = buildWindshieldAndRollHoop(mats, M);
 
-  // Mechanicals & Occupant
+  // Mechanicals, Cockpit & Occupant
   const wheels = buildWheels(mats, M);
   const interior = buildInterior(mats, M, texDontPanic, texPcb);
   const starman = buildStarman(mats, M);
   const adapter = buildPayloadAdapter(mats, M);
 
-  // Underbody composite plate
-  const underbody = mesh(new THREE.BoxGeometry(1.64, 0.04, 3.82), mats.blackTrim, {
-    position: [0, 0.14, 0],
-    name: 'underbody-tray',
-  });
-
   bodyShell.add(headlights);
   bodyShell.add(taillights);
   bodyShell.add(glassAndHoop);
-  bodyShell.add(underbody);
 
   root.add(bodyShell);
   root.add(wheels);
@@ -1314,7 +1478,7 @@ export function buildRoadster(M) {
   root.add(starman);
   root.add(adapter);
 
-  // Hull name definition for verification measuring
+  // Hull metadata for verification measuring
   // Matches HULLS.roadster in verify.js
   root.userData.height = ROADSTER_SPECS.height;
   root.userData.footprint = ROADSTER_SPECS.length;
