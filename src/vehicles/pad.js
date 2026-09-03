@@ -406,9 +406,11 @@ function buildField(M) {
 
   // Set well back from the mount, and off the axis the launch cameras work along, so the
   // tanks read as part of the site rather than as furniture in front of the lens.
-  g.position.z = -70;
+  const farm = new THREE.Group();
+  farm.name = 'pad-farm';
+  farm.position.z = -70;
   const slab = [block(PAD.farmX - 16, PAD.farmX + 20, -0.4, 1.2, -42, 42)];
-  g.add(mesh(boxUV(mergeAll(slab)), M.concrete));
+  farm.add(mesh(boxUV(mergeAll(slab)), M.concrete));
 
   const tanks = [];
   for (let i = 0; i < 6; i++) {
@@ -419,7 +421,8 @@ function buildField(M) {
   for (const z of [-24, 8]) {
     tanks.push({ geometry: new THREE.CylinderGeometry(6.0, 6.0, 14, 32), matrix: mat4([PAD.farmX + 15, 1.2 + 7, z]) });
   }
-  g.add(mesh(boxUV(mergeAll(tanks)), M.aluminum));
+  farm.add(mesh(boxUV(mergeAll(tanks)), M.aluminum));
+  g.add(farm);
   return g;
 }
 
