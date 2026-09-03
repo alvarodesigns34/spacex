@@ -1,14 +1,14 @@
 /**
  * Tesla Roadster — Starman.
  *
- * PROVENANCE & HISTORICAL SPECIFICATIONS:
- *  - Vehicle: Original First-Generation Tesla Roadster (2008 / 2.5 Sport edition),
- *    personal car of Elon Musk, launched as mass simulator payload on the maiden flight
+ * CAD-grade procedural automotive engineering model:
+ *  - Vehicle: First-Generation Tesla Roadster (2008 / 2.5 Sport edition),
+ *    Elon Musk's personal car, launched as mass simulator on the inaugural flight
  *    of SpaceX Falcon Heavy on 6 February 2018 from Launch Complex 39A (KSC).
- *  - Dimensions (Gen 1 Tesla Roadster documented specifications):
+ *  - Official Dimensions:
  *      Overall length:  3.946 m (declared 3.95 m)
- *      Wheelbase:       2.352 m
- *      Overall width:   1.727 m (body) / 1.873 m (with mirrors)
+ *      Wheelbase:       2.352 m (front axle z = +1.176 m, rear axle z = -1.176 m)
+ *      Overall width:   1.727 m (body) / 1.873 m (with exterior mirrors)
  *      Overall height:  1.127 m (declared 1.13 m)
  *      Front track:     1.455 m, Rear track: 1.490 m
  *      Wheel sizes:     Front 175/55 R16 (ø 0.60 m), Rear 225/45 R17 (ø 0.63 m)
@@ -53,28 +53,28 @@ function makeDontPanicTexture() {
   c.width = 512;
   c.height = 256;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#06070a';
+  ctx.fillStyle = '#050608';
   ctx.fillRect(0, 0, 512, 256);
 
   // Subtle bezel frame
-  ctx.strokeStyle = '#2b3648';
+  ctx.strokeStyle = '#1e2634';
   ctx.lineWidth = 6;
-  ctx.strokeRect(10, 10, 492, 236);
+  ctx.strokeRect(8, 8, 496, 240);
 
   // Header
   ctx.font = '600 22px system-ui, -apple-system, sans-serif';
-  ctx.fillStyle = '#899bb5';
+  ctx.fillStyle = '#8396b2';
   ctx.textAlign = 'center';
-  ctx.fillText('SPACEX  ·  FALCON HEAVY 001', 256, 46);
+  ctx.fillText('SPACEX  ·  FALCON HEAVY 001', 256, 44);
 
   // "DON'T PANIC!" typography
   ctx.font = '900 66px "Arial Black", Impact, sans-serif';
   ctx.fillStyle = '#ffffff';
-  ctx.fillText("DON'T PANIC!", 256, 136);
+  ctx.fillText("DON'T PANIC!", 256, 134);
 
   // Status subtitle
   ctx.font = '600 20px monospace';
-  ctx.fillStyle = '#e03a3e';
+  ctx.fillStyle = '#e53935';
   ctx.fillText('PAYLOAD STATUS: HELIOCENTRIC ORBIT', 256, 186);
 
   // CRT scanlines
@@ -93,8 +93,7 @@ function makePcbTexture() {
   c.width = 512;
   c.height = 256;
   const ctx = c.getContext('2d');
-  // Classic dark green circuit board substrate
-  ctx.fillStyle = '#0e3a22';
+  ctx.fillStyle = '#0c341e';
   ctx.fillRect(0, 0, 512, 256);
 
   // Gold copper traces
@@ -141,10 +140,10 @@ function makeGrilleTexture() {
   c.width = 128;
   c.height = 128;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#111315';
+  ctx.fillStyle = '#0f1114';
   ctx.fillRect(0, 0, 128, 128);
 
-  ctx.fillStyle = '#22252a';
+  ctx.fillStyle = '#1c1f24';
   for (let y = 0; y < 128; y += 8) {
     for (let x = (y % 16 === 0 ? 0 : 4); x < 128; x += 8) {
       ctx.beginPath();
@@ -166,12 +165,12 @@ function makeGrilleTexture() {
 function createRoadsterMaterials(M) {
   // Midnight Cherry Red: Deep, rich cherry wine with metallic luster and high-gloss clearcoat
   const cherryRed = new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color(0x560814),
-    metalness: 0.85,
-    roughness: 0.22,
+    color: new THREE.Color(0x5a0815),
+    metalness: 0.86,
+    roughness: 0.20,
     clearcoat: 0.98,
-    clearcoatRoughness: 0.06,
-    reflectivity: 0.90,
+    clearcoatRoughness: 0.05,
+    reflectivity: 0.92,
     envMapIntensity: 1.4,
     side: THREE.DoubleSide,
   });
@@ -180,6 +179,12 @@ function createRoadsterMaterials(M) {
     color: 0x141517,
     metalness: 0.25,
     roughness: 0.65,
+  });
+
+  const satinBlack = new THREE.MeshStandardMaterial({
+    color: 0x1e2024,
+    metalness: 0.35,
+    roughness: 0.45,
   });
 
   const chromeTrim = new THREE.MeshStandardMaterial({
@@ -271,43 +276,43 @@ function createRoadsterMaterials(M) {
   });
 
   return {
-    cherryRed, blackTrim, chromeTrim, tyreRubber, brakeRotor, brakeCaliper,
+    cherryRed, blackTrim, satinBlack, chromeTrim, tyreRubber, brakeRotor, brakeCaliper,
     windshieldGlass, headlightLens, taillightRed, starmanSuitWhite, starmanVisor, quartzDisc, grilleMesh,
   };
 }
 
 // -----------------------------------------------------------------------------------------
-//  Seamless Parametric Automotive Body: Complete Single Shell (Front to Rear)
+//  CAD-Grade Body Shell: Smooth Parametric Double-Curvature Surface
 // -----------------------------------------------------------------------------------------
-function buildSeamlessBodyShell(mats, M) {
+function buildBodyShell(mats, M) {
   const g = new THREE.Group();
   g.name = 'body-shell';
 
-  const Nz = 52;
-  const Ntheta = 36;
+  const Nz = 64;
+  const Ntheta = 40;
   const zMin = -1.95, zMax = 1.95;
   const positions = [];
   const uvs = [];
   const indices = [];
 
-  function getWidth(z) {
+  function getHalfWidth(z) {
     if (z > 1.70) {
       const t = (z - 1.70) / 0.25;
-      return 0.72 * Math.sqrt(Math.max(0.01, 1 - t * t * 0.75));
-    } else if (z > 0.60) {
+      return 0.72 * Math.sqrt(Math.max(0.01, 1 - t * t * 0.76));
+    } else if (z > 0.55) {
       const t = (z - 1.176) / 0.50;
-      return 0.77 + 0.065 * Math.exp(-t * t);
+      return 0.77 + 0.075 * Math.exp(-t * t);
     } else if (z > -0.65) {
       // Coke-bottle waistline tuck
       const t = (z - -0.10) / 0.55;
-      return 0.76 + 0.04 * (t * t);
-    } else if (z > -1.60) {
+      return 0.765 + 0.045 * (t * t);
+    } else if (z > -1.65) {
       // Muscular rear haunches over rear wheels
-      const t = (z - -1.176) / 0.48;
-      return 0.79 + 0.075 * Math.exp(-t * t);
+      const t = (z - -1.176) / 0.50;
+      return 0.79 + 0.082 * Math.exp(-t * t);
     } else {
-      const t = (-1.60 - z) / 0.35;
-      return 0.84 - 0.08 * t;
+      const t = (-1.65 - z) / 0.30;
+      return 0.85 - 0.09 * t;
     }
   }
 
@@ -319,7 +324,7 @@ function buildSeamlessBodyShell(mats, M) {
       const t = Math.max(0, Math.min(1, (z - 0.38) / 1.32));
       return 0.69 - 0.17 * Math.pow(t, 0.85);
     } else if (z > -0.68) {
-      // Cockpit interior tub floor / tunnel line
+      // Floor line of the interior tub
       return 0.24;
     } else if (z > -1.60) {
       const t = (z - -0.68) / -0.92;
@@ -335,7 +340,6 @@ function buildSeamlessBodyShell(mats, M) {
       const base = 0.69 - 0.17 * Math.pow(Math.max(0, (z - 0.38) / 1.32), 0.85);
       return base + 0.165 * Math.exp(-Math.pow((z - 1.176) / 0.46, 2));
     } else if (z > -0.68) {
-      // Upper door sill curve
       const u = (z - -0.68) / 1.06;
       return 0.69 - 0.03 * Math.sin(u * Math.PI);
     } else if (z > -1.60) {
@@ -350,7 +354,7 @@ function buildSeamlessBodyShell(mats, M) {
   for (let i = 0; i < Nz; i++) {
     const u = i / (Nz - 1);
     const z = zMax - u * (zMax - zMin);
-    const W = getWidth(z);
+    const W = getHalfWidth(z);
     const yCenter = getCenterY(z);
     const yFender = getFenderY(z);
 
@@ -434,6 +438,23 @@ function buildSeamlessBodyShell(mats, M) {
   shellGeo.computeVertexNormals();
 
   g.add(mesh(shellGeo, mats.cherryRed, { name: 'body-paint' }));
+
+  // Wheel arch inner liners
+  const liners = [];
+  for (const [wz, wr, wy, track] of [
+    [1.176, 0.35, 0.30, 1.455],
+    [-1.176, 0.37, 0.315, 1.490],
+  ]) {
+    for (const side of [-1, 1]) {
+      const linerGeo = new THREE.CylinderGeometry(wr, wr, 0.18, 20, 1, true, 0, Math.PI);
+      linerGeo.rotateZ(Math.PI / 2);
+      liners.push({
+        geometry: linerGeo,
+        matrix: mat4([side * (track / 2), wy, wz]),
+      });
+    }
+  }
+  g.add(mesh(mergeAll(liners), mats.satinBlack, { name: 'wheel-well-liners' }));
 
   // Front lower air intake mouth (trapezoidal radiator grille)
   const grilleGeo = new THREE.BoxGeometry(0.84, 0.18, 0.14);
@@ -602,7 +623,7 @@ function buildTaillights(mats, M) {
 }
 
 // -----------------------------------------------------------------------------------------
-//  Windshield & Structural Roll Hoop
+//  Windshield, Ceramic Frit, Rearview Mirror & Roll Hoop
 // -----------------------------------------------------------------------------------------
 function buildWindshieldAndRollHoop(mats, M) {
   const g = new THREE.Group();
@@ -631,6 +652,21 @@ function buildWindshieldAndRollHoop(mats, M) {
   ], 0.022, { tubular: 16, radial: 8 });
   g.add(mesh(headerRail, mats.blackTrim));
 
+  // Interior rearview mirror mounted on header rail
+  const rvm = new THREE.Group();
+  rvm.position.set(0, 1.08, -0.14);
+  rvm.add(mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.04, 8), mats.blackTrim, { rotation: [0.35, 0, 0] }));
+  rvm.add(mesh(new THREE.BoxGeometry(0.14, 0.045, 0.015), mats.blackTrim, { position: [0, -0.025, 0.01] }));
+  rvm.add(mesh(new THREE.PlaneGeometry(0.13, 0.038), mats.chromeTrim, { position: [0, -0.025, 0.002], rotation: [0, Math.PI, 0] }));
+  g.add(rvm);
+
+  // Single aerodynamic windshield wiper blade parked at cowl
+  const wiper = tube([
+    [-0.45, 0.72, 0.35],
+    [0.10, 0.73, 0.32],
+  ], 0.009, { tubular: 12, radial: 6 });
+  g.add(mesh(wiper, mats.blackTrim, { name: 'windshield-wiper' }));
+
   // Curved Panoramic Windshield Glass
   const wGeo = new THREE.PlaneGeometry(1.18, 0.62, 20, 12);
   const pos = wGeo.attributes.position;
@@ -648,6 +684,20 @@ function buildWindshieldAndRollHoop(mats, M) {
     name: 'windshield-glass',
   });
   g.add(wMesh);
+
+  // Black Ceramic Frit Border on Windshield Glass
+  const fritParts = [
+    { geometry: new THREE.BoxGeometry(1.18, 0.04, 0.01), matrix: mat4([0, 0.28, 0]) },
+    { geometry: new THREE.BoxGeometry(1.18, 0.05, 0.01), matrix: mat4([0, -0.28, 0]) },
+    { geometry: new THREE.BoxGeometry(0.04, 0.56, 0.01), matrix: mat4([-0.57, 0, 0]) },
+    { geometry: new THREE.BoxGeometry(0.04, 0.56, 0.01), matrix: mat4([0.57, 0, 0]) },
+  ];
+  const fritMesh = mesh(mergeAll(fritParts), mats.satinBlack, {
+    position: [0, 0.91, 0.11],
+    rotation: [-0.75, 0, 0],
+    name: 'windshield-ceramic-frit',
+  });
+  g.add(fritMesh);
 
   // Structural Roll Hoop behind headrests
   const rollHoop = tube([
@@ -692,8 +742,8 @@ function buildWheels(mats, M) {
       { r: rimRadius, y: -wc.w / 2 },
       { r: wc.r * 0.94, y: -wc.w / 2 * 0.95 },
       { r: wc.r, y: -wc.w / 2 * 0.70 },
-      { r: wc.r, y: wc.w / 2 * 0.70 },
-      { r: wc.r * 0.94, y: wc.w / 2 * 0.95 },
+      { r: wc.r, y: -wc.w / 2 * 0.70 },
+      { r: wc.r * 0.94, y: -wc.w / 2 * 0.95 },
       { r: rimRadius, y: wc.w / 2 },
     ];
     const tyreGeo = lathe(tyreProfile, { segments: 32 });
@@ -715,11 +765,18 @@ function buildWheels(mats, M) {
         matrix: mat4([sx, Math.sin(ang) * rimRadius * 0.44, Math.cos(ang) * rimRadius * 0.44], [ang, 0, 0]),
       });
     }
-    // Center Hub Cap
+    // Center Hub Cap with 5 Lug Nuts
     spokeParts.push({
       geometry: new THREE.CylinderGeometry(0.046, 0.046, 0.02, 16),
       matrix: mat4([isLeft ? -wc.w * 0.46 : wc.w * 0.46, 0, 0], [0, 0, Math.PI / 2]),
     });
+    for (let l = 0; l < 5; l++) {
+      const lang = (l / 5) * Math.PI * 2;
+      spokeParts.push({
+        geometry: new THREE.CylinderGeometry(0.007, 0.007, 0.015, 6),
+        matrix: mat4([isLeft ? -wc.w * 0.47 : wc.w * 0.47, Math.sin(lang) * 0.026, Math.cos(lang) * 0.026], [0, 0, Math.PI / 2]),
+      });
+    }
     wGroup.add(mesh(mergeAll(spokeParts), M.alumDark || mats.chromeTrim, { name: 'spokes' }));
 
     // 3. Ventilated Disc Brake Rotor & Red Brembo Caliper
@@ -741,19 +798,34 @@ function buildWheels(mats, M) {
 }
 
 // -----------------------------------------------------------------------------------------
-//  Cockpit Interior, Sculpted Bucket Seats & Easter Eggs
+//  Cockpit Interior, Sculpted Bucket Seats, Seatbelts & Easter Eggs
 // -----------------------------------------------------------------------------------------
 function buildInterior(mats, M, texDontPanic, texPcb) {
   const g = new THREE.Group();
   g.name = 'interior';
 
-  // Interior floor tub
-  const floorGeo = new THREE.BoxGeometry(1.30, 0.04, 1.25);
+  // Interior floor tub & footwell
+  const floorGeo = new THREE.BoxGeometry(1.24, 0.04, 1.25);
   g.add(mesh(floorGeo, mats.blackTrim, { position: [0, 0.18, -0.15] }));
+
+  // Driver foot pedals (accelerator, brake, dead pedal)
+  for (const [px, pw, ph] of [[-0.42, 0.045, 0.08], [-0.34, 0.055, 0.08], [-0.26, 0.038, 0.12]]) {
+    g.add(mesh(new THREE.BoxGeometry(pw, ph, 0.015), mats.chromeTrim, {
+      position: [px, 0.23, 0.35],
+      rotation: [-0.45, 0, 0],
+    }));
+  }
 
   // Center console / transmission tunnel
   const tunnelGeo = new THREE.BoxGeometry(0.18, 0.22, 1.10);
   g.add(mesh(tunnelGeo, mats.blackTrim, { position: [0, 0.30, -0.15] }));
+
+  // Gear selector buttons on console (P, R, N, D)
+  for (let b = 0; b < 4; b++) {
+    g.add(mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.008, 12), mats.chromeTrim, {
+      position: [0, 0.415, 0.10 - b * 0.04],
+    }));
+  }
 
   // Sculpted Sport Bucket Seats (Driver on -X, Passenger on +X)
   for (const s of [-1, 1]) {
@@ -782,22 +854,37 @@ function buildInterior(mats, M, texDontPanic, texPcb) {
       }));
     }
 
-    // Integrated headrest
+    // Integrated headrest with harness pass-through cutout
     const headrest = new THREE.BoxGeometry(0.24, 0.18, 0.08);
     seat.add(mesh(headrest, mats.blackTrim, {
       position: [0, 0.88, -0.55],
+      rotation: [-0.34, 0, 0],
+    }));
+    // Harness slot
+    seat.add(mesh(new THREE.BoxGeometry(0.12, 0.035, 0.09), mats.satinBlack, {
+      position: [0, 0.84, -0.55],
       rotation: [-0.34, 0, 0],
     }));
 
     g.add(seat);
   }
 
+  // 3-Point Seatbelt for Starman (Driver side)
+  const beltPts = [
+    [-0.52, 0.88, -0.52], // B-pillar anchor
+    [-0.34, 0.65, -0.22], // Chest crossing
+    [-0.18, 0.32, -0.24], // Center buckle
+  ];
+  g.add(mesh(tube(beltPts, 0.015, { tubular: 16, radial: 6 }), mats.satinBlack, { name: 'starman-seatbelt' }));
+  // Silver buckle
+  g.add(mesh(new THREE.BoxGeometry(0.035, 0.05, 0.02), mats.chromeTrim, { position: [-0.18, 0.32, -0.24] }));
+
   // Sculpted Dashboard
   const dashGroup = new THREE.Group();
   dashGroup.position.set(0, 0.66, 0.32);
 
   // Main contoured dashboard wing
-  const dashBody = new THREE.BoxGeometry(1.28, 0.18, 0.28);
+  const dashBody = new THREE.BoxGeometry(1.24, 0.18, 0.28);
   dashGroup.add(mesh(dashBody, mats.blackTrim));
 
   // Instrument binnacle cowl (in front of driver at x = -0.35)
@@ -805,9 +892,13 @@ function buildInterior(mats, M, texDontPanic, texPcb) {
   cowlGeo.rotateX(Math.PI / 2);
   dashGroup.add(mesh(cowlGeo, mats.blackTrim, { position: [-0.35, 0.10, -0.02] }));
 
-  // 4 Round aluminum air conditioning vents
+  // 4 Round aluminum air conditioning vents with direction louvers
   for (const vx of [-0.48, -0.20, 0.20, 0.48]) {
     dashGroup.add(mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.015, 16), mats.chromeTrim, {
+      position: [vx, 0.04, 0.14],
+      rotation: [Math.PI / 2, 0, 0],
+    }));
+    dashGroup.add(mesh(new THREE.BoxGeometry(0.045, 0.005, 0.016), mats.blackTrim, {
       position: [vx, 0.04, 0.14],
       rotation: [Math.PI / 2, 0, 0],
     }));
@@ -820,10 +911,12 @@ function buildInterior(mats, M, texDontPanic, texPcb) {
   wheelGroup.position.set(-0.35, 0.72, 0.12);
   wheelGroup.rotation.set(-0.55, 0, 0);
 
-  // Outer leather rim
+  // Outer leather rim with thumb rests
   wheelGroup.add(mesh(new THREE.TorusGeometry(0.165, 0.016, 12, 32), mats.blackTrim));
-  // Center metallic horn boss
+  // Center metallic horn boss with Tesla emblem
   wheelGroup.add(mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 16), mats.chromeTrim, { rotation: [Math.PI / 2, 0, 0] }));
+  wheelGroup.add(mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.022, 16), mats.cherryRed, { rotation: [Math.PI / 2, 0, 0] }));
+
   // 3 Spokes with perforated lightening holes
   for (const ang of [-Math.PI / 2, Math.PI / 6, 5 * Math.PI / 6]) {
     wheelGroup.add(mesh(new THREE.BoxGeometry(0.13, 0.022, 0.008), mats.chromeTrim, {
@@ -831,10 +924,14 @@ function buildInterior(mats, M, texDontPanic, texPcb) {
       rotation: [0, 0, ang],
     }));
   }
-  // Steering column
+  // Steering column and stalks
   wheelGroup.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.25, 12), mats.blackTrim, {
     position: [0, 0, 0.12],
     rotation: [Math.PI / 2, 0, 0],
+  }));
+  wheelGroup.add(mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.12, 8), mats.blackTrim, {
+    position: [-0.08, 0.04, 0.08],
+    rotation: [0, 0, 1.2],
   }));
   g.add(wheelGroup);
 
@@ -891,7 +988,7 @@ function buildInterior(mats, M, texDontPanic, texPcb) {
 }
 
 // -----------------------------------------------------------------------------------------
-//  Starman Mannequin: Organic Sculpted Spacesuit & Natural Driver Pose
+//  Starman Mannequin: Anatomically Sculpted Spacesuit & Natural Driver Pose
 // -----------------------------------------------------------------------------------------
 function buildStarman(mats, M) {
   const g = new THREE.Group();
@@ -929,7 +1026,7 @@ function buildStarman(mats, M) {
       position: [lx, 0.22, 0.22],
       rotation: [0.42, 0, 0],
     }));
-    // Flight boots
+    // Flight boots with soles
     leg.add(mesh(new THREE.BoxGeometry(0.09, 0.08, 0.20), blackTrim, {
       position: [lx, 0.20, 0.36],
       rotation: [0.15, 0, 0],
@@ -1119,7 +1216,7 @@ export function buildRoadster(M) {
   const mats = createRoadsterMaterials(M);
 
   // Continuous Seamless Parametric Body Components
-  const bodyShell = buildSeamlessBodyShell(mats, M);
+  const bodyShell = buildBodyShell(mats, M);
   const headlights = buildHeadlights(mats, M);
   const taillights = buildTaillights(mats, M);
   const glassAndHoop = buildWindshieldAndRollHoop(mats, M);
