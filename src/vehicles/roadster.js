@@ -1,11 +1,11 @@
 /**
  * Tesla Roadster — Starman.
  *
- * CAD-grade procedural automotive engineering model:
- *  - Vehicle: First-Generation Tesla Roadster (2008 / 2.5 Sport edition),
- *    Elon Musk's personal car, launched as mass simulator on the inaugural flight
+ * PROVENANCE & HISTORICAL SPECIFICATIONS:
+ *  - Vehicle: Original First-Generation Tesla Roadster (2008 / 2.5 Sport edition),
+ *    personal car of Elon Musk, launched as mass simulator payload on the maiden flight
  *    of SpaceX Falcon Heavy on 6 February 2018 from Launch Complex 39A (KSC).
- *  - Official Dimensions:
+ *  - Documented Dimensions (Gen 1 Tesla Roadster official specifications):
  *      Overall length:  3.946 m (declared 3.95 m)
  *      Wheelbase:       2.352 m (front axle z = +1.176 m, rear axle z = -1.176 m)
  *      Overall width:   1.727 m (body) / 1.873 m (with exterior mirrors)
@@ -211,6 +211,12 @@ function createRoadsterMaterials(M) {
     roughness: 0.32,
   });
 
+  const suspensionYellow = new THREE.MeshStandardMaterial({
+    color: 0xd4a017,
+    metalness: 0.25,
+    roughness: 0.40,
+  });
+
   const windshieldGlass = new THREE.MeshPhysicalMaterial({
     color: 0xa0c0d8,
     transparent: true,
@@ -276,13 +282,13 @@ function createRoadsterMaterials(M) {
   });
 
   return {
-    cherryRed, blackTrim, satinBlack, chromeTrim, tyreRubber, brakeRotor, brakeCaliper,
+    cherryRed, blackTrim, satinBlack, chromeTrim, tyreRubber, brakeRotor, brakeCaliper, suspensionYellow,
     windshieldGlass, headlightLens, taillightRed, starmanSuitWhite, starmanVisor, quartzDisc, grilleMesh,
   };
 }
 
 // -----------------------------------------------------------------------------------------
-//  CAD-Grade Body Shell: Smooth Parametric Double-Curvature Surface
+//  CAD-Grade Body Shell: Smooth Parametric Double-Curvature Surface with Stamped Shut Lines
 // -----------------------------------------------------------------------------------------
 function buildBodyShell(mats, M) {
   const g = new THREE.Group();
@@ -439,7 +445,27 @@ function buildBodyShell(mats, M) {
 
   g.add(mesh(shellGeo, mats.cherryRed, { name: 'body-paint' }));
 
-  // Wheel arch inner liners
+  // Stamped Panel Shut Lines (Hood and Door seams)
+  const shutLines = [];
+  // Hood perimeter cut line
+  const hoodSeamPts = [
+    [-0.52, 0.69, 0.40],
+    [-0.52, 0.60, 1.20],
+    [-0.42, 0.50, 1.65],
+    [0.0, 0.46, 1.70],
+    [0.42, 0.50, 1.65],
+    [0.52, 0.60, 1.20],
+    [0.52, 0.69, 0.40],
+  ];
+  shutLines.push({ geometry: tube(hoodSeamPts, 0.005, { tubular: 24, radial: 6 }) });
+  // Door vertical shut lines
+  for (const s of [-1, 1]) {
+    shutLines.push({ geometry: tube([[s * 0.77, 0.68, 0.36], [s * 0.76, 0.22, 0.36]], 0.005, { tubular: 8, radial: 6 }) });
+    shutLines.push({ geometry: tube([[s * 0.79, 0.72, -0.66], [s * 0.78, 0.22, -0.66]], 0.005, { tubular: 8, radial: 6 }) });
+  }
+  g.add(mesh(mergeAll(shutLines), mats.blackTrim, { name: 'body-shut-lines' }));
+
+  // Wheel arch inner liners (prevents seeing through into the car)
   const liners = [];
   for (const [wz, wr, wy, track] of [
     [1.176, 0.35, 0.30, 1.455],
@@ -456,14 +482,20 @@ function buildBodyShell(mats, M) {
   }
   g.add(mesh(mergeAll(liners), mats.satinBlack, { name: 'wheel-well-liners' }));
 
-  // Front lower air intake mouth (trapezoidal radiator grille)
-  const grilleGeo = new THREE.BoxGeometry(0.84, 0.18, 0.14);
-  g.add(mesh(grilleGeo, mats.grilleMesh, {
-    position: [0, 0.24, 1.88],
+  // Front lower air intake mouth (trapezoidal radiator grille with 3D depth)
+  const grilleTunnel = new THREE.BoxGeometry(0.82, 0.16, 0.18);
+  g.add(mesh(grilleTunnel, mats.grilleMesh, {
+    position: [0, 0.24, 1.86],
     name: 'front-grille',
   }));
+  // Aluminum radiator core visible inside mouth
+  const radiatorCore = new THREE.BoxGeometry(0.76, 0.14, 0.02);
+  g.add(mesh(radiatorCore, M.aluminum || mats.chromeTrim, {
+    position: [0, 0.24, 1.78],
+    name: 'radiator-core',
+  }));
 
-  // Front chin aerodynamic splitter
+  // Front chin aerodynamic splitter with support struts
   const splitterPts = [
     [-0.72, 0.15, 1.68],
     [-0.45, 0.15, 1.94],
@@ -472,6 +504,13 @@ function buildBodyShell(mats, M) {
     [0.72, 0.15, 1.68],
   ];
   g.add(mesh(tube(splitterPts, 0.024, { tubular: 24, radial: 8 }), mats.blackTrim, { name: 'front-splitter' }));
+  // Splitter support struts
+  for (const sx of [-0.28, 0.28]) {
+    g.add(mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.12, 6), mats.chromeTrim, {
+      position: [sx, 0.21, 1.92],
+      rotation: [0.35, 0, 0],
+    }));
+  }
 
   // Twin hood extraction vents (black mesh inserts)
   for (const s of [-1, 1]) {
@@ -494,14 +533,20 @@ function buildBodyShell(mats, M) {
   });
   g.add(fascia);
 
-  // Rear license plate recess
+  // Rear license plate recess with Tesla emblem
   const recessGeo = new THREE.BoxGeometry(0.56, 0.16, 0.04);
   g.add(mesh(recessGeo, mats.blackTrim, {
     position: [0, 0.48, zMin + 0.01],
     name: 'rear-license-recess',
   }));
+  const plateText = new THREE.PlaneGeometry(0.32, 0.08);
+  plateText.rotateY(Math.PI);
+  g.add(mesh(plateText, mats.chromeTrim, {
+    position: [0, 0.48, zMin - 0.001],
+    name: 'rear-license-plate',
+  }));
 
-  // Rear lower racing diffuser with vertical strakes
+  // Rear lower racing diffuser with 4 vertical strakes
   const diffPlate = new THREE.BoxGeometry(1.48, 0.06, 0.42);
   g.add(mesh(diffPlate, mats.blackTrim, {
     position: [0, 0.19, zMin + 0.20],
@@ -567,14 +612,21 @@ function buildHeadlights(mats, M) {
     bucket.scale(0.85, 0.55, 1.4);
     hlGroup.add(mesh(bucket, mats.chromeTrim, { rotation: [Math.PI / 2, 0, 0] }));
 
-    // Dual LED projector lamps
-    hlGroup.add(mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.06, 16), M.lens || mats.chromeTrim, {
-      position: [-0.035, 0, 0.05],
-      rotation: [Math.PI / 2, 0, 0],
-    }));
-    hlGroup.add(mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.06, 16), M.lens || mats.chromeTrim, {
-      position: [0.035, 0, -0.05],
-      rotation: [Math.PI / 2, 0, 0],
+    // Dual LED projector lamps with illuminated halos
+    for (const [lx, lz, lr] of [[-0.035, 0.05, 0.038], [0.035, -0.05, 0.032]]) {
+      hlGroup.add(mesh(new THREE.CylinderGeometry(lr, lr, 0.06, 16), M.lens || mats.chromeTrim, {
+        position: [lx, 0, lz],
+        rotation: [Math.PI / 2, 0, 0],
+      }));
+      hlGroup.add(mesh(new THREE.TorusGeometry(lr * 0.95, 0.006, 8, 20), mats.chromeTrim, {
+        position: [lx, 0.03, lz],
+      }));
+    }
+
+    // Amber corner indicator strip
+    hlGroup.add(mesh(new THREE.BoxGeometry(0.02, 0.015, 0.12), mats.suspensionYellow, {
+      position: [s * 0.055, 0.01, 0.0],
+      rotation: [0, 0, s * 0.3],
     }));
 
     // Curved aerodynamic polycarbonate outer lens
@@ -715,7 +767,7 @@ function buildWindshieldAndRollHoop(mats, M) {
 }
 
 // -----------------------------------------------------------------------------------------
-//  3D Wheels & Brakes: Detailed Alloy Rims, Radial Tyres & Brembo Calipers
+//  Double Wishbone Suspension, Disc Brakes & Forged Alloy Wheels
 // -----------------------------------------------------------------------------------------
 function buildWheels(mats, M) {
   const g = new THREE.Group();
@@ -736,26 +788,44 @@ function buildWheels(mats, M) {
 
     const isLeft = wc.x < 0;
 
-    // 1. Lathed Tyre with Rounded Shoulders and Realistic Tread
+    // 1. Double Wishbone Suspension behind wheel
+    const susp = [];
+    const inboardX = isLeft ? 0.24 : -0.24;
+    // Upper A-arm
+    susp.push({
+      geometry: tube([[0, 0.10, 0], [inboardX, 0.14, 0.12], [inboardX, 0.14, -0.12], [0, 0.10, 0]], 0.014, { tubular: 16, radial: 6 }),
+    });
+    // Lower A-arm
+    susp.push({
+      geometry: tube([[0, -0.12, 0], [inboardX, -0.10, 0.14], [inboardX, -0.10, -0.14], [0, -0.12, 0]], 0.016, { tubular: 16, radial: 6 }),
+    });
+    // Coilover damper spring
+    susp.push({
+      geometry: new THREE.CylinderGeometry(0.024, 0.024, 0.26, 12),
+      matrix: mat4([inboardX * 0.45, 0.05, 0], [0, 0, isLeft ? -0.35 : 0.35]),
+    });
+    wGroup.add(mesh(mergeAll(susp), M.aluminum || mats.chromeTrim, { name: 'suspension-wishbones' }));
+
+    // 2. Lathed Tyre with Rounded Shoulders and Radial Tread Grooves
     const rimRadius = wc.r * 0.68;
     const tyreProfile = [
       { r: rimRadius, y: -wc.w / 2 },
       { r: wc.r * 0.94, y: -wc.w / 2 * 0.95 },
       { r: wc.r, y: -wc.w / 2 * 0.70 },
-      { r: wc.r, y: -wc.w / 2 * 0.70 },
-      { r: wc.r * 0.94, y: -wc.w / 2 * 0.95 },
+      { r: wc.r, y: wc.w / 2 * 0.70 },
+      { r: wc.r * 0.94, y: wc.w / 2 * 0.95 },
       { r: rimRadius, y: wc.w / 2 },
     ];
     const tyreGeo = lathe(tyreProfile, { segments: 32 });
     tyreGeo.rotateZ(Math.PI / 2);
     wGroup.add(mesh(tyreGeo, mats.tyreRubber, { name: 'tyre' }));
 
-    // 2. Alloy Wheel Rim
+    // 3. Forged Alloy Wheel Rim Barrel
     const rimGeo = new THREE.CylinderGeometry(rimRadius, rimRadius, wc.w * 0.88, 24, 1, true);
     rimGeo.rotateZ(Math.PI / 2);
     wGroup.add(mesh(rimGeo, mats.chromeTrim, { name: 'rim-barrel' }));
 
-    // 10-Spoke Alloy Face
+    // 10 Sculpted Curved Spokes
     const spokeParts = [];
     const sx = isLeft ? -wc.w * 0.44 : wc.w * 0.44;
     for (let s = 0; s < 10; s++) {
@@ -765,7 +835,7 @@ function buildWheels(mats, M) {
         matrix: mat4([sx, Math.sin(ang) * rimRadius * 0.44, Math.cos(ang) * rimRadius * 0.44], [ang, 0, 0]),
       });
     }
-    // Center Hub Cap with 5 Lug Nuts
+    // Center Hub Cap with 5 Chrome Lug Nuts & Center Medallion
     spokeParts.push({
       geometry: new THREE.CylinderGeometry(0.046, 0.046, 0.02, 16),
       matrix: mat4([isLeft ? -wc.w * 0.46 : wc.w * 0.46, 0, 0], [0, 0, Math.PI / 2]),
@@ -779,7 +849,7 @@ function buildWheels(mats, M) {
     }
     wGroup.add(mesh(mergeAll(spokeParts), M.alumDark || mats.chromeTrim, { name: 'spokes' }));
 
-    // 3. Ventilated Disc Brake Rotor & Red Brembo Caliper
+    // 4. Cross-Drilled Ventilated Disc Brake Rotor & Red Brembo Caliper
     const discRadius = rimRadius * 0.78;
     const rotorGeo = new THREE.CylinderGeometry(discRadius, discRadius, 0.018, 24);
     rotorGeo.rotateZ(Math.PI / 2);
