@@ -58,8 +58,8 @@ export function createEnvironment(renderer, scene, M) {
   const hemi = new THREE.HemisphereLight(0xbfd4ee, 0x6b6660, 0.45);
   scene.add(hemi);
 
-  // --- Ground: concrete apron ---
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(2500, 96), M.concrete);
+  // --- Ground: coastal plain terrain ---
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(2500, 96), M.terrain || M.concrete);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   ground.name = 'ground';
