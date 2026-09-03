@@ -32,7 +32,7 @@ for (const s of shots) {
   }, s);
   await page.waitForTimeout(s.wait ?? 700);
   const jpg = s.name.endsWith('.jpg');
-  await page.screenshot({ path: `${outdir}/${jpg ? s.name : `${s.name}.png`}`, ...(jpg ? { type: 'jpeg', quality: 88 } : {}) });
+  await page.screenshot({ path: `${outdir}/${jpg ? s.name : `${s.name}.png`}`, timeout: 180000, ...(jpg ? { type: 'jpeg', quality: 88 } : {}) });
   console.log('shot', s.name);
 }
 const stats = await page.evaluate(()=>{

@@ -52,7 +52,7 @@ export const PAD = {
   qdLen: 18.5,
   // Field
   mastH: 150.0,
-  farmX: 82.0,
+  farmX: 150.0,
 };
 PAD.towerH = PAD.section * PAD.sections + PAD.mast;   // 144,5 m
 PAD.trenchDepth = PAD.padY - PAD.trenchFloorY;        // 8,2 m
@@ -359,6 +359,9 @@ function buildField(M) {
   }
   g.add(mesh(boxUV(mergeAll(masts)), M.alumDark));
 
+  // Set well back from the mount, and off the axis the launch cameras work along, so the
+  // tanks read as part of the site rather than as furniture in front of the lens.
+  g.position.z = -70;
   const slab = [block(PAD.farmX - 16, PAD.farmX + 20, -0.4, 1.2, -42, 42)];
   g.add(mesh(boxUV(mergeAll(slab)), M.concrete));
 

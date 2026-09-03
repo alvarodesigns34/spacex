@@ -174,12 +174,9 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
   const speeds = [...root.querySelectorAll('#mission-speeds button')];
   launchBtn.addEventListener('click', () => onLaunch?.());
   el('#mission-abort').addEventListener('click', () => onLaunchAbort?.());
-  for (const b of speeds) {
-    b.addEventListener('click', () => {
-      speeds.forEach(o => o.classList.toggle('active', o === b));
-      onLaunchSpeed?.(Number(b.dataset.k));
-    });
-  }
+  // The buttons only ask; which one is lit is read back from the simulation in setMission,
+  // so the panel cannot claim a multiplier the clock is not actually using.
+  for (const b of speeds) b.addEventListener('click', () => onLaunchSpeed?.(Number(b.dataset.k)));
   const clockText = (t) => {
     const a = Math.abs(t);
     return `T${t < 0 ? '−' : '+'}00:${String(Math.floor(a / 60)).padStart(2, '0')}:${String(Math.floor(a % 60)).padStart(2, '0')}`;
@@ -191,7 +188,6 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       mission.classList.add('hidden');
       document.body.classList.remove('is-flying');
       launchBtn.classList.remove('is-live');
-      speeds.forEach((o, i) => o.classList.toggle('active', i === 0));
       return;
     }
     mission.classList.remove('hidden');
@@ -203,6 +199,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     mVel.textContent = `${Math.round(st.velocity * 3.6).toLocaleString('es-ES')} km/h`;
     mDown.textContent = dist(st.downrange);
     mThr.textContent = `${Math.round(st.throttle * 100)} %`;
+    for (const b of speeds) b.classList.toggle('active', Number(b.dataset.k) === st.speed);
   }
 
   function setMode(mode) {

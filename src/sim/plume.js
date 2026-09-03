@@ -45,7 +45,7 @@ const PLUME_VERT = /* glsl */`
     // camera approximates the path length a ray takes through it: brightest through the
     // middle, falling to nothing at the silhouette. Without this the cone shows a hard
     // bright rim, which is the single thing that makes a rendered plume look like a cone.
-    vFace = abs(dot(n, normalize(-mv.xyz)));
+    vFace = abs(dot(n, -mv.xyz / max(length(mv.xyz), 1e-4)));
     gl_Position = projectionMatrix * mv;
   }`;
 const PLUME_FRAG = /* glsl */`
@@ -173,21 +173,32 @@ function puffTexture() {
 }
 
 const CLOUD_VERT = /* glsl */`
+  attribute vec3 aOffset;
   attribute float aSize;
   attribute float aAlpha;
+  attribute float aRot;
+  varying vec2 vUv;
   varying float vAlpha;
   void main() {
-    vAlpha = aAlpha;
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = aSize * (420.0 / max(-mv.z, 1.0));
-    gl_Position = projectionMatrix * mv;
+    vUv = uv;
+    // Billboard built in view space: the quad is sized in metres and always faces the
+    // camera. Point sprites would be cheaper, but gl_PointSize above the driver's limit is
+    // undefined behaviour, and a puff a few metres from the camera asks for tens of
+    // thousands of pixels — which on ANGLE/D3D rasterises as a solid block.
+    vec3 c = (modelViewMatrix * vec4(aOffset, 1.0)).xyz;
+    float s = sin(aRot), k = cos(aRot);
+    vec2 q = vec2(position.x * k - position.y * s, position.x * s + position.y * k) * aSize;
+    // Fade out anything about to swallow the camera, rather than let it fill the frame.
+    vAlpha = aAlpha * smoothstep(1.0, 14.0, -c.z);
+    gl_Position = projectionMatrix * vec4(c + vec3(q, 0.0), 1.0);
   }`;
 const CLOUD_FRAG = /* glsl */`
   uniform sampler2D uMap;
   uniform vec3 uColor;
+  varying vec2 vUv;
   varying float vAlpha;
   void main() {
-    float a = texture2D(uMap, gl_PointCoord).a * vAlpha;
+    float a = texture2D(uMap, vUv).a * vAlpha;
     if (a < 0.004) discard;
     gl_FragColor = vec4(uColor, a);
   }`;
@@ -197,7 +208,10 @@ const CLOUD_FRAG = /* glsl */`
  * same cloud on every run, which is what lets the headless check compare frames at all.
  */
 export class GroundCloud {
-  constructor({ count = 3600, rng = Math.random } = {}) {
+  // The budget here is fill rate, not triangles. Every live puff is a translucent quad tens
+  // of metres across, so a few hundred of them already cover the frame several times over;
+  // pushing past that buys nothing visible and starts to cost frames.
+  constructor({ count = 360, rng = Math.random } = {}) {
     this.count = count;
     this.rng = rng;
     this.pos = new Float32Array(count * 3);
@@ -206,13 +220,34 @@ export class GroundCloud {
     this.life = new Float32Array(count);
     this.size = new Float32Array(count);
     this.alpha = new Float32Array(count);
+    this.rot = new Float32Array(count);
     this.next = 0;
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
-    geo.setAttribute('aSize', new THREE.BufferAttribute(this.size, 1));
-    geo.setAttribute('aAlpha', new THREE.BufferAttribute(this.alpha, 1));
+    const geo = new THREE.InstancedBufferGeometry();
+    // A unit quad, written out rather than borrowed from a PlaneGeometry that is then
+    // disposed: sharing attributes with a disposed geometry works today and is a trap.
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+      -0.5, 0.5, 0, 0.5, 0.5, 0, -0.5, -0.5, 0, 0.5, -0.5, 0,
+    ]), 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 1, 1, 1, 0, 0, 1, 0]), 2));
+    // The billboard shader never reads normals, but the scene-integrity check requires every
+    // geometry to carry them, and that rule is worth more without exceptions than with a
+    // list of them. Four vectors.
+    geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array([
+      0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1,
+    ]), 3));
+    geo.setIndex([0, 2, 1, 2, 3, 1]);
+    this.aOffset = new THREE.InstancedBufferAttribute(this.pos, 3);
+    this.aSize = new THREE.InstancedBufferAttribute(this.size, 1);
+    this.aAlpha = new THREE.InstancedBufferAttribute(this.alpha, 1);
+    this.aRot = new THREE.InstancedBufferAttribute(this.rot, 1);
+    geo.setAttribute('aOffset', this.aOffset);
+    geo.setAttribute('aSize', this.aSize);
+    geo.setAttribute('aAlpha', this.aAlpha);
+    geo.setAttribute('aRot', this.aRot);
+    geo.instanceCount = count;
     geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e4);
+
     this.map = puffTexture();
     const mat = new THREE.ShaderMaterial({
       uniforms: {
@@ -221,9 +256,9 @@ export class GroundCloud {
         uColor: { value: new THREE.Color(0xe6e3da).convertSRGBToLinear() },
       },
       vertexShader: CLOUD_VERT, fragmentShader: CLOUD_FRAG,
-      transparent: true, depthWrite: false,
+      transparent: true, depthWrite: false, side: THREE.FrontSide,
     });
-    this.points = new THREE.Points(geo, mat);
+    this.points = new THREE.Mesh(geo, mat);
     this.points.name = 'ground-cloud';
     this.points.frustumCulled = false;
     this.points.renderOrder = 3;
@@ -233,7 +268,7 @@ export class GroundCloud {
   reset() {
     for (let i = 0; i < this.count; i++) {
       this.age[i] = 1; this.life[i] = 1; this.alpha[i] = 0; this.size[i] = 0;
-      this.pos[i * 3 + 1] = -9999;
+      this.pos[i * 3] = 0; this.pos[i * 3 + 1] = -9999; this.pos[i * 3 + 2] = 0;
     }
     this.next = 0;
     this.flush();
@@ -253,8 +288,9 @@ export class GroundCloud {
       this.vel[j + 1] = dir[1] * s + r() * speed * 0.35 + 2.5;
       this.vel[j + 2] = dir[2] * s + (r() - 0.5) * speed * 0.45;
       this.age[i] = 0;
-      this.life[i] = 7 + r() * 9;
-      this.size[i] = 12 + r() * 26;
+      this.life[i] = 6 + r() * 8;
+      this.size[i] = 5 + r() * 7;
+      this.rot[i] = r() * Math.PI * 2;
     }
   }
 
@@ -267,21 +303,24 @@ export class GroundCloud {
       pos[j] += vel[j] * dt;
       pos[j + 1] += vel[j + 1] * dt;
       pos[j + 2] += vel[j + 2] * dt;
-      // Drag plus a little buoyancy: steam rises as it slows.
-      const k = Math.exp(-dt * 0.55);
+      // Drag, plus just enough buoyancy for the steam to roll upward as it slows. The lift
+      // has to stay small: a cloud that keeps rising becomes a wall across the whole frame
+      // instead of something spreading out along the ground.
+      const k = Math.exp(-dt * 0.95);
       vel[j] *= k; vel[j + 2] *= k;
-      vel[j + 1] = vel[j + 1] * k + 3.4 * dt;
+      vel[j + 1] = vel[j + 1] * k + 1.1 * dt;
       const u = age[i] / life[i];
-      size[i] = (12 + u * 74) * (1 + i % 3 * 0.2);
-      alpha[i] = 0.62 * Math.min(1, u * 7) * (1 - u) ** 1.35;
+      size[i] = (6 + u * 21) * (1 + i % 3 * 0.22);
+      alpha[i] = 0.62 * Math.min(1, u * 6) * (1 - u) ** 1.5;
     }
     this.flush();
   }
 
   flush() {
-    this.points.geometry.attributes.position.needsUpdate = true;
-    this.points.geometry.attributes.aSize.needsUpdate = true;
-    this.points.geometry.attributes.aAlpha.needsUpdate = true;
+    this.aOffset.needsUpdate = true;
+    this.aSize.needsUpdate = true;
+    this.aAlpha.needsUpdate = true;
+    this.aRot.needsUpdate = true;
   }
 
   dispose() {

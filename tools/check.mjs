@@ -141,6 +141,19 @@ try {
   report(before === after, 'la secuencia deja la escena como la encontró',
     before === after ? 'vehículo, brazo, pinzas, cámara y niebla restaurados' : 'estado residual tras reset()');
 
+  // The clock multiplier is a property of a run. Left behind, the next launch ran at ×10
+  // while the panel showed ×1.
+  const speed = await page.evaluate(() => {
+    const v = window.__vc;
+    v.launch.setSpeed(10);
+    v.launch.seek(20);
+    const during = v.launch.state.speed;
+    v.launch.reset(false);
+    return { during, after: v.launch.state.speed };
+  });
+  report(speed.during === 10 && speed.after === 1, 'el multiplicador de tiempo vuelve a ×1',
+    `durante la secuencia ×${speed.during}, tras terminarla ×${speed.after}`);
+
   report(consoleErrors.length === 0, 'consola limpia', consoleErrors.slice(0, 5).join(' | '));
 } catch (err) {
   report(false, 'carga de la aplicación', err.message);

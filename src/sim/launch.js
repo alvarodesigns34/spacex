@@ -225,14 +225,17 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
   const SHOTS = [
     { until: EVENTS.liftoff + 4, blend: 0, shot: (t, pos, tgt) => {
       // The classic pad camera: low, off the corner of the mount, looking up past the deck.
-      pos.set(S.x + 52, 13, S.z + 74);
+      // Off the plateau on both axes: standing on it puts the camera at deck level, where
+      // the concrete fills the frame, and standing straight down the trench puts the smoke
+      // into the lens.
+      pos.set(S.x + 118, 13, S.z + 118);
       tgt.set(S.x, 24 + altitudeAt(t) * 0.7, S.z);
     } },
     { until: 15, blend: 1.6, shot: (t, pos, tgt) => {
       // Stays on the ground while the stack climbs past the tower, and keeps the pad in the
       // bottom of the frame: the tower is the only thing in shot whose size the viewer
       // already knows, so letting it slide away would throw the sense of scale out.
-      pos.set(S.x + 150, 18, S.z + 250);
+      pos.set(S.x + 210, 18, S.z + 210);
       vehicleAt(t, tgt);
       tgt.lerp(_pad.set(S.x, ex.lay.mount + 8, S.z), 0.42);
     } },
@@ -301,12 +304,16 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
   function emitCloud(t, dt) {
     if (t <= EVENTS.ignition || t >= CLOUD_UNTIL) return;
     const drive = boosterThrottle(t) * Math.max(0, 1 - altitudeAt(t) / 340);
-    const n = drive * 2600 * dt;
+    // Matched to the buffer: 360 puffs over a mean life of ~10 s. Emitting faster only
+    // recycles them before they have finished growing and fading away.
+    const n = drive * 34 * dt;
     if (n < 0.05) return;
-    const half = Math.max(1, Math.round(n / 2));
-    cloud.emit(half, [0, 3, 52], [0, 0.25, 1], 62, 22);
-    cloud.emit(half, [0, 3, -52], [0, 0.25, -1], 62, 22);
-    cloud.emit(Math.max(1, Math.round(n * 0.2)), [0, 16, 0], [0, 0.5, 0], 26, 30);
+    // The trench does the work: two mouths, blown out along its axis and kept low. Only a
+    // little boils off the deck itself, or it stands as a curtain in front of the vehicle.
+    const half = Math.max(1, Math.round(n * 0.46));
+    cloud.emit(half, [0, 3, 52], [0, 0.16, 1], 58, 18);
+    cloud.emit(half, [0, 3, -52], [0, 0.16, -1], 58, 18);
+    cloud.emit(Math.max(1, Math.round(n * 0.08)), [0, 11, 0], [0, 0.45, 0], 16, 16);
   }
 
   // ---- The one function that maps a mission time to the whole scene ---------------------
@@ -365,6 +372,9 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
     state.running = false;
     state.armed = false;
     state.t = EVENTS.start;
+    // The clock multiplier belongs to a run, not to the session: leaving it at ×10 meant the
+    // next launch ran at ×10 while the panel showed ×1.
+    state.speed = 1;
     rig.releaseExternal();
     flight.position.set(0, 0, 0);
     flight.rotation.z = 0;
