@@ -18,6 +18,7 @@ export const EXPECTED = {
   falconheavy: { height: 70, footprint: 12.2, note: 'Altura y anchura (spacex.com)' },
   dragon: { height: 8.1, footprint: 4, note: 'Altura con trunk y diámetro máximo (spacex.com)' },
   starlink: { height: null, footprint: 30, note: 'Envergadura desplegada (prensa)', tol: 0.06 },
+  roadster: { height: null, footprint: 3.95, note: 'Longitud total de carrocería (documentado)', tol: 0.04 },
 };
 
 /**
@@ -61,6 +62,7 @@ const HULLS = {
   falconheavy: ['stage1'],
   dragon: ['capsule-wall', 'heatshield'],
   starlink: null,
+  roadster: ['body-shell', 'body-paint'],
 };
 
 /**
