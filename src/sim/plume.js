@@ -199,7 +199,7 @@ const CLOUD_FRAG = /* glsl */`
   varying float vAlpha;
   void main() {
     float a = texture2D(uMap, vUv).a * vAlpha;
-    if (a < 0.004) discard;
+    if (!(a >= 0.004)) discard;
     gl_FragColor = vec4(uColor, a);
   }`;
 
@@ -299,6 +299,7 @@ export class GroundCloud {
     for (let i = 0; i < this.count; i++) {
       if (age[i] >= life[i]) { if (alpha[i] !== 0) { alpha[i] = 0; size[i] = 0; } continue; }
       age[i] += dt;
+      if (age[i] >= life[i]) { alpha[i] = 0; size[i] = 0; continue; }
       const j = i * 3;
       pos[j] += vel[j] * dt;
       pos[j + 1] += vel[j + 1] * dt;
@@ -310,8 +311,8 @@ export class GroundCloud {
       vel[j] *= k; vel[j + 2] *= k;
       vel[j + 1] = vel[j + 1] * k + 1.1 * dt;
       const u = age[i] / life[i];
-      size[i] = (6 + u * 21) * (1 + i % 3 * 0.22);
-      alpha[i] = 0.62 * Math.min(1, u * 6) * (1 - u) ** 1.5;
+      size[i] = (6 + u * 21) * (1 + (i % 3) * 0.22);
+      alpha[i] = 0.62 * Math.min(1, u * 6) * Math.max(0, 1 - u) ** 1.5;
     }
     this.flush();
   }
