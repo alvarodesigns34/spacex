@@ -100,213 +100,172 @@ async function main() {
   const rt = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { samples: 4, type: THREE.HalfFloatType });
   const composer = new EffectComposer(renderer, rt);
   composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.12, 0.6, 0.92);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.28, 0.55, 0.88);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
 
-  // ---- Vehicles ----
+  // ---- Exhibits ----
   const exhibits = {};
-  const labels = new THREE.Group(); labels.name = 'labels'; scene.add(labels);
-  const humans = new THREE.Group(); humans.name = 'humans'; scene.add(humans);
-  const rulers = new THREE.Group(); rulers.name = 'rulers'; scene.add(rulers);
+  const root = new THREE.Group();
+  scene.add(root);
 
-  const builders = {
-    starship: [buildStarship, 'Starship y Super Heavy · 18 000 losetas instanciadas…'],
-    falcon9: [buildFalcon9, 'Falcon 9…'],
-    falconheavy: [buildFalconHeavy, 'Falcon Heavy…'],
-    dragon: [buildDragon, 'Dragon…'],
-    starlink: [buildStarlink, 'Starlink V2 Mini…'],
-  };
-  let step = 0;
-  let complex = null;
-  for (const v of VEHICLES) {
-    const [fn, msg] = builders[v.id];
-    hud.setProgress(msg, 0.3 + (step++ / VEHICLES.length) * 0.6);
+  const builders = [
+    ['starship', 'Starship + Super Heavy', () => buildStarship(M, { lod: true })],
+    ['falcon9', 'Falcon 9', () => buildFalcon9(M)],
+    ['falconheavy', 'Falcon Heavy', () => buildFalconHeavy(M)],
+    ['dragon', 'Dragon', () => buildDragon(M)],
+    ['starlink', 'Starlink V2 Mini', () => buildStarlink(M)],
+  ];
+
+  for (let i = 0; i < builders.length; i++) {
+    const [id, label, fn] = builders[i];
+    hud.setProgress(`Construyendo ${label}…`, 0.35 + (i / builders.length) * 0.45);
     await nextFrame();
-    const lay = LAYOUT[v.id];
-    const group = new THREE.Group();
-    group.name = `exhibit-${v.id}`;
     t0 = performance.now();
-    const model = fn(M);
-    timings[v.id] = performance.now() - t0;
-    if (v.id === 'starlink') {
-      // Starlink is presented on a slim post with the bus centred at the mount height.
-      const ped = buildPedestal(M, { radius: 1.6, height: 0.6, post: lay.mount - 0.6 - 0.11 });
-      group.add(ped);
-      model.position.y = lay.mount;
-      model.rotation.y = 0;
-      env.addStation(lay.x, lay.z, 16);
-    } else if (v.id === 'dragon') {
-      const ped = buildPedestal(M, { radius: 2.3, height: lay.mount });
-      // cradle: four supports under the trunk rim
-      for (let i = 0; i < 4; i++) {
-        const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-        const s = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.6, 0.3), M.mount);
-        s.position.set(Math.sin(a) * 1.55, lay.mount + 0.3, Math.cos(a) * 1.55);
-        s.castShadow = s.receiveShadow = true;
-        ped.add(s);
-      }
-      group.add(ped);
-      model.position.y = lay.mount + 0.6;
-      env.addStation(lay.x, lay.z, 5);
-    } else if (lay.pad) {
-      // Starship stands on the real thing: the launch mount spanning the flame trench, with
-      // the tower alongside. No display furniture, and no apron ring — the pad has its own.
-      complex = buildLaunchComplex(M);
-      group.add(complex);
-      model.position.y = lay.mount;
-    } else {
-      group.add(buildMount(M, { radius: lay.mountRadius, inner: lay.inner, height: lay.mount, clampRadius: lay.clampRadius, clamps: v.id === 'falconheavy' ? 0 : 4 }));
-      model.position.y = lay.mount;
-      env.addStation(lay.x, lay.z, lay.mountRadius + 1.5);
-    }
-    const yaw = THREE.MathUtils.degToRad(lay.yaw ?? 0);
-    model.rotation.y = yaw;
-    group.add(model);
+    const model = fn();
+    timings[id] = performance.now() - t0;
+    const lay = LAYOUT[id];
+    const group = new THREE.Group();
+    group.name = `exhibit-${id}`;
     group.position.set(lay.x, 0, lay.z);
-    scene.add(group);
-    exhibits[v.id] = { group, model, data: v, lay, occluder: OCCLUDER[v.id] ?? 0, labels: null, lod: null, hullTop: lay.mount + (model.userData.height ?? v.height) };
 
-    // annotations
-    const lg = new THREE.Group(); lg.name = `labels-${v.id}`; lg.visible = false;
-    const cy = Math.cos(yaw), sy = Math.sin(yaw);
-    for (const a of model.userData.annotations ?? []) {
-      const div = document.createElement('div');
-      div.className = 'label';
-      div.innerHTML = `<span class="label-dot"></span><span class="label-text">${a.label}</span>`;
-      const obj = new CSS2DObject(div);
-      const [ax, ay, az] = a.position;
-      obj.position.set(lay.x + ax * cy + az * sy, model.position.y + ay, lay.z - ax * sy + az * cy);
-      lg.add(obj);
+    // Starship sits on the orbital pad; museum vehicles sit on a concrete display mount.
+    if (!lay.pad) {
+      group.add(buildMount(M, lay.mount, lay.mountRadius, { innerRadius: lay.inner, clampRadius: lay.clampRadius }));
+      group.add(buildPedestal(M, lay.mountRadius + 1.2, 0.45));
     }
-    labels.add(lg);
-    exhibits[v.id].labels = lg;
-    if (complex && v.id === 'starship') {
-      // Pad callouts live in the complex frame, which does not turn with the vehicle, and
-      // in a group of their own: twenty callouts at once buries the thing they point at, so
-      // the vehicle set and the pad set take turns depending on which view is up.
-      const pg = new THREE.Group(); pg.name = 'labels-pad'; pg.visible = false;
-      for (const a of complex.userData.annotations) {
-        const div = document.createElement('div');
-        div.className = 'label';
-        div.innerHTML = `<span class="label-dot"></span><span class="label-text">${a.label}</span>`;
-        const obj = new CSS2DObject(div);
-        obj.position.set(lay.x + a.position[0], a.position[1], lay.z + a.position[2]);
-        pg.add(obj);
-      }
-      labels.add(pg);
-      exhibits[v.id].padLabels = pg;
-    }
-    // Vehicles may publish a near/far pair for detail that is only worth drawing up close.
-    let lod = null;
-    model.traverse(o => { if (o.userData && o.userData.lod) lod = o.userData.lod; });
-    exhibits[v.id].lod = lod;
+    model.position.y = lay.mount;
+    if (lay.yaw) model.rotation.y = THREE.MathUtils.degToRad(lay.yaw);
+    group.add(model);
 
-    // scale figures
-    const baseY = 0;
-    const people = v.id === 'starlink' ? [[3.2, 0, 2.4, 0.4], [-2.6, 0, 3.0, -1.2]]
-      : v.id === 'dragon' ? [[3.4, 0, 1.6, 0.6], [-2.8, 0, 2.6, -0.8]]
-      : lay.pad ? [[26, PAD.padY, 16, 0.8], [30, PAD.padY, -10, -1.6], [-19, PAD.padY, 24, 2.4]]
-      : [[lay.mountRadius + 3.5, 0, 2, 0.5], [lay.mountRadius + 2, 0, -4, -2.0], [-(lay.mountRadius + 3), 0, 3, 2.2]];
-    for (const [px, py, pz, ry] of people) {
-      const h = buildHuman(M, { suit: Math.random() > 0.5 ? 'white' : 'dark' });
-      h.position.set(lay.x + px, baseY + py, lay.z + pz);
-      h.rotation.y = ry;
-      humans.add(h);
+    // Annotations (CSS2D) and the invisible hull cylinder that keeps them from drawing through the vehicle.
+    const labels = new THREE.Group();
+    labels.name = `labels-${id}`;
+    const annotations = model.userData?.annotations || [];
+    for (const a of annotations) {
+      const el = document.createElement('div');
+      el.className = 'annotation';
+      el.innerHTML = `<span class="ann-dot"></span><span class="ann-label">${a.label}</span>`;
+      const obj = new CSS2DObject(el);
+      obj.position.set(...a.position);
+      labels.add(obj);
     }
-    // person on the mount deck for the big vehicles
-    if (lay.mountRadius) {
-      const h = buildHuman(M, { suit: 'white' });
-      h.position.set(lay.x + lay.mountRadius - 1.2, lay.mount, lay.z + 1.5);
-      h.rotation.y = 2.4;
-      humans.add(h);
-    }
+    labels.position.y = lay.mount;
+    if (lay.yaw) labels.rotation.y = THREE.MathUtils.degToRad(lay.yaw);
+    group.add(labels);
 
-    // height ruler
-    // height ruler (span ruler for Starlink, laid along X in front of the wings)
-    const ruler = buildRuler(M, v.id === 'starlink' ? 30 : v.height, v.id);
-    if (v.id === 'starlink') {
-      ruler.rotation.z = -Math.PI / 2;
-      ruler.position.set(lay.x - 15, model.position.y - 1.2, lay.z + 4.2);
-    } else {
-      const off = v.id === 'starship' ? 22 : v.id === 'falconheavy' ? 12 : v.id === 'falcon9' ? 8 : 4.2;
-      ruler.position.set(lay.x + off, model.position.y, lay.z);
-    }
-    ruler.visible = false;
-    rulers.add(ruler);
-    exhibits[v.id].ruler = ruler;
+    const spec = VEHICLES.find(v => v.id === id);
+    const ruler = buildRuler(M, spec.height, id);
+    ruler.position.set(spec.footprint * 0.6 + 1.2, 0, 0);
+    group.add(ruler);
+
+    const humans = buildHumanPair(M, spec.footprint * 0.6 + 3.0, lay.mount);
+    group.add(humans);
+
+    root.add(group);
+    exhibits[id] = {
+      model, group, labels, ruler, humans, spec, lay,
+      hullTop: spec.height,
+      occluder: OCCLUDER[id] || 0,
+      lod: model.userData?.lod || null,
+    };
+    if (!lay.pad) env.addStation(lay.x, lay.z, lay.mountRadius + 2.5);
   }
 
-  // ---- Launch sequence ----
+  // ---- Launch complex (under Starship) ----
+  hud.setProgress('Construyendo complejo de lanzamiento…', 0.88);
+  await nextFrame();
+  t0 = performance.now();
+  const complex = buildLaunchComplex(M);
+  complex.position.set(LAYOUT.starship.x, 0, LAYOUT.starship.z);
+  scene.add(complex);
+  timings.pad = performance.now() - t0;
+
+  // Add the pad's own callouts to the Starship label set.
+  const padLabels = new THREE.Group();
+  padLabels.name = 'labels-pad';
+  for (const a of complex.userData.annotations || []) {
+    const el = document.createElement('div');
+    el.className = 'annotation';
+    el.innerHTML = `<span class="ann-dot"></span><span class="ann-label">${a.label}</span>`;
+    const obj = new CSS2DObject(el);
+    obj.position.set(...a.position);
+    padLabels.add(obj);
+  }
+  complex.add(padLabels);
+  exhibits.starship.padLabels = padLabels;
+
+  // ---- Launch simulation ----
   const launch = createLaunch({
-    scene, exhibits, complex, env, rig, camera,
-    onState: (st) => hud.setMission(st.running ? st : null),
-    onFinish: () => goPreset('starship', 'site'),
+    scene,
+    env,
+    starship: exhibits.starship,
+    complex,
+    camera,
+    rig,
+    onState: (st) => hud.setLaunchState(st),
+    onT: (t, mark) => hud.setLaunchT(t, mark),
+    onTelemetry: (d) => hud.setTelemetry(d),
   });
-  launch.setVisibilityHook((flying) => { launchFlying = flying; applyVisibility(); });
 
-  hud.setProgress('Compilando shaders…', 0.95);
+  hud.setProgress('Finalizando escena…', 0.98);
   await nextFrame();
-  renderer.compile(scene, camera);
-  composer.render();
-  await nextFrame();
-  hud.hideLoading();
-  hud.setActive(null);
+  hud.hideProgress();
 
-  // ---- Interaction ----
+  // ---- Interaction state ----
   const state = { labels: true, ruler: true, humans: true };
-  let launchFlying = false;
   let activePreset = null;
-  // Views authored in the site frame are the ones the pad callouts belong to.
-  const SITE_VIEWS = new Set(VEHICLES.flatMap(v => (v.presets ?? []).filter(p => p.frame === 'site').map(p => p.id)));
-  function setToggle(name, value) {
-    state[name] = value;
-    applyVisibility();
-    hud.toggle(name, value);
-  }
-  function applyVisibility() {
-    // Callouts, rulers and the scale figures are museum furniture: they belong on a vehicle
-    // standing on its mount, not on one that has left it.
-    const site = SITE_VIEWS.has(activePreset);
-    for (const [id, ex] of Object.entries(exhibits)) {
-      const on = id === active && !launchFlying;
-      labels.getObjectByName(`labels-${id}`).visible = on && state.labels && !(ex.padLabels && site);
-      if (ex.padLabels) ex.padLabels.visible = on && state.labels && site;
-      ex.ruler.visible = on && state.ruler && !site;
+
+  function setToggle(name, val) {
+    state[name] = val;
+    hud.setToggle(name, val);
+    for (const ex of Object.values(exhibits)) {
+      if (name === 'labels' && ex.labels) ex.labels.visible = val && (active === null || active === ex.spec.id);
+      if (name === 'labels' && ex.padLabels) ex.padLabels.visible = val && (active === null || active === 'starship');
+      if (name === 'ruler') ex.ruler.visible = val && active === ex.spec.id;
+      if (name === 'humans') ex.humans.visible = val;
     }
-    humans.visible = state.humans && !launchFlying;
+  }
+  setToggle('labels', true);
+  setToggle('ruler', false);
+  setToggle('humans', true);
+
+  function applyVisibility() {
+    for (const [id, ex] of Object.entries(exhibits)) {
+      const isA = active === null || active === id;
+      ex.ruler.visible = state.ruler && active === id;
+      if (ex.labels) ex.labels.visible = state.labels && isA;
+      if (ex.padLabels) ex.padLabels.visible = state.labels && (active === null || active === 'starship');
+    }
   }
 
-  function toggleLaunch() {
-    if (launch.running) { launch.reset(); return; }
-    active = 'starship';
-    hud.setActive('starship');
-    launch.start();
+  function worldPreset(vehicleId, presetId) {
+    const ex = exhibits[vehicleId];
+    const spec = ex.spec;
+    const p = spec.presets.find(x => x.id === presetId) || spec.presets[0];
+    const lay = ex.lay;
+    // Standard exhibits frame presets relative to the vehicle's mount plane (x = lay.x,
+    // y = lay.mount, z = lay.z). The launch pad presets use 'site' frame, which measures
+    // from the ground under the mount (y = 0) so trench and tower cameras sit at true elevations.
+    const oy = p.frame === 'site' ? 0 : lay.mount;
+    return {
+      pos: [lay.x + p.pos[0], oy + p.pos[1], lay.z + p.pos[2]],
+      target: [lay.x + p.target[0], oy + p.target[1], lay.z + p.target[2]],
+    };
   }
-  function worldPreset(id, presetId) {
-    const ex = exhibits[id];
-    const p = ex.data.presets.find(x => x.id === presetId) ?? ex.data.presets[0];
-    const o = new THREE.Vector3(ex.lay.x, ex.model.position.y, ex.lay.z);
-    // Views are authored in the vehicle's own frame, so they turn with it.
-    const yaw = THREE.MathUtils.degToRad(ex.lay.yaw ?? 0);
-    const cy = Math.cos(yaw), sy = Math.sin(yaw);
-    // Views of the launch complex are authored in the site frame, which does not turn with
-    // the vehicle and is measured from grade rather than from the deck.
-    const put = p.frame === 'site'
-      ? ([x, y, z]) => [o.x + x, y, o.z + z]
-      : ([x, y, z]) => [o.x + x * cy + z * sy, o.y + y, o.z - x * sy + z * cy];
-    return { pos: put(p.pos), target: put(p.target) };
-  }
+
   function select(id) {
-    // Picking a vehicle is a request to look at the museum, so it ends a running sequence
-    // rather than fighting it for the camera.
-    if (launch.running) launch.reset(false);
+    // A running launch controls its own camera; selecting another vehicle terminates it.
+    if (launch.active && id !== 'starship') launch.reset();
+    if (active === id) return;
     active = id;
+    activePreset = null;
     hud.setActive(id);
     applyVisibility();
-    activePreset = 'overview';
-    applyVisibility();
-    if (!id) { rig.flyTo(OVERVIEW.pos, OVERVIEW.target, 2.0); return; }
+    if (!id) {
+      rig.flyTo(OVERVIEW.pos, OVERVIEW.target, 1.8);
+      return;
+    }
     const w = worldPreset(id, 'overview');
     rig.flyTo(w.pos, w.target, 1.9);
   }
@@ -358,15 +317,11 @@ async function main() {
     const ax = ex.lay.x, az = ex.lay.z;
     const cx = camera.position.x - ax, cz = camera.position.z - az;
     for (const obj of lg.children) {
-      obj.getWorldPosition(_lab);
-      // Callouts that sit essentially on the vehicle's axis (nose tip, engine centreline)
-      // are never meaningfully hidden by it, and the constant-radius cylinder is a poor
-      // model of the hull up in the nose, so leave them alone.
-      const lx = _lab.x - ax, lz = _lab.z - az;
-      const dx = lx - cx, dz = lz - cz;                          // camera → label
-      const a = dx * dx + dz * dz;
       let hidden = false;
-      if (a > 1e-6 && lx * lx + lz * lz > rr * rr * 0.9) {
+      obj.getWorldPosition(_lab);
+      const dx = _lab.x - camera.position.x, dz = _lab.z - camera.position.z;
+      const a = dx * dx + dz * dz;
+      if (a > 1e-4) {
         // Segment/cylinder intersection in the horizontal plane. Both roots matter: the near
         // one catches a label on the far side seen from outside, the far one catches a label
         // outside the hull seen from inside it (looking up into the engine bay, say).
@@ -442,6 +397,7 @@ async function main() {
   window.__vc = { M, scene, camera, rig, exhibits, complex, launch, select, goPreset, jump, renderer, env, setToggle, timings, verify };
   const params = new URLSearchParams(location.search);
   if (params.has('verify')) verify();
+  if (params.has('vehicle')) jump(params.get('vehicle'), params.get('preset') || 'overview');
   if (params.has('autolaunch')) {
     select('starship');
     const t = parseFloat(params.get('t') || '0');
@@ -457,30 +413,39 @@ function buildRuler(M, height, id) {
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, height, 8), mat);
   pole.position.y = height / 2;
   g.add(pole);
-  const stepM = height > 40 ? 10 : height > 12 ? 5 : 1;
-  for (let y = 0; y <= height + 0.001; y += stepM) {
-    const tick = new THREE.Mesh(new THREE.BoxGeometry(height > 40 ? 1.6 : 0.5, 0.06, 0.06), mat);
-    tick.position.set(0, y, 0);
+  // Major ticks every 10 m, minor ticks every 5 m.
+  for (let y = 0; y <= height; y += 5) {
+    const isMajor = y % 10 === 0;
+    const tick = new THREE.Mesh(new THREE.BoxGeometry(isMajor ? 0.75 : 0.4, 0.04, 0.04), mat);
+    tick.position.set(isMajor ? 0.35 : 0.2, y, 0);
     g.add(tick);
-    const div = document.createElement('div');
-    div.className = 'ruler-label';
-    div.textContent = `${y} m`;
-    const o = new CSS2DObject(div);
-    o.position.set(height > 40 ? 1.2 : 0.45, y, 0);
-    g.add(o);
   }
-  // top marker with the total height
-  const top = document.createElement('div');
-  top.className = 'ruler-label ruler-top';
-  top.textContent = `${String(height).replace('.', ',')} m`;
-  const o = new CSS2DObject(top);
-  o.position.set(0, height + (height > 40 ? 2.5 : 0.6), 0);
-  g.add(o);
   return g;
 }
 
-main().catch((err) => {
-  console.error(err);
-  const l = document.getElementById('loading');
-  if (l) { l.querySelector('.loading-text').textContent = `Error: ${err.message}`; l.classList.add('error'); }
+function buildHumanPair(M, offsetRadius, mountHeight) {
+  const g = new THREE.Group();
+  g.name = 'humans';
+  // One at ground level (the reference for the whole exhibit) and one up on the mount so
+  // there is a scale cue next to the engine bells and hold-down clamps.
+  const h1 = buildHuman(M);
+  h1.position.set(offsetRadius, 0, 0);
+  g.add(h1);
+  if (mountHeight > 3) {
+    const h2 = buildHuman(M);
+    h2.position.set(offsetRadius * 0.45, mountHeight, offsetRadius * 0.35);
+    g.add(h2);
+  }
+  return g;
+}
+
+main().catch(err => {
+  /* eslint-disable no-console */
+  console.error('Fatal initialization error:', err);
+  const card = document.querySelector('.loading-card');
+  if (card) {
+    card.innerHTML = `<div class="eyebrow" style="color:var(--danger)">Error al iniciar</div>
+      <div class="loading-title">No se pudo cargar la simulación 3D</div>
+      <div class="loading-text" style="color:var(--muted)">${err?.message || err}</div>`;
+  }
 });

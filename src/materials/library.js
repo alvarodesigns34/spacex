@@ -22,6 +22,8 @@ export function createMaterials(onProgress = () => {}) {
     ['carbon', () => TX.makeCarbon()],
     ['solar', () => TX.makeSolar()],
     ['concrete', () => TX.makeConcrete()],
+    ['terrain', () => TX.makeGroundTerrain()],
+    ['trenchArmor', () => TX.makeTrenchArmor()],
     ['foil', () => TX.makeFoil()],
     ['tps', () => TX.makeTpsPattern()],
     ['pica', () => TX.makePica()],
@@ -103,7 +105,28 @@ export function createMaterials(onProgress = () => {}) {
   M.solarStarlink = new THREE.MeshPhysicalMaterial({ ...solarBase, color: 0xc9d2e6, side: THREE.DoubleSide });
   M.concrete = new THREE.MeshStandardMaterial({
     map: T.concrete.map, roughnessMap: T.concrete.roughnessMap, normalMap: T.concrete.normalMap,
-    normalScale: new THREE.Vector2(0.5, 0.5), metalness: 0.0, roughness: 1.0, envMapIntensity: 0.85,
+    normalScale: new THREE.Vector2(0.6, 0.6), metalness: 0.0, roughness: 1.0, envMapIntensity: 0.75,
+  });
+  M.terrain = new THREE.MeshStandardMaterial({
+    map: T.terrain.map, roughnessMap: T.terrain.roughnessMap, normalMap: T.terrain.normalMap,
+    normalScale: new THREE.Vector2(0.9, 0.9), metalness: 0.0, roughness: 0.96, envMapIntensity: 0.55,
+  });
+  M.trenchArmor = new THREE.MeshStandardMaterial({
+    map: T.trenchArmor.map, roughnessMap: T.trenchArmor.roughnessMap, normalMap: T.trenchArmor.normalMap,
+    normalScale: new THREE.Vector2(0.9, 0.9), metalness: 0.82, roughness: 0.48, envMapIntensity: 0.72,
+  });
+  M.pipeBlue = new THREE.MeshPhysicalMaterial({
+    color: 0x1f5c8f, metalness: 0.35, roughness: 0.36, clearcoat: 0.35, clearcoatRoughness: 0.25,
+    normalMap: T.concrete.normalMap, normalScale: new THREE.Vector2(0.12, 0.12),
+  });
+  M.pipeCryo = new THREE.MeshPhysicalMaterial({
+    color: 0xe3e7ec, metalness: 0.75, roughness: 0.28, clearcoat: 0.2,
+  });
+  M.safetyYellow = new THREE.MeshStandardMaterial({
+    color: 0xd49b25, metalness: 0.25, roughness: 0.55,
+  });
+  M.steelGrating = new THREE.MeshStandardMaterial({
+    color: 0x484e56, metalness: 0.75, roughness: 0.42,
   });
   M.pica = new THREE.MeshStandardMaterial({
     map: T.pica.map, roughnessMap: T.pica.roughnessMap, normalMap: T.pica.normalMap,
