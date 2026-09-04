@@ -685,8 +685,15 @@ function buildBodyShell(mats, M) {
     return [...set].sort((a, b) => a - b);
   })();
 
-  const zFront = stations(Z_COWL + SHUT / 2, Z_NOSE, 52);
-  const zRear = stations(Z_TAIL, Z_BULK - SHUT / 2, 52);
+  // Densify along the sweep as well as across it. The t bands above fixed the long edges of
+  // each aperture; the ends were still cut on 28 mm stations and came out in visible teeth.
+  const denser = (zs, from, to, step) => {
+    const set = new Set(zs);
+    for (let z = Math.min(from, to); z <= Math.max(from, to); z += step) set.add(z);
+    return [...set].sort((a, b) => a - b);
+  };
+  const zFront = denser(stations(Z_COWL + SHUT / 2, Z_NOSE, 52), LAMP_FRONT.z0 + 0.02, LAMP_FRONT.z0 + LAMP_FRONT.za - 0.02, 0.005);
+  const zRear = denser(stations(Z_TAIL, Z_BULK - SHUT / 2, 52), LAMP_REAR.z0 - 0.06, LAMP_REAR.z0 + 0.06, 0.005);
   const zDoor = stations(Z_BULK + SHUT / 2, Z_COWL - SHUT / 2, 22);
 
   const panels = [
@@ -1185,7 +1192,7 @@ function lampSurround(L, s, mats, out) {
   wall.setIndex(wallIdx);
   wall.computeVertexNormals();
   out.add(mesh(wall, mats.lampHousing, { name: 'lamp-aperture-wall' }));
-  out.add(mesh(tube(rim, 0.0080, { tubular: 56, radial: 8, closed: true }), mats.cherryRed, { name: 'lamp-rim' }));
+  out.add(mesh(tube(rim, 0.0090, { tubular: 64, radial: 8, closed: true }), mats.cherryRed, { name: 'lamp-rim' }));
 }
 
 /** One round optic seated on the lamp's centreline at parameter a. */
