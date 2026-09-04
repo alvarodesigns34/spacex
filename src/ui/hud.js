@@ -15,7 +15,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       <div class="subtitle" id="hud-subtitle"></div>
     </header>
 
-    <nav class="rail" id="rail" aria-label="Vehículos"></nav>
+    <div class="rail" id="rail" role="tablist" aria-label="Vehículos"></div>
 
     <aside class="sheet" id="sheet" aria-label="Ficha técnica">
       <div class="sheet-head">
@@ -41,7 +41,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       <label class="tool"><input type="checkbox" id="tg-ruler" checked> Regla <kbd>R</kbd></label>
       <label class="tool"><input type="checkbox" id="tg-humans" checked> Figuras 1,80 m</label>
       <label class="tool tool-sun">Sol <input type="range" id="sun" min="6" max="75" value="42" step="1"></label>
-      <button class="tool tool-btn tool-launch" id="launch-btn" title="Secuencia de lanzamiento de Starship (G)">Lanzamiento <kbd>G</kbd></button>
+      <button class="tool tool-btn tool-launch" id="launch-btn" title="Secuencia de lanzamiento de Starship desde el Pad 2 (G)">Starship · Lanzamiento <kbd>G</kbd></button>
       <button class="tool tool-btn" id="mode-btn" title="Cambiar modo de cámara (F)">Órbita <kbd>F</kbd></button>
       <button class="tool tool-btn" id="help-btn" title="Ayuda (H)">Ayuda <kbd>H</kbd></button>
     </div>
@@ -71,12 +71,12 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       <div class="scale-info" id="scale-info"></div>
     </div>
 
-    <div class="help hidden" id="help">
+    <div class="help hidden" id="help" role="dialog" aria-modal="true" aria-label="Ayuda y atajos de teclado">
       <div class="help-card">
         <div class="eyebrow">Controles</div>
         <table>
           <tr><td>Arrastrar</td><td>orbitar · <em>rueda</em> acercar · <em>botón derecho</em> desplazar</td></tr>
-          <tr><td><kbd>F</kbd></td><td>vuelo libre: <kbd>W A S D</kbd> mover · <kbd>Q</kbd>/<kbd>E</kbd> bajar/subir · arrastrar para mirar · <kbd>Shift</kbd> ×4 · <kbd>Ctrl</kbd> ×0,2 · rueda ajusta la velocidad</td></tr>
+          <tr><td><kbd>F</kbd></td><td>vuelo libre: <kbd>W A S D</kbd> mover · <kbd>Q</kbd>/<kbd>E</kbd> (o <kbd>C</kbd>/<kbd>espacio</kbd>) bajar/subir · arrastrar para mirar · <kbd>Shift</kbd> ×4 · <kbd>Ctrl</kbd> ×0,2 · rueda ajusta la velocidad</td></tr>
           <tr><td><kbd>1</kbd>–<kbd>6</kbd></td><td>seleccionar vehículo</td></tr>
           <tr><td><kbd>L</kbd> <kbd>R</kbd> <kbd>T</kbd></td><td>etiquetas · regla · ficha</td></tr>
           <tr><td><kbd>0</kbd></td><td>vista general del centro</td></tr>
@@ -95,12 +95,15 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     b.className = 'rail-item';
     b.dataset.id = v.id;
     b.setAttribute('role', 'tab');
+    b.setAttribute('aria-selected', 'false');
     b.innerHTML = `<span class="rail-index">${i + 1}</span><span class="rail-name">${v.name}</span><span class="rail-h">${fmtHeight(v.id === 'starlink' ? 30 : v.height)}${v.id === 'starlink' ? ' <small>env.</small>' : ''}</span>`;
     b.addEventListener('click', () => onSelect(v.id));
     rail.appendChild(b);
   });
   const overview = document.createElement('button');
   overview.className = 'rail-item rail-overview';
+  overview.setAttribute('role', 'tab');
+  overview.setAttribute('aria-selected', 'true');
   overview.innerHTML = `<span class="rail-index">0</span><span class="rail-name">Vista general</span><span class="rail-h">todos</span>`;
   overview.addEventListener('click', () => onReset());
   rail.appendChild(overview);
@@ -145,7 +148,11 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
   }
 
   function setActive(id) {
-    rail.querySelectorAll('.rail-item').forEach(b => b.classList.toggle('active', b.dataset.id === id));
+    rail.querySelectorAll('.rail-item').forEach(b => {
+      const on = b.dataset.id === id || (!id && b.classList.contains('rail-overview'));
+      b.classList.toggle('active', b.dataset.id === id);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
     const v = vehicles.find(x => x.id === id);
     if (v) { renderSheet(v); sheet.classList.remove('hidden'); el('#presets').classList.remove('hidden'); }
     else {

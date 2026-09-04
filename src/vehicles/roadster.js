@@ -99,8 +99,8 @@ const yBelt = curve([
 const yCrown = curve([
   [-1.973, 0.470], [-1.900, 0.836], [-1.740, 0.856], [-1.480, 0.854],
   [-1.176, 0.846], [-0.900, 0.831], [-0.400, 0.795], [0.120, 0.766],
-  [0.460, 0.748], [0.860, 0.718], [1.176, 0.692], [1.520, 0.644],
-  [1.740, 0.578], [1.900, 0.498], [1.973, 0.432],
+  [0.460, 0.740], [0.860, 0.690], [1.176, 0.652], [1.520, 0.600],
+  [1.740, 0.540], [1.900, 0.470], [1.973, 0.416],
 ]);
 
 // Rocker: the bottom edge of the visible body side, before the wheel arches cut into it.
@@ -302,6 +302,24 @@ function edgeFlange(edge, inZ, drop, flip = false) {
   geo.setIndex(idx);
   geo.computeVertexNormals();
   return geo;
+}
+
+const _n1 = new THREE.Vector3(), _n2 = new THREE.Vector3(), _n3 = new THREE.Vector3();
+/**
+ * Outward normal of the master surface. Needed by anything that has to sit IN the paint
+ * rather than on it — lamps, indicators, badges — which is what made the old headlights read
+ * as accessories glued to the fender.
+ */
+function bodyNormal(z, t) {
+  const dz = 0.004, dt = 0.004;
+  const a = bodyPoint(z + dz, t), b = bodyPoint(z - dz, t);
+  const c = bodyPoint(z, Math.min(1, t + dt)), d = bodyPoint(z, Math.max(0, t - dt));
+  _n1.set(a.x - b.x, a.y - b.y, a.z - b.z);
+  _n2.set(c.x - d.x, c.y - d.y, c.z - d.z);
+  _n3.crossVectors(_n1, _n2).normalize();
+  // t increases left-to-right, so the cross product points inward on one half of the car.
+  if (_n3.y < 0) _n3.negate();
+  return _n3;
 }
 
 /** The ring of points a panel ends on, for capping and flanging. */
@@ -511,18 +529,15 @@ function createRoadsterMaterials(M) {
   // Midnight Cherry Red. Dielectric base coat + clear coat, calibrated so that under the
   // exhibit's raked sun it reads as the saturated cherry the car photographs as, not black.
   const cherryRed = new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color(0x8e1b2b),
+    color: new THREE.Color(0x6f121e),
     metalness: 0.0,
-    roughness: 0.30,
+    roughness: 0.26,
     roughnessMap: flake.roughnessMap,
     normalMap: flake.normalMap,
     normalScale: new THREE.Vector2(0.10, 0.10),
     clearcoat: 1.0,
     clearcoatRoughness: 0.045,
-    envMapIntensity: 1.15,
-    sheen: 0.22,
-    sheenColor: new THREE.Color(0xff6070),
-    sheenRoughness: 0.5,
+    envMapIntensity: 1.05,
   });
 
   const blackTrim = new THREE.MeshStandardMaterial({ color: 0x121417, metalness: 0.20, roughness: 0.68 });
@@ -565,8 +580,8 @@ function createRoadsterMaterials(M) {
   // Lens glass without transmission: clear coat over the chrome bowl behind it does the work,
   // and Three re-renders the scene once per transmissive object, which these do not need.
   const headlightLens = new THREE.MeshPhysicalMaterial({
-    color: 0xdfe8f2, metalness: 0.0, roughness: 0.045, clearcoat: 1.0, clearcoatRoughness: 0.02,
-    transparent: true, opacity: 0.30, envMapIntensity: 1.5,
+    color: 0xc9d6e4, metalness: 0.0, roughness: 0.04, clearcoat: 1.0, clearcoatRoughness: 0.02,
+    transparent: true, opacity: 0.22, envMapIntensity: 0.9, depthWrite: false,
   });
 
   const taillightRed = new THREE.MeshPhysicalMaterial({
@@ -678,7 +693,7 @@ function buildBodyShell(mats, M) {
         const p = bodyPoint(z, side < 0 ? T_SILL_L : T_SILL_R);
         pts.push([p.x, p.y, p.z]);
       }
-      archLips.push({ geometry: tube(pts, 0.0065, { tubular: 30, radial: 6 }) });
+      archLips.push({ geometry: tube(pts, 0.0070, { tubular: 34, radial: 10 }) });
     }
   }
   g.add(mesh(mergeAll(archLips), mats.cherryRed, { name: 'wheel-arch-lips' }));
@@ -795,64 +810,35 @@ function buildBodyShell(mats, M) {
     name: 'rear-subframe-crossmember',
   }));
 
-  // Front chin aerodynamic racing splitter with tie-rod struts
-  const splitterPts = [
-    [-0.72, 0.15, 1.70],
-    [-0.50, 0.15, 1.94],
-    [0.0, 0.15, 1.97],
-    [0.50, 0.15, 1.94],
-    [0.72, 0.15, 1.70],
-  ];
-  g.add(mesh(tube(splitterPts, 0.024, { tubular: 24, radial: 8 }), mats.blackTrim, { name: 'front-splitter' }));
-  for (const sx of [-0.28, 0.28]) {
-    g.add(mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.12, 8), mats.chromeTrim, {
-      position: [sx, 0.21, 1.92],
-      rotation: [0.35, 0, 0],
+  // Front cooling mouth. The old splitter and grille were authored against the previous nose
+  // and, once the bumper stopped tapering to a point, hung in front of it as a black frame.
+  // Rebuilt as a real opening in the fascia: a dark plenum behind a body-colour lip, with the
+  // radiator matrix visible through it.
+  {
+    const zM = 1.945, yM = 0.352, wM = 0.34, hM = 0.062;
+    const mouth = [];
+    for (let i = 0; i <= 40; i++) {
+      const ang = (i / 40) * Math.PI * 2;
+      const c = Math.cos(ang), sn = Math.sin(ang);
+      // A wide, flat-cornered slot rather than an ellipse.
+      mouth.push([
+        Math.sign(c) * Math.pow(Math.abs(c), 0.55) * wM,
+        yM + Math.sign(sn) * Math.pow(Math.abs(sn), 0.7) * hM,
+        zM - Math.pow(Math.abs(c), 2) * 0.030,
+      ]);
+    }
+    g.add(mesh(tube(mouth, 0.011, { tubular: 46, radial: 8, closed: true }), mats.cherryRed, {
+      name: 'front-mouth-lip',
     }));
-  }
-
-  // Front lower radiator intake mouth & aluminum cooling matrix
-  const grilleMouth = new THREE.BoxGeometry(0.78, 0.15, 0.12);
-  g.add(mesh(grilleMouth, mats.grilleMesh, {
-    position: [0, 0.24, 1.85],
-    name: 'front-grille-mouth',
-  }));
-  const radiatorCore = new THREE.BoxGeometry(0.72, 0.13, 0.02);
-  g.add(mesh(radiatorCore, mats.aluminium, {
-    position: [0, 0.24, 1.79],
-    name: 'radiator-cooling-core',
-  }));
-
-  // ---------------------------------------------------------------------------------------
-  //  DUAL RECESSED HOOD EXTRACTOR SCOOPS (Fine dark mesh flush in molded depression)
-  // ---------------------------------------------------------------------------------------
-  for (const s of [-1, 1]) {
-    const ventGroup = new THREE.Group();
-    ventGroup.name = `hood-extractor-vent-${s < 0 ? 'left' : 'right'}`;
-    const pv = bodyPoint(1.28, T_CENTRE + s * 0.088);
-    ventGroup.position.set(pv.x, pv.y - 0.004, pv.z);
-    ventGroup.rotation.set(-0.16, s * 0.04, s * 0.02);
-
-    // Honeycomb mesh grille lining the bottom of the recessed scoop
-    const meshPlate = new THREE.PlaneGeometry(0.09, 0.18);
-    meshPlate.rotateX(-Math.PI / 2 + 0.14);
-    ventGroup.add(mesh(meshPlate, mats.grilleMesh, { position: [0, 0.001, 0] }));
-
-    // Thin, flush composite bezel rim framing the scoop aperture
-    const rimPts = [
-      [-0.048, 0.004, -0.090],
-      [-0.044, 0.004, 0.075],
-      [-0.024, 0.004, 0.095],
-      [0.0, 0.004, 0.100],
-      [0.024, 0.004, 0.095],
-      [0.044, 0.004, 0.075],
-      [0.048, 0.004, -0.090],
-      [0.0, 0.004, -0.095],
-      [-0.048, 0.004, -0.090],
-    ];
-    ventGroup.add(mesh(tube(rimPts, 0.0022, { tubular: 24, radial: 6 }), mats.blackTrim));
-
-    g.add(ventGroup);
+    g.add(mesh(new THREE.BoxGeometry(wM * 2 - 0.02, hM * 2 - 0.014, 0.10), mats.satinBlack, {
+      position: [0, yM, zM - 0.075], name: 'front-mouth-plenum',
+    }));
+    g.add(mesh(new THREE.BoxGeometry(wM * 2 - 0.05, hM * 2 - 0.03, 0.018), mats.grilleMesh, {
+      position: [0, yM, zM - 0.040], name: 'front-grille',
+    }));
+    g.add(mesh(new THREE.BoxGeometry(wM * 2 - 0.07, hM * 2 - 0.05, 0.016), mats.aluminium, {
+      position: [0, yM, zM - 0.070], name: 'radiator-core',
+    }));
   }
 
   // Nose emblem. Replaces the chrome cylinder that stood in for it: a thin disc bedded into
@@ -872,18 +858,13 @@ function buildBodyShell(mats, M) {
     g.add(emblem);
   }
 
-  // Rear aerodynamic racing diffuser with 4 vertical strakes
-  const diffPlate = new THREE.BoxGeometry(1.42, 0.05, 0.42);
-  g.add(mesh(diffPlate, mats.blackTrim, {
-    position: [0, 0.18, -1.76],
-    name: 'rear-diffuser-tray',
-  }));
-  for (let sx = -0.45; sx <= 0.45; sx += 0.30) {
-    const strake = new THREE.BoxGeometry(0.016, 0.13, 0.40);
-    g.add(mesh(strake, mats.blackTrim, {
-      position: [sx, 0.17, -1.76],
-      name: 'diffuser-strake',
-    }));
+  // Rear underbody tray, tucked under the tail rather than hanging below it.
+  {
+    const parts = [{ geometry: new THREE.BoxGeometry(1.22, 0.030, 0.42), matrix: mat4([0, 0.152, -1.700]) }];
+    for (const sx of [-0.42, -0.14, 0.14, 0.42]) {
+      parts.push({ geometry: new THREE.BoxGeometry(0.014, 0.088, 0.40), matrix: mat4([sx, 0.196, -1.700]) });
+    }
+    g.add(mesh(mergeAll(parts), mats.satinBlack, { name: 'rear-diffuser' }));
   }
 
   // The Demo car flew without plates, so the tail carries the empty recess and nothing else:
@@ -897,9 +878,9 @@ function buildBodyShell(mats, M) {
   }
 
   // Dual lower rear cooling exhaust ports
-  for (const s of [-0.35, 0.35]) {
-    g.add(mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.03, 16), mats.blackTrim, {
-      position: [s, 0.28, -1.95],
+  for (const s of [-0.34, 0.34]) {
+    g.add(mesh(new THREE.CylinderGeometry(0.030, 0.030, 0.026, 18), mats.satinBlack, {
+      position: [s, 0.400, Z_TAIL - CAP_TAIL + 0.010],
       rotation: [Math.PI / 2, 0, 0],
       name: 'rear-cooling-port',
     }));
@@ -909,36 +890,35 @@ function buildBodyShell(mats, M) {
   //  AERODYNAMIC EXTERIOR MIRRORS (Sculpted organic teardrop shells on swept stems)
   // ---------------------------------------------------------------------------------------
   for (const side of [-1, 1]) {
+    // Mirrors are mounted off the door skin, so take the root off the body surface instead of
+    // the hardcoded coordinates the old body used — they left the housings floating in space
+    // once the flank moved. Overall width with mirrors is the declared 1,873 m.
+    const mt = side < 0 ? T_SHOULDER_L + 0.030 : T_SHOULDER_R - 0.030;
+    const root = bodyPoint(0.325, mt);
+    const armX = side * (ROADSTER_SPECS.widthMirrors / 2 - 0.052);
     const mirrorStem = tube([
-      [side * 0.73, 0.69, 0.32],
-      [side * 0.81, 0.72, 0.32],
-      [side * 0.84, 0.73, 0.33],
-    ], 0.013, { tubular: 14, radial: 8 });
-    g.add(mesh(mirrorStem, mats.blackTrim));
+      [root.x, root.y, root.z],
+      [root.x + (armX - root.x) * 0.55, root.y + 0.030, root.z + 0.006],
+      [armX, root.y + 0.042, root.z + 0.010],
+    ], 0.012, { tubular: 16, radial: 8 });
+    g.add(mesh(mirrorStem, mats.satinBlack));
 
     const mirrorHousing = new THREE.Group();
-    mirrorHousing.position.set(side * 0.85, 0.73, 0.33);
-    mirrorHousing.rotation.set(-0.10, side * 0.18, -0.05);
+    mirrorHousing.name = `mirror-${side < 0 ? 'left' : 'right'}`;
+    mirrorHousing.position.set(armX, root.y + 0.044, root.z + 0.010);
+    mirrorHousing.rotation.set(-0.10, side * 0.20, -0.05);
 
-    // Sculpted organic aerodynamic mirror housing shell in Midnight Cherry Red
-    const mBody = new THREE.SphereGeometry(0.055, 18, 14);
-    mBody.scale(1.20, 0.70, 0.80);
+    const mBody = new THREE.SphereGeometry(0.052, 20, 14);
+    mBody.scale(1.18, 0.72, 0.82);
     mirrorHousing.add(mesh(mBody, mats.cherryRed));
-
-    // Black perimeter bezel ring
-    mirrorHousing.add(mesh(new THREE.TorusGeometry(0.046, 0.005, 8, 20), mats.blackTrim, {
-      position: [side * -0.028, 0, 0],
-      rotation: [0, Math.PI / 2, 0],
+    mirrorHousing.add(mesh(new THREE.TorusGeometry(0.043, 0.0045, 8, 22), mats.satinBlack, {
+      position: [side * -0.026, 0, 0], rotation: [0, Math.PI / 2, 0],
     }));
-
-    // Reflective chrome mirror glass
-    const mGlass = new THREE.PlaneGeometry(0.092, 0.062);
+    const mGlass = new THREE.PlaneGeometry(0.086, 0.058);
     mGlass.rotateY(side > 0 ? -Math.PI / 2 : Math.PI / 2);
-    mirrorHousing.add(mesh(mGlass, mats.chromeTrim, { position: [side * -0.030, 0, 0] }));
-
+    mirrorHousing.add(mesh(mGlass, mats.chromeTrim, { position: [side * -0.028, 0, 0] }));
     g.add(mirrorHousing);
 
-    // Recessed flush door handles
     const ph = bodyPoint(-0.10, side < 0 ? T_SHOULDER_L + 0.055 : T_SHOULDER_R - 0.055);
     const handleGeo = new THREE.BoxGeometry(0.016, 0.032, 0.105);
     g.add(mesh(handleGeo, mats.satinBlack, {
@@ -988,8 +968,8 @@ function buildHeadlights(mats) {
   // Two lamps per side: the larger main lamp inboard-low, the smaller outboard-high, following
   // the fender crown as it rises toward the wing.
   const lamps = [
-    { z: 1.612, t: 0.126, r: 0.058, tilt: -0.30 },
-    { z: 1.505, t: 0.200, r: 0.047, tilt: -0.24 },
+    { z: 1.796, t: 0.086, r: 0.069, tilt: -0.50, roll: 0.20 },  // main lamp, inboard
+    { z: 1.742, t: 0.170, r: 0.056, tilt: -0.42, roll: 0.46 },  // outboard, slightly higher
   ];
 
   for (const s of [-1, 1]) {
@@ -999,10 +979,13 @@ function buildHeadlights(mats) {
     for (const lamp of lamps) {
       const t = s < 0 ? T_CENTRE - lamp.t : T_CENTRE + lamp.t;
       const p = bodyPoint(lamp.z, t);
+      const n = bodyNormal(lamp.z, t);
       const pod = new THREE.Group();
+      // On the surface, oriented by its normal: the pocket lathe below descends INTO the body
+      // from here, so the rim finishes flush and the bucket and reflector stay visible behind
+      // the lens. Sinking the whole pod instead buries them and the lens reads as white paint.
       pod.position.set(p.x, p.y, p.z);
-      // Aim along the surface: down over the nose, out over the fender.
-      pod.rotation.set(Math.PI / 2 + lamp.tilt, 0, s * -0.34);
+      pod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
 
       // Pocket wall — the recess the lamp sits in, so the clamshell reads as opening around it.
       const bucket = lathe([
@@ -1029,23 +1012,27 @@ function buildHeadlights(mats) {
 
       // Outer lens: a shallow spherical cap. Clearcoat over a chrome bowl reads as glass
       // without paying for a transmission pass, which Three renders the scene again for.
-      const capR = lamp.r / Math.sin(0.62);
-      const lens = new THREE.SphereGeometry(capR, 24, 12, 0, Math.PI * 2, 0, 0.62);
-      lens.translate(0, 0.004 - capR * Math.cos(0.62), 0);
+      // Shallow cap sized by its rise, not by an angle: an Elise lens stands about 8 mm proud
+      // of the pocket rim, so solve the sphere that gives exactly that over the lamp radius.
+      const sag = 0.008;
+      const capR = (lamp.r * lamp.r + sag * sag) / (2 * sag);
+      const ang = Math.asin(Math.min(1, lamp.r / capR));
+      const lens = new THREE.SphereGeometry(capR, 28, 8, 0, Math.PI * 2, 0, ang);
+      lens.translate(0, 0.002 - capR * Math.cos(ang), 0);
       pod.add(mesh(lens, mats.headlightLens, { name: 'lamp-lens' }));
 
       side.add(pod);
     }
 
     // Amber indicator wrapping the outboard corner of the clamshell.
-    const ind = bodyPoint(1.545, s < 0 ? T_CENTRE - 0.276 : T_CENTRE + 0.276);
-    const indGeo = new THREE.SphereGeometry(0.040, 16, 10, 0, Math.PI * 2, 0, 0.75);
-    indGeo.scale(1, 0.34, 1.5);
-    side.add(mesh(indGeo, mats.amberReflector, {
-      position: [ind.x, ind.y, ind.z],
-      rotation: [Math.PI / 2 - 0.16, 0, s * -0.72],
-      name: 'indicator',
-    }));
+    const it = s < 0 ? T_CENTRE - 0.262 : T_CENTRE + 0.262;
+    const ind = bodyPoint(1.688, it), inNrm = bodyNormal(1.688, it);
+    const indGeo = new THREE.SphereGeometry(0.062, 20, 10, 0, Math.PI * 2, 0, 0.44);
+    indGeo.scale(0.58, 1.0, 1.25);
+    const indMesh = mesh(indGeo, mats.amberReflector, { name: 'indicator' });
+    indMesh.position.set(ind.x - inNrm.x * 0.026, ind.y - inNrm.y * 0.026, ind.z - inNrm.z * 0.026);
+    indMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), inNrm);
+    side.add(indMesh);
 
     g.add(side);
   }
@@ -1376,78 +1363,179 @@ function buildWheels(mats, M) {
   return g;
 }
 
-// -----------------------------------------------------------------------------------------
-//  Lotus Elise / Tesla Roadster Sport Bucket Seat
-// -----------------------------------------------------------------------------------------
-function buildBucketSeat(s, mats, M) {
+/**
+ * Lotus/Tesla composite bucket seat. Rebuilt from lathed and lofted sections: the old one was
+ * eight boxes, and at the cockpit camera distances the exhibit authors views for, a box reads
+ * as a box. Same discipline as Dragon — few pieces, library materials, real curvature.
+ */
+function seatSection(w, d, bolster, round) {
+  // A rounded rectangle in the XZ plane, used as the cross-section of both cushion and back.
+  const pts = [];
+  for (let i = 0; i <= 28; i++) {
+    const a = (i / 28) * Math.PI * 2;
+    const c = Math.cos(a), s = Math.sin(a);
+    const p = 1 / round;
+    const x = Math.sign(c) * Math.pow(Math.abs(c), p) * (w / 2 + bolster * Math.pow(Math.abs(s), 2));
+    const z = Math.sign(s) * Math.pow(Math.abs(s), p) * (d / 2);
+    pts.push([x, z]);
+  }
+  return pts;
+}
+
+function loft(sections, close = true) {
+  const n = sections[0].pts.length, pos = [], idx = [];
+  for (const sec of sections) {
+    for (const [x, z] of sec.pts) {
+      pos.push(x * sec.scale, sec.y, z * sec.scale + sec.z);
+    }
+  }
+  for (let i = 0; i < sections.length - 1; i++) {
+    for (let j = 0; j < n - 1; j++) {
+      const a = i * n + j, b = (i + 1) * n + j;
+      idx.push(a, b, a + 1, b, b + 1, a + 1);
+    }
+  }
+  if (close) {
+    for (const [ring, flip] of [[0, true], [sections.length - 1, false]]) {
+      const base = ring * n;
+      for (let j = 1; j < n - 2; j++) {
+        if (flip) idx.push(base, base + j + 1, base + j);
+        else idx.push(base, base + j, base + j + 1);
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
+function buildBucketSeat(s, mats) {
   const seat = new THREE.Group();
   seat.name = `seat-${s < 0 ? 'driver' : 'passenger'}`;
   seat.position.set(s * 0.34, 0, 0);
 
-  // 1. Rigid lightweight carbon-composite outer bucket shell with anatomical taper
-  const shellGroup = new THREE.Group();
-  // Sculpted back shell
-  const backShell = new THREE.BoxGeometry(0.38, 0.64, 0.025);
-  shellGroup.add(mesh(backShell, mats.carbonFiber, {
-    position: [0, 0.54, -0.46],
-    rotation: [-0.34, 0, 0],
-  }));
-  // Bottom seat pan shell
-  const bottomShell = new THREE.BoxGeometry(0.38, 0.03, 0.42);
-  shellGroup.add(mesh(bottomShell, mats.carbonFiber, {
-    position: [0, 0.17, -0.20],
-  }));
-  seat.add(shellGroup);
+  // Cushion: a squab that swells at the bolsters and tapers at the front edge.
+  const cushion = seatSection(0.30, 0.40, 0.045, 2.4);
+  seat.add(mesh(loft([
+    { pts: cushion, y: 0.182, z: -0.20, scale: 0.90 },
+    { pts: cushion, y: 0.212, z: -0.20, scale: 1.00 },
+    { pts: cushion, y: 0.248, z: -0.20, scale: 0.985 },
+    { pts: cushion, y: 0.268, z: -0.21, scale: 0.90 },
+    { pts: cushion, y: 0.276, z: -0.22, scale: 0.66 },
+  ]), mats.blackTrim, { name: 'seat-cushion' }));
 
-  // 2. Contoured ergonomic seat cushion with elevated thigh side bolsters
-  const cushion = new THREE.BoxGeometry(0.30, 0.08, 0.38);
-  seat.add(mesh(cushion, mats.blackTrim, { position: [0, 0.22, -0.20] }));
-  for (const bs of [-1, 1]) {
-    // Sculpted thigh support bolster
-    const bolster = new THREE.BoxGeometry(0.05, 0.07, 0.36);
-    seat.add(mesh(bolster, mats.satinBlack, {
-      position: [bs * 0.15, 0.25, -0.20],
-    }));
-  }
+  // Backrest, reclined, narrowing into the headrest with the bolsters wrapping the torso.
+  const back = seatSection(0.27, 0.115, 0.052, 2.2);
+  const tilt = 0.34, zb = -0.415, yb = 0.255;
+  const rung = (t, w, dz) => ({
+    pts: back, scale: w,
+    y: yb + t * Math.cos(tilt), z: zb - t * Math.sin(tilt) + dz,
+  });
+  seat.add(mesh(loft([
+    rung(0.00, 0.94, 0), rung(0.07, 1.02, 0), rung(0.17, 1.045, 0), rung(0.30, 1.015, 0),
+    rung(0.40, 0.955, 0), rung(0.475, 0.865, 0.002), rung(0.535, 0.770, 0.005),
+    rung(0.585, 0.724, 0.006), rung(0.640, 0.740, 0.004), rung(0.700, 0.760, 0.001),
+    rung(0.748, 0.700, -0.003), rung(0.778, 0.520, -0.007),
+  ]), mats.blackTrim, { name: 'seat-back' }));
 
-  // 3. Ergonomically reclined backrest with lateral rib support wings
-  const backrest = new THREE.BoxGeometry(0.28, 0.50, 0.06);
-  seat.add(mesh(backrest, mats.blackTrim, {
-    position: [0, 0.54, -0.44],
-    rotation: [-0.34, 0, 0],
-  }));
-  for (const bs of [-1, 1]) {
-    // Sculpted lateral torso support wing
-    const wing = new THREE.BoxGeometry(0.05, 0.42, 0.10);
-    seat.add(mesh(wing, mats.satinBlack, {
-      position: [bs * 0.15, 0.50, -0.41],
-      rotation: [-0.34, 0, 0],
-    }));
-  }
+  // Composite shell behind it, following the same section a little larger.
+  seat.add(mesh(loft([
+    rung(-0.02, 1.10, -0.030), rung(0.24, 1.16, -0.034), rung(0.50, 1.02, -0.034),
+    rung(0.66, 0.90, -0.030), rung(0.78, 0.66, -0.024),
+  ]), mats.carbonFiber, { name: 'seat-shell' }));
 
-  // 4. Integrated headrest with authentic twin racing harness pass-through slots
-  const headrest = new THREE.BoxGeometry(0.22, 0.16, 0.06);
-  seat.add(mesh(headrest, mats.blackTrim, {
-    position: [0, 0.83, -0.53],
-    rotation: [-0.34, 0, 0],
-  }));
-
-  // Dual harness pass-through cutouts with black composite bezel surrounds
-  for (const hx of [-0.055, 0.055]) {
-    const slotBezel = new THREE.TorusGeometry(0.022, 0.0045, 8, 16);
-    slotBezel.scale(0.8, 1.4, 1.0);
-    seat.add(mesh(slotBezel, mats.blackTrim, {
-      position: [hx, 0.77, -0.510],
-      rotation: [-0.34, 0, 0],
-    }));
-    // Recessed dark void inside slot
-    seat.add(mesh(new THREE.BoxGeometry(0.032, 0.055, 0.03), mats.satinBlack, {
-      position: [hx, 0.77, -0.515],
-      rotation: [-0.34, 0, 0],
-    }));
+  // Harness pass-throughs in the shoulder of the backrest.
+  for (const hx of [-0.052, 0.052]) {
+    const y = yb + 0.545 * Math.cos(tilt), z = zb - 0.545 * Math.sin(tilt);
+    const slot = new THREE.TorusGeometry(0.020, 0.005, 8, 18);
+    slot.scale(0.85, 1.35, 1.0);
+    seat.add(mesh(slot, mats.satinBlack, { position: [hx, y, z + 0.055], rotation: [-tilt, 0, 0] }));
   }
 
   return seat;
+}
+/**
+ * Dashboard. Was a full-width box with a second box under it and a half-cylinder binnacle
+ * stuck on the front. At the cockpit camera distances this exhibit authors views for, a box
+ * reads as a box, so it is swept instead: one section curled from the cowl edge over the top
+ * pad and down the face, carried across the car, with the driver's binnacle as a local swell
+ * in the same surface rather than a separate part.
+ */
+function buildDashSurface(mats) {
+  const HALF = 0.545, NX = 46;
+  // Section in (z, y) offsets from the station's top edge, cowl -> top pad -> face -> underside.
+  const SEC = [
+    [0.455, 0.000], [0.398, 0.006], [0.336, 0.001], [0.298, -0.022],
+    [0.283, -0.062], [0.284, -0.118], [0.296, -0.166], [0.336, -0.202],
+  ];
+  const pos = [], uv = [], idx = [];
+  for (let i = 0; i <= NX; i++) {
+    const x = -HALF + (2 * HALF) * (i / NX);
+    // Rises toward the doors, and swells over the driver's instrument binnacle.
+    const rise = 0.026 * Math.pow(Math.abs(x) / HALF, 1.6);
+    const dz = (x - -0.34) / 0.185;
+    const binnacle = Math.exp(-dz * dz) * 0.052;
+    const yTop = 0.706 + rise + binnacle;
+    for (let j = 0; j < SEC.length; j++) {
+      const [z0, dy] = SEC[j];
+      // The binnacle also pulls the pad forward, which is what makes it a hood over the dials.
+      const fwd = binnacle * (j >= 1 && j <= 4 ? 0.62 : 0.1);
+      pos.push(x, yTop + dy, z0 - fwd);
+      uv.push(j / (SEC.length - 1), (x + HALF) / (2 * HALF));
+    }
+  }
+  const N = SEC.length;
+  for (let i = 0; i < NX; i++) {
+    for (let j = 0; j < N - 1; j++) {
+      const a = i * N + j, b = (i + 1) * N + j;
+      idx.push(a, a + 1, b, b, a + 1, b + 1);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return mesh(g, mats.blackTrim, { name: 'dashboard' });
+}
+
+/** Speedometer and power-meter faces: one texture, two dials, rather than blank discs. */
+function makeDialTexture() {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 256;
+  const x = c.getContext('2d');
+  x.fillStyle = '#0d0f12'; x.fillRect(0, 0, 512, 256);
+  for (const [cx, major, label] of [[128, 20, 'km/h'], [384, 10, 'kW']]) {
+    x.strokeStyle = '#c8cdd6'; x.fillStyle = '#c8cdd6';
+    x.lineWidth = 2;
+    for (let i = 0; i <= major * 2; i++) {
+      const a = Math.PI * 0.75 + (i / (major * 2)) * Math.PI * 1.5;
+      const big = i % 2 === 0;
+      const r0 = big ? 76 : 84, r1 = 96;
+      x.beginPath();
+      x.moveTo(cx + Math.cos(a) * r0, 128 + Math.sin(a) * r0);
+      x.lineTo(cx + Math.cos(a) * r1, 128 + Math.sin(a) * r1);
+      x.lineWidth = big ? 3 : 1.5;
+      x.stroke();
+    }
+    x.font = '600 20px system-ui, sans-serif';
+    x.textAlign = 'center';
+    x.fillText(label, cx, 176);
+    // Needle, parked.
+    x.strokeStyle = '#d8452f'; x.lineWidth = 4;
+    x.beginPath(); x.moveTo(cx, 128);
+    x.lineTo(cx + Math.cos(Math.PI * 0.75) * 78, 128 + Math.sin(Math.PI * 0.75) * 78);
+    x.stroke();
+    x.fillStyle = '#2a2e35';
+    x.beginPath(); x.arc(cx, 128, 9, 0, Math.PI * 2); x.fill();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
 }
 
 // -----------------------------------------------------------------------------------------
@@ -1466,8 +1554,8 @@ function buildInterior(mats, M, texDontPanic, texPcb) {
   }
 
   // Lotus Elise / Tesla Roadster Sport Bucket Seats
-  g.add(buildBucketSeat(-1, mats, M)); // Driver seat
-  g.add(buildBucketSeat(1, mats, M));  // Passenger seat
+  g.add(buildBucketSeat(-1, mats)); // Driver seat
+  g.add(buildBucketSeat(1, mats));  // Passenger seat
 
   // 3-Point Seatbelt for Starman (Driver side)
   const beltPts = [
@@ -1484,28 +1572,26 @@ function buildInterior(mats, M, texDontPanic, texPcb) {
   const dashGroup = new THREE.Group();
   dashGroup.name = 'dashboard-assembly';
 
-  // 1. Full-width dashboard main beam spanning door to door, sealing cowl & firewall
-  const dashTopper = new THREE.BoxGeometry(1.06, 0.08, 0.18);
-  dashGroup.add(mesh(dashTopper, mats.blackTrim, { position: [0, 0.68, 0.38] }));
+  dashGroup.add(buildDashSurface(mats));
 
-  // Lower knee bolster fascia
-  const lowerFascia = new THREE.BoxGeometry(1.04, 0.12, 0.10);
-  dashGroup.add(mesh(lowerFascia, mats.satinBlack, { position: [0, 0.57, 0.38] }));
-
-  // Driver side instrument binnacle cowl hood
-  const cowlGeo = new THREE.CylinderGeometry(0.16, 0.18, 0.16, 20, 1, false, 0, Math.PI);
-  cowlGeo.rotateX(Math.PI / 2);
-  dashGroup.add(mesh(cowlGeo, mats.blackTrim, { position: [-0.34, 0.72, 0.30] }));
-
-  // Dual analog instrument dials (speedometer & battery kW power meter)
-  for (const gx of [-0.39, -0.29]) {
-    dashGroup.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.008, 16), mats.chromeTrim, {
-      position: [gx, 0.70, 0.288],
-      rotation: [-0.35, 0, 0],
+  // Speedometer and power meter, set into the binnacle the dash surface swells to form.
+  const dialTex = makeDialTexture();
+  for (const [i, gx] of [[0, -0.404], [1, -0.276]]) {
+    dashGroup.add(mesh(new THREE.CylinderGeometry(0.040, 0.040, 0.010, 20), mats.satinBlack, {
+      position: [gx, 0.734, 0.286], rotation: [-0.42, 0, 0],
     }));
-    dashGroup.add(mesh(new THREE.CylinderGeometry(0.031, 0.031, 0.009, 16), mats.satinBlack, {
-      position: [gx, 0.70, 0.290],
-      rotation: [-0.35, 0, 0],
+    const face = new THREE.PlaneGeometry(0.070, 0.070);
+    const faceMat = new THREE.MeshStandardMaterial({ map: dialTex, roughness: 0.42, metalness: 0.1 });
+    // Each dial takes its own half of the shared texture.
+    const uvA = face.attributes.uv;
+    for (let k = 0; k < uvA.count; k++) uvA.setX(k, uvA.getX(k) * 0.5 + i * 0.5);
+    uvA.needsUpdate = true;
+    dashGroup.add(mesh(face, faceMat, {
+      position: [gx, 0.734 + 0.0045 * Math.cos(0.42), 0.286 + 0.0045 * Math.sin(0.42) + 0.004],
+      rotation: [-0.42, 0, 0], name: `dial-${i}`,
+    }));
+    dashGroup.add(mesh(new THREE.TorusGeometry(0.041, 0.0035, 8, 22), mats.chromeTrim, {
+      position: [gx, 0.734, 0.290], rotation: [Math.PI / 2 - 0.42, 0, 0],
     }));
   }
 
@@ -1525,32 +1611,53 @@ function buildInterior(mats, M, texDontPanic, texPcb) {
   const consoleGroup = new THREE.Group();
   consoleGroup.name = 'waterfall-center-console';
 
-  // Center stack body sitting strictly BEHIND the screen (at z = 0.34)
-  const stackBody = new THREE.BoxGeometry(0.24, 0.22, 0.08);
-  consoleGroup.add(mesh(stackBody, mats.blackTrim, {
-    position: [0, 0.48, 0.34],
-    rotation: [-0.35, 0, 0],
-  }));
-
-  // Lower console slope carrying push-button gear selectors (P, R, N, D)
-  const lowerSlope = new THREE.BoxGeometry(0.20, 0.20, 0.06);
-  consoleGroup.add(mesh(lowerSlope, mats.satinBlack, {
-    position: [0, 0.34, 0.22],
-    rotation: [-0.75, 0, 0],
-  }));
-
-  for (let b = 0; b < 4; b++) {
-    consoleGroup.add(mesh(new THREE.CylinderGeometry(0.010, 0.010, 0.008, 12), mats.chromeTrim, {
-      position: [0, 0.36 - b * 0.030, 0.24 - b * 0.020],
-      rotation: [-0.75, 0, 0],
-    }));
+  // The console is one continuous surface running from behind the screen down to the tunnel —
+  // the "waterfall" the car is known for — swept from a rounded section rather than assembled
+  // from three boxes at different angles, which is what the Don't Panic view was showing.
+  {
+    const spine = [
+      [0.560, 0.372, 0.135, 0.052],  // y, z, halfWidth, cornerRadius-ish
+      [0.500, 0.352, 0.132, 0.050],
+      [0.430, 0.318, 0.126, 0.048],
+      [0.360, 0.268, 0.118, 0.046],
+      [0.300, 0.198, 0.108, 0.046],
+      [0.258, 0.104, 0.098, 0.048],
+      [0.234, -0.010, 0.092, 0.050],
+      [0.226, -0.180, 0.090, 0.052],
+      [0.222, -0.360, 0.090, 0.052],
+      [0.216, -0.520, 0.086, 0.050],
+    ];
+    const N = 22, pos = [], uv = [], idx = [];
+    for (let i = 0; i < spine.length; i++) {
+      const [y, z, hw, r] = spine[i];
+      for (let j = 0; j <= N; j++) {
+        const ang = -Math.PI / 2 + (j / N) * Math.PI;   // across the top, door to door
+        const c = Math.cos(ang), sn = Math.sin(ang);
+        pos.push(Math.sign(sn) * Math.pow(Math.abs(sn), 0.62) * hw, y + c * r * 0.55 - r * 0.55, z);
+        uv.push(j / N, i / (spine.length - 1));
+      }
+    }
+    for (let i = 0; i < spine.length - 1; i++) {
+      for (let j = 0; j < N; j++) {
+        const p0 = i * (N + 1) + j, p1 = (i + 1) * (N + 1) + j;
+        idx.push(p0, p1, p0 + 1, p1, p1 + 1, p0 + 1);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    consoleGroup.add(mesh(geo, mats.blackTrim, { name: 'centre-console' }));
   }
 
-  // Central transmission tunnel running back between seats
-  const tunnelBody = new THREE.BoxGeometry(0.18, 0.10, 0.55);
-  consoleGroup.add(mesh(tunnelBody, mats.blackTrim, {
-    position: [0, 0.21, -0.02],
-  }));
+  // Push-button gear selectors on the slope.
+  for (let b = 0; b < 4; b++) {
+    consoleGroup.add(mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.007, 14), mats.chromeTrim, {
+      position: [(b - 1.5) * 0.030, 0.352 - b * 0.001, 0.256 - b * 0.002],
+      rotation: [-0.78, 0, 0],
+    }));
+  }
 
   // Handbrake lever on tunnel
   const handbrake = tube([
@@ -1597,7 +1704,7 @@ function buildInterior(mats, M, texDontPanic, texPcb) {
   g.add(wheelGroup);
 
   // ---- Easter Egg 1: "DON'T PANIC!" Center Screen ---------------------------------------
-  // Cleanly embedded into center console stack, perfectly facing backward toward camera and driver!
+  // Set into the centre console stack, facing the driver.
   const screenUnit = new THREE.Group();
   screenUnit.name = 'screen-dont-panic';
   screenUnit.position.set(0.0, 0.58, 0.27);
@@ -1715,7 +1822,7 @@ function buildStarman(mats) {
   const torso = new THREE.Group();
   torso.position.set(X, 0.50, -0.30);
   torso.rotation.set(-0.30, 0.06, 0);
-  torso.add(mesh(lathe([
+  const torsoGeo = lathe([
     { r: 0.128, y: -0.20 },   // hips
     { r: 0.140, y: -0.10 },
     { r: 0.132, y: 0.02 },    // waist
@@ -1723,13 +1830,17 @@ function buildStarman(mats) {
     { r: 0.170, y: 0.26 },    // shoulders
     { r: 0.140, y: 0.325 },
     { r: 0.086, y: 0.35 },    // neck root
-  ], { segments: 26 }), starmanSuitWhite, { name: 'suit-torso' }));
+  ], { segments: 26 });
+  torsoGeo.scale(1.0, 1, 0.70);
+  torso.add(mesh(torsoGeo, starmanSuitWhite, { name: 'suit-torso' }));
   // The suit's graphite shoulder yoke and side articulation panels.
-  torso.add(mesh(lathe([
-    { r: 0.172, y: 0.20 },
-    { r: 0.178, y: 0.255 },
-    { r: 0.150, y: 0.315 },
-  ], { segments: 26 }), starmanSuitGraphite, { name: 'suit-yoke' }));
+  const yokeGeo = lathe([
+    { r: 0.170, y: 0.205 },
+    { r: 0.176, y: 0.255 },
+    { r: 0.150, y: 0.312 },
+  ], { segments: 26 });
+  yokeGeo.scale(1.0, 1, 0.70);
+  torso.add(mesh(yokeGeo, starmanSuitGraphite, { name: 'suit-yoke' }));
   torso.add(mesh(new THREE.TorusGeometry(0.090, 0.011, 10, 24), starmanSuitGraphite, {
     position: [0, 0.352, 0], rotation: [Math.PI / 2, 0, 0], name: 'suit-neck-ring',
   }));
@@ -1773,7 +1884,7 @@ function buildStarman(mats) {
   const head = new THREE.Group();
   head.name = 'spacex-helmet';
   head.position.set(X, 0.925, -0.335);
-  head.rotation.set(0.05, 0.42, -0.03); // turned toward the door camera
+  head.rotation.set(0.04, -0.46, -0.03); // turned toward the door camera, as in the flight photos
   const shell = lathe([
     { r: 0.000, y: 0.148 },
     { r: 0.052, y: 0.142 },
@@ -1789,21 +1900,23 @@ function buildStarman(mats) {
   head.add(mesh(shell, starmanSuitWhite, { name: 'helmet-shell' }));
 
   // Visor: a cap of a larger sphere, so it sits proud of the shell the way a real one does.
-  const visorR = 0.176;
-  const visor = new THREE.SphereGeometry(visorR, 30, 20, Math.PI * 0.5 - 0.62, 1.24, 0.72, 0.86);
-  visor.scale(1, 0.80, 0.66);
-  head.add(mesh(visor, starmanVisor, { position: [0, 0.028, 0.052], name: 'helmet-visor' }));
+  // A SpaceX IVA visor covers most of the front of the helmet, brow to chin. The previous
+  // 71-degree arc only reached the equator, so it read as a small dark patch on a white egg.
+  const visorR = 0.166;
+  const visor = new THREE.SphereGeometry(visorR, 34, 22, Math.PI * 0.5 - 1.02, 2.04, 0.58, 1.16);
+  visor.scale(1, 0.90, 0.80);
+  head.add(mesh(visor, starmanVisor, { position: [0, 0.020, 0.030], name: 'helmet-visor' }));
 
   // Gasket around the visor aperture, traced on the visor's own surface so it sits flush.
   const gasket = [];
-  for (let i = 0; i <= 40; i++) {
-    const a = (i / 40) * Math.PI * 2;
-    const th = 0.72 + 0.86 * (0.5 + 0.5 * Math.cos(a));
-    const ph = Math.PI * 0.5 + 0.62 * Math.sin(a) * Math.sin(th);
+  for (let i = 0; i <= 48; i++) {
+    const a = (i / 48) * Math.PI * 2;
+    const th = 0.58 + 1.16 * (0.5 + 0.5 * Math.cos(a));
+    const ph = Math.PI * 0.5 + 1.02 * Math.sin(a);
     gasket.push([
-      visorR * Math.sin(th) * Math.cos(ph),
-      visorR * Math.cos(th) * 0.80 + 0.028,
-      visorR * Math.sin(th) * Math.sin(ph) * 0.66 + 0.052,
+      -visorR * Math.sin(th) * Math.cos(ph),
+      visorR * Math.cos(th) * 0.90 + 0.020,
+      visorR * Math.sin(th) * Math.sin(ph) * 0.80 + 0.030,
     ]);
   }
   head.add(mesh(tube(gasket, 0.005, { tubular: 44, radial: 6, closed: true }), blackTrim, {
@@ -1927,7 +2040,7 @@ export function buildRoadster(M) {
   const texPcb = makePcbTexture();
   const mats = createRoadsterMaterials(M);
 
-  // Continuous Watertight Body Components
+  // Exterior
   const bodyShell = buildBodyShell(mats, M);
   const headlights = buildHeadlights(mats);
   const taillights = buildTaillights(mats, M);

@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const PORT = 8801;
-const TYPES = { '.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.png':'image/png' };
+const TYPES = { '.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.png':'image/png','.woff2':'font/woff2' };
 const server = createServer(async (req,res)=>{ try{
   const rel = normalize(decodeURIComponent(req.url.split('?')[0])).replace(/^(\.\.[/\\])+/,'');
   const p = join(ROOT, (rel === '/' || rel === '\\' || rel === '') ? 'index.html' : rel);

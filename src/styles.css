@@ -135,6 +135,15 @@ a:hover { border-bottom-color: var(--accent); }
   * { transition: none !important; }
 }
 
+/* Keyboard focus was invisible: the HUD is fully operable from the keyboard (1-6, 0, F, G,
+   L, R, T, H) but nothing showed where focus was. :focus-visible only paints for keyboard
+   users, so pointer users see no change. */
+:where(button, input, a, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
 /* Annotations whose line of sight passes through the vehicle: kept in the layout but faded
    right back, so the callout order stays stable while the far side reads as hidden. */
 .label.is-occluded { opacity: 0.14; filter: saturate(0.2); }
@@ -178,3 +187,13 @@ body.is-flying .scale { display: none; }
 /* The preset row is a list of views of a vehicle on its mount; none of them mean anything
    while it is 50 km up, and the panel needs the corner. */
 body.is-flying .presets { display: none; }
+
+/* During a launch the mission panel and the rail were both anchored to the bottom edge on a
+   narrow screen and overlapped. Declared here, after the base .mission rule, because the
+   820px block above it comes first in the sheet and would lose the cascade at equal
+   specificity. */
+@media (max-width: 820px) {
+  .mission { bottom: 16px; left: 16px; right: 16px; max-width: none; transform: none; }
+  body:has(.mission:not(.hidden)) .rail { bottom: 156px; }
+  body:has(.mission:not(.hidden)) .presets { display: none; }
+}

@@ -7,6 +7,9 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
+const REDUCED_MOTION = typeof matchMedia === 'function'
+  ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+
 export class CameraRig {
   constructor(camera, dom) {
     this.camera = camera;
@@ -86,6 +89,9 @@ export class CameraRig {
   }
 
   flyTo(position, target, duration = 1.7) {
+    // prefers-reduced-motion only killed CSS transitions; a 1,7 s camera sweep across a 300 m
+    // scene is the strongest motion the page produces, so honour the setting here too.
+    if (REDUCED_MOTION?.matches) { this.jumpTo(position, target); return Promise.resolve(); }
     const from = this.camera.position.clone();
     const fromT = this.orbit.target.clone();
     const to = new THREE.Vector3(...position);
@@ -175,6 +181,11 @@ export class CameraRig {
   dispose() {
     window.removeEventListener('keydown', this._onKeyDown);
     window.removeEventListener('keyup', this._onKeyUp);
+    // The pointer and wheel handlers were never removed, so a disposed rig kept steering.
+    this.dom.removeEventListener('pointerdown', this._onPointerDown);
+    this.dom.removeEventListener('pointerup', this._onPointerUp);
+    this.dom.removeEventListener('pointermove', this._onPointerMove);
+    this.dom.removeEventListener('wheel', this._onWheel);
     this.orbit.dispose();
   }
 }

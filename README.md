@@ -1,6 +1,6 @@
 # SpaceX Vehicle Center
 
-Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones técnicas de cinco vehículos y sistemas de SpaceX:
+Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones técnicas de seis vehículos y sistemas de SpaceX:
 
 | Vehículo | Configuración modelada | Altura / envergadura |
 |---|---|---|
@@ -9,6 +9,7 @@ Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones
 | Falcon Heavy | Tres núcleos, propulsores laterales con cono de morro | 70 m · 12,2 m de ancho |
 | Dragon | Crew Dragon con trunk (paneles solares en media circunferencia, radiadores, aletas) | 8,1 m |
 | Starlink | V2 Mini con las dos alas solares desplegadas | 30 m de envergadura |
+| Tesla Roadster | Gen 1 (2008) con Starman, carga útil del vuelo inaugural del Falcon Heavy | 3,95 m · 1,13 m de alto |
 
 Starship no está sobre un soporte de museo sino sobre su plataforma: una reconstrucción a escala del **Pad 2 de Starbase** — la explanada, la zanja de llamas bidireccional revestida de inoxidable con su deflector central, la mesa de lanzamiento cuadrada de cubierta refrigerada por agua con sus veinte pinzas de sujeción, la torre de integración de 144,5 m, los brazos de captura de 36 m, el brazo de desconexión rápida de la nave, los pararrayos y la granja criogénica. Desde ahí **despega**: con **G** o el botón *Lanzamiento* corre la secuencia completa, de la cuenta atrás a la separación en caliente.
 
@@ -105,7 +106,7 @@ starlink      envergadura             30         30         0
 
 ### Puerta de validación en CI
 
-`npm run check` (`tools/check.mjs`) levanta el sitio, lo carga en Chromium headless y ejecuta las pasadas anteriores, recorre las 27 vistas autoradas comprobando que la cámara resultante es finita y queda sobre la explanada, y exige consola limpia.
+`npm run check` (`tools/check.mjs`) levanta el sitio, lo carga en Chromium headless y ejecuta las pasadas anteriores, recorre las 34 vistas autoradas comprobando que la cámara resultante es finita y queda sobre la explanada, y exige consola limpia.
 
 También **recorre la secuencia de lanzamiento**. `launch.seek(t)` reproduce el estado completo de un instante de misión — nube de tierra incluida, resimulada desde la ignición a paso fijo — en vez de limitarse a avanzar, y eso es lo que la hace comprobable: el gate visita once hitos exigiendo transformadas finitas y cámara sobre la explanada, comprueba que el perfil de ascenso nunca retrocede, y comprueba que guardar la secuencia deja la escena **exactamente** como estaba (vehículo, brazo de desconexión, las veinte pinzas, planos de cámara y niebla). Sale con código distinto de cero si algo falla, y el flujo de GitHub Actions **bloquea el despliegue** con ella.
 
@@ -120,7 +121,9 @@ También **recorre la secuencia de lanzamiento**. `launch.seek(t)` reproduce el 
 | ![Escudo PICA desde el trunk](docs/screenshots/dragon-trunk-inside.jpg) | ![Bus del Starlink V2 Mini](docs/screenshots/starlink-bus.jpg) |
 | ![Complejo de lanzamiento](docs/screenshots/launch-site.jpg) | ![Zanja de llamas](docs/screenshots/launch-trench.jpg) |
 | ![Ignición](docs/screenshots/launch-ignition.jpg) | ![Ascenso](docs/screenshots/launch-ascent.jpg) |
-| ![Separación en caliente](docs/screenshots/launch-staging.jpg) | |
+| ![Separación en caliente](docs/screenshots/launch-staging.jpg) | ![Vista general](docs/screenshots/overview.jpg) |
+| ![Tesla Roadster](docs/screenshots/roadster_overview.png) | ![Starman](docs/screenshots/roadster_starman.png) |
+| ![Detalle de carrocería](docs/screenshots/roadster_detail.png) | ![Tierra al fondo](docs/screenshots/roadster_earth.png) |
 
 ## Estructura
 
@@ -129,6 +132,7 @@ index.html                 entrada (import map de Three.js)
 vendor/three/              Three.js r170 (build + addons usados)
 src/main.js                escena, distribución de los vehículos, oclusión de etiquetas, bucle
 src/core/environment.js    cielo físico, sol, sombras dinámicas, mapa de entorno PMREM
+src/core/backdrop.js       fondo orbital (Tierra ilustrativa + estrellas) de la vista del Roadster
 src/core/cameraRig.js      órbita + vuelo libre + transiciones + límite polar sobre el suelo
 src/geometry/utils.js      lathe con normales analíticas, ojivas romas, losetas instanciadas,
                            superficies aerodinámicas lofteadas
@@ -145,7 +149,7 @@ src/ui/hud.js              interfaz
 
 ## Presupuesto de rendimiento
 
-Medido en la vista general con los cinco vehículos cargados:
+Medido en la vista general con los seis vehículos cargados:
 
 | | |
 |---|---|

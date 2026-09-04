@@ -22,7 +22,7 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const PORT = 8799;
 const TYPES = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
-  '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png',
+  '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png', '.woff2': 'font/woff2',
 };
 
 const server = createServer(async (req, res) => {

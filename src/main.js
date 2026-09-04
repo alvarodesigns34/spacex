@@ -103,6 +103,11 @@ async function main() {
   await nextFrame();
   let t0 = performance.now();
   // Texture generation is the bulk of the start-up cost, so report it map by map.
+  // The Falcon wordmarks are painted into a Canvas during createMaterials and baked into a
+  // texture for the session. Without waiting, whichever face happened to be resolved at that
+  // instant is the one that ships — and the headless check ignores font errors, so it never
+  // showed up there.
+  if (document.fonts?.ready) await document.fonts.ready;
   const { M } = createMaterials((name, frac) => hud.setProgress(`Generando materiales · ${name}`, 0.05 + frac * 0.2));
   timings.materials = performance.now() - t0;
   hud.setProgress('Iluminación y entorno…', 0.25);
