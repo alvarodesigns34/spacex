@@ -3,6 +3,7 @@
  */
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
+import { starShell } from './backdrop.js';
 
 export function createEnvironment(renderer, scene, M) {
   const sunDir = new THREE.Vector3();
@@ -76,14 +77,37 @@ export function createEnvironment(renderer, scene, M) {
     markings.add(ring);
   }
 
+  // --- Night ---------------------------------------------------------------------------
+  // The sun control used to be an elevation slider that stopped at 6 degrees. Taking it below
+  // the horizon costs one blend factor and turns the whole centre into a different place, so
+  // the exhibits get display lighting and the sky gets stars. The floodlights and the tower
+  // beacons are display lighting, not flight hardware, and the sheet says so.
+  const night = new THREE.Group();
+  night.name = 'night';
+  night.visible = false;
+  scene.add(night);
+  const stars = starShell(3400);
+  stars.material.opacity = 0; stars.material.transparent = true;
+  night.add(stars);
+  const displayLights = [];
+  /** One warm floodlight per station, aimed at the exhibit. No shadows: seven of those is a lot. */
+  function addDisplayLight(x, z, radius, height) {
+    const spot = new THREE.SpotLight(0xffe9c8, 0, radius * 6, 0.62, 0.55, 1.1);
+    spot.position.set(x + radius * 0.85, height * 1.5 + 5, z + radius * 0.85);
+    spot.target.position.set(x, height * 0.4, z);
+    night.add(spot, spot.target);
+    displayLights.push({ spot, peak: 40 + radius * radius * 3.2 });
+  }
+
   const fog = new THREE.FogExp2(0xc9d3de, 0.00019);
   scene.fog = fog;
   const GROUND_FOG = 0.00019;
   let skyBase = { turbidity: 2.1, rayleigh: 1.9, mie: 0.0035 };
   let envIntensity = 1.0, hemiBase = 0.45;
+  let nightK = 0;
 
   /** Keeps the sky centred on the viewer. Cheap, and the only way it survives an ascent. */
-  function followCamera(camera) { sky.position.copy(camera.position); }
+  function followCamera(camera) { sky.position.copy(camera.position); stars.position.copy(camera.position); }
 
   /**
    * Thins the atmosphere with altitude: the haze goes first, then the Rayleigh scattering
@@ -98,7 +122,7 @@ export function createEnvironment(renderer, scene, M) {
     su.turbidity.value = skyBase.turbidity * (1 - j * 0.97);
     su.mieCoefficient.value = skyBase.mie * (1 - j * 0.9);
     fog.density = GROUND_FOG * (1 - THREE.MathUtils.clamp(h / 9000, 0, 1));
-    skyFade.value = 1 - j * 0.94;
+    skyFade.value = Math.min(1 - j * 0.94, 1 - nightK * 0.86);
     scene.environmentIntensity = envIntensity * (1 - j * 0.55);
     hemi.intensity = hemiBase * (1 - j * 0.9);
     // Stretch the apron so there is still a surface under the vehicle on the way up. The
@@ -119,19 +143,20 @@ export function createEnvironment(renderer, scene, M) {
     ground.visible = !inSpace;
     markings.visible = !inSpace;
     sky.visible = !inSpace;
+    night.visible = !inSpace && nightK > 0.02;
     scene.fog = inSpace ? null : fog;
   }
+
+  // Sky scattering at ground level, before altitude or night touch it.
+  const SKY_GROUND = { turbidity: 2.1, rayleigh: 1.9, mie: 0.0035 };
+  const _nightHemi = new THREE.Color(0x2c3d5e), _nightFog = new THREE.Color(0x070a12);
 
   function setSun(elevationDeg, azimuthDeg) {
     const phi = THREE.MathUtils.degToRad(90 - elevationDeg);
     const theta = THREE.MathUtils.degToRad(azimuthDeg);
     sunDir.setFromSphericalCoords(1, phi, theta);
     su.sunPosition.value.copy(sunDir);
-    envSky.material.uniforms.sunPosition.value.copy(sunDir);
-    envSky.material.uniforms.turbidity.value = su.turbidity.value;
-    envSky.material.uniforms.rayleigh.value = su.rayleigh.value;
-    envSky.material.uniforms.mieCoefficient.value = su.mieCoefficient.value;
-    envSky.material.uniforms.mieDirectionalG.value = su.mieDirectionalG.value;
+
     // Colour temperature and intensity vs elevation (simple, plausible curve).
     // Direct sunlight only turns strongly orange within a few degrees of the horizon; at
     // working elevations it is close to neutral, and an over-saturated sun tints bare metal.
@@ -142,12 +167,41 @@ export function createEnvironment(renderer, scene, M) {
     hemi.color.setHSL(0.58, 0.32 - 0.12 * warmth, 0.62 + 0.08 * t);
     hemi.intensity = THREE.MathUtils.lerp(0.3, 0.55, t);
     fog.color.setHSL(0.58, 0.18 + 0.14 * warmth, THREE.MathUtils.lerp(0.50, 0.70, t));
+
+    // Dusk to night. The blend starts a few degrees above the horizon, where the real sky
+    // starts losing its light, and completes a few degrees below it. Everything here is
+    // computed from the ground-level constants rather than from the current uniforms: reading
+    // the uniforms back and multiplying would compound on every call of the slider.
+    nightK = THREE.MathUtils.clamp((5 - elevationDeg) / 15, 0, 1);
+    const n = nightK * nightK * (3 - 2 * nightK);
+    su.turbidity.value = SKY_GROUND.turbidity * (1 - n * 0.55);
+    su.rayleigh.value = SKY_GROUND.rayleigh * (1 - n * 0.45);
+    su.mieCoefficient.value = SKY_GROUND.mie;
+    sun.intensity *= (1 - n) + 0.012 * n;
+    hemi.intensity = THREE.MathUtils.lerp(hemi.intensity, 0.05, n);
+    hemi.color.lerp(_nightHemi, n);
+    fog.color.lerp(_nightFog, n);
+    fog.density = GROUND_FOG * (1 + n * 1.6);
+    skyFade.value = 1 - n * 0.86;
+    stars.material.opacity = Math.pow(n, 1.6);
+    night.visible = !inSpace && n > 0.02;
+    for (const d of displayLights) d.spot.intensity = d.peak * Math.pow(n, 1.3);
+
+    // The reflection probe is rebuilt from the same sky, after the night blend, so chrome and
+    // clearcoat go dark with the scene instead of staying lit by a daytime dome.
+    envSky.material.uniforms.sunPosition.value.copy(sunDir);
+    envSky.material.uniforms.turbidity.value = su.turbidity.value;
+    envSky.material.uniforms.rayleigh.value = su.rayleigh.value;
+    envSky.material.uniforms.mieCoefficient.value = su.mieCoefficient.value;
+    envSky.material.uniforms.mieDirectionalG.value = su.mieDirectionalG.value;
+    envGround.material.color.setScalar(THREE.MathUtils.lerp(0.30, 0.02, n));
     if (envRT) envRT.dispose();
     envRT = pmrem.fromScene(envScene, 0.02);
     scene.environment = envRT.texture;
     skyBase = { turbidity: su.turbidity.value, rayleigh: su.rayleigh.value, mie: su.mieCoefficient.value };
     hemiBase = hemi.intensity;
-    scene.environmentIntensity = 1.0;
+    envIntensity = THREE.MathUtils.lerp(1.0, 1.6, n);
+    scene.environmentIntensity = envIntensity;
   }
 
   const _tmp = new THREE.Vector3();
@@ -168,5 +222,9 @@ export function createEnvironment(renderer, scene, M) {
   // raked about 35° off the camera axis for modelling rather than flat frontal light.
   setSun(42, 34);
 
-  return { sun, sky, hemi, ground, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation, get inSpace() { return inSpace; }, get sunDir() { return sunDir; } };
+  return {
+    sun, sky, hemi, ground, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation,
+    addDisplayLight, get night() { return nightK; },
+    get inSpace() { return inSpace; }, get sunDir() { return sunDir; },
+  };
 }

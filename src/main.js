@@ -19,6 +19,7 @@ import { buildFalcon9, buildFalconHeavy } from './vehicles/falcon.js';
 import { buildDragon } from './vehicles/dragon.js';
 import { buildStarlink } from './vehicles/starlink.js';
 import { buildRoadster } from './vehicles/roadster.js';
+import { buildEngineHall } from './vehicles/enginehall.js';
 import { buildOrbitalBackdrop } from './core/backdrop.js';
 import { buildMount, buildPedestal, buildHuman } from './vehicles/common.js';
 import { seeded } from './geometry/utils.js';
@@ -41,6 +42,7 @@ const LAYOUT = {
   dragon: { x: 18, z: 0, mount: 1.6 },
   starlink: { x: 78, z: 0, mount: 6.2 },
   roadster: { x: 118, z: 0, mount: 1.4, yaw: 25 },
+  engines: { x: 163, z: 0, mount: 0, yaw: -12 },
 };
 // Recomposed when the Roadster became the sixth exhibit: the old frame was centred on x = -14
 // and the car sat at the right-hand edge, so the first thing a visitor saw did not contain it.
@@ -142,6 +144,7 @@ async function main() {
     dragon: [buildDragon, 'Dragon…'],
     starlink: [buildStarlink, 'Starlink V2 Mini…'],
     roadster: [buildRoadster, 'Tesla Roadster and Starman…'],
+    engines: [buildEngineHall, 'Raptor 3, Raptor Vacuum and Merlin 1D…'],
   };
   let step = 0;
   let complex = null;
@@ -166,6 +169,7 @@ async function main() {
       model.position.y = lay.mount;
       model.rotation.y = 0;
       env.addStation(lay.x, lay.z, 16);
+      env.addDisplayLight(lay.x, lay.z, 16, 8);
     } else if (v.id === 'dragon') {
       const ped = buildPedestal(M, { radius: 2.3, height: lay.mount });
       // cradle: four supports under the trunk rim
@@ -179,22 +183,33 @@ async function main() {
       group.add(ped);
       model.position.y = lay.mount + 0.6;
       env.addStation(lay.x, lay.z, 5);
+      env.addDisplayLight(lay.x, lay.z, 6, 8);
+    } else if (v.id === 'engines') {
+      // No plinth: the engines stand on the apron on their own cradles, which is what makes
+      // the 4.4 m of a Raptor Vacuum land next to a visitor rather than above one.
+      env.addStation(lay.x, lay.z, 8);
+      env.addDisplayLight(lay.x, lay.z, 8, 5);
     } else if (v.id === 'roadster') {
       const ped = buildPedestal(M, { radius: 2.5, height: lay.mount });
       roadsterPedestal = ped;
       group.add(ped);
       model.position.y = lay.mount;
       env.addStation(lay.x, lay.z, 6);
+      env.addDisplayLight(lay.x, lay.z, 6, 3);
     } else if (lay.pad) {
       // Starship stands on the real thing: the launch mount spanning the flame trench, with
       // the tower alongside. No display furniture, and no apron ring — the pad has its own.
       complex = buildLaunchComplex(M);
       group.add(complex);
       model.position.y = lay.mount;
+      // The pad has no display station, but at night an unlit 124 m stack against a black sky
+      // is just a hole in the frame.
+      env.addDisplayLight(lay.x, lay.z, 46, 90);
     } else {
       group.add(buildMount(M, { radius: lay.mountRadius, inner: lay.inner, height: lay.mount, clampRadius: lay.clampRadius, clamps: v.id === 'falconheavy' ? 0 : 4 }));
       model.position.y = lay.mount;
       env.addStation(lay.x, lay.z, lay.mountRadius + 1.5);
+      env.addDisplayLight(lay.x, lay.z, lay.mountRadius + 4, 30);
     }
     const yaw = THREE.MathUtils.degToRad(lay.yaw ?? 0);
     model.rotation.y = yaw;
@@ -516,6 +531,17 @@ async function main() {
   };
     // Exposed for the headless check: the orbital view is a global scene change, so the gate
   // has to be able to see that leaving it puts everything back.
+  // Exposed for the headless check: the night blend has to be a pure function of the slider,
+  // not something that accumulates. An earlier version read the sky uniforms back and
+  // multiplied them, so every drag of the slider made the sky darker than the one before.
+  const lightState = () => ({
+    night: +env.night.toFixed(4),
+    sun: +env.sun.intensity.toFixed(4),
+    hemi: +env.hemi.intensity.toFixed(4),
+    fog: scene.fog ? +scene.fog.density.toFixed(8) : null,
+    sky: +env.sky.material.uniforms.rayleigh.value.toFixed(4),
+  });
+
   const spaceState = () => ({
     space: env.inSpace,
     ground: env.ground.visible,
@@ -560,7 +586,7 @@ async function main() {
     hudEl.style.visibility = 'hidden'; labelEl.style.visibility = 'hidden';
   }
 
-  window.__vc = { M, scene, camera, rig, exhibits, complex, launch, select, goPreset, jump, renderer, env, setToggle, timings, verify, spaceState, ortho };
+  window.__vc = { M, scene, camera, rig, exhibits, complex, launch, select, goPreset, jump, renderer, env, setToggle, timings, verify, spaceState, lightState, ortho };
   const params = new URLSearchParams(location.search);
   if (params.has('verify')) verify();
   if (params.has('vehicle')) {

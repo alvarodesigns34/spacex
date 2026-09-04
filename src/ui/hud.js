@@ -40,7 +40,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       <label class="tool"><input type="checkbox" id="tg-labels" checked> Labels <kbd>L</kbd></label>
       <label class="tool"><input type="checkbox" id="tg-ruler" checked> Ruler <kbd>R</kbd></label>
       <label class="tool"><input type="checkbox" id="tg-humans" checked> 1.80 m figures</label>
-      <label class="tool tool-sun">Sun <input type="range" id="sun" min="6" max="75" value="42" step="1"></label>
+      <label class="tool tool-sun">Sun <input type="range" id="sun" min="-10" max="75" value="42" step="1" title="Sun elevation — below the horizon the centre switches to night"></label>
       <button class="tool tool-btn tool-launch" id="launch-btn" title="Starship launch sequence from Pad 2 (G)">Starship · Launch <kbd>G</kbd></button>
       <button class="tool tool-btn" id="mode-btn" title="Switch camera mode (F)">Orbit <kbd>F</kbd></button>
       <button class="tool tool-btn" id="help-btn" title="Help (H)">Help <kbd>H</kbd></button>
@@ -77,7 +77,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
         <table>
           <tr><td>Drag</td><td>orbit · <em>wheel</em> zoom · <em>right button</em> pan</td></tr>
           <tr><td><kbd>F</kbd></td><td>free flight: <kbd>W A S D</kbd> move · <kbd>Q</kbd>/<kbd>E</kbd> (or <kbd>C</kbd>/<kbd>space</kbd>) down/up · drag to look · <kbd>Shift</kbd> ×4 · <kbd>Ctrl</kbd> ×0.2 · wheel adjusts speed</td></tr>
-          <tr><td><kbd>1</kbd>–<kbd>6</kbd></td><td>select vehicle</td></tr>
+          <tr><td><kbd>1</kbd>–<kbd>7</kbd></td><td>select exhibit</td></tr>
           <tr><td><kbd>L</kbd> <kbd>R</kbd> <kbd>T</kbd></td><td>labels · ruler · data sheet</td></tr>
           <tr><td><kbd>0</kbd></td><td>overview of the centre</td></tr>
           <tr><td><kbd>G</kbd></td><td>Starship launch sequence · during the countdown and ascent, dragging or scrolling hands the camera back to you without stopping it</td></tr>

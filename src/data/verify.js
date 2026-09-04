@@ -22,6 +22,13 @@ export const EXPECTED = {
     height: 1.128, footprint: 3.947, breadth: 1.852, tol: 0.025, fromHull: true,
     note: 'Altura al techo del parabrisas, longitud y anchura de carrocería (publicado)',
   },
+  // The engine stands are measured on the Raptor Vacuum, the tallest of the three: 4,4 m of
+  // engine and a 2,3 m exit plane, both publicados en spacex.com. Se mide el tamaño del casco,
+  // no su cota superior, porque el motor se apoya en una cuna a 0,34 m del suelo.
+  engines: {
+    height: 4.4, footprint: 2.3, tol: 0.02, fromHullSize: true,
+    note: 'Raptor Vacuum: altura y diámetro de salida (spacex.com)',
+  },
 };
 
 /**
@@ -56,6 +63,7 @@ function measure(model, hullNames) {
     // The short horizontal axis of the hull. For the rockets it is the same as hullWidth; for
     // the car it is the body width, which is the figure that was wrong by 12 cm.
     hullBreadth: Math.min(hullSize.x, hullSize.z),
+    hullHeight: hullSize.y,
     // Top of the hull above the model origin. The rockets sit on their origin so the raw box
     // height is their height, but the Roadster carries flight hardware that hangs below the
     // tyres (the payload adapter) and stands above the car (the selfie booms), neither of
@@ -76,6 +84,9 @@ const HULLS = {
   // body-shell is a Group, so measure() — which only looks at meshes — never saw it and the
   // check silently fell back to the whole model. body-paint is the actual painted hull.
   roadster: ['body-paint', 'windshield-surround', 'windshield-glass'],
+  // Only the Raptor Vacuum: the row also holds a Raptor 3 and a Merlin, and the display
+  // cradles are furniture.
+  engines: ['rvac-bell', 'rvac-bell-inner', 'rvac-head'],
 };
 
 /**
@@ -148,7 +159,7 @@ export function verifyExhibits(exhibits, { log = true } = {}) {
     };
     // Height is measured from the model's own origin, which every builder places at the aft
     // plane, so the raw bounding-box height is the vehicle height.
-    check('altura', exp.fromHull ? m.hullTop : m.height, exp.height);
+    check('altura', exp.fromHullSize ? m.hullHeight : exp.fromHull ? m.hullTop : m.height, exp.height);
     check('envergadura / diámetro', HULLS[id] ? m.hullWidth : m.width, exp.footprint);
     check('anchura de carrocería', m.hullBreadth, exp.breadth);
   }

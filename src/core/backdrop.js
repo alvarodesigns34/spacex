@@ -41,7 +41,7 @@ function earthMaps() {
 }
 
 /** Point stars as an additive shell, far enough out to sit behind the globe. */
-function starShell(radius) {
+export function starShell(radius) {
   const N = 2600, rnd = seeded(4172);
   const pos = new Float32Array(N * 3), col = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) {

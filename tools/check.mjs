@@ -110,6 +110,28 @@ try {
         : `antes ${JSON.stringify(before)} · dentro ${JSON.stringify(during)} · después ${JSON.stringify(after)}`);
   }
 
+  // ---- Day and night -------------------------------------------------------------------
+  // The sun control now runs below the horizon and blends the whole centre into night. Two
+  // things have to hold: the blend must be a pure function of the slider (an earlier version
+  // read the sky uniforms back and multiplied them, so every call darkened the sky further),
+  // and coming back up must restore the day exactly.
+  {
+    const read = (deg) => page.evaluate((d) => { window.__vc.env.setSun(d, 34); return window.__vc.lightState(); }, deg);
+    const day1 = await read(42);
+    const nightA = await read(-8);
+    const nightB = await read(-8);
+    const day2 = await read(42);
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    const pure = same(nightA, nightB);
+    const restored = same(day1, day2);
+    const darker = nightA.night > 0.85 && nightA.sun < day1.sun * 0.1 && nightA.sky < day1.sky;
+    report(pure && restored && darker, 'el ciclo día/noche es reversible y no se acumula',
+      pure && restored && darker
+        ? `noche ${nightA.night}, sol ${day1.sun} -> ${nightA.sun}, cielo ${day1.sky} -> ${nightA.sky}`
+        : `puro ${pure} · restaura ${restored} · oscurece ${darker} · ${JSON.stringify({ day1, nightA, nightB, day2 })}`);
+    await page.evaluate(() => window.__vc.env.setSun(42, 34));
+  }
+
   // ---- Launch sequence -----------------------------------------------------------------
   // The sequence has to be checkable, which is why seek() reproduces the full state for a
   // mission time rather than only advancing. Every milestone must leave finite transforms

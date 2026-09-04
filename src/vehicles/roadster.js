@@ -1122,7 +1122,7 @@ function lampContains(L, z, t, k = 1) {
  * Grid over a lamp footprint. `off` displaces along the surface normal; `bulge` adds the lens
  * rise, which is zero on the rim so the part sits flush in the bodywork.
  */
-function lampPatch(L, s, off, bulge, Nu = 22, Nv = 10) {
+function lampPatch(L, s, off, bulge, both = true, Nu = 22, Nv = 10) {
   const pos = new Float32Array((Nu + 1) * (Nv + 1) * 3);
   const uv = new Float32Array((Nu + 1) * (Nv + 1) * 2);
   const idx = [];
@@ -1142,7 +1142,12 @@ function lampPatch(L, s, off, bulge, Nu = 22, Nv = 10) {
     for (let j = 0; j < Nv; j++) {
       const a = i * (Nv + 1) + j, b = (i + 1) * (Nv + 1) + j;
       const c = (i + 1) * (Nv + 1) + j + 1, d = i * (Nv + 1) + j + 1;
-      idx.push(a, b, d, b, c, d, a, d, b, b, d, c);   // seen from both sides inside the pocket
+      // The pocket is seen from the inside as well, so it carries both windings; the lens must
+      // not, or the two coincident transparent faces beat against each other and the glass
+      // renders as a scaly mesh.
+      if (both) idx.push(a, b, d, b, c, d, a, d, b, b, d, c);
+      else if (s < 0) idx.push(a, b, d, b, c, d);
+      else idx.push(a, d, b, b, d, c);
     }
   }
   const geo = new THREE.BufferGeometry();
@@ -1221,7 +1226,7 @@ function buildHeadlights(mats) {
     side.add(lampCell(LAMP_FRONT, s, 0.815, 0.023, mats, mats.amberReflector, null));
 
     // The lens last, so it reads over the optics.
-    side.add(mesh(lampPatch(LAMP_FRONT, s, 0.0015, LAMP_FRONT.rise), mats.headlightLens, { name: 'lamp-lens' }));
+    side.add(mesh(lampPatch(LAMP_FRONT, s, 0.0015, LAMP_FRONT.rise, false), mats.headlightLens, { name: 'lamp-lens' }));
 
     // Amber side marker low on the fender flank, flush in its own pocket.
     const it = s < 0 ? T_CENTRE - 0.300 : T_CENTRE + 0.300;
