@@ -5,13 +5,19 @@
  *  - Vehicle: Original First-Generation Tesla Roadster (2008 / 2.5 Sport edition),
  *    personal car of Elon Musk, launched as mass simulator payload on the maiden flight
  *    of SpaceX Falcon Heavy on 6 February 2018 from Launch Complex 39A (KSC).
- *  - Documented Dimensions (Gen 1 Tesla Roadster official specifications):
- *      Overall length:  3.946 m (declared 3.95 m)
+ *  - Documented Dimensions (Gen 1 Tesla Roadster published specifications):
+ *      Overall length:  3.947 m (declared 3.95 m)
  *      Wheelbase:       2.352 m (front axle z = +1.176 m, rear axle z = -1.176 m)
- *      Overall width:   1.728 m (body) / 1.873 m (with exterior mirrors)
+ *      Overall width:   1.852 m (body) / 1.873 m (with exterior mirrors)
  *      Overall height:  1.128 m (declared 1.13 m)
- *      Front track:     1.455 m, Rear track: 1.490 m
- *      Wheel sizes:     Front 175/55 R16 (ø 0.60 m), Rear 225/45 R17 (ø 0.634 m)
+ *      Front track:     1.463 m, Rear track: 1.499 m
+ *      Ground clearance: 0.130 m
+ *      Wheel sizes:     Front 175/55 R16 (ø 0.599 m), Rear 225/45 R17 (ø 0.634 m)
+ *    Sources: evspecifications (Roadster 1.5, full chassis table), dimensions.com and
+ *    autopadre (both 1.85 m explicitly \"without mirrors\"), wheel-size.com (OEM fitment),
+ *    Wikipedia (1.873 m = across the mirrors). The 1.728 m this model carried until now is
+ *    the Lotus Elise's width: the Tesla has its own carbon bodywork on wider tracks and is
+ *    12 cm broader, which is most of why it read too narrow for its length.
  *  - Finish: Midnight Cherry Red metallic car paint with deep clearcoat gloss.
  *  - Configuration: Open cockpit (hardtop roof removed for flight).
  *  - Passenger: Starman mannequin in authentic SpaceX IVA flight spacesuit.
@@ -34,16 +40,16 @@ import { canvas, shade, fbm, noise2, heightToNormal, toTexture } from '../materi
 
 // ---- Dimensions -------------------------------------------------------------------------
 export const ROADSTER_SPECS = {
-  length: 3.95,       // total bumper-to-bumper length
-  width: 1.73,        // body width
-  widthMirrors: 1.87, // width including exterior mirrors
-  height: 1.13,       // ground to top of windshield header / roll bar
+  length: 3.947,      // total bumper-to-bumper length
+  width: 1.852,       // body width, without mirrors
+  widthMirrors: 1.873,// width across the exterior mirrors
+  height: 1.128,      // ground to top of windshield header / roll bar
   wheelbase: 2.352,   // distance between front and rear axle centers
-  trackFront: 1.455,
-  trackRear: 1.490,
-  rideHeight: 0.13,   // ground clearance
-  wheelRadiusFront: 0.30,
-  wheelRadiusRear: 0.317,
+  trackFront: 1.463,
+  trackRear: 1.499,
+  rideHeight: 0.130,  // published ground clearance
+  wheelRadiusFront: 0.2995,  // 175/55 R16
+  wheelRadiusRear: 0.3172,   // 225/45 R17
 };
 
 // -----------------------------------------------------------------------------------------
@@ -62,7 +68,7 @@ export const ROADSTER_SPECS = {
 
 // The bumper caps roll forward of the last swept station, so the stations sit back from the
 // declared extremes by exactly the cap depth and the finished car measures 3.946 m.
-const CAP_NOSE = 0.062, CAP_TAIL = 0.030;
+const CAP_NOSE = 0.070, CAP_TAIL = 0.052;
 const Z_NOSE = 1.973 - CAP_NOSE;   // last swept station at the front
 const Z_TAIL = -1.973 + CAP_TAIL;  // last swept station at the rear
 const Z_AXLE_F = 1.176;
@@ -79,40 +85,49 @@ const T_SILL_L = 0, T_SHOULDER_L = 4 / 12, T_CENTRE = 6 / 12, T_SHOULDER_R = 8 /
 // their width and round their corners in plan, which is what a bumper does; collapsing the
 // half-width to zero would make a boat prow, not a car.
 const halfWidth = curve([
-  [-1.973, 0.628], [-1.900, 0.723], [-1.740, 0.802], [-1.480, 0.849],
-  [-1.176, 0.864], [-0.900, 0.849], [-0.400, 0.821], [0.120, 0.811],
-  [0.460, 0.815], [0.860, 0.827], [1.176, 0.838], [1.520, 0.822],
-  [1.740, 0.767], [1.900, 0.686], [1.973, 0.604],
+  [-1.973, 0.720], [-1.850, 0.800], [-1.650, 0.878], [-1.400, 0.918],
+  [-1.176, 0.926], [-1.000, 0.916], [-0.720, 0.888], [-0.400, 0.868],
+  [0.000, 0.858], [0.460, 0.872], [0.900, 0.898], [1.176, 0.912],
+  [1.400, 0.895], [1.600, 0.845], [1.780, 0.755], [1.900, 0.660], [1.973, 0.560],
 ]);
 
 // Beltline: the highest point of the bodywork at each station, reached at the shoulder. The
 // windscreen header, built separately, is what sets the declared 1.128 m overall height.
+// Read off the side elevation: this car's body top is close to level from the front fender
+// crown to the rear haunch, and only falls away in the last half-metre at each end. The
+// earlier tables dropped it to 0.55 at the tail and 0.51 at the nose, which is why both ends
+// melted downwards instead of ending in a leading edge and a Kamm cut-off.
 const yBelt = curve([
-  [-1.973, 0.548], [-1.900, 0.849], [-1.740, 0.879], [-1.480, 0.889],
-  [-1.176, 0.892], [-0.900, 0.877], [-0.400, 0.826], [0.120, 0.800],
-  [0.460, 0.802], [0.860, 0.814], [1.176, 0.826], [1.520, 0.792],
-  [1.740, 0.722], [1.900, 0.618], [1.973, 0.512],
+  [-1.973, 0.742], [-1.850, 0.826], [-1.650, 0.892], [-1.400, 0.918],
+  [-1.176, 0.922], [-1.000, 0.912], [-0.720, 0.888], [-0.400, 0.874],
+  [0.000, 0.872], [0.460, 0.888], [0.900, 0.894], [1.176, 0.896],
+  [1.400, 0.874], [1.600, 0.836], [1.780, 0.744], [1.900, 0.648], [1.973, 0.572],
 ]);
 
-// Centreline crown: the bonnet and deck at x = 0. Sitting 13 cm below the beltline over the
-// front axle is what gives the Elise clamshell its raised fender crowns.
+// Centreline crown: the bonnet and deck at x = 0. It runs a few centimetres below the belt,
+// which is what gives the clamshell its raised fender crowns without turning the bonnet into
+// a valley — on the real car the difference across the bonnet is 3-4 cm, not the 17 cm the
+// previous table carried.
 const yCrown = curve([
-  [-1.973, 0.470], [-1.900, 0.836], [-1.740, 0.856], [-1.480, 0.854],
-  [-1.176, 0.846], [-0.900, 0.831], [-0.400, 0.795], [0.120, 0.766],
-  [0.460, 0.740], [0.860, 0.690], [1.176, 0.652], [1.520, 0.600],
-  [1.740, 0.540], [1.900, 0.470], [1.973, 0.416],
+  [-1.973, 0.734], [-1.850, 0.820], [-1.650, 0.884], [-1.400, 0.906],
+  [-1.176, 0.906], [-1.000, 0.896], [-0.720, 0.868], [-0.400, 0.846],
+  [0.000, 0.840], [0.460, 0.876], [0.900, 0.868], [1.176, 0.862],
+  [1.400, 0.846], [1.600, 0.812], [1.780, 0.722], [1.900, 0.628], [1.973, 0.552],
 ]);
 
 // Rocker: the bottom edge of the visible body side, before the wheel arches cut into it.
+// The published ground clearance is 0.130 m at the floor; the visible sill edge sits above it
+// and lifts at both ends where the bumpers undercut.
 const ySillBase = curve([
-  [-1.973, 0.332], [-1.860, 0.196], [-1.400, 0.134], [-0.400, 0.118],
-  [0.400, 0.122], [1.400, 0.150], [1.860, 0.238], [1.973, 0.318],
+  [-1.973, 0.262], [-1.700, 0.205], [-1.176, 0.172], [-0.400, 0.152],
+  [0.400, 0.150], [1.176, 0.158], [1.600, 0.166], [1.860, 0.200], [1.973, 0.248],
 ]);
 
-// Wheel arch openings. Radius is the tyre radius plus the gap the car actually carries.
+// Wheel arch openings. Radius is the tyre radius plus the gap the car actually carries — this
+// chassis runs a visibly large arch gap, which is part of how it reads.
 const ARCHES = [
-  { z: Z_AXLE_F, r: 0.374, top: 0.630 },
-  { z: Z_AXLE_R, r: 0.398, top: 0.664 },
+  { z: Z_AXLE_F, r: 0.346, top: 0.636 },
+  { z: Z_AXLE_R, r: 0.366, top: 0.678 },
 ];
 
 /** Rocker line with the two arches cut out of it. */
@@ -189,7 +204,7 @@ function stations(z0, z1, n) {
  * accumulated arc length across the section and along the sweep — so a paint flake map tiles
  * by the millimetre the same way the steel maps tile by the metre.
  */
-function sweep(zs, ts, flip = false) {
+function sweep(zs, ts, flip = false, skip = null) {
   const Nu = zs.length, Nv = ts.length;
   const pos = new Float32Array(Nu * Nv * 3);
   const uv = new Float32Array(Nu * Nv * 2);
@@ -217,6 +232,10 @@ function sweep(zs, ts, flip = false) {
   }
   for (let i = 0; i < Nu - 1; i++) {
     for (let j = 0; j < Nv - 1; j++) {
+      // A panel with an opening in it — a lamp aperture — drops the quads inside the opening.
+      // Leaving the surface closed and standing the lamp on top of it is what made the
+      // headlights read as decals painted onto the wing.
+      if (skip && skip((zs[i] + zs[i + 1]) / 2, (ts[j] + ts[j + 1]) / 2)) continue;
       const a = i * Nv + j, b = (i + 1) * Nv + j, c = (i + 1) * Nv + (j + 1), d = i * Nv + (j + 1);
       if (flip) { idx.push(a, d, b, b, d, c); } else { idx.push(a, b, d, b, c, d); }
     }
@@ -266,14 +285,19 @@ function endCap(ring, dirZ, depth, flatFrac, rings = 4, flip = false) {
   }
   const centre = pos.length / 3;
   pos.push(cx, cy, ring[0].z + dirZ * depth);
+  // The section ring runs sill to sill over the top and is NOT a closed loop, so wrapping the
+  // last point back to the first is what closes the underside of the bumper. Without the wrap
+  // the cap was a cone missing one wedge, and the car had a triangular hole under each end —
+  // visible straight through the tail in rear elevation.
   for (let k = 0; k < rings; k++) {
-    for (let j = 0; j < n - 1; j++) {
-      const a = k * n + j, b = (k + 1) * n + j, c = (k + 1) * n + j + 1, d = k * n + j + 1;
+    for (let j = 0; j < n; j++) {
+      const j2 = (j + 1) % n;
+      const a = k * n + j, b = (k + 1) * n + j, c = (k + 1) * n + j2, d = k * n + j2;
       if (flip) idx.push(a, d, b, b, d, c); else idx.push(a, b, d, b, c, d);
     }
   }
-  for (let j = 0; j < n - 1; j++) {
-    const a = rings * n + j, b = rings * n + j + 1;
+  for (let j = 0; j < n; j++) {
+    const a = rings * n + j, b = rings * n + (j + 1) % n;
     if (flip) idx.push(a, centre, b); else idx.push(a, b, centre);
   }
   const geo = new THREE.BufferGeometry();
@@ -546,6 +570,10 @@ function createRoadsterMaterials(M) {
   // The reflector pocket behind each lamp: near-black, so the lamps read as depth.
   const reflectorBowl = new THREE.MeshStandardMaterial({ color: 0x0a0b0d, metalness: 0.5, roughness: 0.35 });
 
+  // Moulded lamp housing — the matte black plastic the front and rear optics sit in. Both ends
+  // of the car use it, and it is what makes the lamps read as assemblies rather than decals.
+  const lampHousing = new THREE.MeshStandardMaterial({ color: 0x0c0d10, metalness: 0.10, roughness: 0.62 });
+
   // Machined forged alloy, not show chrome. The Demo car wore silver forged wheels.
   const forgedAlloy = new THREE.MeshPhysicalMaterial({
     color: 0xb9bdc2, metalness: 0.92, roughness: 0.28, clearcoat: 0.5, clearcoatRoughness: 0.16,
@@ -580,8 +608,9 @@ function createRoadsterMaterials(M) {
   // Lens glass without transmission: clear coat over the chrome bowl behind it does the work,
   // and Three re-renders the scene once per transmissive object, which these do not need.
   const headlightLens = new THREE.MeshPhysicalMaterial({
-    color: 0xc9d6e4, metalness: 0.0, roughness: 0.04, clearcoat: 1.0, clearcoatRoughness: 0.02,
-    transparent: true, opacity: 0.22, envMapIntensity: 0.9, depthWrite: false,
+    color: 0xe6eef6, metalness: 0.0, roughness: 0.03, clearcoat: 1.0, clearcoatRoughness: 0.02,
+    transparent: true, opacity: 0.10, envMapIntensity: 1.15, depthWrite: false,
+    side: THREE.DoubleSide,
   });
 
   const taillightRed = new THREE.MeshPhysicalMaterial({
@@ -616,7 +645,7 @@ function createRoadsterMaterials(M) {
   const aluminium = M.aluminum || forgedAlloy;
 
   return {
-    cherryRed, blackTrim, satinBlack, carbonFiber, chromeTrim, forgedAlloy, aluminium, reflectorBowl,
+    cherryRed, blackTrim, satinBlack, carbonFiber, chromeTrim, forgedAlloy, aluminium, reflectorBowl, lampHousing,
     tyreRubber, brakeRotor, brakeCaliper, amberReflector, windshieldGlass, headlightLens, taillightRed,
     starmanSuitWhite, starmanSuitGraphite, starmanVisor, quartzDisc, grilleMesh,
   };
@@ -636,18 +665,41 @@ function buildBodyShell(mats, M) {
   const tDoorL = params(T_SILL_L, T_SHOULDER_L, 13);
   const tDoorR = params(T_SHOULDER_R, T_SILL_R, 13);
 
-  const zFront = stations(Z_COWL + SHUT / 2, Z_NOSE, 40);
-  const zRear = stations(Z_TAIL, Z_BULK - SHUT / 2, 40);
+  // The front panel carries the lamp apertures, and a hole is only as clean as the grid it is
+  // cut from: at the panel's normal spacing the aperture edge came out in 20 mm teeth. Densify
+  // just the two bands the lamps live in — the rest of the panel keeps its usual sampling.
+  const tFront = (() => {
+    const set = new Set(tFull);
+    for (const s2 of [-1, 1]) {
+      for (let d = 0.100; d <= 0.300; d += 0.0035) set.add(T_CENTRE + s2 * d);
+    }
+    return [...set].sort((a, b) => a - b);
+  })();
+
+  // The rear panel carries the tail-lamp apertures and needs the same treatment.
+  const tRear = (() => {
+    const set = new Set(tFull);
+    for (const s2 of [-1, 1]) {
+      for (let d = 0.050; d <= 0.330; d += 0.0035) set.add(T_CENTRE + s2 * d);
+    }
+    return [...set].sort((a, b) => a - b);
+  })();
+
+  const zFront = stations(Z_COWL + SHUT / 2, Z_NOSE, 52);
+  const zRear = stations(Z_TAIL, Z_BULK - SHUT / 2, 52);
   const zDoor = stations(Z_BULK + SHUT / 2, Z_COWL - SHUT / 2, 22);
 
   const panels = [
-    { geometry: sweep(zFront, tFull) },
-    { geometry: sweep(zRear, tFull) },
+    { geometry: sweep(zFront, tFront, false, (z, t) => lampContains(LAMP_FRONT, z, t, 1.02)) },
+    { geometry: sweep(zRear, tRear, false, (z, t) => lampContains(LAMP_REAR, z, t, 1.02)) },
     { geometry: sweep(zDoor, tDoorL) },
     { geometry: sweep(zDoor, tDoorR) },
     // Bumper faces. The nose rolls deep, the tail is a Kamm cut-off with a tight radius.
-    { geometry: endCap(ringAt(Z_NOSE, tFull), 1, CAP_NOSE, 0.66, 4) },
-    { geometry: endCap(ringAt(Z_TAIL, tFull), -1, CAP_TAIL, 0.80, 3, true) },
+    // Both are wound the same way: the tail was passing flip=true and rendering inside-out,
+    // which at the old 30 mm cap depth was a sliver nobody could see and at a realistic depth
+    // is a hole straight through the back of the car.
+    { geometry: endCap(ringAt(Z_NOSE, tFront), 1, CAP_NOSE, 0.66, 4) },
+    { geometry: endCap(ringAt(Z_TAIL, tRear), -1, CAP_TAIL, 0.86, 3, false) },
     // Shut-line walls.
     { geometry: edgeFlange(ringAt(Z_COWL + SHUT / 2, tFull), -0.013, 0.006) },
     { geometry: edgeFlange(ringAt(Z_BULK - SHUT / 2, tFull), 0.013, 0.006, true) },
@@ -789,7 +841,10 @@ function buildBodyShell(mats, M) {
   g.add(mesh(mergeAll(wheelLinerParts), mats.satinBlack, { name: 'wheel-well-liners' }));
 
   // 6. UNDERBODY AERO PAN (Full-length flat belly tray from chin to diffuser)
-  const bellyPan = new THREE.BoxGeometry(1.48, 0.025, 3.88);
+  // Kept inside the wheelbase: at 3.88 m it reached past the bumpers and, because the rocker
+  // line lifts to 0.33 m at each end, showed in side elevation as a slab hanging under the nose
+  // and the tail.
+  const bellyPan = new THREE.BoxGeometry(1.34, 0.025, 2.86);
   g.add(mesh(bellyPan, mats.blackTrim, { position: [0, 0.138, 0], name: 'underbody-belly-pan' }));
 
   // Longitudinal battery cooling strakes along the underbody tray
@@ -815,7 +870,7 @@ function buildBodyShell(mats, M) {
   // Rebuilt as a real opening in the fascia: a dark plenum behind a body-colour lip, with the
   // radiator matrix visible through it.
   {
-    const zM = 1.945, yM = 0.352, wM = 0.34, hM = 0.062;
+    const zM = 1.945, yM = 0.322, wM = 0.492, hM = 0.058;
     const mouth = [];
     for (let i = 0; i <= 40; i++) {
       const ang = (i / 40) * Math.PI * 2;
@@ -836,7 +891,7 @@ function buildBodyShell(mats, M) {
     g.add(mesh(new THREE.BoxGeometry(wM * 2 - 0.05, hM * 2 - 0.03, 0.018), mats.grilleMesh, {
       position: [0, yM, zM - 0.040], name: 'front-grille',
     }));
-    g.add(mesh(new THREE.BoxGeometry(wM * 2 - 0.07, hM * 2 - 0.05, 0.016), mats.aluminium, {
+    g.add(mesh(new THREE.BoxGeometry(wM * 2 - 0.07, hM * 2 - 0.05, 0.016), mats.lampHousing, {
       position: [0, yM, zM - 0.070], name: 'radiator-core',
     }));
   }
@@ -860,19 +915,20 @@ function buildBodyShell(mats, M) {
 
   // Rear underbody tray, tucked under the tail rather than hanging below it.
   {
-    const parts = [{ geometry: new THREE.BoxGeometry(1.22, 0.030, 0.42), matrix: mat4([0, 0.152, -1.700]) }];
+    const parts = [{ geometry: new THREE.BoxGeometry(1.10, 0.062, 0.30), matrix: mat4([0, 0.246, -1.796]) }];
     for (const sx of [-0.42, -0.14, 0.14, 0.42]) {
-      parts.push({ geometry: new THREE.BoxGeometry(0.014, 0.088, 0.40), matrix: mat4([sx, 0.196, -1.700]) });
+      parts.push({ geometry: new THREE.BoxGeometry(0.014, 0.070, 0.28), matrix: mat4([sx * 0.80, 0.258, -1.796]) });
     }
     g.add(mesh(mergeAll(parts), mats.satinBlack, { name: 'rear-diffuser' }));
   }
 
   // The Demo car flew without plates, so the tail carries the empty recess and nothing else:
-  // a black cavity is the faithful answer, an invented California plate is not.
+  // a black cavity is the faithful answer, an invented California plate is not. Bedded on the
+  // tail surface rather than at a hardcoded height, which left it hanging off the old panel.
   {
-    const p0 = bodyPoint(Z_TAIL, T_CENTRE);
-    g.add(mesh(new THREE.BoxGeometry(0.36, 0.13, 0.026), mats.satinBlack, {
-      position: [0, p0.y - 0.070, Z_TAIL - CAP_TAIL],
+    const p0 = bodyPoint(Z_TAIL + 0.030, T_CENTRE), n0 = bodyNormal(Z_TAIL + 0.030, T_CENTRE);
+    g.add(mesh(new THREE.BoxGeometry(0.34, 0.115, 0.022), mats.satinBlack, {
+      position: [0, p0.y - 0.128, p0.z + n0.z * 0.004 - 0.010],
       name: 'rear-plate-recess',
     }));
   }
@@ -893,19 +949,19 @@ function buildBodyShell(mats, M) {
     // Mirrors are mounted off the door skin, so take the root off the body surface instead of
     // the hardcoded coordinates the old body used — they left the housings floating in space
     // once the flank moved. Overall width with mirrors is the declared 1,873 m.
-    const mt = side < 0 ? T_SHOULDER_L + 0.030 : T_SHOULDER_R - 0.030;
+    const mt = side < 0 ? T_SHOULDER_L - 0.024 : T_SHOULDER_R + 0.024;
     const root = bodyPoint(0.325, mt);
-    const armX = side * (ROADSTER_SPECS.widthMirrors / 2 - 0.052);
+    const armX = side * (ROADSTER_SPECS.widthMirrors / 2 - 0.048);
     const mirrorStem = tube([
       [root.x, root.y, root.z],
-      [root.x + (armX - root.x) * 0.55, root.y + 0.030, root.z + 0.006],
-      [armX, root.y + 0.042, root.z + 0.010],
+      [root.x + (armX - root.x) * 0.55, root.y + 0.016, root.z + 0.006],
+      [armX, root.y + 0.022, root.z + 0.010],
     ], 0.012, { tubular: 16, radial: 8 });
     g.add(mesh(mirrorStem, mats.satinBlack));
 
     const mirrorHousing = new THREE.Group();
     mirrorHousing.name = `mirror-${side < 0 ? 'left' : 'right'}`;
-    mirrorHousing.position.set(armX, root.y + 0.044, root.z + 0.010);
+    mirrorHousing.position.set(armX, root.y + 0.024, root.z + 0.010);
     mirrorHousing.rotation.set(-0.10, side * 0.20, -0.05);
 
     const mBody = new THREE.SphereGeometry(0.052, 20, 14);
@@ -951,86 +1007,229 @@ function buildBodyShell(mats, M) {
     }
   }
 
+  // Front splitter and the two corner intakes under the fascia. The car carries a black lower
+  // valance the full width of the nose, not a bare bumper edge.
+  {
+    const splitter = [];
+    for (let i = 0; i <= 26; i++) {
+      const u = (i / 26) * 2 - 1;
+      const x = u * 0.700;
+      splitter.push([x, 0.186 - Math.pow(Math.abs(u), 2.4) * 0.026, 1.922 - Math.pow(Math.abs(u), 1.8) * 0.205]);
+    }
+    g.add(mesh(tube(splitter, 0.020, { tubular: 30, radial: 8 }), mats.satinBlack, { name: 'front-splitter' }));
+    for (const sx of [-1, 1]) {
+      g.add(mesh(new THREE.BoxGeometry(0.115, 0.058, 0.055), mats.lampHousing, {
+        position: [sx * 0.585, 0.286, 1.885], rotation: [0, sx * 0.34, 0], name: 'front-corner-intake',
+      }));
+    }
+  }
+
+  // Bonnet strakes. The clamshell is not a plain dome: it carries raised longitudinal ridges
+  // either side of a raised centre panel, which is the first thing the eye picks up in every
+  // photograph of the front of this car. Each is drawn along the master surface, so it follows
+  // the crown instead of floating over it.
+  {
+    const ridges = [];
+    for (const s2 of [-1, 1]) {
+      for (const dt of [0.052, 0.104]) {
+        const pts = [];
+        for (let i = 0; i <= 30; i++) {
+          const u = i / 30;
+          const z = 0.560 + (1.640 - 0.560) * u;
+          const t = T_CENTRE + s2 * dt * (0.62 + 0.38 * Math.sin(Math.PI * Math.min(1, u * 1.15)));
+          const p = bodyPoint(z, t), n = bodyNormal(z, t);
+          // Fade into the paint at both ends so the ridge starts and stops like pressed metal.
+          const f = Math.min(1, Math.sin(Math.PI * u) * 2.2);
+          pts.push([p.x + n.x * (f * 0.004 - 0.005), p.y + n.y * (f * 0.004 - 0.005), p.z + n.z * (f * 0.004 - 0.005)]);
+        }
+        ridges.push({ geometry: tube(pts, 0.0115, { tubular: 42, radial: 8 }) });
+      }
+    }
+    g.add(mesh(mergeAll(ridges), mats.cherryRed, { name: 'bonnet-strakes' }));
+  }
+
+  // Rear deck lip. The tail finishes in a raised blade between the lamps, which is what stops
+  // the back of the car reading as a rounded-off lump.
+  {
+    const lip = [];
+    for (let i = 0; i <= 30; i++) {
+      const t = T_CENTRE + ((i / 30) * 2 - 1) * 0.212;
+      const p = bodyPoint(-1.842, t), n = bodyNormal(-1.842, t);
+      lip.push([p.x + n.x * 0.010, p.y + n.y * 0.010 + 0.012, p.z + n.z * 0.010]);
+    }
+    g.add(mesh(tube(lip, 0.0135, { tubular: 34, radial: 8 }), mats.cherryRed, { name: 'rear-deck-lip' }));
+  }
+
   return g;
 }
 
 // -----------------------------------------------------------------------------------------
-//  Headlights: stacked round Elise-derived optics, recessed into the front clamshell
+//  Headlights: the swept teardrop lens, built out of the fender surface
 // -----------------------------------------------------------------------------------------
-// The Gen 1 Roadster does not have almond projector clusters — that is a modern-car shape. It
-// inherits the Elise's two round lenses per side, stacked, sitting inside a pocket cut into the
-// clamshell rather than resting on top of the paint, with an amber indicator wrapping the
-// outboard corner. It is the single detail that most says "2008 Roadster".
+// Corrected against photographs of the car (Wikimedia Commons, 2008 Roadster front and front
+// three-quarter). The lamp is NOT two small round lenses sitting on the paint, which is what
+// this model carried and what made the nose read as a blob with stickers on it. It is one long
+// clear teardrop lens, roughly 0.45 m of it, that starts narrow near the centre of the nose and
+// sweeps outward and back over the crown of the front fender, with three round elements in a
+// row inside it — a large projector inboard and two smaller units outboard — over a dark
+// housing.
+//
+// Because the lens follows the fender, it is built from the master surface exactly like the
+// side intakes: a patch of (z, t) with a teardrop planform, lifted along the surface normal by
+// a rise that falls to zero at the rim, so the glass meets the paint flush all the way round.
+
+// A lamp footprint is an affine patch of the (z, t) domain: a point (a, b) in the lamp's own
+// frame — a along the lamp, b across it — maps to
+//     z = z0 + za*a + zb*b        t = T_CENTRE + s*(t0 + ta*a + tb*b)
+// The map is affine, so it inverts, which is what lets the same description both generate the
+// lamp geometry and answer "is this vertex inside the opening?" when the panel is swept.
+const LAMP_FRONT = {
+  z0: 1.884, za: -0.236, zb: 0.0,
+  t0: 0.132, ta: 0.128, tb: 0.040,
+  shape: (a) => Math.sin(Math.PI * Math.pow(a, 0.60)) * 0.86 + 0.14,
+  rise: 0.006, depth: 0.046,
+};
+// The tail lamp runs across the tail rather than along the car, so its long axis is t and its
+// short axis is z: on this surface, 45 mm of z at the tail is about 45 mm of height.
+const LAMP_REAR = {
+  z0: -1.872, za: 0.020, zb: 0.046,
+  t0: 0.086, ta: 0.212, tb: 0.0,
+  shape: (a) => Math.sin(Math.PI * Math.pow(a, 0.68)) * 0.84 + 0.16,
+  rise: 0.005, depth: 0.040,
+};
+
+/** (a, b) -> a point of the master surface, plus its normal. */
+function lampPoint(L, s, a, b) {
+  const z = L.z0 + L.za * a + L.zb * b;
+  const t = T_CENTRE + s * (L.t0 + L.ta * a + L.tb * b);
+  return { z, t, p: bodyPoint(z, t), n: bodyNormal(z, t) };
+}
+
+/** True where (z, t) falls inside the lamp opening. `k` scales the aperture across its width. */
+function lampContains(L, z, t, k = 1) {
+  for (const s of [-1, 1]) {
+    const dz = z - L.z0, dt = (t - T_CENTRE) / s - L.t0;
+    const det = L.za * L.tb - L.zb * L.ta;
+    if (!det) continue;
+    const a = (dz * L.tb - L.zb * dt) / det;
+    const b = (L.za * dt - dz * L.ta) / det;
+    if (a > 0 && a < 1 && Math.abs(b) < L.shape(a) * k) return true;
+  }
+  return false;
+}
+
+/**
+ * Grid over a lamp footprint. `off` displaces along the surface normal; `bulge` adds the lens
+ * rise, which is zero on the rim so the part sits flush in the bodywork.
+ */
+function lampPatch(L, s, off, bulge, Nu = 22, Nv = 10) {
+  const pos = new Float32Array((Nu + 1) * (Nv + 1) * 3);
+  const uv = new Float32Array((Nu + 1) * (Nv + 1) * 2);
+  const idx = [];
+  for (let i = 0; i <= Nu; i++) {
+    const a = i / Nu;
+    for (let j = 0; j <= Nv; j++) {
+      const v = j / Nv, w = v * 2 - 1;
+      const { p, n } = lampPoint(L, s, a, w * L.shape(a));
+      const rise = bulge * Math.sqrt(Math.max(0, (1 - w * w) * Math.sin(Math.PI * a)));
+      const d = off + rise;
+      const k = (i * (Nv + 1) + j) * 3;
+      pos[k] = p.x + n.x * d; pos[k + 1] = p.y + n.y * d; pos[k + 2] = p.z + n.z * d;
+      uv[(i * (Nv + 1) + j) * 2] = a; uv[(i * (Nv + 1) + j) * 2 + 1] = v;
+    }
+  }
+  for (let i = 0; i < Nu; i++) {
+    for (let j = 0; j < Nv; j++) {
+      const a = i * (Nv + 1) + j, b = (i + 1) * (Nv + 1) + j;
+      const c = (i + 1) * (Nv + 1) + j + 1, d = i * (Nv + 1) + j + 1;
+      idx.push(a, b, d, b, c, d, a, d, b, b, d, c);   // seen from both sides inside the pocket
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/**
+ * The pocket wall and the pressed body-colour rim around one lamp opening. The paint edge is
+ * cut on the panel grid and is therefore slightly ragged; the rim is what buries it.
+ */
+function lampSurround(L, s, mats, out) {
+  const N = 48, wallPos = [], wallIdx = [], rim = [];
+  for (let i = 0; i <= N; i++) {
+    const half = i <= N / 2;
+    const a = Math.min(0.9995, Math.max(0.0005, half ? i / (N / 2) : 2 - i / (N / 2)));
+    const w = half ? 1 : -1;
+    const outer = lampPoint(L, s, a, w * L.shape(a) * 1.12);
+    const inner = lampPoint(L, s, a, w * L.shape(a) * 0.94);
+    wallPos.push(outer.p.x + outer.n.x * 0.001, outer.p.y + outer.n.y * 0.001, outer.p.z + outer.n.z * 0.001);
+    wallPos.push(inner.p.x - inner.n.x * L.depth, inner.p.y - inner.n.y * L.depth, inner.p.z - inner.n.z * L.depth);
+    const r = lampPoint(L, s, a, w * L.shape(a) * 1.02);
+    rim.push([r.p.x - r.n.x * 0.003, r.p.y - r.n.y * 0.003, r.p.z - r.n.z * 0.003]);
+  }
+  for (let i = 0; i < N; i++) {
+    const a = i * 2, b = i * 2 + 1, c = i * 2 + 3, d = i * 2 + 2;
+    wallIdx.push(a, b, d, b, c, d, a, d, b, b, d, c);
+  }
+  const wall = new THREE.BufferGeometry();
+  wall.setAttribute('position', new THREE.Float32BufferAttribute(wallPos, 3));
+  wall.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((N + 1) * 4), 2));
+  wall.setIndex(wallIdx);
+  wall.computeVertexNormals();
+  out.add(mesh(wall, mats.lampHousing, { name: 'lamp-aperture-wall' }));
+  out.add(mesh(tube(rim, 0.0080, { tubular: 56, radial: 8, closed: true }), mats.cherryRed, { name: 'lamp-rim' }));
+}
+
+/** One round optic seated on the lamp's centreline at parameter a. */
+function lampCell(L, s, a, r, mats, cup, lens) {
+  const { p, n } = lampPoint(L, s, a, 0);
+  const cell = new THREE.Group();
+  cell.position.set(p.x - n.x * 0.013, p.y - n.y * 0.013, p.z - n.z * 0.013);
+  cell.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
+  cell.add(mesh(lathe([
+    { r, y: 0.000 },
+    { r: r * 0.80, y: -0.013 },
+    { r: r * 0.46, y: -0.024 },
+    { r: r * 0.16, y: -0.030 },
+    { r: 0, y: -0.031 },
+  ], { segments: 24 }), cup, { name: 'lamp-cup' }));
+  cell.add(mesh(new THREE.SphereGeometry(r * 0.20, 10, 8), mats.chromeTrim, { position: [0, -0.018, 0] }));
+  if (lens) {
+    cell.add(mesh(new THREE.CylinderGeometry(r * 0.94, r * 0.86, 0.012, 22), lens, { position: [0, 0.004, 0] }));
+  }
+  cell.add(mesh(new THREE.TorusGeometry(r, 0.0035, 6, 24), mats.satinBlack, { rotation: [Math.PI / 2, 0, 0] }));
+  return cell;
+}
+
 function buildHeadlights(mats) {
   const g = new THREE.Group();
   g.name = 'headlights';
-
-  // Two lamps per side: the larger main lamp inboard-low, the smaller outboard-high, following
-  // the fender crown as it rises toward the wing.
-  const lamps = [
-    { z: 1.796, t: 0.086, r: 0.069, tilt: -0.50, roll: 0.20 },  // main lamp, inboard
-    { z: 1.742, t: 0.170, r: 0.056, tilt: -0.42, roll: 0.46 },  // outboard, slightly higher
-  ];
 
   for (const s of [-1, 1]) {
     const side = new THREE.Group();
     side.name = `headlight-${s < 0 ? 'left' : 'right'}`;
 
-    for (const lamp of lamps) {
-      const t = s < 0 ? T_CENTRE - lamp.t : T_CENTRE + lamp.t;
-      const p = bodyPoint(lamp.z, t);
-      const n = bodyNormal(lamp.z, t);
-      const pod = new THREE.Group();
-      // On the surface, oriented by its normal: the pocket lathe below descends INTO the body
-      // from here, so the rim finishes flush and the bucket and reflector stay visible behind
-      // the lens. Sinking the whole pod instead buries them and the lens reads as white paint.
-      pod.position.set(p.x, p.y, p.z);
-      pod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
+    lampSurround(LAMP_FRONT, s, mats, side);
+    side.add(mesh(lampPatch(LAMP_FRONT, s, -LAMP_FRONT.depth, 0.0), mats.lampHousing, { name: 'lamp-housing' }));
 
-      // Pocket wall — the recess the lamp sits in, so the clamshell reads as opening around it.
-      const bucket = lathe([
-        { r: lamp.r, y: 0.004 },
-        { r: lamp.r * 0.97, y: -0.014 },
-        { r: lamp.r * 0.72, y: -0.040 },
-        { r: lamp.r * 0.30, y: -0.056 },
-        { r: 0, y: -0.058 },
-      ], { segments: 28 });
-      pod.add(mesh(bucket, mats.reflectorBowl, { name: 'lamp-bucket' }));
+    // Three round elements in a row down the lens: projector, secondary, marker.
+    side.add(lampCell(LAMP_FRONT, s, 0.28, 0.036, mats, mats.reflectorBowl, null));
+    side.add(lampCell(LAMP_FRONT, s, 0.565, 0.031, mats, mats.reflectorBowl, null));
+    side.add(lampCell(LAMP_FRONT, s, 0.815, 0.023, mats, mats.amberReflector, null));
 
-      // Body-colour rim: the paint rolling into the pocket.
-      pod.add(mesh(new THREE.TorusGeometry(lamp.r * 1.005, 0.0045, 8, 28), mats.cherryRed, {
-        rotation: [Math.PI / 2, 0, 0], position: [0, 0.003, 0],
-      }));
+    // The lens last, so it reads over the optics.
+    side.add(mesh(lampPatch(LAMP_FRONT, s, 0.0015, LAMP_FRONT.rise), mats.headlightLens, { name: 'lamp-lens' }));
 
-      // Reflector cone and bulb.
-      pod.add(mesh(lathe([
-        { r: lamp.r * 0.86, y: -0.012 },
-        { r: lamp.r * 0.50, y: -0.034 },
-        { r: lamp.r * 0.14, y: -0.046 },
-      ], { segments: 24 }), mats.chromeTrim, { name: 'lamp-reflector' }));
-      pod.add(mesh(new THREE.SphereGeometry(lamp.r * 0.15, 10, 8), mats.chromeTrim, { position: [0, -0.030, 0] }));
-
-      // Outer lens: a shallow spherical cap. Clearcoat over a chrome bowl reads as glass
-      // without paying for a transmission pass, which Three renders the scene again for.
-      // Shallow cap sized by its rise, not by an angle: an Elise lens stands about 8 mm proud
-      // of the pocket rim, so solve the sphere that gives exactly that over the lamp radius.
-      const sag = 0.008;
-      const capR = (lamp.r * lamp.r + sag * sag) / (2 * sag);
-      const ang = Math.asin(Math.min(1, lamp.r / capR));
-      const lens = new THREE.SphereGeometry(capR, 28, 8, 0, Math.PI * 2, 0, ang);
-      lens.translate(0, 0.002 - capR * Math.cos(ang), 0);
-      pod.add(mesh(lens, mats.headlightLens, { name: 'lamp-lens' }));
-
-      side.add(pod);
-    }
-
-    // Amber indicator wrapping the outboard corner of the clamshell.
-    const it = s < 0 ? T_CENTRE - 0.262 : T_CENTRE + 0.262;
-    const ind = bodyPoint(1.688, it), inNrm = bodyNormal(1.688, it);
-    const indGeo = new THREE.SphereGeometry(0.062, 20, 10, 0, Math.PI * 2, 0, 0.44);
-    indGeo.scale(0.58, 1.0, 1.25);
+    // Amber side marker low on the fender flank, flush in its own pocket.
+    const it = s < 0 ? T_CENTRE - 0.300 : T_CENTRE + 0.300;
+    const ind = bodyPoint(1.560, it), inNrm = bodyNormal(1.560, it);
+    const indGeo = new THREE.SphereGeometry(0.046, 18, 9, 0, Math.PI * 2, 0, 0.40);
+    indGeo.scale(0.50, 1.0, 1.35);
     const indMesh = mesh(indGeo, mats.amberReflector, { name: 'indicator' });
-    indMesh.position.set(ind.x - inNrm.x * 0.026, ind.y - inNrm.y * 0.026, ind.z - inNrm.z * 0.026);
+    indMesh.position.set(ind.x - inNrm.x * 0.020, ind.y - inNrm.y * 0.020, ind.z - inNrm.z * 0.020);
     indMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), inNrm);
     side.add(indMesh);
 
@@ -1041,31 +1240,31 @@ function buildHeadlights(mats) {
 }
 
 // -----------------------------------------------------------------------------------------
-//  Taillights: Lotus/Tesla Circular LED Jewel Lamps
+//  Taillights: three round lenses in one housing per side, cut into the tail
 // -----------------------------------------------------------------------------------------
+// Corrected against photographs (Commons, 2008 Roadster rear and rear three-quarter). What the
+// car has is one tilted almond housing per side, wrapping from the tail panel around toward the
+// haunch, with three circular lenses in a row inside it: red brake/tail inboard, a large clear
+// unit next to it, a smaller clear one outboard. Four chrome rings floating off the tail —
+// which is what this was, and they hung outside the bodywork once the car got its real width —
+// is a different car. Built with the same aperture machinery as the headlamps, so it is a hole
+// in the tail rather than jewellery pinned to it.
 function buildTaillights(mats, M) {
   const g = new THREE.Group();
   g.name = 'taillights';
 
   for (const s of [-1, 1]) {
-    for (let t = 0; t < 2; t++) {
-      const tx = s * (0.42 + t * 0.18);
-      const tl = new THREE.Group();
-      tl.position.set(tx, 0.69, -1.962);
+    const side = new THREE.Group();
+    side.name = `taillight-${s < 0 ? 'left' : 'right'}`;
 
-      // Chrome outer bezel ring
-      tl.add(mesh(new THREE.TorusGeometry(0.058, 0.008, 8, 24), mats.chromeTrim));
-      // Red jewel LED lens
-      tl.add(mesh(new THREE.CylinderGeometry(0.054, 0.054, 0.022, 24), mats.taillightRed, {
-        rotation: [Math.PI / 2, 0, 0],
-      }));
-      // Inner reverse / turn indicator lens
-      tl.add(mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.028, 16), mats.chromeTrim, {
-        rotation: [Math.PI / 2, 0, 0],
-      }));
+    lampSurround(LAMP_REAR, s, mats, side);
+    side.add(mesh(lampPatch(LAMP_REAR, s, -LAMP_REAR.depth, 0.0), mats.lampHousing, { name: 'lamp-housing' }));
 
-      g.add(tl);
-    }
+    side.add(lampCell(LAMP_REAR, s, 0.205, 0.041, mats, mats.reflectorBowl, mats.taillightRed));
+    side.add(lampCell(LAMP_REAR, s, 0.530, 0.039, mats, mats.reflectorBowl, mats.headlightLens));
+    side.add(lampCell(LAMP_REAR, s, 0.820, 0.030, mats, mats.reflectorBowl, mats.headlightLens));
+
+    g.add(side);
   }
 
   return g;
@@ -1247,19 +1446,37 @@ function buildWheels(mats, M) {
     // Front 175/55 R16, rear 225/45 R17.
     const rimRadius = wc.r * (wc.w > 0.20 ? 0.665 : 0.700); // 17" rear, 16" front
     const hw = wc.w / 2;
+    // Tread band with three circumferential grooves cut into it. A normal map alone leaves the
+    // tyre reading as a smooth black torus as soon as the camera is inside a metre of it, which
+    // is exactly where the wheel-and-arch view puts it.
+    const tread = [];
+    const bandEdge = hw * 0.745;
+    const grooves = [-0.44, 0.0, 0.44].map(f => f * bandEdge);
+    let cursor = -bandEdge;
+    for (const gcz of grooves) {
+      const gw = wc.w * 0.030, gd = wc.r * 0.021;
+      tread.push({ r: wc.r, y: cursor });
+      tread.push({ r: wc.r, y: gcz - gw });
+      tread.push({ r: wc.r - gd, y: gcz - gw * 0.55 });
+      tread.push({ r: wc.r - gd, y: gcz + gw * 0.55 });
+      tread.push({ r: wc.r, y: gcz + gw });
+      cursor = gcz + gw;
+    }
+    tread.push({ r: wc.r, y: bandEdge });
     const tyreProfile = [
       { r: rimRadius, y: -hw },
       { r: rimRadius * 1.02, y: -hw * 1.02 },       // bead seat
-      { r: wc.r * 0.86, y: -hw * 1.03 },            // sidewall bulge
-      { r: wc.r * 0.965, y: -hw * 0.92 },           // shoulder
-      { r: wc.r, y: -hw * 0.74 },
-      { r: wc.r, y: hw * 0.74 },                    // tread band
-      { r: wc.r * 0.965, y: hw * 0.92 },
-      { r: wc.r * 0.86, y: hw * 1.03 },
+      { r: rimRadius * 1.14, y: -hw * 1.045 },      // bead heel
+      { r: wc.r * 0.88, y: -hw * 1.05 },            // sidewall bulge
+      { r: wc.r * 0.968, y: -hw * 0.93 },           // shoulder
+      ...tread,
+      { r: wc.r * 0.968, y: hw * 0.93 },
+      { r: wc.r * 0.88, y: hw * 1.05 },
+      { r: rimRadius * 1.14, y: hw * 1.045 },
       { r: rimRadius * 1.02, y: hw * 1.02 },
       { r: rimRadius, y: hw },
     ];
-    const tyreGeo = lathe(tyreProfile, { segments: 48 });
+    const tyreGeo = lathe(tyreProfile, { segments: 64 });
     tyreGeo.rotateZ(Math.PI / 2);
     wGroup.add(mesh(tyreGeo, mats.tyreRubber, { name: 'tyre' }));
 
@@ -1286,8 +1503,14 @@ function buildWheels(mats, M) {
       const rOut = rimRadius * 1.005, wHub = 0.030, wMid = 0.019, wTip = 0.026;
       shape.moveTo(-wHub, 0.044);
       shape.bezierCurveTo(-wHub, rOut * 0.34, -wMid, rOut * 0.52, -wMid, rOut * 0.70);
-      shape.lineTo(-wTip, rOut);
-      shape.lineTo(wTip, rOut);
+      shape.lineTo(-wTip, rOut * 0.965);
+      // The tip follows the rim flange instead of cutting a chord across it, which is what
+      // left a sliver of daylight between every spoke and the barrel.
+      for (let q = 0; q <= 6; q++) {
+        const a = Math.atan2(-wTip, rOut) + (q / 6) * (Math.atan2(wTip, rOut) - Math.atan2(-wTip, rOut));
+        shape.lineTo(Math.sin(a) * rOut, Math.cos(a) * rOut);
+      }
+      shape.lineTo(wTip, rOut * 0.965);
       shape.lineTo(wMid, rOut * 0.70);
       shape.bezierCurveTo(wMid, rOut * 0.52, wHub, rOut * 0.34, wHub, 0.044);
       shape.closePath();
@@ -1332,9 +1555,22 @@ function buildWheels(mats, M) {
     }
     wGroup.add(mesh(mergeAll(lugs), mats.chromeTrim, { name: 'lug-nuts' }));
 
+    // Valve stem through the rim flange.
+    wGroup.add(mesh(new THREE.CylinderGeometry(0.005, 0.006, 0.026, 8), mats.satinBlack, {
+      position: [faceX - dir * 0.010, rimRadius * 0.74, rimRadius * 0.30],
+      rotation: [0, 0, Math.PI / 2], name: 'valve-stem',
+    }));
+
     // 4. Ventilated Disc Brake Rotor with Central Mounting Hat
     const discRadius = rimRadius * 0.78;
-    const rotorGeo = new THREE.CylinderGeometry(discRadius, discRadius, 0.018, 24);
+    const rotorGeo = lathe([
+      { r: discRadius * 0.46, y: -0.009 },
+      { r: discRadius * 0.985, y: -0.009 },
+      { r: discRadius, y: -0.005 },
+      { r: discRadius, y: 0.005 },
+      { r: discRadius * 0.985, y: 0.009 },
+      { r: discRadius * 0.46, y: 0.009 },
+    ], { segments: 40 });
     rotorGeo.rotateZ(Math.PI / 2);
     wGroup.add(mesh(rotorGeo, mats.brakeRotor, { position: [isLeft ? -wc.w * 0.12 : wc.w * 0.12, 0, 0] }));
 
@@ -2113,8 +2349,8 @@ export function buildRoadster(M) {
   // the car; the near set only appears in the cockpit views and the flight-hardware set only
   // in the orbital one.
   root.userData.annotations = [
-    { label: '2008 Tesla Roadster · continuous-surface body', position: [0.86, 0.62, 0.55] },
-    { label: 'Stacked round headlamps (Lotus Elise heritage)', position: [0.52, 0.72, 1.60], scope: 'near' },
+    { label: 'Tesla Roadster (1st generation) · continuous-surface body', position: [0.86, 0.62, 0.55] },
+    { label: 'Swept teardrop headlamp · three round optics per side', position: [0.52, 0.72, 1.60], scope: 'near' },
     { label: 'Starman · mannequin in a SpaceX IVA suit', position: [-0.34, 1.12, -0.34] },
     { label: "«DON'T PANIC!» · dashboard screen", position: [0.02, 0.66, 0.30], scope: 'near' },
     { label: '1:64 Hot Wheels model with a micro-Starman', position: [0.16, 0.76, 0.30], scope: 'near' },

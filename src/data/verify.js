@@ -19,8 +19,8 @@ export const EXPECTED = {
   dragon: { height: 8.1, footprint: 4, note: 'Altura con trunk y diámetro máximo (spacex.com)' },
   starlink: { height: null, footprint: 30, note: 'Envergadura desplegada (prensa)', tol: 0.06 },
   roadster: {
-    height: 1.13, footprint: 3.95, tol: 0.025, fromHull: true,
-    note: 'Altura al techo del parabrisas y longitud total (documentado)',
+    height: 1.128, footprint: 3.947, breadth: 1.852, tol: 0.025, fromHull: true,
+    note: 'Altura al techo del parabrisas, longitud y anchura de carrocería (publicado)',
   },
 };
 
@@ -53,6 +53,9 @@ function measure(model, hullNames) {
     height: size.y,
     width: Math.max(size.x, size.z),
     hullWidth: Math.max(hullSize.x, hullSize.z),
+    // The short horizontal axis of the hull. For the rockets it is the same as hullWidth; for
+    // the car it is the body width, which is the figure that was wrong by 12 cm.
+    hullBreadth: Math.min(hullSize.x, hullSize.z),
     // Top of the hull above the model origin. The rockets sit on their origin so the raw box
     // height is their height, but the Roadster carries flight hardware that hangs below the
     // tyres (the payload adapter) and stands above the car (the selfie booms), neither of
@@ -147,6 +150,7 @@ export function verifyExhibits(exhibits, { log = true } = {}) {
     // plane, so the raw bounding-box height is the vehicle height.
     check('altura', exp.fromHull ? m.hullTop : m.height, exp.height);
     check('envergadura / diámetro', HULLS[id] ? m.hullWidth : m.width, exp.footprint);
+    check('anchura de carrocería', m.hullBreadth, exp.breadth);
   }
   if (log) {
     const bad = rows.filter(r => !r.ok);

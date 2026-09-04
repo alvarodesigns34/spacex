@@ -28,6 +28,7 @@ const shots = JSON.parse(await readFile(process.argv[3], 'utf8'));
 for (const s of shots) {
   await page.evaluate((s)=>{
     if (s.seek !== undefined) { window.__vc.launch.setSpeed(s.speed ?? 1); window.__vc.launch.seek(s.seek); }
+    else if (s.ortho) window.__vc.ortho(s.ortho);
     else if (s.jump) window.__vc.jump(s.jump[0], s.jump[1]);
     else window.__vc.rig.jumpTo(s.pos, s.target);
   }, s);
@@ -35,6 +36,7 @@ for (const s of shots) {
   const jpg = s.name.endsWith('.jpg');
   await page.screenshot({ path: `${outdir}/${jpg ? s.name : `${s.name}.png`}`, timeout: 180000, ...(jpg ? { type: 'jpeg', quality: 88 } : {}) });
   console.log('shot', s.name);
+  if (s.ortho) await page.evaluate(()=>window.__vc.ortho(null));
 }
 const stats = await page.evaluate(()=>{
   let tris=0, meshes=0;

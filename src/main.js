@@ -117,7 +117,8 @@ async function main() {
   // ---- Post-processing (MSAA render target + subtle bloom) ----
   const rt = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { samples: 4, type: THREE.HalfFloatType });
   const composer = new EffectComposer(renderer, rt);
-  composer.addPass(new RenderPass(scene, camera));
+  const renderPass = new RenderPass(scene, camera);
+  composer.addPass(renderPass);
   const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.12, 0.6, 0.92);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
@@ -523,7 +524,43 @@ async function main() {
     pedestal: !!roadsterPedestal && roadsterPedestal.visible,
     adapter: !!exhibits.roadster?.model.getObjectByName('payload-adapter')?.visible,
   });
-  window.__vc = { M, scene, camera, rig, exhibits, complex, launch, select, goPreset, jump, renderer, env, setToggle, timings, verify, spaceState };
+  // Orthographic elevation, for the headless tools only: an exhibit framed by an orthographic
+  // camera at a known world size, so a rendered profile and a photograph of the real vehicle
+  // can be measured with the same ruler instead of compared by eye.
+  const _oc = new THREE.Vector3(), _ot = new THREE.Vector3(), _ou = new THREE.Vector3();
+  function ortho(spec) {
+    const hudEl = document.getElementById('hud'), labelEl = document.getElementById('labels');
+    if (!spec) {
+      renderPass.camera = camera;
+      hudEl.style.visibility = ''; labelEl.style.visibility = '';
+      return;
+    }
+    const ex = exhibits[spec.vehicle ?? 'roadster'];
+    if (!ex) return;
+    const size = spec.size ?? 4.4;
+    const aspect = window.innerWidth / window.innerHeight;
+    const c = new THREE.OrthographicCamera(
+      -size * aspect / 2, size * aspect / 2, size / 2, -size / 2, 0.01, 400);
+    const y = spec.y ?? 0.58, d = 60;
+    const axis = spec.axis ?? 'side';
+    _ot.set(0, y, 0);
+    if (axis === 'side') { _oc.set(d, y, 0); _ou.set(0, 1, 0); }
+    else if (axis === 'front') { _oc.set(0, y, d); _ou.set(0, 1, 0); }
+    else if (axis === 'rear') { _oc.set(0, y, -d); _ou.set(0, 1, 0); }
+    else if (axis === 'q34') { _oc.set(d * 0.72, y + d * 0.30, d * 0.62); _ou.set(0, 1, 0); }
+    else if (axis === 'r34') { _oc.set(d * 0.70, y + d * 0.28, -d * 0.64); _ou.set(0, 1, 0); }
+    else { _oc.set(0, y + d, 0); _ou.set(0, 0, 1); }
+    ex.model.localToWorld(_oc);
+    ex.model.localToWorld(_ot);
+    c.up.copy(_ou).applyQuaternion(ex.model.getWorldQuaternion(new THREE.Quaternion()));
+    c.position.copy(_oc);
+    c.lookAt(_ot);
+    c.updateProjectionMatrix();
+    renderPass.camera = c;
+    hudEl.style.visibility = 'hidden'; labelEl.style.visibility = 'hidden';
+  }
+
+  window.__vc = { M, scene, camera, rig, exhibits, complex, launch, select, goPreset, jump, renderer, env, setToggle, timings, verify, spaceState, ortho };
   const params = new URLSearchParams(location.search);
   if (params.has('verify')) verify();
   if (params.has('vehicle')) {
