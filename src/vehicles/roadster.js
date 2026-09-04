@@ -1275,34 +1275,50 @@ function buildWheels(mats, M) {
     barrel.rotateZ(Math.PI / 2);
     wGroup.add(mesh(barrel, mats.forgedAlloy, { name: 'rim-barrel' }));
 
-    const faceX = isLeft ? -hw * 0.90 : hw * 0.90;
+    const faceX = isLeft ? -hw * 0.86 : hw * 0.86;
     const dir = isLeft ? -1 : 1;
     const spokeParts = [];
-    // Seven tapered spokes, the Roadster's wheel design, swept back from the hub.
+    // Seven spokes, tapering from the hub and meeting the rim flange rather than stopping a
+    // few millimetres short of it, which left a visible ring of daylight at wheel distance.
     for (let sp = 0; sp < 7; sp++) {
       const ang = (sp / 7) * Math.PI * 2;
       const shape = new THREE.Shape();
-      shape.moveTo(-0.021, 0.050);
-      shape.quadraticCurveTo(-0.030, rimRadius * 0.62, -0.019, rimRadius * 0.965);
-      shape.lineTo(0.019, rimRadius * 0.965);
-      shape.quadraticCurveTo(0.030, rimRadius * 0.62, 0.021, 0.050);
+      const rOut = rimRadius * 1.005, wHub = 0.030, wMid = 0.019, wTip = 0.026;
+      shape.moveTo(-wHub, 0.044);
+      shape.bezierCurveTo(-wHub, rOut * 0.34, -wMid, rOut * 0.52, -wMid, rOut * 0.70);
+      shape.lineTo(-wTip, rOut);
+      shape.lineTo(wTip, rOut);
+      shape.lineTo(wMid, rOut * 0.70);
+      shape.bezierCurveTo(wMid, rOut * 0.52, wHub, rOut * 0.34, wHub, 0.044);
       shape.closePath();
-      const sg = new THREE.ExtrudeGeometry(shape, { depth: 0.024, bevelEnabled: true, bevelSize: 0.003, bevelThickness: 0.003, bevelSegments: 2, curveSegments: 6 });
-      sg.translate(0, 0, -0.030);
+      const sg = new THREE.ExtrudeGeometry(shape, {
+        depth: 0.020, bevelEnabled: true, bevelSize: 0.0032, bevelThickness: 0.0032,
+        bevelSegments: 2, curveSegments: 8,
+      });
+      sg.translate(0, 0, -0.010);
       sg.rotateZ(ang);
       sg.rotateY(Math.PI / 2);
-      spokeParts.push({ geometry: sg, matrix: mat4([faceX - dir * 0.006, 0, 0]) });
+      spokeParts.push({ geometry: sg, matrix: mat4([faceX, 0, 0]) });
     }
+    // Outer rim flange: gives the spokes something to land on and reads as the wheel lip.
+    const flange = lathe([
+      { r: rimRadius * 0.965, y: hw * 0.80 },
+      { r: rimRadius * 1.005, y: hw * 0.88 },
+      { r: rimRadius * 1.005, y: hw * 0.97 },
+      { r: rimRadius * 0.945, y: hw * 0.99 },
+    ], { segments: 44 });
+    flange.rotateZ(dir > 0 ? Math.PI / 2 : -Math.PI / 2);
+    spokeParts.push({ geometry: flange });
     // Hub face and centre bore.
     const hub = lathe([
-      { r: 0.062, y: 0 },
-      { r: 0.060, y: 0.014 },
-      { r: 0.040, y: 0.026 },
-      { r: 0.026, y: 0.028 },
+      { r: 0.064, y: 0 },
+      { r: 0.062, y: 0.014 },
+      { r: 0.042, y: 0.026 },
+      { r: 0.026, y: 0.029 },
       { r: 0.026, y: 0.006 },
-    ], { segments: 24 });
+    ], { segments: 26 });
     hub.rotateZ(dir > 0 ? -Math.PI / 2 : Math.PI / 2);
-    spokeParts.push({ geometry: hub, matrix: mat4([faceX - dir * 0.020, 0, 0]) });
+    spokeParts.push({ geometry: hub, matrix: mat4([faceX + dir * 0.006, 0, 0]) });
     wGroup.add(mesh(mergeAll(spokeParts), mats.forgedAlloy, { name: 'spokes' }));
 
     // Six chrome lug nuts recessed in the hub face.
@@ -1311,7 +1327,7 @@ function buildWheels(mats, M) {
       const lang = (l / 6) * Math.PI * 2;
       lugs.push({
         geometry: new THREE.CylinderGeometry(0.0085, 0.0085, 0.014, 6),
-        matrix: mat4([faceX + dir * 0.004, Math.sin(lang) * 0.043, Math.cos(lang) * 0.043], [0, 0, Math.PI / 2]),
+        matrix: mat4([faceX + dir * 0.028, Math.sin(lang) * 0.044, Math.cos(lang) * 0.044], [0, 0, Math.PI / 2]),
       });
     }
     wGroup.add(mesh(mergeAll(lugs), mats.chromeTrim, { name: 'lug-nuts' }));

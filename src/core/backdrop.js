@@ -15,18 +15,21 @@ function earthMaps() {
   const c = canvas(1024, 512);
   shade(c, (x, y, u, v) => {
     const lat = (v - 0.5) * 2;
-    // Land/sea mask: banded noise, deliberately generic.
-    const land = fbm(x * 0.026, y * 0.026, 5, 2.2, 0.52) - 0.055 - Math.abs(lat) * 0.30;
+    // Land/sea mask: banded noise, deliberately generic. The threshold is the measured 71st
+    // percentile of this fbm, so the globe comes out roughly 29 % land like the real one — at
+    // the old 0.055 it was 95 % land and read as an olive swamp planet. Slight northward bias.
+    const land = fbm(x * 0.026, y * 0.026, 5, 2.2, 0.52) - 0.564 + lat * 0.030 - Math.abs(lat) * 0.045;
     const ice = Math.max(0, Math.abs(lat) - 0.80) / 0.20;
     const cloud = Math.max(0, fbm(x * 0.045 + 40, y * 0.045 - 18, 5, 2.4, 0.55) * 1.5
       + 0.32 * Math.cos(lat * Math.PI * 2.6) - 0.46);
     let r, g, b;
     if (land > 0.0) {
       const dry = fbm(x * 0.09, y * 0.09, 3);
-      r = 84 + dry * 66; g = 96 + dry * 34; b = 58 + dry * 20;
+      const edge = THREE.MathUtils.clamp(land * 14, 0, 1);   // green coasts, drier interiors
+      r = 62 + dry * 78 * edge + 18; g = 84 + dry * 40; b = 52 + dry * 26;
     } else {
-      const deep = THREE.MathUtils.clamp(-land * 2.4, 0, 1);
-      r = 20 + (1 - deep) * 26; g = 52 + (1 - deep) * 40; b = 104 + (1 - deep) * 46;
+      const deep = THREE.MathUtils.clamp(-land * 5.5, 0, 1);
+      r = 12 + (1 - deep) * 26; g = 44 + (1 - deep) * 52; b = 112 + (1 - deep) * 62;
     }
     const w = THREE.MathUtils.clamp(Math.max(cloud, ice), 0, 1);
     return [r + (238 - r) * w, g + (242 - g) * w, b + (248 - b) * w];
