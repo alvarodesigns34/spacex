@@ -34,7 +34,10 @@ jobs:
       # Only the default branch publishes. Any claude/** push used to deploy to the same
       # Pages environment, so two feature branches raced each other for production.
       - if: github.ref_name != github.event.repository.default_branch
-        run: echo "::notice::Rama ${{ github.ref_name }}: comprobaciones en verde, sin desplegar (solo publica la rama por defecto)."
+        # Block scalar, not a plain one: the message contains ": " and a plain YAML scalar
+        # cannot, so it was being read as a nested mapping and the workflow failed to parse.
+        run: |
+          echo "::notice::Rama ${{ github.ref_name }} - comprobaciones en verde, sin desplegar (solo publica la rama por defecto)."
       - if: github.ref_name == github.event.repository.default_branch
         # The artifact was `path: .`, which shipped node_modules and the Playwright cache
         # alongside the site. Assemble just what the page needs.
