@@ -1611,15 +1611,24 @@ function buildInterior(mats, M, texDontPanic, texPcb) {
     }));
   }
 
-  // 4 Round aluminum eyeball A/C vents with chrome trim rings
-  for (const vx of [-0.48, -0.15, 0.15, 0.48]) {
-    dashGroup.add(mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.015, 16), mats.chromeTrim, {
-      position: [vx, 0.67, 0.33],
-      rotation: [-0.35, 0, 0],
+  // Eyeball vents. A solid chrome face blew out to a flat white disc against the sky, which
+  // is what the Don't Panic view was showing; a dark bore behind a thin bezel reads as a vent.
+  for (const vx of [-0.475, -0.150, 0.150, 0.475]) {
+    const p = [vx, 0.688, 0.318], r = [-0.42, 0, 0];
+    dashGroup.add(mesh(new THREE.TorusGeometry(0.025, 0.0035, 8, 22), mats.chromeTrim, {
+      position: p, rotation: [Math.PI / 2 - 0.42, 0, 0],
     }));
-    dashGroup.add(mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.016, 16), mats.satinBlack, {
-      position: [vx, 0.67, 0.332],
-      rotation: [-0.35, 0, 0],
+    // Recessed bore, with the vane inside it.
+    const bore = lathe([
+      { r: 0.025, y: 0 }, { r: 0.024, y: -0.010 }, { r: 0.018, y: -0.026 }, { r: 0, y: -0.030 },
+    ], { segments: 20 });
+    bore.rotateX(Math.PI / 2 - 0.42);
+    dashGroup.add(mesh(bore, mats.satinBlack, { position: p }));
+    dashGroup.add(mesh(new THREE.SphereGeometry(0.021, 16, 10), mats.blackTrim, {
+      position: [vx, 0.688 - 0.010, 0.318 - 0.006], rotation: r,
+    }));
+    dashGroup.add(mesh(new THREE.BoxGeometry(0.036, 0.0025, 0.020), mats.satinBlack, {
+      position: [vx, 0.688 - 0.006, 0.318 - 0.002], rotation: r,
     }));
   }
 
