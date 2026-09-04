@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SpaceX Vehicle Center — visualización 3D a escala real</title>
-  <meta name="description" content="Recreaciones 3D a escala 1:1 de Starship + Super Heavy, Falcon 9, Falcon Heavy, Dragon, un satélite Starlink V2 Mini y el Tesla Roadster de Starman, con ficha técnica verificada y cámara libre.">
+  <title>SpaceX Vehicle Center — full-scale 3D visualisation</title>
+  <meta name="description" content="1:1 scale 3D recreations of Starship + Super Heavy, Falcon 9, Falcon Heavy, Dragon, a Starlink V2 Mini satellite and Starman's Tesla Roadster, with sourced data sheets and a free camera.">
   <!-- Self-hosted, like Three.js in vendor/. On a slow or blocked CDN the Falcon wordmarks
        were being painted into a Canvas with whatever fallback face was resolved at that
        instant, and baked that way for the session. -->
@@ -22,18 +22,18 @@
   </script>
 </head>
 <body>
-  <canvas id="scene" aria-label="Escena 3D del SpaceX Vehicle Center"></canvas>
+  <canvas id="scene" aria-label="SpaceX Vehicle Center 3D scene"></canvas>
   <div id="labels"></div>
   <div id="hud"></div>
   <div id="loading" role="status" aria-live="polite">
     <div class="loading-card">
       <div class="eyebrow">SpaceX Vehicle Center</div>
-      <div class="loading-title">Construyendo los vehículos a escala 1:1</div>
+      <div class="loading-title">Building the vehicles at 1:1 scale</div>
       <div class="loading-track"><div class="loading-fill"></div></div>
-      <div class="loading-text">Iniciando…</div>
+      <div class="loading-text">Starting…</div>
     </div>
   </div>
-  <noscript>Esta experiencia necesita JavaScript y WebGL 2.</noscript>
+  <noscript>This experience requires JavaScript and WebGL 2.</noscript>
   <script type="module" src="src/main.js"></script>
 </body>
 </html>

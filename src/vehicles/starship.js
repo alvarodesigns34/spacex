@@ -294,12 +294,12 @@ export function buildSuperHeavy(M) {
 
   g.userData.annotations = [
     { label: '33 Raptor 3 · 3 + 10 + 20', position: [0, -0.3, 6.5] },
-    { label: 'Grid fin (3 en V3, 90°/90°/180°)', position: [R + 6.4, finY + 0.6, 0] },
-    { label: 'Pin de captura integrado', position: [-(R + 2.6), finY - 1.5, 0] },
-    { label: 'Sección hot-staging ventilada', position: [0, ringTop + 1.0, R + 0.8] },
-    { label: 'Tanque de oxígeno líquido', position: [0, (skirtTop + commonDome) / 2, R + 0.5] },
-    { label: 'Tanque de metano líquido', position: [0, (commonDome + ringTop) / 2, R + 0.5] },
-    { label: 'Raceway (conductos y cableado)', position: [0, skirtTop + 8, -(R + 1.4)] },
+    { label: 'Grid fin (3 on V3, 90°/90°/180°)', position: [R + 6.4, finY + 0.6, 0] },
+    { label: 'Integrated catch pin', position: [-(R + 2.6), finY - 1.5, 0] },
+    { label: 'Vented hot-staging section', position: [0, ringTop + 1.0, R + 0.8] },
+    { label: 'Liquid oxygen tank', position: [0, (skirtTop + commonDome) / 2, R + 0.5] },
+    { label: 'Liquid methane tank', position: [0, (commonDome + ringTop) / 2, R + 0.5] },
+    { label: 'Raceway (plumbing and wiring)', position: [0, skirtTop + 8, -(R + 1.4)] },
   ];
   g.userData.stations = { skirtTop, commonDome, ringTop, finY, height: BOOSTER_H };
   return g;
@@ -504,12 +504,12 @@ export function buildShip(M) {
 
   g.userData.annotations = [
     { label: '3 Raptor + 3 Raptor Vacuum', position: [0, -0.4, 5.0] },
-    { label: 'Escudo térmico · ≈18 000 losetas hexagonales', position: [0, 18, R + 0.7] },
-    { label: 'Aleta trasera', position: [R + 4.4, rings(1) + 3.5, 1.2] },
-    { label: 'Aleta delantera (a sotavento)', position: [Math.sin(fwdPhi) * (R + 2.4), fwdBase + 3.2, Math.cos(fwdPhi) * (R + 2.4)] },
-    { label: 'Bahía de carga', position: [0, doorY, -(R + 0.9)] },
-    { label: 'Tanque de metano líquido', position: [0, (commonDome + payloadBase) / 2, R + 0.5] },
-    { label: 'Morro (tanques de cabecera)', position: [0, SHIP_H - 3.0, 1.6] },
+    { label: 'Heat shield · ≈18,000 hexagonal tiles', position: [0, 18, R + 0.7] },
+    { label: 'Aft flap', position: [R + 4.4, rings(1) + 3.5, 1.2] },
+    { label: 'Forward flap (leeward side)', position: [Math.sin(fwdPhi) * (R + 2.4), fwdBase + 3.2, Math.cos(fwdPhi) * (R + 2.4)] },
+    { label: 'Payload bay', position: [0, doorY, -(R + 0.9)] },
+    { label: 'Liquid methane tank', position: [0, (commonDome + payloadBase) / 2, R + 0.5] },
+    { label: 'Nose cone (header tanks)', position: [0, SHIP_H - 3.0, 1.6] },
   ];
   g.userData.stations = { skirtTop, commonDome, payloadBase, barrelTop, noseLen, height: SHIP_H };
   return g;

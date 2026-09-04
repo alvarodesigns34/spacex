@@ -165,12 +165,12 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
 }
 
 const commonAnnotations = () => [
-  { label: 'Tanque RP-1', position: [0, 10, R + 0.3] },
-  { label: 'Tanque LOX', position: [0, 26, R + 0.3] },
-  { label: 'Interetapa (composite)', position: [0, TANK_TOP + 3.2, R + 0.35] },
-  { label: 'Grid fin de titanio', position: [Math.sin(Math.PI / 4) * 2.9, S1_H - 1.6, Math.cos(Math.PI / 4) * 2.9] },
-  { label: '2.ª etapa · Merlin Vacuum', position: [0, S1_H + S2_H / 2, R + 0.35] },
-  { label: 'Cofia · 13,1 m × 5,2 m', position: [0, FAIRING_BASE + 6, FAIRING_R + 0.4] },
+  { label: 'RP-1 tank', position: [0, 10, R + 0.3] },
+  { label: 'LOX tank', position: [0, 26, R + 0.3] },
+  { label: 'Interstage (composite)', position: [0, TANK_TOP + 3.2, R + 0.35] },
+  { label: 'Titanium grid fin', position: [Math.sin(Math.PI / 4) * 2.9, S1_H - 1.6, Math.cos(Math.PI / 4) * 2.9] },
+  { label: 'Second stage · Merlin Vacuum', position: [0, S1_H + S2_H / 2, R + 0.35] },
+  { label: 'Fairing · 13.1 m × 5.2 m', position: [0, FAIRING_BASE + 6, FAIRING_R + 0.4] },
 ];
 
 export function buildFalcon9(M) {
@@ -181,7 +181,7 @@ export function buildFalcon9(M) {
   g.userData.stations = { tankTop: TANK_TOP, s1Top: S1_H, s2Top: S2_TOP, fairingBase: FAIRING_BASE };
   g.userData.annotations = [
     { label: '9 Merlin 1D · Octaweb', position: [0, -0.3, 2.6] },
-    { label: 'Pata de aterrizaje (plegada)', position: [Math.sin(Math.PI / 4) * 2.5, 6, Math.cos(Math.PI / 4) * 2.5] },
+    { label: 'Landing leg (stowed)', position: [Math.sin(Math.PI / 4) * 2.5, 6, Math.cos(Math.PI / 4) * 2.5] },
     ...commonAnnotations(),
   ];
   return g;
@@ -225,11 +225,11 @@ export function buildFalconHeavy(M) {
   g.userData.stations = { tankTop: TANK_TOP, s1Top: S1_H, s2Top: S2_TOP, fairingBase: FAIRING_BASE, spacing };
   g.userData.annotations = [
     { label: '27 Merlin 1D (3 × 9)', position: [0, -0.3, 2.8] },
-    { label: 'Propulsor lateral con cono de morro', position: [-spacing, TANK_TOP + 4.4, 1.2] },
-    { label: 'Núcleo central reforzado', position: [0, 18, R + 0.35] },
-    { label: 'Unión superior (cono / interetapa)', position: [spacing - 2.1, TANK_TOP + 1.8, 1.2] },
-    { label: 'Unión inferior (Octaweb)', position: [spacing - 2.1, 3.2, 1.4] },
-    { label: 'Cofia · 13,1 m × 5,2 m', position: [0, FAIRING_BASE + 6, FAIRING_R + 0.4] },
+    { label: 'Side booster with nose cone', position: [-spacing, TANK_TOP + 4.4, 1.2] },
+    { label: 'Reinforced centre core', position: [0, 18, R + 0.35] },
+    { label: 'Upper attach point (nose cone / interstage)', position: [spacing - 2.1, TANK_TOP + 1.8, 1.2] },
+    { label: 'Lower attach point (Octaweb)', position: [spacing - 2.1, 3.2, 1.4] },
+    { label: 'Fairing · 13.1 m × 5.2 m', position: [0, FAIRING_BASE + 6, FAIRING_R + 0.4] },
   ];
   return g;
 }

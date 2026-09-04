@@ -98,12 +98,12 @@ export function buildStarlink(M) {
   g.userData.footprint = BUS_W + 2 * (0.55 + WING_L);
   g.userData.span = BUS_W + 2 * (0.55 + WING_L);
   g.userData.annotations = [
-    { label: 'Bus (≈4,1 m de ancho)', position: [0, BUS_T + 0.4, 0] },
-    { label: 'Antenas de matriz en fase (cara nadir)', position: [0, -0.7, 0] },
-    { label: 'Terminal láser inter-satélite', position: [-1.05, 0.75, -1.75] },
-    { label: 'Propulsor Hall de argón', position: [0, 0.1, -BUS_L / 2 - 0.9] },
-    { label: 'Ala solar · ≈12,8 m × 4,1 m', position: [-(BUS_W / 2 + 0.55 + WING_L / 2), 0.4, 0] },
-    { label: 'Rastreadores estelares', position: [0.6, 0.65, 0.6] },
+    { label: 'Bus (≈4.1 m wide)', position: [0, BUS_T + 0.4, 0] },
+    { label: 'Phased-array antennas (nadir face)', position: [0, -0.7, 0] },
+    { label: 'Inter-satellite laser terminal', position: [-1.05, 0.75, -1.75] },
+    { label: 'Argon Hall thruster', position: [0, 0.1, -BUS_L / 2 - 0.9] },
+    { label: 'Solar wing · ≈12.8 m × 4.1 m', position: [-(BUS_W / 2 + 0.55 + WING_L / 2), 0.4, 0] },
+    { label: 'Star trackers', position: [0.6, 0.65, 0.6] },
   ];
   return g;
 }

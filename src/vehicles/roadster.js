@@ -2113,15 +2113,15 @@ export function buildRoadster(M) {
   // the car; the near set only appears in the cockpit views and the flight-hardware set only
   // in the orbital one.
   root.userData.annotations = [
-    { label: 'Tesla Roadster 2008 · carrocería de superficie continua', position: [0.86, 0.62, 0.55] },
-    { label: 'Faros redondos apilados (herencia Lotus Elise)', position: [0.52, 0.72, 1.60], scope: 'near' },
-    { label: 'Starman · maniquí con traje espacial SpaceX IVA', position: [-0.34, 1.12, -0.34] },
-    { label: "«DON'T PANIC!» · pantalla del salpicadero", position: [0.02, 0.66, 0.30], scope: 'near' },
-    { label: 'Miniatura Hot Wheels 1:64 con micro-Starman', position: [0.16, 0.76, 0.30], scope: 'near' },
-    { label: '«Made on Earth by humans» · placa de circuito', position: [0.0, 0.30, 1.15], scope: 'near' },
-    { label: 'Archivo 5D Arch Mission · trilogía Fundación', position: [0.34, 0.44, -0.16], scope: 'near' },
-    { label: 'Adaptador de carga útil (PAF) de Falcon Heavy', position: [0.0, -0.30, 0.0], scope: 'orbital' },
-    { label: 'Cámara selfie en mástil de fibra de carbono', position: [0.55, 0.95, 3.10], scope: 'orbital' },
+    { label: '2008 Tesla Roadster · continuous-surface body', position: [0.86, 0.62, 0.55] },
+    { label: 'Stacked round headlamps (Lotus Elise heritage)', position: [0.52, 0.72, 1.60], scope: 'near' },
+    { label: 'Starman · mannequin in a SpaceX IVA suit', position: [-0.34, 1.12, -0.34] },
+    { label: "«DON'T PANIC!» · dashboard screen", position: [0.02, 0.66, 0.30], scope: 'near' },
+    { label: '1:64 Hot Wheels model with a micro-Starman', position: [0.16, 0.76, 0.30], scope: 'near' },
+    { label: '«Made on Earth by humans» · circuit board', position: [0.0, 0.30, 1.15], scope: 'near' },
+    { label: 'Arch Mission 5D archive · the Foundation trilogy', position: [0.34, 0.44, -0.16], scope: 'near' },
+    { label: 'Falcon Heavy payload attach fitting (PAF)', position: [0.0, -0.30, 0.0], scope: 'orbital' },
+    { label: 'Selfie camera on a carbon-fibre boom', position: [0.55, 0.95, 3.10], scope: 'orbital' },
   ];
 
   return root;

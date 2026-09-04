@@ -608,12 +608,12 @@ export function buildLaunchComplex(M) {
     chopsticks: chop,
   };
   g.userData.annotations = [
-    { label: 'Torre de integración y lanzamiento · 144,5 m', position: [PAD.towerX - 9, PAD.padY + 96, 0] },
-    { label: 'Brazos de captura · 36 m', position: [PAD.towerX + 16, PAD.armY + 4, -22] },
-    { label: 'Brazo de desconexión rápida de la nave', position: [PAD.towerX + 14, PAD.qdY + 4, 0] },
-    { label: 'Mesa de lanzamiento · cubierta refrigerada por agua', position: [17, PAD.deckTop + 2.5, 14] },
-    { label: '20 pinzas de sujeción', position: [8.5, PAD.deckTop + 3.6, -9] },
-    { label: 'Zanja de llamas bidireccional · 8,2 m', position: [0, PAD.trenchFloorY + 3, 40] },
+    { label: 'Integration and launch tower · 144.5 m', position: [PAD.towerX - 9, PAD.padY + 96, 0] },
+    { label: 'Catch arms · 36 m', position: [PAD.towerX + 16, PAD.armY + 4, -22] },
+    { label: 'Ship quick-disconnect arm', position: [PAD.towerX + 14, PAD.qdY + 4, 0] },
+    { label: 'Launch mount · water-cooled deck', position: [17, PAD.deckTop + 2.5, 14] },
+    { label: '20 hold-down clamps', position: [8.5, PAD.deckTop + 3.6, -9] },
+    { label: 'Bidirectional flame trench · 8.2 m', position: [0, PAD.trenchFloorY + 3, 40] },
   ];
   return g;
 }

@@ -99,7 +99,7 @@ async function main() {
   hud.setMode('orbit');
 
   const timings = {};
-  hud.setProgress('Generando materiales procedurales…', 0.05);
+  hud.setProgress('Generating procedural materials…', 0.05);
   await nextFrame();
   let t0 = performance.now();
   // Texture generation is the bulk of the start-up cost, so report it map by map.
@@ -108,9 +108,9 @@ async function main() {
   // instant is the one that ships — and the headless check ignores font errors, so it never
   // showed up there.
   if (document.fonts?.ready) await document.fonts.ready;
-  const { M } = createMaterials((name, frac) => hud.setProgress(`Generando materiales · ${name}`, 0.05 + frac * 0.2));
+  const { M } = createMaterials((name, frac) => hud.setProgress(`Generating materials · ${name}`, 0.05 + frac * 0.2));
   timings.materials = performance.now() - t0;
-  hud.setProgress('Iluminación y entorno…', 0.25);
+  hud.setProgress('Lighting and environment…', 0.25);
   await nextFrame();
   const env = createEnvironment(renderer, scene, M);
 
@@ -135,12 +135,12 @@ async function main() {
   const rulers = new THREE.Group(); rulers.name = 'rulers'; scene.add(rulers);
 
   const builders = {
-    starship: [buildStarship, 'Starship y Super Heavy · 18 000 losetas instanciadas…'],
+    starship: [buildStarship, 'Starship and Super Heavy · 18,000 instanced tiles…'],
     falcon9: [buildFalcon9, 'Falcon 9…'],
     falconheavy: [buildFalconHeavy, 'Falcon Heavy…'],
     dragon: [buildDragon, 'Dragon…'],
     starlink: [buildStarlink, 'Starlink V2 Mini…'],
-    roadster: [buildRoadster, 'Tesla Roadster y Starman…'],
+    roadster: [buildRoadster, 'Tesla Roadster and Starman…'],
   };
   let step = 0;
   let complex = null;
@@ -282,7 +282,7 @@ async function main() {
   });
   launch.setVisibilityHook((flying) => { launchFlying = flying; applyVisibility(); });
 
-  hud.setProgress('Compilando shaders…', 0.95);
+  hud.setProgress('Compiling shaders…', 0.95);
   await nextFrame();
   renderer.compile(scene, camera);
   composer.render();
@@ -532,7 +532,7 @@ async function main() {
     const want = params.get('vehicle');
     const v = VEHICLES.find(x => x.id === want?.toLowerCase());
     if (!v) {
-      console.warn(`?vehicle=${want} no coincide con ningún vehículo; mostrando la vista general.`);
+      console.warn(`?vehicle=${want} matches no vehicle; showing the overview instead.`);
       jump(null);
     } else {
       const wantP = params.get('preset');
@@ -570,7 +570,7 @@ function buildRuler(M, height, id) {
   // top marker with the total height
   const top = document.createElement('div');
   top.className = 'ruler-label ruler-top';
-  top.textContent = `${String(height).replace('.', ',')} m`;
+  top.textContent = `${height} m`;
   const o = new CSS2DObject(top);
   o.position.set(0, height + (height > 40 ? 2.5 : 0.6), 0);
   g.add(o);

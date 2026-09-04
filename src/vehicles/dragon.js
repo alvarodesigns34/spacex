@@ -160,14 +160,14 @@ export function buildDragon(M) {
   g.userData.footprint = CAP_R * 2;
   g.userData.stations = { trunkTop: TRUNK_H, shoulder: SHOULDER, noseBase: NOSE_BASE, capR: CAP_R, trunkR: TRUNK_R };
   g.userData.annotations = [
-    { label: 'Escudo térmico PICA', position: [0, TRUNK_H - 0.2, 1.3] },
-    { label: 'Vaina SuperDraco (2 × 4 = 8)', position: [Math.sin(Math.PI / 4) * 2.35, TRUNK_H + 1.55, Math.cos(Math.PI / 4) * 2.35] },
-    { label: 'Ventana', position: [Math.sin(0.62) * 2.0, winY, Math.cos(0.62) * 2.0] },
-    { label: 'Escotilla lateral', position: [2.2, TRUNK_H + 1.85, 0] },
-    { label: 'Morro abatible · adaptador IDSS', position: [0, TOP + 0.25, 0.6] },
-    { label: 'Trunk · paneles solares (media circunferencia)', position: [0, 1.9, -TRUNK_R - 0.35] },
-    { label: 'Trunk · radiadores', position: [0, 2.6, TRUNK_R + 0.35] },
-    { label: 'Aleta del trunk', position: [Math.sin(Math.PI / 4) * (TRUNK_R + 0.95), 2.0, Math.cos(Math.PI / 4) * (TRUNK_R + 0.95)] },
+    { label: 'PICA heat shield', position: [0, TRUNK_H - 0.2, 1.3] },
+    { label: 'SuperDraco pod (2 × 4 = 8)', position: [Math.sin(Math.PI / 4) * 2.35, TRUNK_H + 1.55, Math.cos(Math.PI / 4) * 2.35] },
+    { label: 'Window', position: [Math.sin(0.62) * 2.0, winY, Math.cos(0.62) * 2.0] },
+    { label: 'Side hatch', position: [2.2, TRUNK_H + 1.85, 0] },
+    { label: 'Hinged nose cone · IDSS adapter', position: [0, TOP + 0.25, 0.6] },
+    { label: 'Trunk · solar cells (half the circumference)', position: [0, 1.9, -TRUNK_R - 0.35] },
+    { label: 'Trunk · radiators', position: [0, 2.6, TRUNK_R + 0.35] },
+    { label: 'Trunk fin', position: [Math.sin(Math.PI / 4) * (TRUNK_R + 0.95), 2.0, Math.cos(Math.PI / 4) * (TRUNK_R + 0.95)] },
     { label: 'Draco (16)', position: [0, TRUNK_H + 0.75, CAP_R + 0.3] },
   ];
   return g;

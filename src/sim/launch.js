@@ -123,15 +123,15 @@ function shipThrottle(t) {
 }
 
 const PHASES = [
-  [EVENTS.ignition, 'Cuenta atrás'],
-  [EVENTS.liftoff, 'Encendido de los 33 Raptor'],
-  [EVENTS.towerClear, 'Despegue'],
-  [EVENTS.maxQ - 6, 'Ascenso · torre libre'],
-  [EVENTS.maxQ + 8, 'Max-Q · presión dinámica máxima'],
-  [EVENTS.meco, 'Ascenso'],
-  [EVENTS.separation, 'MECO · corte de motores'],
-  [EVENTS.separation + 12, 'Separación en caliente'],
-  [Infinity, 'Segunda etapa en vuelo'],
+  [EVENTS.ignition, 'Countdown'],
+  [EVENTS.liftoff, '33 Raptor ignition'],
+  [EVENTS.towerClear, 'Liftoff'],
+  [EVENTS.maxQ - 6, 'Ascent · tower cleared'],
+  [EVENTS.maxQ + 8, 'Max-Q · peak dynamic pressure'],
+  [EVENTS.meco, 'Ascent'],
+  [EVENTS.separation, 'MECO · engine cutoff'],
+  [EVENTS.separation + 12, 'Hot-staging'],
+  [Infinity, 'Second stage in flight'],
 ];
 const phaseAt = (t) => (PHASES.find(p => t < p[0]) ?? PHASES[PHASES.length - 1])[1];
 
@@ -342,7 +342,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
     state.velocity = speedAt(t);
     state.downrange = downrangeAt(t);
     state.throttle = Math.max(bt, st);
-    state.phase = t < EVENTS.ignition ? 'Cuenta atrás' : phaseAt(t);
+    state.phase = t < EVENTS.ignition ? 'Countdown' : phaseAt(t);
   }
 
   // ---- Public API -------------------------------------------------------------------
