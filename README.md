@@ -1,6 +1,6 @@
 # SpaceX Vehicle Center
 
-Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones técnicas de seis vehículos y sistemas de SpaceX:
+Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones técnicas de siete expositores de SpaceX:
 
 | Vehículo | Configuración modelada | Altura / envergadura |
 |---|---|---|
@@ -9,7 +9,8 @@ Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones
 | Falcon Heavy | Tres núcleos, propulsores laterales con cono de morro | 70 m · 12,2 m de ancho |
 | Dragon | Crew Dragon con trunk (paneles solares en media circunferencia, radiadores, aletas) | 8,1 m |
 | Starlink | V2 Mini con las dos alas solares desplegadas | 30 m de envergadura |
-| Tesla Roadster | Gen 1 (2008) con Starman, carga útil del vuelo inaugural del Falcon Heavy | 3,95 m · 1,13 m de alto |
+| Tesla Roadster | 1.ª generación (modelo 2010, carrocería anterior al 2.5) con Starman, carga útil del vuelo inaugural del Falcon Heavy | 3,947 m · 1,852 m de ancho · 1,128 m de alto |
+| Engine Row | Raptor 3, Raptor Vacuum y Merlin 1D sobre cunas, a 1:1 | 4,4 m (RVac) |
 
 Starship no está sobre un soporte de museo sino sobre su plataforma: una reconstrucción a escala del **Pad 2 de Starbase** — la explanada, la zanja de llamas bidireccional revestida de inoxidable con su deflector central, la mesa de lanzamiento cuadrada de cubierta refrigerada por agua con sus veinte pinzas de sujeción, la torre de integración de 144,5 m, los brazos de captura de 36 m, el brazo de desconexión rápida de la nave, los pararrayos y la granja criogénica. Desde ahí **despega**: con **G** o el botón *Lanzamiento* corre la secuencia completa, de la cuenta atrás a la separación en caliente.
 
@@ -33,9 +34,10 @@ y abrir la URL que indique. Requiere WebGL 2.
 
 - **Arrastrar** orbita, **rueda** acerca, **botón derecho** desplaza.
 - **F** cambia a vuelo libre: `W A S D` mover, `Q`/`E` bajar/subir, arrastrar para mirar, `Shift` ×4, `Ctrl` ×0,2, rueda ajusta la velocidad.
-- **1–5** selecciona vehículo, **0** vista general, **L** etiquetas, **R** regla de altura, **T** pliega la ficha, **H** ayuda.
+- **1–7** selecciona expositor, **0** vista general, **L** etiquetas, **R** regla de altura, **T** pliega la ficha, **H** ayuda.
+- **P** (o el botón *Tour*) recorre el centro parada por parada; cualquier arrastre, rueda o clic lo termina y devuelve la cámara.
 - **G** (o el botón *Lanzamiento*) arranca la secuencia de Starship. Durante la cuenta atrás y el ascenso la cámara sigue un plan de planos, pero **arrastrar o girar la rueda devuelve el control al instante** sin detener la secuencia. El panel de misión lleva reloj, fase, altitud, velocidad, distancia y empuje, un selector de velocidad ×1 / ×2 / ×5 / ×10 que multiplica el reloj (no salta hitos) y un botón para terminar.
-- Deslizador **Sol** cambia la elevación solar (se recalculan luz, sombras, niebla y mapa de entorno). El azimut está fijado para iluminar los vehículos desde el lado desde el que miran las vistas por defecto.
+- Deslizador **Sol** recorre el día entero, de −10° a 75° de elevación (se recalculan luz, sombras, niebla y mapa de entorno). **Por debajo del horizonte el centro pasa a modo noche**: el cielo pierde su dispersión y aparecen las estrellas, y cada estación enciende un foco cálido sobre su expositor. Esa iluminación es escenografía del centro y está marcada como tal en la ficha. El azimut está fijado para iluminar los vehículos desde el lado desde el que miran las vistas por defecto.
 
 ## Precisión y fuentes
 
@@ -106,7 +108,7 @@ starlink      envergadura             30         30         0
 
 ### Puerta de validación en CI
 
-`npm run check` (`tools/check.mjs`) levanta el sitio, lo carga en Chromium headless y ejecuta las pasadas anteriores, recorre las 34 vistas autoradas comprobando que la cámara resultante es finita y queda sobre la explanada, y exige consola limpia.
+`npm run check` (`tools/check.mjs`) levanta el sitio, lo carga en Chromium headless y ejecuta las pasadas anteriores, recorre las 41 vistas autoradas comprobando que la cámara resultante es finita y queda sobre la explanada, y exige consola limpia.
 
 También **recorre la secuencia de lanzamiento**. `launch.seek(t)` reproduce el estado completo de un instante de misión — nube de tierra incluida, resimulada desde la ignición a paso fijo — en vez de limitarse a avanzar, y eso es lo que la hace comprobable: el gate visita once hitos exigiendo transformadas finitas y cámara sobre la explanada, comprueba que el perfil de ascenso nunca retrocede, y comprueba que guardar la secuencia deja la escena **exactamente** como estaba (vehículo, brazo de desconexión, las veinte pinzas, planos de cámara y niebla). Sale con código distinto de cero si algo falla, y el flujo de GitHub Actions **bloquea el despliegue** con ella.
 
@@ -123,7 +125,8 @@ También **recorre la secuencia de lanzamiento**. `launch.seek(t)` reproduce el 
 | ![Ignición](docs/screenshots/launch-ignition.jpg) | ![Ascenso](docs/screenshots/launch-ascent.jpg) |
 | ![Separación en caliente](docs/screenshots/launch-staging.jpg) | ![Vista general](docs/screenshots/overview.jpg) |
 | ![Tesla Roadster](docs/screenshots/roadster_overview.png) | ![Starman](docs/screenshots/roadster_starman.png) |
-| ![Detalle de carrocería](docs/screenshots/roadster_detail.png) | ![Tierra al fondo](docs/screenshots/roadster_earth.png) |
+| ![Faros y morro](docs/screenshots/roadster_detail.png) | ![Tierra al fondo](docs/screenshots/roadster_earth.png) |
+| ![Rueda y paso](docs/screenshots/roadster_underbody.png) | ![Engine Row](docs/screenshots/engines-row.png) |
 
 ## Estructura
 
@@ -149,7 +152,7 @@ src/ui/hud.js              interfaz
 
 ## Presupuesto de rendimiento
 
-Medido en la vista general con los seis vehículos cargados:
+Medido en la vista general con los siete expositores cargados:
 
 | | |
 |---|---|

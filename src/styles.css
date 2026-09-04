@@ -152,6 +152,7 @@ a:hover { border-bottom-color: var(--accent); }
 /* ---- Launch sequence ---------------------------------------------------------------- */
 .tool-launch { color: var(--ink); border-color: color-mix(in srgb, var(--accent) 55%, var(--surface-line)); }
 .tool-launch:hover { border-color: var(--accent); }
+.tool-btn.is-live,
 .tool-launch.is-live { background: color-mix(in srgb, var(--accent) 22%, var(--surface-raised)); border-color: var(--accent); color: var(--ink); }
 
 .mission {

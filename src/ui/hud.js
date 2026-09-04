@@ -6,7 +6,7 @@ import { SOURCES, SOURCE_LABEL } from '../data/specs.js';
 
 const fmtHeight = (h) => `${h >= 10 ? Math.round(h) : h} m`;
 
-export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSun, onReset, onLaunch, onLaunchAbort, onLaunchSpeed }) {
+export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSun, onReset, onLaunch, onLaunchAbort, onLaunchSpeed, onTour }) {
   const root = document.getElementById('hud');
   root.innerHTML = `
     <header class="hud-header">
@@ -42,6 +42,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       <label class="tool"><input type="checkbox" id="tg-humans" checked> 1.80 m figures</label>
       <label class="tool tool-sun">Sun <input type="range" id="sun" min="-10" max="75" value="42" step="1" title="Sun elevation — below the horizon the centre switches to night"></label>
       <button class="tool tool-btn tool-launch" id="launch-btn" title="Starship launch sequence from Pad 2 (G)">Starship · Launch <kbd>G</kbd></button>
+      <button class="tool tool-btn" id="tour-btn" title="Guided tour of the centre (P)">Tour <kbd>P</kbd></button>
       <button class="tool tool-btn" id="mode-btn" title="Switch camera mode (F)">Orbit <kbd>F</kbd></button>
       <button class="tool tool-btn" id="help-btn" title="Help (H)">Help <kbd>H</kbd></button>
     </div>
@@ -80,6 +81,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
           <tr><td><kbd>1</kbd>–<kbd>7</kbd></td><td>select exhibit</td></tr>
           <tr><td><kbd>L</kbd> <kbd>R</kbd> <kbd>T</kbd></td><td>labels · ruler · data sheet</td></tr>
           <tr><td><kbd>0</kbd></td><td>overview of the centre</td></tr>
+          <tr><td><kbd>P</kbd></td><td>guided tour — the camera walks the centre stop by stop; any drag, scroll or click ends it</td></tr>
           <tr><td><kbd>G</kbd></td><td>Starship launch sequence · during the countdown and ascent, dragging or scrolling hands the camera back to you without stopping it</td></tr>
         </table>
         <p class="help-note">1:1 scale — one scene unit is one metre. Figures marked <span class="chip chip-approx">≈</span> have no exact published value and were reconstructed from imagery.</p>
@@ -157,7 +159,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     if (v) { renderSheet(v); sheet.classList.remove('hidden'); el('#presets').classList.remove('hidden'); }
     else {
       el('#hud-title').textContent = 'Overview';
-      el('#hud-subtitle').textContent = `${vehicles.length} vehicles at 1:1 scale`;
+      el('#hud-subtitle').textContent = `${vehicles.length} exhibits at 1:1 scale`;
       sheet.classList.add('hidden');
       el('#presets').classList.add('hidden');
     }
@@ -169,6 +171,13 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
   el('#tg-humans').addEventListener('change', (e) => onToggle('humans', e.target.checked));
   el('#sun').addEventListener('input', (e) => onSun(Number(e.target.value)));
   el('#mode-btn').addEventListener('click', () => onMode());
+  const tourBtn = el('#tour-btn');
+  tourBtn.addEventListener('click', () => onTour?.());
+  /** null ends the tour; otherwise {step, total} lights the button and shows progress. */
+  function setTour(st) {
+    tourBtn.classList.toggle('is-live', !!st);
+    tourBtn.innerHTML = st ? `Tour ${st.step}/${st.total} <kbd>P</kbd>` : 'Tour <kbd>P</kbd>';
+  }
   const help = el('#help');
   el('#help-btn').addEventListener('click', () => help.classList.toggle('hidden'));
   el('#help-close').addEventListener('click', () => help.classList.add('hidden'));
@@ -240,5 +249,5 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     if (map[name]) el(map[name]).checked = value;
   }
 
-  return { setActive, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, showHelp: (s) => help.classList.toggle('hidden', !s) };
+  return { setActive, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setTour, showHelp: (s) => help.classList.toggle('hidden', !s) };
 }

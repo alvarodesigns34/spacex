@@ -54,6 +54,9 @@ page.on('console', m => {
   consoleErrors.push(where.trim());
 });
 
+// Dwell of the tour's first stop, in ms. The stop test has to outlast it to mean anything.
+const TOUR_FIRST_HOLD_MS = 7000;
+
 let failures = 0;
 const report = (ok, label, detail = '') => {
   if (!ok) failures++;
@@ -108,6 +111,29 @@ try {
     report(ok, 'la vista orbital se monta y se desmonta',
       ok ? 'peana, adaptador, suelo, niebla y cielo entran y vuelven a su sitio'
         : `antes ${JSON.stringify(before)} · dentro ${JSON.stringify(during)} · después ${JSON.stringify(after)}`);
+  }
+
+  // ---- Guided tour ---------------------------------------------------------------------
+  // The tour drives the same jump() a visitor drives, so the risk is not that it moves the
+  // camera badly but that it never stops: a stray timer keeps re-framing the scene under
+  // whatever the visitor does next.
+  {
+    await page.evaluate(() => window.__vc.startTour());
+    const started = await page.evaluate(() => window.__vc.tourAt);
+    await page.evaluate(() => window.__vc.stopTour());
+    const stopped = await page.evaluate(() => window.__vc.tourAt);
+    // Wait past the first stop's dwell. Anything shorter proves nothing: a surviving timer
+    // would not have fired yet, and the assertion would pass on a tour that never stops.
+    const before = await page.evaluate(() => window.__vc.camera.position.toArray());
+    await page.waitForTimeout(TOUR_FIRST_HOLD_MS + 800);
+    const after = await page.evaluate(() => window.__vc.camera.position.toArray());
+    const still = before.every((v, i) => Math.abs(v - after[i]) < 1e-6);
+    const idle = await page.evaluate(() => window.__vc.tourAt);
+    const ok = started === 0 && stopped === -1 && still && idle === -1;
+    report(ok, 'la visita guiada arranca y se detiene de verdad',
+      ok ? 'primer alto encuadrado, y al pararla no queda ningún temporizador moviendo la cámara'
+        : `arranque ${started} · parada ${stopped} · cámara quieta ${still} · inactiva ${idle === -1}`);
+    await page.evaluate(() => window.__vc.jump(null));
   }
 
   // ---- Day and night -------------------------------------------------------------------

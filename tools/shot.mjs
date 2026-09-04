@@ -30,7 +30,7 @@ for (const s of shots) {
     if (s.sun !== undefined) window.__vc.env.setSun(s.sun, 34);
     if (s.seek !== undefined) { window.__vc.launch.setSpeed(s.speed ?? 1); window.__vc.launch.seek(s.seek); }
     else if (s.ortho) window.__vc.ortho(s.ortho);
-    else if (s.jump) window.__vc.jump(s.jump[0], s.jump[1]);
+    else if (s.jump) window.__vc.jump(s.jump[0] ?? null, s.jump[1] ?? undefined);
     else window.__vc.rig.jumpTo(s.pos, s.target);
   }, s);
   await page.waitForTimeout(s.wait ?? 700);

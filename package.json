@@ -2,7 +2,7 @@
   "name": "spacex-vehicle-center",
   "version": "1.0.0",
   "private": true,
-  "description": "Recreaciones 3D a escala 1:1 de seis vehículos de SpaceX",
+  "description": "Recreaciones 3D a escala 1:1 de siete expositores de SpaceX",
   "type": "module",
   "scripts": {
     "serve": "python3 -m http.server 8080",

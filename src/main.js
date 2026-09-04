@@ -46,7 +46,9 @@ const LAYOUT = {
 };
 // Recomposed when the Roadster became the sixth exhibit: the old frame was centred on x = -14
 // and the car sat at the right-hand edge, so the first thing a visitor saw did not contain it.
-const OVERVIEW = { pos: [-22, 58, 266], target: [-28, 44, -70] };
+// Recomposed again when Engine Row became the seventh exhibit at x = 163: the row now spans
+// nearly 300 m, so the frame has to sit further back and centre on the middle of it.
+const OVERVIEW = { pos: [4, 68, 300], target: [-2, 40, -68] };
 
 // Radius of the cylinder used to hide annotations that sit behind a vehicle. CSS2D labels
 // always draw on top of the scene, so without this the far-side callouts read as if they
@@ -81,10 +83,11 @@ async function main() {
   let sunRaf = 0, pendingSun = 42;
   const hud = createHUD({
     vehicles: VEHICLES,
-    onSelect: (id) => select(id),
-    onPreset: (id, presetId) => goPreset(id, presetId),
+    onSelect: (id) => { stopTour(); select(id); },
+    onPreset: (id, presetId) => { stopTour(); goPreset(id, presetId); },
     onToggle: (name, value) => setToggle(name, value),
     onMode: () => rig.setMode(rig.mode === 'fly' ? 'orbit' : 'fly'),
+    onTour: () => toggleTour(),
     // setSun regenerates the PMREM environment map, which is far too expensive to do on every
     // pointermove the range input fires. Coalesce to one regeneration per frame while dragging.
     onSun: (elev) => {
@@ -92,7 +95,7 @@ async function main() {
       if (sunRaf) return;
       sunRaf = requestAnimationFrame(() => { sunRaf = 0; env.setSun(pendingSun, 34); });
     },
-    onReset: () => select(null),
+    onReset: () => { stopTour(); select(null); },
     onLaunch: () => toggleLaunch(),
     onLaunchAbort: () => launch?.reset(),
     onLaunchSpeed: (k) => launch?.setSpeed(k),
@@ -412,13 +415,55 @@ async function main() {
     const w = worldPreset(id, presetId ?? 'overview');
     rig.jumpTo(w.pos, w.target);
   }
+  // ---- Guided tour ----------------------------------------------------------------------
+  // A museum has a route through it. This one walks every exhibit, stopping where the authored
+  // views already point, and hands the camera straight back the moment the visitor touches it —
+  // the same courtesy the launch sequence extends.
+  const TOUR = [
+    ['starship', 'site', 7], ['starship', 'engines', 5], ['starship', 'tiles', 5],
+    ['starship', 'flaps', 5], ['starship', 'trench', 5],
+    ['falcon9', 'overview', 5], ['falcon9', 'octaweb', 4], ['falcon9', 'interstage', 4],
+    ['falconheavy', 'overview', 5], ['falconheavy', 'engines', 4],
+    ['dragon', 'overview', 5], ['dragon', 'superdraco', 4], ['dragon', 'trunk', 4],
+    ['starlink', 'overview', 5], ['starlink', 'antennas', 4],
+    ['roadster', 'overview', 5], ['roadster', 'detail', 4], ['roadster', 'starman', 4],
+    ['roadster', 'earth', 6],
+    ['engines', 'overview', 5], ['engines', 'rvac', 4],
+  ];
+  let tourAt = -1, tourTimer = 0;
+
+  function tourStep() {
+    tourAt++;
+    if (tourAt >= TOUR.length) { stopTour(); jump(null); return; }
+    const [id, preset, hold] = TOUR[tourAt];
+    jump(id, preset);
+    hud.setTour({ step: tourAt + 1, total: TOUR.length });
+    tourTimer = window.setTimeout(tourStep, hold * 1000);
+  }
+  function startTour() {
+    if (tourAt >= 0) return;
+    launch.reset(false);
+    tourAt = -1;
+    tourStep();
+  }
+  function stopTour() {
+    if (tourAt < 0) return;
+    clearTimeout(tourTimer);
+    tourAt = -1;
+    hud.setTour(null);
+  }
+  const toggleTour = () => (tourAt >= 0 ? stopTour() : startTour());
+  // Any attempt to drive the camera ends the tour rather than fighting it.
+  for (const ev of ['pointerdown', 'wheel']) canvas.addEventListener(ev, stopTour, { passive: true });
+
   window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return;
     const k = e.key.toLowerCase();
-    if (k >= '1' && k <= String(VEHICLES.length)) select(VEHICLES[Number(k) - 1].id);
+    if (k >= '1' && k <= String(VEHICLES.length)) { stopTour(); select(VEHICLES[Number(k) - 1].id); }
     else if (k === '0') select(null);
     else if (k === 'f') rig.setMode(rig.mode === 'fly' ? 'orbit' : 'fly');
     else if (k === 'g') toggleLaunch();
+    else if (k === 'p') toggleTour();
     else if (k === 'l') setToggle('labels', !state.labels);
     else if (k === 'r') setToggle('ruler', !state.ruler);
     else if (k === 't') hud.toggleSheet();
@@ -586,7 +631,7 @@ async function main() {
     hudEl.style.visibility = 'hidden'; labelEl.style.visibility = 'hidden';
   }
 
-  window.__vc = { M, scene, camera, rig, exhibits, complex, launch, select, goPreset, jump, renderer, env, setToggle, timings, verify, spaceState, lightState, ortho };
+  window.__vc = { M, scene, camera, rig, exhibits, complex, launch, select, goPreset, jump, renderer, env, setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour, get tourAt() { return tourAt; } };
   const params = new URLSearchParams(location.search);
   if (params.has('verify')) verify();
   if (params.has('vehicle')) {
