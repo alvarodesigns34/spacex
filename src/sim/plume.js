@@ -134,15 +134,16 @@ export class Plume {
     const t = 0.5 + 0.5 * throttle;
     const rc = this.radius * 0.82;
     this.core.scale.set(rc, this.baseLength * stretch * t, rc);
-    const rs = this.radius * 1.04;
-    this.shroud.scale.set(rs, this.baseLength * stretch * 1.3 * t, rs);
+    const rs = this.radius * 1.34;
+    this.shroud.scale.set(rs, this.baseLength * stretch * 1.45 * t, rs);
     this.core.material.uniforms.uSpread.value = 1 + 2.4 * (1 - p);
     this.shroud.material.uniforms.uSpread.value = 1 + 5.2 * (1 - p);
     this.core.material.uniforms.uDiamond.value = 0.75 * p;
-    this.core.material.uniforms.uOpacity.value = 0.45 + 0.55 * p;
-    this.shroud.material.uniforms.uOpacity.value = 0.5 + 0.5 * (1 - p);
-    this.light.intensity = 900 * throttle * (0.35 + 0.65 * p);
-    this.light.distance = 120 + 260 * (1 - p);
+    // Dense and bright in the lower atmosphere, where the exhaust is still optically thick.
+    this.core.material.uniforms.uOpacity.value = 0.72 + 0.28 * p;
+    this.shroud.material.uniforms.uOpacity.value = 0.62 + 0.38 * (1 - p);
+    this.light.intensity = 1600 * throttle * (0.35 + 0.65 * p);
+    this.light.distance = 180 + 320 * (1 - p);
   }
 
   dispose() {

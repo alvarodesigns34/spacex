@@ -35,7 +35,7 @@ export function raptorGeometry({ exitRadius = 0.62, height = 2.9 } = {}) {
     parts.push({ geometry: new THREE.CylinderGeometry(0.04, 0.04, 0.5, 8), matrix: mat4([Math.cos(a) * 0.36, 2.05, Math.sin(a) * 0.36]) });
   }
   const head = mergeAll(parts);
-  return { outer, inner, head, height };
+  return { outer, inner, head, height, profile: bell };
 }
 
 /** Raptor Vacuum: 2.3 m diameter, 4.4 m tall (spacex.com). Radiatively cooled skirt. */
@@ -57,7 +57,7 @@ export function raptorVacGeometry({ exitRadius = 1.15, height = 4.4 } = {}) {
     parts.push({ geometry: new THREE.TorusGeometry(r * 0.99, 0.02, 6, 80), matrix: mat4([0, y, 0], [Math.PI / 2, 0, 0]) });
   }
   const head = mergeAll(parts);
-  return { outer, inner, head, height };
+  return { outer, inner, head, height, profile: bell };
 }
 
 /** Merlin 1D (sea level): 0.92 m nozzle exit (Wikipedia). Overall height approximate. */
@@ -76,7 +76,7 @@ export function merlinGeometry({ exitRadius = 0.46, height = 2.3 } = {}) {
   parts.push({ geometry: new THREE.TorusGeometry(0.22, 0.03, 8, 32), matrix: mat4([0, 1.68, 0], [Math.PI / 2, 0, 0]) });
   parts.push({ geometry: new THREE.CylinderGeometry(0.04, 0.04, 0.9, 8), matrix: mat4([0.32, 1.35, -0.1], [0.25, 0, 0]) }); // turbine exhaust duct
   const head = mergeAll(parts);
-  return { outer, inner, head, height };
+  return { outer, inner, head, height, profile: bell };
 }
 
 /** Merlin Vacuum: 3.3 m nozzle exit (Wikipedia). Lives inside the interstage. */

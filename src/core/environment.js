@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { starShell } from './backdrop.js';
+import { mesh, mergeAll, mat4 } from '../geometry/utils.js';
 
 export function createEnvironment(renderer, scene, M) {
   const sunDir = new THREE.Vector3();
@@ -90,13 +91,51 @@ export function createEnvironment(renderer, scene, M) {
   stars.material.opacity = 0; stars.material.transparent = true;
   night.add(stars);
   const displayLights = [];
-  /** One warm floodlight per station, aimed at the exhibit. No shadows: seven of those is a lot. */
+  // The luminaires are real furniture, so they stand in the scene by day as well; only the
+  // lens and the light itself follow the sun down. A bare SpotLight with nothing to come out
+  // of is what the first version was, and at night the exhibits were lit by nothing visible.
+  const lightMasts = new THREE.Group();
+  lightMasts.name = 'light-masts';
+  scene.add(lightMasts);
+  const lensMat = new THREE.MeshStandardMaterial({
+    color: 0x2a2c30, emissive: 0xffe2ae, emissiveIntensity: 0, roughness: 0.35, metalness: 0.1,
+  });
+
+  /**
+   * One floodlight per station: a slim mast set outside the station ring with a shoebox head
+   * angled in at the exhibit. No shadow map — seven shadow-casting spots is not worth it, and
+   * the sun already owns the shadows.
+   */
   function addDisplayLight(x, z, radius, height) {
-    const spot = new THREE.SpotLight(0xffe9c8, 0, radius * 6, 0.62, 0.55, 1.1);
-    spot.position.set(x + radius * 0.85, height * 1.5 + 5, z + radius * 0.85);
-    spot.target.position.set(x, height * 0.4, z);
+    const H = THREE.MathUtils.clamp(height * 0.55 + 3.2, 4.2, 26);
+    // Behind and to one side, so it never stands between the default views and the exhibit.
+    const px = x + radius * 0.92, pz = z + radius * 0.92;
+
+    const g = new THREE.Group();
+    g.position.set(px, 0, pz);
+    // Aim the head at the exhibit.
+    g.rotation.y = Math.atan2(x - px, z - pz);
+
+    const parts = [];
+    parts.push({ geometry: new THREE.CylinderGeometry(0.24, 0.30, 0.10, 20), matrix: mat4([0, 0.05, 0]) });
+    parts.push({ geometry: new THREE.CylinderGeometry(0.062, 0.098, H, 16), matrix: mat4([0, H / 2 + 0.08, 0]) });
+    // Arm reaching in over the exhibit.
+    parts.push({ geometry: new THREE.CylinderGeometry(0.045, 0.045, 0.62, 12), matrix: mat4([0, H + 0.02, 0.30], [Math.PI / 2, 0, 0]) });
+    g.add(mesh(mergeAll(parts), M.mount, { name: 'light-mast' }));
+
+    const head = new THREE.Group();
+    head.position.set(0, H + 0.02, 0.60);
+    head.rotation.x = 0.52;   // tilted down at the exhibit
+    head.add(mesh(new THREE.BoxGeometry(0.46, 0.16, 0.30), M.mount, { name: 'luminaire' }));
+    head.add(mesh(new THREE.BoxGeometry(0.40, 0.02, 0.24), lensMat, { position: [0, -0.088, 0], name: 'luminaire-lens' }));
+    g.add(head);
+    lightMasts.add(g);
+
+    const spot = new THREE.SpotLight(0xffe9c8, 0, radius * 7, 0.60, 0.52, 1.15);
+    spot.position.set(px + Math.sin(g.rotation.y) * 0.6, H + 0.02, pz + Math.cos(g.rotation.y) * 0.6);
+    spot.target.position.set(x, height * 0.35, z);
     night.add(spot, spot.target);
-    displayLights.push({ spot, peak: 40 + radius * radius * 3.2 });
+    displayLights.push({ spot, peak: 55 + radius * radius * 3.4 });
   }
 
   const fog = new THREE.FogExp2(0xc9d3de, 0.00019);
@@ -144,6 +183,7 @@ export function createEnvironment(renderer, scene, M) {
     markings.visible = !inSpace;
     sky.visible = !inSpace;
     night.visible = !inSpace && nightK > 0.02;
+    lightMasts.visible = !inSpace;
     scene.fog = inSpace ? null : fog;
   }
 
@@ -186,6 +226,7 @@ export function createEnvironment(renderer, scene, M) {
     stars.material.opacity = Math.pow(n, 1.6);
     night.visible = !inSpace && n > 0.02;
     for (const d of displayLights) d.spot.intensity = d.peak * Math.pow(n, 1.3);
+    lensMat.emissiveIntensity = 2.6 * Math.pow(n, 1.4);
 
     // The reflection probe is rebuilt from the same sky, after the night blend, so chrome and
     // clearcoat go dark with the scene instead of staying lit by a daytime dome.

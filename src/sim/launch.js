@@ -155,8 +155,12 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
   // ---- Plumes -------------------------------------------------------------------------
   // Cluster radii: the 33 Raptors sit inside a 3,86 m ring, the ship's six inside a 2,3 m
   // one, so those are the exit-plane radii the merged columns start from.
-  const boosterPlume = new Plume({ radius: 4.1, seaLevelLength: 6.0, name: 'plume-booster' });
-  const shipPlume = new Plume({ radius: 2.4, seaLevelLength: 7.0, name: 'plume-ship' });
+  // Thirty-three sea-level Raptors do not make a wisp. The exhaust column off the mount is
+  // wider than the 9 m booster and runs several booster-lengths behind it before it breaks up;
+  // at 6.0 the plume was about a quarter of the booster's length and the whole ascent read as
+  // a model rocket.
+  const boosterPlume = new Plume({ radius: 4.6, seaLevelLength: 9.6, name: 'plume-booster' });
+  const shipPlume = new Plume({ radius: 2.6, seaLevelLength: 8.4, name: 'plume-ship' });
   booster.add(boosterPlume.group);
   ship.add(shipPlume.group);
 
