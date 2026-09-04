@@ -106,6 +106,22 @@ export function createEnvironment(renderer, scene, M) {
     ground.scale.setScalar(THREE.MathUtils.clamp(1 + h / 900, 1, 34));
   }
 
+  /**
+   * Takes the ground away for the Roadster's orbital view. setAltitude() thins the atmosphere
+   * but the apron is still there, and in space a grey slab across the frame is worse than no
+   * backdrop at all. Reversible: setSpace(false) restores the ground, its markings, the sky
+   * and the fog exactly, which is what the check asserts after entering and leaving the view.
+   */
+  let inSpace = false;
+  function setSpace(on) {
+    if (on === inSpace) return;
+    inSpace = !!on;
+    ground.visible = !inSpace;
+    markings.visible = !inSpace;
+    sky.visible = !inSpace;
+    scene.fog = inSpace ? null : fog;
+  }
+
   function setSun(elevationDeg, azimuthDeg) {
     const phi = THREE.MathUtils.degToRad(90 - elevationDeg);
     const theta = THREE.MathUtils.degToRad(azimuthDeg);
@@ -152,5 +168,5 @@ export function createEnvironment(renderer, scene, M) {
   // raked about 35° off the camera axis for modelling rather than flat frontal light.
   setSun(42, 34);
 
-  return { sun, sky, hemi, ground, setSun, setAltitude, followCamera, updateShadow, addStation, get sunDir() { return sunDir; } };
+  return { sun, sky, hemi, ground, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation, get inSpace() { return inSpace; }, get sunDir() { return sunDir; } };
 }

@@ -86,6 +86,30 @@ try {
     }
   }
   report(bad.length === 0, `${Object.values(presets).flat().length} vistas`, bad.length ? `inválidas: ${bad.join(', ')}` : 'todas válidas');
+
+  // ---- Orbital view leaves nothing behind -----------------------------------------------
+  // The Roadster's "Tierra al fondo" view swaps the whole presentation: plinth away, payload
+  // adapter in, ground, sky and fog off, Earth backdrop on. A one-way switch would leave every
+  // other exhibit floating in a black void, so leaving the view has to put it all back.
+  // Asserted against absolute expected states, not against a snapshot taken beforehand: the
+  // view walk above already passes through this preset, so a "before" reading is not
+  // trustworthy — a one-way switch would have contaminated it and the comparison would pass.
+  {
+    const GROUND = { space: false, ground: true, fog: true, backdrop: false, pedestal: true, adapter: false };
+    const SPACE = { space: true, ground: false, fog: false, backdrop: true, pedestal: false, adapter: true };
+    const eq = (a, b) => Object.keys(b).every(k => a[k] === b[k]);
+    await page.evaluate(() => window.__vc.jump('starship', 'overview'));
+    const before = await page.evaluate(() => window.__vc.spaceState());
+    await page.evaluate(() => window.__vc.jump('roadster', 'earth'));
+    const during = await page.evaluate(() => window.__vc.spaceState());
+    await page.evaluate(() => window.__vc.jump('starship', 'overview'));
+    const after = await page.evaluate(() => window.__vc.spaceState());
+    const ok = eq(before, GROUND) && eq(during, SPACE) && eq(after, GROUND);
+    report(ok, 'la vista orbital se monta y se desmonta',
+      ok ? 'peana, adaptador, suelo, niebla y cielo entran y vuelven a su sitio'
+        : `antes ${JSON.stringify(before)} · dentro ${JSON.stringify(during)} · después ${JSON.stringify(after)}`);
+  }
+
   // ---- Launch sequence -----------------------------------------------------------------
   // The sequence has to be checkable, which is why seek() reproduces the full state for a
   // mission time rather than only advancing. Every milestone must leave finite transforms

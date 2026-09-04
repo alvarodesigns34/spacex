@@ -19,7 +19,9 @@ import { buildFalcon9, buildFalconHeavy } from './vehicles/falcon.js';
 import { buildDragon } from './vehicles/dragon.js';
 import { buildStarlink } from './vehicles/starlink.js';
 import { buildRoadster } from './vehicles/roadster.js';
+import { buildOrbitalBackdrop } from './core/backdrop.js';
 import { buildMount, buildPedestal, buildHuman } from './vehicles/common.js';
+import { seeded } from './geometry/utils.js';
 import { buildLaunchComplex, PAD } from './vehicles/pad.js';
 import { verifyExhibits, verifyScene, verifyPad } from './data/verify.js';
 import { createLaunch } from './sim/launch.js';
@@ -38,9 +40,11 @@ const LAYOUT = {
   starship: { x: 0, z: -185, mount: PAD.deckTop, yaw: 129.6, pad: true },
   dragon: { x: 18, z: 0, mount: 1.6 },
   starlink: { x: 78, z: 0, mount: 6.2 },
-  roadster: { x: 136, z: 0, mount: 1.4, yaw: 25 },
+  roadster: { x: 118, z: 0, mount: 1.4, yaw: 25 },
 };
-const OVERVIEW = { pos: [-12, 74, 292], target: [-14, 50, -66] };
+// Recomposed when the Roadster became the sixth exhibit: the old frame was centred on x = -14
+// and the car sat at the right-hand edge, so the first thing a visitor saw did not contain it.
+const OVERVIEW = { pos: [-22, 58, 266], target: [-28, 44, -70] };
 
 // Radius of the cylinder used to hide annotations that sit behind a vehicle. CSS2D labels
 // always draw on top of the scene, so without this the far-side callouts read as if they
@@ -72,13 +76,20 @@ async function main() {
 
   // ---- HUD ----
   let active = null;
+  let sunRaf = 0, pendingSun = 42;
   const hud = createHUD({
     vehicles: VEHICLES,
     onSelect: (id) => select(id),
     onPreset: (id, presetId) => goPreset(id, presetId),
     onToggle: (name, value) => setToggle(name, value),
     onMode: () => rig.setMode(rig.mode === 'fly' ? 'orbit' : 'fly'),
-    onSun: (elev) => env.setSun(elev, 34),
+    // setSun regenerates the PMREM environment map, which is far too expensive to do on every
+    // pointermove the range input fires. Coalesce to one regeneration per frame while dragging.
+    onSun: (elev) => {
+      pendingSun = elev;
+      if (sunRaf) return;
+      sunRaf = requestAnimationFrame(() => { sunRaf = 0; env.setSun(pendingSun, 34); });
+    },
     onReset: () => select(null),
     onLaunch: () => toggleLaunch(),
     onLaunchAbort: () => launch?.reset(),
@@ -105,6 +116,12 @@ async function main() {
   const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.12, 0.6, 0.92);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
+  // The render target above is sized in CSS pixels, which is what EffectComposer stores as its
+  // width — so on a device with devicePixelRatio > 1 the scene was rendering into a 1x buffer
+  // and being upscaled, while the passes were already sized at DPR. One setSize with the CSS
+  // size reconciles both, since the composer captured the renderer's pixel ratio on
+  // construction and multiplies by it internally.
+  composer.setSize(window.innerWidth, window.innerHeight);
 
   // ---- Vehicles ----
   const exhibits = {};
@@ -122,6 +139,10 @@ async function main() {
   };
   let step = 0;
   let complex = null;
+  let roadsterPedestal = null;
+  // Suit colour was Math.random(), so no two loads matched and the committed screenshots could
+  // not be reproduced. seeded() already exists for exactly this.
+  const humanSuit = seeded(20180206);
   for (const v of VEHICLES) {
     const [fn, msg] = builders[v.id];
     hud.setProgress(msg, 0.3 + (step++ / VEHICLES.length) * 0.6);
@@ -154,6 +175,7 @@ async function main() {
       env.addStation(lay.x, lay.z, 5);
     } else if (v.id === 'roadster') {
       const ped = buildPedestal(M, { radius: 2.5, height: lay.mount });
+      roadsterPedestal = ped;
       group.add(ped);
       model.position.y = lay.mount;
       env.addStation(lay.x, lay.z, 6);
@@ -183,6 +205,7 @@ async function main() {
       div.className = 'label';
       div.innerHTML = `<span class="label-dot"></span><span class="label-text">${a.label}</span>`;
       const obj = new CSS2DObject(div);
+      obj.userData.scope = a.scope ?? 'all';
       const [ax, ay, az] = a.position;
       obj.position.set(lay.x + ax * cy + az * sy, model.position.y + ay, lay.z - ax * sy + az * cy);
       lg.add(obj);
@@ -218,7 +241,7 @@ async function main() {
       : lay.pad ? [[26, PAD.padY, 16, 0.8], [30, PAD.padY, -10, -1.6], [-19, PAD.padY, 24, 2.4]]
       : [[lay.mountRadius + 3.5, 0, 2, 0.5], [lay.mountRadius + 2, 0, -4, -2.0], [-(lay.mountRadius + 3), 0, 3, 2.2]];
     for (const [px, py, pz, ry] of people) {
-      const h = buildHuman(M, { suit: Math.random() > 0.5 ? 'white' : 'dark' });
+      const h = buildHuman(M, { suit: humanSuit() > 0.5 ? 'white' : 'dark' });
       h.position.set(lay.x + px, baseY + py, lay.z + pz);
       h.rotation.y = ry;
       humans.add(h);
@@ -273,17 +296,55 @@ async function main() {
     applyVisibility();
     hud.toggle(name, value);
   }
+  // The Roadster is a museum piece in the row and a payload in the orbital view, never both:
+  // plinth or payload adapter, ground or Earth. Entering the view swaps the presentation and
+  // leaving it swaps back — env.setAltitude(0) restores sky, fog, ambient and ground exactly,
+  // which is what the check asserts after walking every preset.
+  const ORBITAL_VIEW = 'earth';
+  let orbital = false, backdrop = null;
+  function setOrbital(on) {
+    if (on === orbital) return;
+    orbital = on;
+    const ex = exhibits.roadster;
+    ex?.model.userData.setOrbital?.(on);
+    if (roadsterPedestal) roadsterPedestal.visible = !on;
+    if (on && !backdrop && ex) {
+      // Placed ahead of and below the car in its own frame, which is where the orbital view
+      // looks. Built on first use so the museum path does not pay for it.
+      const yaw = THREE.MathUtils.degToRad(ex.lay.yaw ?? 0);
+      const lx = 900, lz = 3100, ly = -1150;
+      backdrop = buildOrbitalBackdrop(
+        new THREE.Vector3(ex.lay.x + lx * Math.cos(yaw) + lz * Math.sin(yaw), ly,
+          ex.lay.z - lx * Math.sin(yaw) + lz * Math.cos(yaw)), 1750);
+      scene.add(backdrop);
+    }
+    if (backdrop) backdrop.visible = on;
+    env.setAltitude(on ? 30000 : 0);
+    env.setSpace(on);
+  }
+
   function applyVisibility() {
     // Callouts, rulers and the scale figures are museum furniture: they belong on a vehicle
     // standing on its mount, not on one that has left it.
     const site = SITE_VIEWS.has(activePreset);
+    setOrbital(active === 'roadster' && activePreset === ORBITAL_VIEW && !launchFlying);
     for (const [id, ex] of Object.entries(exhibits)) {
       const on = id === active && !launchFlying;
-      labels.getObjectByName(`labels-${id}`).visible = on && state.labels && !(ex.padLabels && site);
+      const lg = labels.getObjectByName(`labels-${id}`);
+      lg.visible = on && state.labels && !(ex.padLabels && site);
+      // Callouts carry the range they read at. Showing all nine on a 3,9 m car at once hides
+      // the car behind its own captions, which is what the overview shot was doing.
+      const near = new Set(['starman', 'dontpanic', 'detail', 'selfie']);
+      for (const o of lg.children) {
+        const sc = o.userData.scope ?? 'all';
+        o.visible = sc === 'all'
+          || (sc === 'near' && near.has(activePreset))
+          || (sc === 'orbital' && orbital);
+      }
       if (ex.padLabels) ex.padLabels.visible = on && state.labels && site;
-      ex.ruler.visible = on && state.ruler && !site;
+      ex.ruler.visible = on && state.ruler && !site && !(id === 'roadster' && orbital);
     }
-    humans.visible = state.humans && !launchFlying;
+    humans.visible = state.humans && !launchFlying && !orbital;
   }
 
   function toggleLaunch() {
@@ -312,7 +373,6 @@ async function main() {
     if (launch.running) launch.reset(false);
     active = id;
     hud.setActive(id);
-    applyVisibility();
     activePreset = 'overview';
     applyVisibility();
     if (!id) { rig.flyTo(OVERVIEW.pos, OVERVIEW.target, 2.0); return; }
@@ -349,7 +409,6 @@ async function main() {
     const w = window.innerWidth, h = window.innerHeight;
     camera.aspect = w / h; camera.updateProjectionMatrix();
     renderer.setSize(w, h); composer.setSize(w, h); labelRenderer.setSize(w, h);
-    bloom.setSize(w, h);
   });
 
   // ---- Loop ----
@@ -402,6 +461,7 @@ async function main() {
   // Swaps the heat shield between instanced tiles and a textured shell. A 0.26 m tile stops
   // resolving at roughly a couple of pixels; past that the instances only add sparkle.
   const _lodC = new THREE.Vector3();
+  const _fwd = new THREE.Vector3();
   function updateLOD() {
     const mpp = (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) / window.innerHeight;
     for (const ex of Object.values(exhibits)) {
@@ -426,7 +486,7 @@ async function main() {
     launch.update(dt);
     // The sky is a finite box; centring it on the viewer is what lets it survive an ascent.
     env.followCamera(camera);
-    const target = rig.mode === 'fly' ? tmp.copy(camera.position).addScaledVector(camera.getWorldDirection(new THREE.Vector3()), 25) : rig.target;
+    const target = rig.mode === 'fly' ? tmp.copy(camera.position).addScaledVector(camera.getWorldDirection(_fwd), 25) : rig.target;
     const dist = rig.mode === 'fly' ? 25 : rig.distance;
     env.updateShadow(target, dist);
     // scale bar: metres per pixel at the target distance
@@ -448,10 +508,33 @@ async function main() {
     launch.reset(false);
     return { dimensions: verifyExhibits(exhibits), pad: verifyPad(complex), scene: verifyScene(scene) };
   };
-  window.__vc = { M, scene, camera, rig, exhibits, complex, launch, select, goPreset, jump, renderer, env, setToggle, timings, verify };
+    // Exposed for the headless check: the orbital view is a global scene change, so the gate
+  // has to be able to see that leaving it puts everything back.
+  const spaceState = () => ({
+    space: env.inSpace,
+    ground: env.ground.visible,
+    fog: !!scene.fog,
+    backdrop: !!backdrop && backdrop.visible,
+    pedestal: !!roadsterPedestal && roadsterPedestal.visible,
+    adapter: !!exhibits.roadster?.model.getObjectByName('payload-adapter')?.visible,
+  });
+  window.__vc = { M, scene, camera, rig, exhibits, complex, launch, select, goPreset, jump, renderer, env, setToggle, timings, verify, spaceState };
   const params = new URLSearchParams(location.search);
   if (params.has('verify')) verify();
-  if (params.has('vehicle')) jump(params.get('vehicle'), params.get('preset') || 'overview');
+  if (params.has('vehicle')) {
+    // Unvalidated, a typo here threw inside worldPreset after the loading card was gone: black
+    // screen, error only in the console. Fall back to the overview instead.
+    const want = params.get('vehicle');
+    const v = VEHICLES.find(x => x.id === want?.toLowerCase());
+    if (!v) {
+      console.warn(`?vehicle=${want} no coincide con ningún vehículo; mostrando la vista general.`);
+      jump(null);
+    } else {
+      const wantP = params.get('preset');
+      const preset = v.presets?.some(x => x.id === wantP) ? wantP : 'overview';
+      jump(v.id, preset);
+    }
+  }
   if (params.has('autolaunch')) {
     select('starship');
     const t = parseFloat(params.get('t') || '0');

@@ -95,7 +95,9 @@ function buildGround(M) {
       clad.push(block(s * (tw - 0.08) - 0.05, s * (tw - 0.08) + 0.05, trenchFloorY, padY, z - 0.12, z + 0.12));
     }
   }
-  g.add(mesh(boxUV(mergeAll(clad)), M.trenchArmor || M.darkMetal));
+  // Named so verifyPad can measure the trench floor off the built geometry instead of
+  // recomputing it from the same constant that produced it.
+  g.add(mesh(boxUV(mergeAll(clad)), M.trenchArmor || M.darkMetal, { name: 'trench-armor' }));
 
   // Bidirectional flame diverter: aerodynamic wedge under the engine opening that splits the plume
   // down both arms of the trench, reinforced with structural stiffener ribs.

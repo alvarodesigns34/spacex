@@ -18,7 +18,10 @@ export const EXPECTED = {
   falconheavy: { height: 70, footprint: 12.2, note: 'Altura y anchura (spacex.com)' },
   dragon: { height: 8.1, footprint: 4, note: 'Altura con trunk y diámetro máximo (spacex.com)' },
   starlink: { height: null, footprint: 30, note: 'Envergadura desplegada (prensa)', tol: 0.06 },
-  roadster: { height: null, footprint: 3.95, note: 'Longitud total de carrocería (documentado)', tol: 0.04 },
+  roadster: {
+    height: 1.13, footprint: 3.95, tol: 0.025, fromHull: true,
+    note: 'Altura al techo del parabrisas y longitud total (documentado)',
+  },
 };
 
 /**
@@ -50,6 +53,11 @@ function measure(model, hullNames) {
     height: size.y,
     width: Math.max(size.x, size.z),
     hullWidth: Math.max(hullSize.x, hullSize.z),
+    // Top of the hull above the model origin. The rockets sit on their origin so the raw box
+    // height is their height, but the Roadster carries flight hardware that hangs below the
+    // tyres (the payload adapter) and stands above the car (the selfie booms), neither of
+    // which is part of the 1,128 m envelope.
+    hullTop: hull.isEmpty() ? box.max.y : hull.max.y,
     minY: box.min.y,
   };
 }
@@ -62,7 +70,9 @@ const HULLS = {
   falconheavy: ['stage1'],
   dragon: ['capsule-wall', 'heatshield'],
   starlink: null,
-  roadster: ['body-shell', 'body-paint'],
+  // body-shell is a Group, so measure() — which only looks at meshes — never saw it and the
+  // check silently fell back to the whole model. body-paint is the actual painted hull.
+  roadster: ['body-paint', 'windshield-surround', 'windshield-glass'],
 };
 
 /**
@@ -86,6 +96,12 @@ export function verifyScene(root, { log = true } = {}) {
     const g = o.geometry;
     const mats = Array.isArray(o.material) ? o.material : [o.material];
     const label = o.name || `${o.parent?.name || '?'}/${o.type}`;
+    // Car paint rendered DoubleSide doubles fill and fights the shadow pass, and is a sign
+    // the hull is being patched over rather than built closed. The body is built as closed
+    // panels, so this must stay FrontSide.
+    if (o.name === 'body-paint' && mats.some(m => m && m.side === THREE.DoubleSide)) {
+      issues.push(`${o.name}: la pintura de carrocería está en DoubleSide`);
+    }
     const slots = TEX_SLOTS.filter(k => mats.some(m => m && m[k]));
     if (slots.length && !g.attributes.uv) {
       issues.push({ mesh: label, problem: `usa ${slots.join(', ')} sin atributo uv`, severity: 'error' });
@@ -129,7 +145,7 @@ export function verifyExhibits(exhibits, { log = true } = {}) {
     };
     // Height is measured from the model's own origin, which every builder places at the aft
     // plane, so the raw bounding-box height is the vehicle height.
-    check('altura', m.height, exp.height);
+    check('altura', exp.fromHull ? m.hullTop : m.height, exp.height);
     check('envergadura / diámetro', HULLS[id] ? m.hullWidth : m.width, exp.footprint);
   }
   if (log) {
@@ -211,13 +227,20 @@ export function verifyPad(complex, { log = true } = {}) {
   if (seat) { seat.updateMatrixWorld(true); _box.setFromObject(seat); add('deckTop', _box.max.y - complex.position.y); }
 
   const ground = complex.getObjectByName('pad-ground');
+  let padY = NaN;
   if (ground) {
     ground.updateMatrixWorld(true);
     _box.setFromObject(ground);
-    const padY = _box.max.y - complex.position.y;
+    padY = _box.max.y - complex.position.y;
     add('padY', padY);
-    // The trench floor is the ground group's lowest slab top; measure it from the clad floor.
-    add('trenchDepth', padY - 0.8);
+  }
+  // This used to be padY - 0.8, which is the same arithmetic the builder does: a regression
+  // that left the trench 2 m deep would have passed. Measure the clad floor instead.
+  const armor = complex.getObjectByName('trench-armor');
+  if (armor && isFinite(padY)) {
+    armor.updateMatrixWorld(true);
+    _box.setFromObject(armor);
+    add('trenchDepth', padY - (_box.min.y - complex.position.y));
   }
   const holds = complex.getObjectByName('holddowns');
   if (holds) add('clamps', holds.children.length);

@@ -21,7 +21,7 @@
  */
 import * as THREE from 'three';
 import { Plume, GroundCloud } from './plume.js';
-import { seeded } from '../geometry/utils.js';
+import { seeded, monotoneSlopes, hermite } from '../geometry/utils.js';
 
 // ---- Cited event times (seconds from T-0) ------------------------------------------------
 export const EVENTS = {
@@ -61,31 +61,6 @@ const SPEED_KEYS = [
 ];
 const PITCH = { start: EVENTS.liftoff + 6, max: THREE.MathUtils.degToRad(72), tau: 64 };
 const pitchProgram = (t) => (t <= PITCH.start ? 0 : PITCH.max * (1 - Math.exp(-(t - PITCH.start) / PITCH.tau)));
-
-// ---- Monotone cubic interpolation (Fritsch-Carlson) --------------------------------------
-// A plain spline overshoots, which on a speed curve means a moment of deceleration that was
-// never authored. Monotone slopes cannot produce one.
-function monotoneSlopes(xs, ys) {
-  const n = xs.length, d = new Array(n - 1), m = new Array(n);
-  for (let i = 0; i < n - 1; i++) d[i] = (ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i]);
-  m[0] = d[0]; m[n - 1] = d[n - 2];
-  for (let i = 1; i < n - 1; i++) m[i] = d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2;
-  for (let i = 0; i < n - 1; i++) {
-    if (d[i] === 0) { m[i] = m[i + 1] = 0; continue; }
-    const a = m[i] / d[i], b = m[i + 1] / d[i], h = Math.hypot(a, b);
-    if (h > 3) { m[i] = (3 / h) * a * d[i]; m[i + 1] = (3 / h) * b * d[i]; }
-  }
-  return m;
-}
-function hermite(xs, ys, ms, x) {
-  if (x <= xs[0]) return ys[0];
-  if (x >= xs[xs.length - 1]) return ys[ys.length - 1];
-  let i = 0;
-  while (i < xs.length - 2 && x > xs[i + 1]) i++;
-  const h = xs[i + 1] - xs[i], t = (x - xs[i]) / h, t2 = t * t, t3 = t2 * t;
-  return (2 * t3 - 3 * t2 + 1) * ys[i] + (t3 - 2 * t2 + t) * h * ms[i]
-    + (-2 * t3 + 3 * t2) * ys[i + 1] + (t3 - t2) * h * ms[i + 1];
-}
 
 /**
  * Integrates the two inputs once, at load, into a 0,25 s table. Doing it up front is what
