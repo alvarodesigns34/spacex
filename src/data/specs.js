@@ -278,7 +278,7 @@ export const VEHICLES = [
     presets: [
       { id: 'overview', label: 'Overview', pos: [3.6, 1.75, 4.2], target: [0, 0.58, 0] },
       { id: 'starman', label: 'Starman', pos: [-1.44, 1.26, 0.60], target: [-0.34, 0.94, -0.30] },
-      { id: 'dontpanic', label: 'Don\'t Panic', pos: [-0.16, 0.90, -0.12], target: [0.02, 0.66, 0.32] },
+      { id: 'dontpanic', label: 'Don\'t Panic', pos: [0.094, 0.760, -0.249], target: [0.0, 0.585, 0.262] },
       { id: 'selfie', label: 'Selfie Cam', pos: [1.30, 1.42, 3.15], target: [-0.34, 0.90, -0.20] },
       { id: 'earth', label: 'In orbit', pos: [-1.55, 1.28, -2.95], target: [-0.20, 0.80, 0.35] },
       { id: 'detail', label: 'Headlamps and nose', pos: [1.34, 0.86, 2.42], target: [0.42, 0.60, 1.62] },

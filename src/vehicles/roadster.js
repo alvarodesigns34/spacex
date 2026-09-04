@@ -68,7 +68,7 @@ export const ROADSTER_SPECS = {
 
 // The bumper caps roll forward of the last swept station, so the stations sit back from the
 // declared extremes by exactly the cap depth and the finished car measures 3.946 m.
-const CAP_NOSE = 0.070, CAP_TAIL = 0.052;
+const CAP_NOSE = 0.016, CAP_TAIL = 0.062;
 const Z_NOSE = 1.973 - CAP_NOSE;   // last swept station at the front
 const Z_TAIL = -1.973 + CAP_TAIL;  // last swept station at the rear
 const Z_AXLE_F = 1.176;
@@ -88,7 +88,8 @@ const halfWidth = curve([
   [-1.973, 0.720], [-1.850, 0.800], [-1.650, 0.878], [-1.400, 0.918],
   [-1.176, 0.926], [-1.000, 0.916], [-0.720, 0.888], [-0.400, 0.868],
   [0.000, 0.858], [0.460, 0.872], [0.900, 0.898], [1.176, 0.912],
-  [1.400, 0.895], [1.600, 0.845], [1.780, 0.755], [1.900, 0.660], [1.973, 0.560],
+  [1.400, 0.895], [1.600, 0.848], [1.790, 0.772], [1.870, 0.740],
+  [1.920, 0.712], [1.950, 0.672], [1.968, 0.618], [1.973, 0.580],
 ]);
 
 // Beltline: the highest point of the bodywork at each station, reached at the shoulder. The
@@ -101,7 +102,8 @@ const yBelt = curve([
   [-1.973, 0.742], [-1.850, 0.826], [-1.650, 0.892], [-1.400, 0.918],
   [-1.176, 0.922], [-1.000, 0.912], [-0.720, 0.888], [-0.400, 0.874],
   [0.000, 0.872], [0.460, 0.888], [0.900, 0.894], [1.176, 0.896],
-  [1.400, 0.874], [1.600, 0.836], [1.780, 0.744], [1.900, 0.648], [1.973, 0.572],
+  [1.400, 0.874], [1.600, 0.838], [1.790, 0.756], [1.870, 0.690],
+  [1.920, 0.600], [1.950, 0.470], [1.968, 0.360], [1.973, 0.325],
 ]);
 
 // Centreline crown: the bonnet and deck at x = 0. It runs a few centimetres below the belt,
@@ -112,15 +114,21 @@ const yCrown = curve([
   [-1.973, 0.734], [-1.850, 0.820], [-1.650, 0.884], [-1.400, 0.906],
   [-1.176, 0.906], [-1.000, 0.896], [-0.720, 0.868], [-0.400, 0.846],
   [0.000, 0.840], [0.460, 0.876], [0.900, 0.868], [1.176, 0.862],
-  [1.400, 0.846], [1.600, 0.812], [1.780, 0.722], [1.900, 0.628], [1.973, 0.552],
+  [1.400, 0.846], [1.600, 0.814], [1.790, 0.734], [1.870, 0.660],
+  [1.920, 0.560], [1.950, 0.430], [1.968, 0.330], [1.973, 0.300],
 ]);
 
 // Rocker: the bottom edge of the visible body side, before the wheel arches cut into it.
 // The published ground clearance is 0.130 m at the floor; the visible sill edge sits above it
 // and lifts at both ends where the bumpers undercut.
+// The bumpers used to lift to 0.25 m at each end, which left the underbody open across the
+// whole width of the car: in front elevation you looked straight under the nose and saw the
+// wheel-well shields, and the shadow under the fascia merged with the cooling slot into one
+// tall dark hole. A real fascia comes down to just above the 0.130 m ground clearance.
 const ySillBase = curve([
-  [-1.973, 0.262], [-1.700, 0.205], [-1.176, 0.172], [-0.400, 0.152],
-  [0.400, 0.150], [1.176, 0.158], [1.600, 0.166], [1.860, 0.200], [1.973, 0.248],
+  [-1.973, 0.182], [-1.700, 0.176], [-1.176, 0.172], [-0.400, 0.152],
+  [0.400, 0.150], [1.176, 0.158], [1.600, 0.162], [1.860, 0.168], [1.920, 0.172],
+  [1.950, 0.182], [1.968, 0.205], [1.973, 0.225],
 ]);
 
 // Wheel arch openings. Radius is the tyre radius plus the gap the car actually carries — this
@@ -167,6 +175,56 @@ function sectionCurve(z) {
   const c = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5);
   _sectionCache.z = z; _sectionCache.curve = c;
   return c;
+}
+
+/**
+ * Where the bodywork is, at a given point of the front (or rear) elevation.
+ *
+ * The section sweep gives one surface point per (z, t), and a section runs sill to sill over
+ * the top, so a horizontal slot across the nose — the cooling mouth — is not a constant-z
+ * path on it: the two ends of the slot live at mirrored t values and the middle would have to
+ * cross the crown. Rather than fight the parameterisation, look the surface up the way the eye
+ * does: march back along z from the extreme end and take the first station whose section
+ * reaches the requested height at the requested half-width. Returns the z of the fascia, or
+ * null if that (x, y) is off the bodywork.
+ */
+function fasciaZ(x, y, { from, to, step }) {
+  const ax = Math.abs(x);
+  for (let z = from; (step > 0 ? z <= to : z >= to); z += step) {
+    if (halfWidth(z) < ax) continue;
+    // Solve the section for the parameter whose x matches, then compare heights.
+    const c = sectionCurve(z);
+    let best = null, bestErr = Infinity;
+    for (let i = 0; i <= 40; i++) {
+      const p = c.getPoint(0.5 + (i / 40) * 0.5);
+      const e = Math.abs(p.x - ax);
+      if (e < bestErr) { bestErr = e; best = p; }
+    }
+    if (best && bestErr < 0.05 && best.y <= y) return z;
+  }
+  return null;
+}
+
+// Cooling-mouth outline, authored in the front elevation: half-width, half-height, centre
+// height, and how far back along the car the fascia it belongs to reaches.
+const MOUTH = { y: 0.382, w: 0.470, h: 0.044, zMin: 1.790 };
+
+// The black lower fascia covers this band of the front elevation. The painted panel is cut
+// away underneath it — a real car's paint stops where the moulding starts — which is also what
+// stops the fascia paint showing through the cooling slot.
+const FASCIA = { x: 0.585, y0: 0.232, y1: 0.470, zMin: 1.790, taperLo: 0.052, taperHi: 0.100 };
+const FASCIA_REAR = { x: 0.640, y0: 0.222, y1: 0.462, zMax: -1.760, taperLo: 0.040, taperHi: 0.086 };
+function fasciaBand(F, u) {
+  const f = Math.pow(1 - Math.min(1, Math.abs(u)), 0.42);
+  return [F.y0 + (1 - f) * F.taperLo, F.y1 - (1 - f) * F.taperHi];
+}
+/** True where a point of the bodywork is behind one of the lower fascias, tested in elevation. */
+function underFascia(F, z, t) {
+  if (F.zMin !== undefined ? z < F.zMin : z > F.zMax) return false;
+  const p = bodyPoint(z, t);
+  if (Math.abs(p.x) > F.x * 0.985) return false;
+  const [ya, yb] = fasciaBand(F, p.x / F.x);
+  return p.y > ya + 0.004 && p.y < yb - 0.004;
 }
 
 const _bp = new THREE.Vector3();
@@ -348,6 +406,110 @@ function bodyNormal(z, t) {
 
 /** The ring of points a panel ends on, for capping and flanging. */
 function ringAt(z, ts) { return ts.map(t => bodyPoint(z, t)); }
+
+// -----------------------------------------------------------------------------------------
+//  Tail panel
+// -----------------------------------------------------------------------------------------
+// The tail is a Kamm cut-off: a nearly flat panel with a rolled edge, carrying the lamps, the
+// plate recess and the black lower fascia. endCap() gave it as a cone of triangles fanned to
+// the ring's centroid, which at this size is one enormous flat plate of paint with everything
+// else hidden behind it. This builds the panel properly — a rolled bevel, then a lightly domed
+// face laid out in concentric rings so features can be cut out of it in elevation.
+const TAIL_FACE_Z = -1.973;
+const TAIL_SHRINK = 0.90;      // the bevel pulls the outline in by this much
+
+/** A point of the tail face. k = 0 at the rolled rim, 1 at the centre. */
+function tailFacePoint(ring, cx, cy, i, k) {
+  const p = ring[i];
+  const sc = TAIL_SHRINK * (1 - k);
+  const dome = 0.026 * (1 - k * k);
+  return [cx + (p.x - cx) * sc, cy + (p.y - cy) * sc, TAIL_FACE_Z - dome];
+}
+
+/**
+ * @param skip (x, y) => true to leave a hole — used for the lamp openings and for the band the
+ *             black lower fascia covers.
+ */
+function tailPanel(ring, skip) {
+  const n = ring.length;
+  let cx = 0, cy = 0;
+  for (const p of ring) { cx += p.x; cy += p.y; }
+  cx /= n; cy /= n;
+
+  const parts = [];
+
+  // Rolled bevel from the last swept station to the rim of the face.
+  {
+    const pos = [], idx = [];
+    const RINGS = 4;
+    for (let r = 0; r <= RINGS; r++) {
+      const a = (r / RINGS) * Math.PI / 2;
+      const sc = 1 - (1 - TAIL_SHRINK) * (1 - Math.cos(a));
+      const z = ring[0].z - CAP_TAIL * Math.sin(a);
+      for (const p of ring) pos.push(cx + (p.x - cx) * sc, cy + (p.y - cy) * sc, z);
+    }
+    for (let r = 0; r < RINGS; r++) {
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        const a = r * n + i, b = (r + 1) * n + i, c = (r + 1) * n + j, d = r * n + j;
+        idx.push(a, d, b, b, d, c);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    parts.push({ geometry: geo });
+  }
+
+  // The face itself: concentric rings in to the centre, with cells dropped where asked.
+  {
+    const K = 44, pos = [], idx = [];
+    for (let k = 0; k <= K; k++) {
+      for (let i = 0; i < n; i++) pos.push(...tailFacePoint(ring, cx, cy, i, k / K));
+    }
+    for (let k = 0; k < K; k++) {
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        const mid = tailFacePoint(ring, cx, cy, i, (k + 0.5) / K);
+        if (skip && skip(mid[0], mid[1])) continue;
+        const a = k * n + i, b = (k + 1) * n + i, c = (k + 1) * n + j, d = k * n + j;
+        idx.push(a, d, b, b, d, c);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    parts.push({ geometry: geo });
+  }
+
+  return mergeAll(parts);
+}
+
+// Tail lamp footprint, in the tail's own elevation: an almond running outboard and slightly up.
+const TAIL_LAMP = { x0: 0.180, x1: 0.545, y0: 0.578, y1: 0.628, h0: 0.048, h1: 0.058 };
+function tailLampOutline(s, k = 1) {
+  return (u, w) => {
+    const x = s * (TAIL_LAMP.x0 + (TAIL_LAMP.x1 - TAIL_LAMP.x0) * u);
+    const y = TAIL_LAMP.y0 + (TAIL_LAMP.y1 - TAIL_LAMP.y0) * u;
+    const hh = (TAIL_LAMP.h0 + (TAIL_LAMP.h1 - TAIL_LAMP.h0) * u) * Math.sin(Math.PI * Math.pow(u, 0.62)) * k;
+    return [x, y + w * hh];
+  };
+}
+/** True where (x, y) in the tail elevation falls inside either lamp opening. */
+function inTailLamp(x, y, k = 1) {
+  for (const s of [-1, 1]) {
+    const u = (x / s - TAIL_LAMP.x0) / (TAIL_LAMP.x1 - TAIL_LAMP.x0);
+    if (u <= 0 || u >= 1) continue;
+    const [, yc] = tailLampOutline(s, 1)(u, 0);
+    const hh = (TAIL_LAMP.h0 + (TAIL_LAMP.h1 - TAIL_LAMP.h0) * u) * Math.sin(Math.PI * Math.pow(u, 0.62)) * k;
+    if (Math.abs(y - yc) < hh) return true;
+  }
+  return false;
+}
 
 // -----------------------------------------------------------------------------------------
 //  Procedural Textures for In-Cockpit Displays & Circuitry
@@ -635,8 +797,18 @@ function createRoadsterMaterials(M) {
     color: 0xdfeef8, metalness: 0.0, roughness: 0.03, transmission: 0.92, ior: 1.46, thickness: 0.002,
   });
 
+  // Radiator matrix seen through the grille: dark, matt, and never bright enough to read as a
+  // lit panel at the back of the opening.
+  const radiatorCore = new THREE.MeshStandardMaterial({ color: 0x0a0c0f, metalness: 0.55, roughness: 0.85 });
+
+  // The moulded lower front fascia. On the real car it is a separate, darker panel below the
+  // paint line, and it is what keeps the nose from reading as one continuous bulge.
+  const lowerFascia = new THREE.MeshPhysicalMaterial({
+    color: 0x191b1f, metalness: 0.10, roughness: 0.55, clearcoat: 0.35, clearcoatRoughness: 0.28,
+  });
+
   const grilleMesh = new THREE.MeshStandardMaterial({
-    map: makeGrilleTexture(), color: 0x121418, roughness: 0.88, metalness: 0.20, side: THREE.DoubleSide,
+    map: makeGrilleTexture(), color: 0x080a0c, roughness: 0.92, metalness: 0.15, side: THREE.DoubleSide,
   });
 
   // The Falcon's procedural carbon weave is already built at startup; the Roadster's seats,
@@ -647,7 +819,7 @@ function createRoadsterMaterials(M) {
   return {
     cherryRed, blackTrim, satinBlack, carbonFiber, chromeTrim, forgedAlloy, aluminium, reflectorBowl, lampHousing,
     tyreRubber, brakeRotor, brakeCaliper, amberReflector, windshieldGlass, headlightLens, taillightRed,
-    starmanSuitWhite, starmanSuitGraphite, starmanVisor, quartzDisc, grilleMesh,
+    starmanSuitWhite, starmanSuitGraphite, starmanVisor, quartzDisc, grilleMesh, radiatorCore, lowerFascia,
   };
 }
 // -----------------------------------------------------------------------------------------
@@ -671,9 +843,12 @@ function buildBodyShell(mats, M) {
   const tFront = (() => {
     const set = new Set(tFull);
     for (const s2 of [-1, 1]) {
+      // The lamp bands...
       for (let d = 0.100; d <= 0.300; d += 0.0035) set.add(T_CENTRE + s2 * d);
+      // ...and the band the cooling mouth is cut from, low on the fascia.
+      for (let d = 0.300; d <= 0.500; d += 0.0040) set.add(T_CENTRE + s2 * d);
     }
-    return [...set].sort((a, b) => a - b);
+    return [...set].sort((a, b) => a - b).filter(v => v >= 0 && v <= 1);
   })();
 
   // The rear panel carries the tail-lamp apertures and needs the same treatment.
@@ -692,21 +867,32 @@ function buildBodyShell(mats, M) {
     for (let z = Math.min(from, to); z <= Math.max(from, to); z += step) set.add(z);
     return [...set].sort((a, b) => a - b);
   };
-  const zFront = denser(stations(Z_COWL + SHUT / 2, Z_NOSE, 52), LAMP_FRONT.z0 + 0.02, LAMP_FRONT.z0 + LAMP_FRONT.za - 0.02, 0.005);
+  const zFront = denser(
+    denser(stations(Z_COWL + SHUT / 2, Z_NOSE, 52), LAMP_FRONT.z0 + 0.02, LAMP_FRONT.z0 + LAMP_FRONT.za - 0.02, 0.005),
+    MOUTH.zMin + 0.05, Z_NOSE, 0.004);
   const zRear = denser(stations(Z_TAIL, Z_BULK - SHUT / 2, 52), LAMP_REAR.z0 - 0.06, LAMP_REAR.z0 + 0.06, 0.005);
   const zDoor = stations(Z_BULK + SHUT / 2, Z_COWL - SHUT / 2, 22);
 
   const panels = [
-    { geometry: sweep(zFront, tFront, false, (z, t) => lampContains(LAMP_FRONT, z, t, 1.02)) },
-    { geometry: sweep(zRear, tRear, false, (z, t) => lampContains(LAMP_REAR, z, t, 1.02)) },
+    { geometry: sweep(zFront, tFront, false, (z, t) => lampContains(LAMP_FRONT, z, t, 1.02) || underFascia(FASCIA, z, t)) },
+    { geometry: sweep(zRear, tRear, false, (z, t) => underFascia(FASCIA_REAR, z, t)) },
     { geometry: sweep(zDoor, tDoorL) },
     { geometry: sweep(zDoor, tDoorR) },
     // Bumper faces. The nose rolls deep, the tail is a Kamm cut-off with a tight radius.
     // Both are wound the same way: the tail was passing flip=true and rendering inside-out,
     // which at the old 30 mm cap depth was a sliver nobody could see and at a realistic depth
     // is a hole straight through the back of the car.
-    { geometry: endCap(ringAt(Z_NOSE, tFront), 1, CAP_NOSE, 0.66, 4) },
-    { geometry: endCap(ringAt(Z_TAIL, tRear), -1, CAP_TAIL, 0.86, 3, false) },
+    { geometry: endCap(ringAt(Z_NOSE, tFront), 1, CAP_NOSE, 0.30, 4) },
+    // The tail is its own panel, with the lamp openings and the fascia band cut out of it.
+    {
+      geometry: tailPanel(ringAt(Z_TAIL, tRear), (x, y) => {
+        if (inTailLamp(x, y, 1.02)) return true;
+        const F = FASCIA_REAR;
+        if (Math.abs(x) > F.x * 0.99) return false;
+        const [ya, yb] = fasciaBand(F, x / F.x);
+        return y < yb;
+      }),
+    },
     // Shut-line walls.
     { geometry: edgeFlange(ringAt(Z_COWL + SHUT / 2, tFull), -0.013, 0.006) },
     { geometry: edgeFlange(ringAt(Z_BULK - SHUT / 2, tFull), 0.013, 0.006, true) },
@@ -876,31 +1062,122 @@ function buildBodyShell(mats, M) {
   // and, once the bumper stopped tapering to a point, hung in front of it as a black frame.
   // Rebuilt as a real opening in the fascia: a dark plenum behind a body-colour lip, with the
   // radiator matrix visible through it.
+  // The cooling mouth, and the black lower fascia it is cut into.
+  //
+  // Three attempts to cut it out of the painted panel failed for the same reason: a section
+  // sweep carries one surface point per (z, t) and its sections run sill to sill over the top,
+  // so a wide horizontal slot is not a constant-z path on it and the hole always came out
+  // narrower than its own rim. The answer is to stop working in (z, t). The lower fascia is
+  // authored in the FRONT ELEVATION — a grid in (x, y), each vertex dropped onto the bodywork
+  // with fasciaZ() and lifted 4 mm proud of the paint — and the slot is simply the cells of
+  // that grid which fall inside the outline. In elevation a horizontal slot is a rectangle,
+  // which is the whole point.
   {
-    const zM = 1.945, yM = 0.322, wM = 0.492, hM = 0.058;
-    const mouth = [];
-    for (let i = 0; i <= 40; i++) {
-      const ang = (i / 40) * Math.PI * 2;
-      const c = Math.cos(ang), sn = Math.sin(ang);
-      // A wide, flat-cornered slot rather than an ellipse.
-      mouth.push([
-        Math.sign(c) * Math.pow(Math.abs(c), 0.55) * wM,
-        yM + Math.sign(sn) * Math.pow(Math.abs(sn), 0.7) * hM,
-        zM - Math.pow(Math.abs(c), 2) * 0.030,
-      ]);
+    const yM = MOUTH.y, wM = MOUTH.w, hM = MOUTH.h;
+    const X = FASCIA.x;
+    const NX = 60, NY = 12;
+    // The panel is not a rectangle: it narrows toward the corners, following the fascia, so it
+    // reads as a moulding rather than a sticker. Shared with the cut above so the two agree.
+    const band = (u) => fasciaBand(FASCIA, u);
+    const inMouth = (x, y) => Math.pow(Math.abs(x) / wM, 1 / 0.46) + Math.pow(Math.abs(y - yM) / hM, 1 / 0.55) < 1;
+
+    // Elevation grid, projected onto the nose.
+    const zAt = [];
+    for (let i = 0; i <= NX; i++) {
+      zAt[i] = [];
+      const u = (i / NX) * 2 - 1, x = u * X;
+      const [ya, yb] = band(u);
+      for (let j = 0; j <= NY; j++) {
+        const y = ya + (yb - ya) * (j / NY);
+        zAt[i][j] = fasciaZ(x, y, { from: 1.972, to: MOUTH.zMin, step: -0.002 });
+      }
     }
-    g.add(mesh(tube(mouth, 0.011, { tubular: 46, radial: 8, closed: true }), mats.cherryRed, {
-      name: 'front-mouth-lip',
+    // Fill any gap from its neighbours so the panel never tears.
+    for (let i = 0; i <= NX; i++) {
+      for (let j = 0; j <= NY; j++) {
+        if (zAt[i][j] !== null) continue;
+        let sum = 0, n = 0;
+        for (const [di, dj] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-2, 0], [2, 0]]) {
+          const v = zAt[i + di]?.[j + dj];
+          if (v != null) { sum += v; n++; }
+        }
+        zAt[i][j] = n ? sum / n : MOUTH.zMin;
+      }
+    }
+
+    const pos = [], idx = [];
+    for (let i = 0; i <= NX; i++) {
+      const u = (i / NX) * 2 - 1, x = u * X;
+      const [ya, yb] = band(u);
+      for (let j = 0; j <= NY; j++) {
+        pos.push(x, ya + (yb - ya) * (j / NY), zAt[i][j] + 0.004);
+      }
+    }
+    for (let i = 0; i < NX; i++) {
+      const uc = ((i + 0.5) / NX) * 2 - 1;
+      const [ya, yb] = band(uc);
+      for (let j = 0; j < NY; j++) {
+        const xc = uc * X;
+        const yc = ya + (yb - ya) * ((j + 0.5) / NY);
+        if (inMouth(xc, yc)) continue;
+        const a = i * (NY + 1) + j, b = (i + 1) * (NY + 1) + j;
+        const c = (i + 1) * (NY + 1) + j + 1, d = i * (NY + 1) + j + 1;
+        idx.push(a, b, d, b, c, d);
+      }
+    }
+    const valance = new THREE.BufferGeometry();
+    valance.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    valance.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
+    valance.setIndex(idx);
+    valance.computeVertexNormals();
+    g.add(mesh(valance, mats.lowerFascia, { name: 'front-lower-fascia' }));
+
+    // The plenum behind the slot, and what is in it.
+    const N = 56, outline = [], inner = [];
+    for (let i = 0; i < N; i++) {
+      const ang = (i / N) * Math.PI * 2, c = Math.cos(ang), sn = Math.sin(ang);
+      const x = Math.sign(c) * Math.pow(Math.abs(c), 0.46) * wM;
+      const y = yM + Math.sign(sn) * Math.pow(Math.abs(sn), 0.55) * hM;
+      const z = (fasciaZ(x, y, { from: 1.972, to: MOUTH.zMin, step: -0.002 }) ?? 1.90) + 0.004;
+      outline.push([x, y, z]);
+      inner.push([x * 0.90, yM + (y - yM) * 0.80, z - 0.085]);
+    }
+    const wpos = [], widx = [];
+    for (const p of outline) wpos.push(...p);
+    for (const p of inner) wpos.push(...p);
+    for (let i = 0; i < N; i++) {
+      const j = (i + 1) % N;
+      widx.push(i, N + i, j, N + i, N + j, j, j, N + i, i, j, N + j, N + i);
+    }
+    // Back plate. Without it the slot looks straight back at the painted fascia behind.
+    const back = wpos.length / 3;
+    wpos.push(0, yM, inner.reduce((m, o) => Math.min(m, o[2]), Infinity) - 0.004);
+    for (let i = 0; i < N; i++) widx.push(N + i, N + (i + 1) % N, back);
+    const wall = new THREE.BufferGeometry();
+    wall.setAttribute('position', new THREE.Float32BufferAttribute(wpos, 3));
+    wall.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((wpos.length / 3) * 2), 2));
+    wall.setIndex(widx);
+    wall.computeVertexNormals();
+    g.add(mesh(wall, mats.lampHousing, { name: 'front-mouth-plenum' }));
+
+    // Radiator mesh, set well back in the plenum. Kept small and dark: anything bright at the
+    // back of the slot reads as a gap in the bodywork rather than as a radiator in shadow.
+    const zc = inner.reduce((m, o) => Math.min(m, o[2]), Infinity);
+    g.add(mesh(new THREE.BoxGeometry(wM * 1.30, hM * 1.10, 0.008), mats.grilleMesh, {
+      position: [0, yM, zc + 0.012], name: 'front-grille',
     }));
-    g.add(mesh(new THREE.BoxGeometry(wM * 2 - 0.02, hM * 2 - 0.014, 0.10), mats.satinBlack, {
-      position: [0, yM, zM - 0.075], name: 'front-mouth-plenum',
-    }));
-    g.add(mesh(new THREE.BoxGeometry(wM * 2 - 0.05, hM * 2 - 0.03, 0.018), mats.grilleMesh, {
-      position: [0, yM, zM - 0.040], name: 'front-grille',
-    }));
-    g.add(mesh(new THREE.BoxGeometry(wM * 2 - 0.07, hM * 2 - 0.05, 0.016), mats.lampHousing, {
-      position: [0, yM, zM - 0.070], name: 'radiator-core',
-    }));
+
+    // The crease that runs across the nose above the mouth. Without it the fascia is one
+    // smooth bulge and the front reads as a snout.
+    const brow = [];
+    for (let i = 0; i <= 30; i++) {
+      const x = ((i / 30) * 2 - 1) * 0.430;
+      const z = fasciaZ(x, 0.470, { from: 1.972, to: MOUTH.zMin, step: -0.002 });
+      if (z !== null) brow.push([x, 0.470, z - 0.001]);
+    }
+    if (brow.length > 4) {
+      g.add(mesh(tube(brow, 0.0070, { tubular: brow.length + 2, radial: 8 }), mats.cherryRed, { name: 'nose-crease' }));
+    }
   }
 
   // Nose emblem. Replaces the chrome cylinder that stood in for it: a thin disc bedded into
@@ -920,6 +1197,50 @@ function buildBodyShell(mats, M) {
     g.add(emblem);
   }
 
+  // Black lower rear fascia, on the tail plane: the paint panel above stops where it begins,
+  // and it carries the diffuser. Same idea as the front, but the tail is flat enough that its
+  // grid can sit straight on TAIL_FACE_Z.
+  {
+    const F = FASCIA_REAR;
+    const NX = 56, NY = 10, ZF = TAIL_FACE_Z - 0.004;
+    const pos = [], idx = [];
+    for (let i = 0; i <= NX; i++) {
+      const u = (i / NX) * 2 - 1, x = u * F.x;
+      const [ya, yb0] = fasciaBand(F, u);
+      // Overlap the cut: the hole in the paint is quantised on the panel's polar grid, so the
+      // moulding has to run a couple of centimetres past it to bury the teeth.
+      const yb = yb0 + 0.026;
+      for (let j = 0; j <= NY; j++) {
+        const y = ya + (yb - ya) * (j / NY);
+        // Follow the tail's dome so the moulding sits on the panel rather than through it.
+        pos.push(x, y, ZF - 0.020 * (1 - Math.min(1, (x * x) / (F.x * F.x))));
+      }
+    }
+    for (let i = 0; i < NX; i++) {
+      for (let j = 0; j < NY; j++) {
+        const a = i * (NY + 1) + j, b = (i + 1) * (NY + 1) + j;
+        const c = (i + 1) * (NY + 1) + j + 1, d = i * (NY + 1) + j + 1;
+        idx.push(a, d, b, b, d, c);
+      }
+    }
+    const panel = new THREE.BufferGeometry();
+    panel.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    panel.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
+    panel.setIndex(idx);
+    panel.computeVertexNormals();
+    g.add(mesh(panel, mats.lowerFascia, { name: 'rear-lower-fascia' }));
+
+    // Diffuser: mesh across the middle with four strakes standing on it.
+    g.add(mesh(new THREE.BoxGeometry(0.86, 0.092, 0.008), mats.grilleMesh, {
+      position: [0, 0.286, ZF - 0.024], name: 'rear-diffuser-mesh',
+    }));
+    const strakes = [];
+    for (const sx of [-0.345, -0.115, 0.115, 0.345]) {
+      strakes.push({ geometry: new THREE.BoxGeometry(0.014, 0.106, 0.034), matrix: mat4([sx, 0.286, ZF - 0.030]) });
+    }
+    g.add(mesh(mergeAll(strakes), mats.satinBlack, { name: 'rear-diffuser-strakes' }));
+  }
+
   // Rear underbody tray, tucked under the tail rather than hanging below it.
   {
     const parts = [{ geometry: new THREE.BoxGeometry(1.10, 0.062, 0.30), matrix: mat4([0, 0.246, -1.796]) }];
@@ -932,13 +1253,9 @@ function buildBodyShell(mats, M) {
   // The Demo car flew without plates, so the tail carries the empty recess and nothing else:
   // a black cavity is the faithful answer, an invented California plate is not. Bedded on the
   // tail surface rather than at a hardcoded height, which left it hanging off the old panel.
-  {
-    const p0 = bodyPoint(Z_TAIL + 0.030, T_CENTRE), n0 = bodyNormal(Z_TAIL + 0.030, T_CENTRE);
-    g.add(mesh(new THREE.BoxGeometry(0.34, 0.115, 0.022), mats.satinBlack, {
-      position: [0, p0.y - 0.128, p0.z + n0.z * 0.004 - 0.010],
-      name: 'rear-plate-recess',
-    }));
-  }
+  g.add(mesh(new THREE.BoxGeometry(0.320, 0.104, 0.018), mats.satinBlack, {
+    position: [0, 0.520, TAIL_FACE_Z - 0.018], name: 'rear-plate-recess',
+  }));
 
   // Dual lower rear cooling exhaust ports
   for (const s of [-0.34, 0.34]) {
@@ -1021,12 +1338,12 @@ function buildBodyShell(mats, M) {
     for (let i = 0; i <= 26; i++) {
       const u = (i / 26) * 2 - 1;
       const x = u * 0.700;
-      splitter.push([x, 0.186 - Math.pow(Math.abs(u), 2.4) * 0.026, 1.922 - Math.pow(Math.abs(u), 1.8) * 0.205]);
+      splitter.push([x, 0.156 - Math.pow(Math.abs(u), 2.4) * 0.018, 1.918 - Math.pow(Math.abs(u), 1.8) * 0.205]);
     }
     g.add(mesh(tube(splitter, 0.020, { tubular: 30, radial: 8 }), mats.satinBlack, { name: 'front-splitter' }));
     for (const sx of [-1, 1]) {
       g.add(mesh(new THREE.BoxGeometry(0.115, 0.058, 0.055), mats.lampHousing, {
-        position: [sx * 0.585, 0.286, 1.885], rotation: [0, sx * 0.34, 0], name: 'front-corner-intake',
+        position: [sx * 0.600, 0.300, 1.858], rotation: [0, sx * 0.34, 0], name: 'front-corner-intake',
       }));
     }
   }
@@ -1060,9 +1377,9 @@ function buildBodyShell(mats, M) {
   {
     const lip = [];
     for (let i = 0; i <= 30; i++) {
-      const t = T_CENTRE + ((i / 30) * 2 - 1) * 0.212;
-      const p = bodyPoint(-1.842, t), n = bodyNormal(-1.842, t);
-      lip.push([p.x + n.x * 0.010, p.y + n.y * 0.010 + 0.012, p.z + n.z * 0.010]);
+      const t = T_CENTRE + ((i / 30) * 2 - 1) * 0.230;
+      const p = bodyPoint(-1.880, t), n = bodyNormal(-1.880, t);
+      lip.push([p.x + n.x * 0.010, p.y + n.y * 0.010 + 0.014, p.z + n.z * 0.010]);
     }
     g.add(mesh(tube(lip, 0.0135, { tubular: 34, radial: 8 }), mats.cherryRed, { name: 'rear-deck-lip' }));
   }
@@ -1091,16 +1408,16 @@ function buildBodyShell(mats, M) {
 // The map is affine, so it inverts, which is what lets the same description both generate the
 // lamp geometry and answer "is this vertex inside the opening?" when the panel is swept.
 const LAMP_FRONT = {
-  z0: 1.884, za: -0.236, zb: 0.0,
-  t0: 0.132, ta: 0.128, tb: 0.040,
-  shape: (a) => Math.sin(Math.PI * Math.pow(a, 0.60)) * 0.86 + 0.14,
-  rise: 0.006, depth: 0.046,
+  z0: 1.888, za: -0.250, zb: 0.0,
+  t0: 0.128, ta: 0.140, tb: 0.056,
+  shape: (a) => Math.sin(Math.PI * Math.pow(a, 0.55)) * 0.84 + 0.16,
+  rise: 0.007, depth: 0.052,
 };
 // The tail lamp runs across the tail rather than along the car, so its long axis is t and its
 // short axis is z: on this surface, 45 mm of z at the tail is about 45 mm of height.
 const LAMP_REAR = {
-  z0: -1.872, za: 0.020, zb: 0.046,
-  t0: 0.086, ta: 0.212, tb: 0.0,
+  z0: -1.876, za: 0.024, zb: 0.040,
+  t0: 0.178, ta: 0.204, tb: 0.0,
   shape: (a) => Math.sin(Math.PI * Math.pow(a, 0.68)) * 0.84 + 0.16,
   rise: 0.005, depth: 0.040,
 };
@@ -1265,16 +1582,85 @@ function buildTaillights(mats, M) {
   const g = new THREE.Group();
   g.name = 'taillights';
 
+  const DEPTH = 0.042;
   for (const s of [-1, 1]) {
     const side = new THREE.Group();
     side.name = `taillight-${s < 0 ? 'left' : 'right'}`;
+    const at = tailLampOutline(s, 1);
 
-    lampSurround(LAMP_REAR, s, mats, side);
-    side.add(mesh(lampPatch(LAMP_REAR, s, -LAMP_REAR.depth, 0.0), mats.lampHousing, { name: 'lamp-housing' }));
+    // Pocket: the opening walked once round, from the rim of the hole back into the tail.
+    const N = 44, pos = [], idx = [];
+    for (let i = 0; i <= N; i++) {
+      const half = i <= N / 2;
+      const u = Math.min(0.999, Math.max(0.001, half ? i / (N / 2) : 2 - i / (N / 2)));
+      const w = half ? 1 : -1;
+      const [xo, yo] = tailLampOutline(s, 1.10)(u, w);
+      const [xi, yi] = tailLampOutline(s, 0.92)(u, w);
+      pos.push(xo, yo, TAIL_FACE_Z - 0.020, xi, yi, TAIL_FACE_Z - 0.020 - DEPTH);
+    }
+    for (let i = 0; i < N; i++) {
+      const a = i * 2, b = i * 2 + 1, c = i * 2 + 3, d = i * 2 + 2;
+      idx.push(a, b, d, b, c, d, a, d, b, b, d, c);
+    }
+    const wall = new THREE.BufferGeometry();
+    wall.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    wall.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((N + 1) * 4), 2));
+    wall.setIndex(idx);
+    wall.computeVertexNormals();
+    side.add(mesh(wall, mats.lampHousing, { name: 'taillight-pocket' }));
 
-    side.add(lampCell(LAMP_REAR, s, 0.205, 0.041, mats, mats.reflectorBowl, mats.taillightRed));
-    side.add(lampCell(LAMP_REAR, s, 0.530, 0.039, mats, mats.reflectorBowl, mats.headlightLens));
-    side.add(lampCell(LAMP_REAR, s, 0.820, 0.030, mats, mats.reflectorBowl, mats.headlightLens));
+    // Back plate of the pocket.
+    const bpos = [], bidx = [];
+    for (let i = 0; i <= N; i++) {
+      const half = i <= N / 2;
+      const u = Math.min(0.999, Math.max(0.001, half ? i / (N / 2) : 2 - i / (N / 2)));
+      const [x, y] = tailLampOutline(s, 0.92)(u, half ? 1 : -1);
+      bpos.push(x, y, TAIL_FACE_Z - 0.020 - DEPTH);
+    }
+    const bc = bpos.length / 3;
+    bpos.push(s * (TAIL_LAMP.x0 + TAIL_LAMP.x1) / 2, (TAIL_LAMP.y0 + TAIL_LAMP.y1) / 2, TAIL_FACE_Z - 0.020 - DEPTH);
+    for (let i = 0; i < N; i++) bidx.push(i, i + 1, bc);
+    const back = new THREE.BufferGeometry();
+    back.setAttribute('position', new THREE.Float32BufferAttribute(bpos, 3));
+    back.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((bpos.length / 3) * 2), 2));
+    back.setIndex(bidx);
+    back.computeVertexNormals();
+    side.add(mesh(back, mats.lampHousing, { name: 'taillight-back' }));
+
+    // Pressed body-colour rim around the opening.
+    const rim = [];
+    for (let i = 0; i <= N; i++) {
+      const half = i <= N / 2;
+      const u = Math.min(0.999, Math.max(0.001, half ? i / (N / 2) : 2 - i / (N / 2)));
+      const [x, y] = tailLampOutline(s, 1.02)(u, half ? 1 : -1);
+      rim.push([x, y, TAIL_FACE_Z - 0.022]);
+    }
+    side.add(mesh(tube(rim, 0.0092, { tubular: N + 4, radial: 8, closed: true }), mats.cherryRed,
+      { name: 'taillight-rim' }));
+
+    // Three round units in a row: red brake/tail inboard, then two clear.
+    const cells = [
+      { u: 0.20, r: 0.040, lens: mats.taillightRed },
+      { u: 0.525, r: 0.038, lens: mats.headlightLens },
+      { u: 0.825, r: 0.029, lens: mats.headlightLens },
+    ];
+    for (const c of cells) {
+      const [x, y] = at(c.u, 0);
+      const cell = new THREE.Group();
+      cell.position.set(x, y, TAIL_FACE_Z - 0.030);
+      cell.rotation.x = Math.PI / 2;
+      cell.add(mesh(lathe([
+        { r: c.r, y: 0.000 },
+        { r: c.r * 0.80, y: 0.012 },
+        { r: c.r * 0.44, y: 0.022 },
+        { r: 0, y: 0.024 },
+      ], { segments: 24 }), mats.reflectorBowl, { name: 'lamp-cup' }));
+      cell.add(mesh(new THREE.CylinderGeometry(c.r * 0.94, c.r * 0.86, 0.012, 22), c.lens,
+        { position: [0, -0.008, 0], name: 'lamp-lens' }));
+      cell.add(mesh(new THREE.TorusGeometry(c.r, 0.0035, 6, 24), mats.satinBlack,
+        { rotation: [Math.PI / 2, 0, 0], position: [0, -0.004, 0] }));
+      side.add(cell);
+    }
 
     g.add(side);
   }
@@ -1980,31 +2366,44 @@ function buildInterior(mats, M, texDontPanic, texPcb) {
   // Set into the centre console stack, facing the driver.
   const screenUnit = new THREE.Group();
   screenUnit.name = 'screen-dont-panic';
-  screenUnit.position.set(0.0, 0.58, 0.27);
-  // Facing toward driver/camera (facing along -Z, tilted up towards +Y, turned slightly toward driver)
-  screenUnit.rotation.set(-0.35, Math.PI - 0.20, 0.0);
+  screenUnit.position.set(0.0, 0.585, 0.262);
+  // Yaw first, then pitch about the screen's OWN x axis. With Three's default XYZ order the
+  // pitch is applied in the world frame after the yaw, which rolls the panel — that is why the
+  // DON'T PANIC text ran diagonally across the screen instead of sitting level on it.
+  screenUnit.rotation.order = 'YXZ';
+  screenUnit.rotation.set(-0.33, Math.PI - 0.18, 0.0);
 
   // Touchscreen display panel with "DON'T PANIC!" texture (facing the camera!)
-  const screenPanel = mesh(new THREE.PlaneGeometry(0.22, 0.12), new THREE.MeshBasicMaterial({
+  const screenPanel = mesh(new THREE.PlaneGeometry(0.186, 0.104), new THREE.MeshBasicMaterial({
     map: texDontPanic,
     side: THREE.FrontSide,
   }), {
-    position: [0, 0, 0.006],
+    position: [0, 0, 0.007],
   });
   screenUnit.add(screenPanel);
 
-  // Carbon fiber display bezel frame sitting BEHIND the screen away from camera
-  screenUnit.add(mesh(new THREE.BoxGeometry(0.24, 0.14, 0.010), mats.carbonFiber, {
-    position: [0, 0, -0.001],
+  // Housing behind the glass, and a raised bezel around it so the display is set into the
+  // console rather than stuck on the front of it.
+  screenUnit.add(mesh(new THREE.BoxGeometry(0.196, 0.114, 0.012), mats.satinBlack, {
+    position: [0, 0, 0.000],
   }));
+  const bezel = [];
+  for (const [w, h, dx, dy] of [[0.216, 0.010, 0, 0.062], [0.216, 0.010, 0, -0.062],
+    [0.010, 0.134, -0.103, 0], [0.010, 0.134, 0.103, 0]]) {
+    bezel.push({ geometry: new THREE.BoxGeometry(w, h, 0.016), matrix: mat4([dx, dy, 0.004]) });
+  }
+  screenUnit.add(mesh(mergeAll(bezel), mats.carbonFiber, { name: 'screen-bezel' }));
 
   g.add(screenUnit);
 
   // ---- Easter Egg 2: 1:64 Scale Hot Wheels Roadster on Dashboard Pad ---------------------
   const hwGroup = new THREE.Group();
   hwGroup.name = 'hot-wheels-easter-egg';
-  hwGroup.position.set(0.12, 0.725, 0.34);
-  hwGroup.rotation.set(-0.14, 0.10, 0);
+  // Sitting ON the pad: buildDashSurface puts its top edge at 0.706 + a rise toward the doors,
+  // and the model's tyres hang 10 mm below its own origin.
+  hwGroup.position.set(0.156, 0.7195, 0.352);
+  hwGroup.rotation.order = 'YXZ';
+  hwGroup.rotation.set(-0.06, 0.26, 0);
 
   // Miniature sports car body
   const hwBody = new THREE.BoxGeometry(0.034, 0.013, 0.072);
