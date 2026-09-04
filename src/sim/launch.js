@@ -242,10 +242,17 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
   // it. Before separation the two are driven with identical transforms, which is also what
   // keeps seek() exact: there is no state carried across the split.
   const boosterHome = { parent: booster.parent, position: booster.position.clone() };
+  // Two groups, not one: `flight` carries the trajectory and `ex.model` carries the exhibit's
+  // own mount height and yaw, and the booster's chain has to compose in exactly the same order
+  // or the two vehicles drift apart before they have separated. Collapsing them into a single
+  // group did precisely that — at T+26 the ship was already flying beside its own booster.
   const boosterFlight = new THREE.Group();
   boosterFlight.name = 'booster-flight';
-  boosterFlight.rotation.copy(ex.model.rotation);
-  boosterFlight.position.copy(ex.model.position);
+  const boosterModel = new THREE.Group();
+  boosterModel.name = 'booster-model';
+  boosterModel.position.copy(ex.model.position);
+  boosterModel.rotation.copy(ex.model.rotation);
+  boosterFlight.add(boosterModel);
   ex.group.add(boosterFlight);
   ex.boosterFlight = boosterFlight;
 
@@ -258,7 +265,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
   function detachBooster(on) {
     if (on === boosterDetached) return;
     boosterDetached = on;
-    (on ? boosterFlight : boosterHome.parent).add(booster);
+    (on ? boosterModel : boosterHome.parent).add(booster);
     booster.position.copy(boosterHome.position);
     booster.rotation.z = 0;
   }
@@ -365,7 +372,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
       const a = 0.7 + t * 0.0042;
       pos.set(tgt.x + Math.cos(a) * d * 0.66, tgt.y - d * 0.30, tgt.z + Math.sin(a) * d * 0.82);
     } },
-    { until: EVENTS.boostbackStart + 22, blend: 3.0, shot: (t, pos, tgt) => {
+    { until: EVENTS.boostbackStart + 2, blend: 3.0, shot: (t, pos, tgt) => {
       // Separation: side on, and pulling back so both stages stay in frame as they part.
       vehicleAt(t, tgt);
       const d = 340 + Math.max(0, t - EVENTS.separation) * 6.5;
@@ -437,6 +444,18 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
    */
   const CLOUD_UNTIL = EVENTS.liftoff + 34;
   function emitCloud(t, dt) {
+    // The landing burn kicks up its own cloud off the pad as the booster settles into the
+    // arms. Same trench mouths, much less of it: three engines, not thirty-three.
+    if (t >= EVENTS.catch - 16 && t <= EVENTS.catch + 8) {
+      const near = 1 - THREE.MathUtils.clamp(boosterAltAt(t) / 700, 0, 1);
+      const n2 = near * 34 * dt;
+      if (n2 >= 0.05) {
+        const m2 = Math.max(1, Math.round(n2 * 0.5));
+        cloud.emit(m2, [0, 2.4, 44], [0, 0.05, 1.0], 46, 16);
+        cloud.emit(m2, [0, 2.4, -44], [0, 0.05, -1.0], 46, 16);
+      }
+      return;
+    }
     if (t < -6.0 || t >= CLOUD_UNTIL) return;
 
     // 1. Water deluge pre-ignition activation (T-6 to T-3)
@@ -506,12 +525,12 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
 
     // The atmosphere follows whatever the camera is on: the ship until staging, the booster
     // afterwards, which is what brings the sky back as it comes down.
-    env.setAltitude(t < EVENTS.separation + 6 ? alt : bAlt);
+    env.setAltitude(t < EVENTS.boostbackStart ? alt : bAlt);
     // A 340 m shadow frustum is meaningless once the vehicle is kilometres up, and it costs
     // a full shadow pass per frame.
     // The near/far plane and the shadows follow whichever vehicle the camera is on, so the
     // pad comes back into shadow range as the booster returns to it.
-    const camAlt = t < EVENTS.separation + 6 ? alt : bAlt;
+    const camAlt = t < EVENTS.boostbackStart ? alt : bAlt;
     env.sun.castShadow = home.shadows && camAlt < 1800;
     camera.near = camAlt > 900 ? 0.8 : home.near;
     camera.far = camAlt > 900 ? 260000 : home.far;
@@ -522,7 +541,9 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
 
     // After staging the panel follows the booster: it is what the camera is on and what the
     // remaining milestones belong to.
-    const onBooster = t >= EVENTS.separation + 6;
+    // The panel and the camera change vehicle together, at the boostback burn: reading the
+    // booster's numbers under a shot of the ship is worse than either.
+    const onBooster = t >= EVENTS.boostbackStart;
     state.t = t;
     state.altitude = onBooster ? bAlt : alt;
     state.velocity = onBooster ? boosterSpeedAt(t) : speedAt(t);
@@ -591,7 +612,12 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
     if (!state.running) { state.running = true; state.armed = true; visibilityHook?.(true); rig.external = true; }
     cloud.reset();
     const step = 1 / 30;
-    for (let u = -6.0; u < Math.min(t, CLOUD_UNTIL); u += step) {
+    // Two windows produce ground cloud: the launch, and the landing burn as the booster
+    // settles into the arms. Seeking past either has to re-simulate it, or the check and the
+    // screenshot tool see a different pad from the one the animation reaches.
+    const from = t > EVENTS.catch - 16 ? EVENTS.catch - 16 : -6.0;
+    const until = t > EVENTS.catch - 16 ? t : Math.min(t, CLOUD_UNTIL);
+    for (let u = from; u < until; u += step) {
       emitCloud(u, step);
       cloud.update(step, camera, env.sun);
     }

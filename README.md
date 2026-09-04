@@ -125,7 +125,9 @@ También **recorre la secuencia de lanzamiento**. `launch.seek(t)` reproduce el 
 | ![Escudo PICA desde el trunk](docs/screenshots/dragon-trunk-inside.jpg) | ![Bus del Starlink V2 Mini](docs/screenshots/starlink-bus.jpg) |
 | ![Complejo de lanzamiento](docs/screenshots/launch-site.jpg) | ![Zanja de llamas](docs/screenshots/launch-trench.jpg) |
 | ![Ignición](docs/screenshots/launch-ignition.jpg) | ![Ascenso](docs/screenshots/launch-ascent.jpg) |
-| ![Separación en caliente](docs/screenshots/launch-staging.jpg) | ![Vista general](docs/screenshots/overview.jpg) |
+| ![Separación en caliente](docs/screenshots/launch-staging.jpg) | ![Boostback del propulsor](docs/screenshots/launch-boostback.jpg) |
+| ![La torre atrapa el propulsor](docs/screenshots/launch-catch.jpg) | ![Propulsor en los brazos](docs/screenshots/launch-caught.jpg) |
+| ![El centro de noche](docs/screenshots/night-centre.jpg) | ![Vista general](docs/screenshots/overview.jpg) |
 | ![Tesla Roadster](docs/screenshots/roadster_overview.png) | ![Starman](docs/screenshots/roadster_starman.png) |
 | ![Faros y morro](docs/screenshots/roadster_detail.png) | ![Tierra al fondo](docs/screenshots/roadster_earth.png) |
 | ![Rueda y paso](docs/screenshots/roadster_underbody.png) | ![Engine Row](docs/screenshots/engines-row.png) |
