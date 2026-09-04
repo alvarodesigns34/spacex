@@ -172,6 +172,8 @@ try {
       ship: v.scene.getObjectByName('ship').position.y,
       booster: [v.scene.getObjectByName('superheavy').position.x, v.scene.getObjectByName('superheavy').rotation.z],
       qd: parts.qdArm.rotation.y,
+      chop: [parts.chopsticks.position.y, ...parts.chopsticks.children.filter(c => c.name.startsWith('arm-')).map(a => a.rotation.y)],
+      booster: v.scene.getObjectByName('superheavy').parent.name,
       clamps: parts.holddowns.children.map(c => c.position.toArray()),
       camera: [v.camera.near, v.camera.far],
       fog: v.scene.fog.density,
@@ -189,7 +191,11 @@ try {
   report(armed.running && armed.panel && armed.t < 0, 'el botón arranca la secuencia',
     `reloj en ${armed.t.toFixed(0)} s, panel ${armed.panel ? 'visible' : 'oculto'}`);
 
-  const times = [-10, -1, 2, 8, 20, 62, 110, 152, 161, 175, 194];
+  // Up to staging the panel follows the stack, and its altitude and speed can only rise. After
+  // staging it follows the booster home, which is the whole point of the second half of the
+  // sequence, so monotonicity is asserted on the ascent only and the return gets its own test.
+  const ASCENT_END = 158;
+  const times = [-10, -1, 2, 8, 20, 62, 110, 152, 156, 161, 175, 210, 275, 340, 396, 412, 420];
   const badT = [];
   let lastAlt = -1, lastVel = -1, monotonic = true;
   for (const t of times) {
@@ -202,12 +208,39 @@ try {
       return { finite: nums.every(Number.isFinite), camY: v.camera.position.y, alt: st.altitude, vel: st.velocity };
     }, t);
     if (!r.finite || r.camY < 0.2) badT.push(`t=${t}`);
-    if (r.alt < lastAlt - 1e-6 || r.vel < lastVel - 1e-6) monotonic = false;
-    lastAlt = r.alt; lastVel = r.vel;
+    if (t <= ASCENT_END && (r.alt < lastAlt - 1e-6 || r.vel < lastVel - 1e-6)) monotonic = false;
+    if (t <= ASCENT_END) { lastAlt = r.alt; lastVel = r.vel; }
   }
   report(badT.length === 0, `${times.length} instantes de la secuencia`,
     badT.length ? `inválidos: ${badT.join(', ')}` : 'transformadas finitas y cámara sobre la explanada');
   report(monotonic, 'perfil de ascenso monótono', monotonic ? 'altitud y velocidad no retroceden' : 'la curva retrocede');
+
+  // ---- Booster return and catch ---------------------------------------------------------
+  // The second half of the sequence flies the booster back to the tower. Three things have to
+  // hold: it goes up before it comes down, it ends at the pad rather than downrange, and the
+  // arms actually close on it — an animation that leaves the booster in the air beside open
+  // arms is the failure mode worth catching.
+  {
+    const at = (t) => page.evaluate((tt) => {
+      const v = window.__vc;
+      v.launch.seek(tt);
+      const b = v.exhibits.starship.boosterFlight;
+      const chop = v.complex.userData.parts.chopsticks;
+      const arms = chop.children.filter(c => c.name.startsWith('arm-')).map(a => +a.rotation.y.toFixed(4));
+      return { x: b.position.x, y: b.position.y, chop: chop.position.y, arms };
+    }, t);
+    const apogee = await at(272);
+    const mid = await at(340);
+    const caught = await at(415);
+    const rose = apogee.y > 90000 && apogee.x > 60000;
+    const home = Math.abs(caught.x) < 60 && caught.y < 60;
+    const closed = caught.arms.every(a => Math.abs(a) < 0.16) && caught.chop > 80;
+    const descending = mid.y < apogee.y && Math.abs(mid.x) < Math.abs(apogee.x);
+    const ok = rose && home && closed && descending;
+    report(ok, 'el propulsor vuelve y la torre lo atrapa',
+      ok ? `apogeo ${Math.round(apogee.y / 1000)} km a ${Math.round(apogee.x / 1000)} km, atrapado a ${caught.x.toFixed(1)} m del eje con los brazos cerrados`
+        : `sube ${rose} · desciende ${descending} · vuelve ${home} · brazos ${closed} · ${JSON.stringify({ apogee, mid, caught })}`);
+  }
 
   await page.evaluate(() => window.__vc.launch.reset(false));
   const after = await snapshot();

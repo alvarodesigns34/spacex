@@ -32,7 +32,15 @@ export const EVENTS = {
   maxQ: 62,            // cited
   meco: 152,           // cited
   separation: 160,     // cited
-  end: 196,
+  // Booster return, from the flight 5 timeline (Wikipedia, Starship flight test 5): the
+  // first time anyone caught an orbital-class booster. Times are that flight's, shifted by
+  // nothing — its boostback started 1 s after this model's separation, which is close enough
+  // that the two timelines can share a clock.
+  boostbackStart: 165,   // cited: +00:02:45
+  boostbackEnd: 221,     // cited: +00:03:41
+  landingBurn: 390,      // cited: +00:06:30
+  catch: 414,            // cited: +00:06:54, landing burn shutdown and catch
+  end: 436,
 };
 
 /**
@@ -57,7 +65,7 @@ const SPEED_KEYS = [
   [80, 548], [100, 745], [120, 978], [140, 1272],
   [152, 1470],             // cited time: MECO
   [160, 1583],             // cited time and cited speed: separation at ≈ 5 700 km/h
-  [175, 1690], [196, 1880],
+  [175, 1690], [196, 1880], [260, 2380], [340, 3020], [436, 3760],
 ];
 const PITCH = { start: EVENTS.liftoff + 6, max: THREE.MathUtils.degToRad(72), tau: 64 };
 const pitchProgram = (t) => (t <= PITCH.start ? 0 : PITCH.max * (1 - Math.exp(-(t - PITCH.start) / PITCH.tau)));
@@ -89,6 +97,79 @@ function buildProfile() {
   return { step, n, alt, spd, down, pit };
 }
 const PROFILE = buildProfile();
+
+// ---- Booster return ----------------------------------------------------------------------
+// The ascent is integrated from a speed curve because its endpoints are cited. The return is
+// not: no public source gives Super Heavy's altitude second by second, so this is an authored
+// trajectory pinned to the four cited times above and to the two facts that bracket it — the
+// booster is at the staging point when the boostback burn lights, and it is in the arms at
+// T+06:54. Apogee near 96 km and a downrange peak near 95 km are the reported neighbourhood
+// for a flight 5 return, and the shape between the pins is a reconstruction.
+//
+// Altitude is not monotone here — it keeps climbing for a minute after staging — so this uses
+// a plain Catmull-Rom through the keys rather than the monotone cubic the ascent uses.
+// The last few keys are close together on purpose: a Catmull-Rom through a 3 800 m -> 10 m
+// drop with nothing after it overshoots straight through the ground, which is exactly what it
+// did — the booster arrived at altitude 0 and 80 cm the wrong side of the pad centre.
+const RETURN_ALT = [
+  [160, 55800], [180, 68000], [200, 78500], [221, 85000], [250, 93000], [272, 96000],
+  [300, 91000], [330, 76000], [360, 49000], [385, 17000], [398, 4200], [405, 900],
+  [410, 140], [413, 34], [414, 22], [418, 22], [426, 22], [436, 22],
+];
+const RETURN_DOWN = [
+  [160, 84000], [180, 92000], [200, 95500], [221, 93000], [250, 79000], [272, 66000],
+  [300, 46000], [330, 26000], [360, 10500], [385, 2400], [398, 420], [405, 90],
+  [410, 14], [413, 2], [414, 0], [418, 0], [426, 0], [436, 0],
+];
+// Attitude, in radians from vertical. Nose-up at staging, swung retrograde for the boostback
+// burn, then engines-first — which for Super Heavy means upright — for the descent and catch.
+const RETURN_PITCH = [
+  [160, 1.14], [166, 1.60], [180, 2.30], [221, 2.30], [240, 1.20], [270, 0.34],
+  [330, 0.16], [385, 0.05], [414, 0.0], [436, 0.0],
+];
+
+/** Catmull-Rom through (t, value) keys. Unlike the ascent's cubic this may rise and fall. */
+function catmull(keys, t) {
+  const n = keys.length;
+  if (t <= keys[0][0]) return keys[0][1];
+  if (t >= keys[n - 1][0]) return keys[n - 1][1];
+  let i = 0;
+  while (i < n - 2 && t > keys[i + 1][0]) i++;
+  const p0 = keys[Math.max(0, i - 1)], p1 = keys[i], p2 = keys[i + 1], p3 = keys[Math.min(n - 1, i + 2)];
+  const u = (t - p1[0]) / (p2[0] - p1[0]);
+  const u2 = u * u, u3 = u2 * u;
+  return 0.5 * ((2 * p1[1]) + (-p0[1] + p2[1]) * u
+    + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * u2
+    + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * u3);
+}
+export const boosterAltAt = (t) => (t < EVENTS.separation ? altitudeAt(t) : Math.max(0, catmull(RETURN_ALT, t)));
+export const boosterDownAt = (t) => (t < EVENTS.separation ? downrangeAt(t) : catmull(RETURN_DOWN, t));
+export const boosterPitchAt = (t) => (t < EVENTS.separation ? pitchAt(t) : catmull(RETURN_PITCH, t));
+/**
+ * Speed of the booster, differentiated from its own trajectory rather than authored, so the
+ * number on the panel cannot contradict the thing on the screen.
+ */
+export function boosterSpeedAt(t) {
+  if (t < EVENTS.separation) return speedAt(t);
+  const h = 0.5;
+  const dy = boosterAltAt(t + h) - boosterAltAt(t - h);
+  const dx = boosterDownAt(t + h) - boosterDownAt(t - h);
+  return Math.hypot(dx, dy) / (2 * h);
+}
+
+/** Booster engines after separation: the boostback burn, then the landing burn. */
+function returnThrottle(t) {
+  if (t >= EVENTS.boostbackStart && t <= EVENTS.boostbackEnd) {
+    return 0.40 * THREE.MathUtils.smoothstep(t, EVENTS.boostbackStart, EVENTS.boostbackStart + 2)
+      * (1 - THREE.MathUtils.smoothstep(t, EVENTS.boostbackEnd - 3, EVENTS.boostbackEnd));
+  }
+  if (t >= EVENTS.landingBurn && t <= EVENTS.catch) {
+    // Thirteen engines to arrest the descent, down to three for the last few seconds.
+    const lit = t < EVENTS.catch - 9 ? 0.42 : 0.42 * (1 - 0.72 * THREE.MathUtils.smoothstep(t, EVENTS.catch - 9, EVENTS.catch - 1));
+    return lit * (1 - THREE.MathUtils.smoothstep(t, EVENTS.catch - 1.2, EVENTS.catch));
+  }
+  return 0;
+}
 
 function sample(arr, t) {
   const u = THREE.MathUtils.clamp(t / PROFILE.step, 0, PROFILE.n - 1);
@@ -130,8 +211,12 @@ const PHASES = [
   [EVENTS.maxQ + 8, 'Max-Q · peak dynamic pressure'],
   [EVENTS.meco, 'Ascent'],
   [EVENTS.separation, 'MECO · engine cutoff'],
-  [EVENTS.separation + 12, 'Hot-staging'],
-  [Infinity, 'Second stage in flight'],
+  [EVENTS.boostbackStart, 'Hot-staging'],
+  [EVENTS.boostbackEnd, 'Booster boostback burn'],
+  [EVENTS.landingBurn, 'Booster coasting back'],
+  [EVENTS.catch, 'Booster landing burn'],
+  [EVENTS.catch + 8, 'Caught by the tower'],
+  [Infinity, 'Booster in the arms'],
 ];
 const phaseAt = (t) => (PHASES.find(p => t < p[0]) ?? PHASES[PHASES.length - 1])[1];
 
@@ -151,6 +236,43 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
   const ship = ex.model.getObjectByName('ship');
   const shipHome = ship.position.y;
   const parts = complex.userData.parts;
+
+  // The booster flies its own trajectory after staging — out to 95 km downrange and back to
+  // the tower — so it gets its own group beside the ship's rather than a small offset inside
+  // it. Before separation the two are driven with identical transforms, which is also what
+  // keeps seek() exact: there is no state carried across the split.
+  const boosterHome = { parent: booster.parent, position: booster.position.clone() };
+  const boosterFlight = new THREE.Group();
+  boosterFlight.name = 'booster-flight';
+  boosterFlight.rotation.copy(ex.model.rotation);
+  boosterFlight.position.copy(ex.model.position);
+  ex.group.add(boosterFlight);
+  ex.boosterFlight = boosterFlight;
+
+  /**
+   * The booster only leaves ex.model while the sequence is live. Parked, it belongs to the
+   * stack — otherwise verifyExhibits() measures a 53 m Starship, because measure() walks the
+   * model and the booster is no longer in it.
+   */
+  let boosterDetached = false;
+  function detachBooster(on) {
+    if (on === boosterDetached) return;
+    boosterDetached = on;
+    (on ? boosterFlight : boosterHome.parent).add(booster);
+    booster.position.copy(boosterHome.position);
+    booster.rotation.z = 0;
+  }
+
+  // Chopstick home state, so reset() puts the arms back where the launch found them.
+  const chop = parts.chopsticks;
+  const chopHome = {
+    y: chop.position.y,
+    arms: chop.children.filter(c => c.name.startsWith('arm-')).map(a => ({ obj: a, ry: a.rotation.y })),
+  };
+  const CATCH_ARM = THREE.MathUtils.degToRad(6.5);   // arms just embracing the 9 m hull
+  const CATCH_CARRIAGE = 98;                          // carriage height at the catch: the lift
+                                                      // pins sit below the grid fins, not at the top
+  const CATCH_ALT = 22;                               // booster held this far above its launch station
 
   // ---- Plumes -------------------------------------------------------------------------
   // Cluster radii: the 33 Raptors sit inside a 3,86 m ring, the ship's six inside a 2,3 m
@@ -183,6 +305,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
 
   // ---- Camera ---------------------------------------------------------------------------
   const S = new THREE.Vector3(ex.lay.x, 0, ex.lay.z);        // site origin, on grade
+  const PAD_CATCH_Y = ex.lay.mount + CATCH_ALT + 34;         // roughly the middle of the caught booster
   const V = new THREE.Vector3();                             // vehicle mid-body, world
   const _p = new THREE.Vector3(), _q = new THREE.Vector3(), _pad = new THREE.Vector3();
   const _p2 = new THREE.Vector3(), _q2 = new THREE.Vector3();
@@ -191,6 +314,16 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
    * Where the middle of the stack actually is, which is not simply "up": once the gravity
    * turn starts the vehicle rotates about its own base, so the mid-body swings downrange.
    */
+  // The booster's mid-body, in world space, for the return shots.
+  function boosterAt(t, out) {
+    const p = boosterPitchAt(t), r = 36;
+    return out.set(
+      S.x + boosterDownAt(t) + Math.sin(p) * r,
+      ex.lay.mount + boosterAltAt(t) + Math.cos(p) * r,
+      S.z,
+    );
+  }
+
   function vehicleAt(t, out) {
     const p = pitchAt(t), r = 58;
     return out.set(
@@ -232,11 +365,34 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
       const a = 0.7 + t * 0.0042;
       pos.set(tgt.x + Math.cos(a) * d * 0.66, tgt.y - d * 0.30, tgt.z + Math.sin(a) * d * 0.82);
     } },
-    { until: Infinity, blend: 3.0, shot: (t, pos, tgt) => {
+    { until: EVENTS.boostbackStart + 22, blend: 3.0, shot: (t, pos, tgt) => {
       // Separation: side on, and pulling back so both stages stay in frame as they part.
       vehicleAt(t, tgt);
       const d = 340 + Math.max(0, t - EVENTS.separation) * 6.5;
       pos.set(tgt.x + d * 0.26, tgt.y - d * 0.20, tgt.z + d * 0.94);
+    } },
+    { until: EVENTS.landingBurn - 26, blend: 4.0, shot: (t, pos, tgt) => {
+      // The booster is the story from here. Held against the curve of its own trajectory,
+      // far enough out that the flip and the boostback burn read.
+      boosterAt(t, tgt);
+      const d = 420;
+      pos.set(tgt.x - d * 0.42, tgt.y + d * 0.16, tgt.z + d * 0.90);
+    } },
+    { until: EVENTS.catch - 6, blend: 4.0, shot: (t, pos, tgt) => {
+      // Coming home: from beside the tower, looking up the line the booster is falling down,
+      // so the pad enters frame underneath it as it arrives.
+      boosterAt(t, tgt);
+      const k = THREE.MathUtils.clamp((t - (EVENTS.landingBurn - 26)) / 70, 0, 1);
+      const d = THREE.MathUtils.lerp(900, 190, k);
+      pos.set(S.x + 150, THREE.MathUtils.lerp(tgt.y * 0.55 + 60, 128, k), S.z + d);
+    } },
+    { until: Infinity, blend: 3.0, shot: (t, pos, tgt) => {
+      // The catch itself, from the height of the arms: the booster comes down into frame and
+      // stops, and the tower is beside it for scale.
+      const k = THREE.MathUtils.clamp((t - (EVENTS.catch - 6)) / 14, 0, 1);
+      boosterAt(t, tgt);
+      tgt.lerp(_pad.set(S.x, PAD_CATCH_Y, S.z), k * 0.65);
+      pos.set(S.x + 118, THREE.MathUtils.lerp(122, 104, k), S.z + THREE.MathUtils.lerp(150, 104, k));
     } },
   ];
 
@@ -319,33 +475,59 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
     flight.position.set(downrangeAt(t), alt, 0);
     flight.rotation.z = -pitchAt(t);
 
-    // Hot staging: the ship lights first and pushes itself off the booster, which falls back
-    // and starts to drift off axis.
+    // Hot staging: the ship lights first and pushes itself off the booster.
     const sep = Math.max(0, t - EVENTS.separation);
     ship.position.y = shipHome + 0.5 * 7.5 * sep * sep;
-    booster.rotation.z = THREE.MathUtils.degToRad(9) * Math.min(1, sep / 14);
-    booster.position.x = -0.7 * sep;
 
-    boosterPlume.setThrottle(bt, alt);
+    // The booster on its own trajectory. Up to separation it is exactly where the stack is;
+    // after it, it flies the return.
+    detachBooster(true);
+    const bAlt = boosterAltAt(t);
+    boosterFlight.position.set(boosterDownAt(t), bAlt, 0);
+    boosterFlight.rotation.z = -boosterPitchAt(t);
+    // A little sideways drift as it is pushed off, and then it is on its own.
+    booster.position.x = boosterHome.position.x - 0.7 * Math.min(sep, 6);
+    booster.rotation.z = THREE.MathUtils.degToRad(9) * Math.min(1, sep / 14) * Math.max(0, 1 - sep / 26);
+
+    // The catch: the carriage rides up the tower as the booster comes home, and the arms close
+    // on it in the last seconds of the landing burn.
+    const ride = THREE.MathUtils.smoothstep(t, EVENTS.landingBurn - 60, EVENTS.landingBurn + 6);
+    chop.position.y = THREE.MathUtils.lerp(chopHome.y, CATCH_CARRIAGE, ride);
+    const close = THREE.MathUtils.smoothstep(t, EVENTS.catch - 11, EVENTS.catch - 1);
+    for (const a of chopHome.arms) {
+      const s2 = a.ry < 0 ? 1 : -1;
+      a.obj.rotation.y = THREE.MathUtils.lerp(a.ry, -s2 * CATCH_ARM, close);
+    }
+
+    const bThrottle = t < EVENTS.separation ? bt : returnThrottle(t);
+    boosterPlume.setThrottle(bThrottle, bAlt);
     shipPlume.setThrottle(st, alt);
     cloud.setFlame(bt * Math.max(0, 1 - alt / 160));
 
-    env.setAltitude(alt);
+    // The atmosphere follows whatever the camera is on: the ship until staging, the booster
+    // afterwards, which is what brings the sky back as it comes down.
+    env.setAltitude(t < EVENTS.separation + 6 ? alt : bAlt);
     // A 340 m shadow frustum is meaningless once the vehicle is kilometres up, and it costs
     // a full shadow pass per frame.
-    env.sun.castShadow = home.shadows && alt < 1800;
-    camera.near = alt > 900 ? 0.8 : home.near;
-    camera.far = alt > 900 ? 260000 : home.far;
+    // The near/far plane and the shadows follow whichever vehicle the camera is on, so the
+    // pad comes back into shadow range as the booster returns to it.
+    const camAlt = t < EVENTS.separation + 6 ? alt : bAlt;
+    env.sun.castShadow = home.shadows && camAlt < 1800;
+    camera.near = camAlt > 900 ? 0.8 : home.near;
+    camera.far = camAlt > 900 ? 260000 : home.far;
     camera.updateProjectionMatrix();
 
     driveHardware(t);
     if (rig.external) driveCamera(t);
 
+    // After staging the panel follows the booster: it is what the camera is on and what the
+    // remaining milestones belong to.
+    const onBooster = t >= EVENTS.separation + 6;
     state.t = t;
-    state.altitude = alt;
-    state.velocity = speedAt(t);
-    state.downrange = downrangeAt(t);
-    state.throttle = Math.max(bt, st);
+    state.altitude = onBooster ? bAlt : alt;
+    state.velocity = onBooster ? boosterSpeedAt(t) : speedAt(t);
+    state.downrange = onBooster ? boosterDownAt(t) : downrangeAt(t);
+    state.throttle = onBooster ? bThrottle : Math.max(bt, st);
     state.phase = t < EVENTS.ignition ? 'Countdown' : phaseAt(t);
   }
 
@@ -383,6 +565,11 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
     parts.qdArm.rotation.y = 0;
     parts.holddowns.children.forEach((c, i) => c.position.copy(home.clamps[i]));
     env.setAltitude(0);
+    chop.position.y = chopHome.y;
+    for (const a of chopHome.arms) a.obj.rotation.y = a.ry;
+    boosterFlight.position.set(0, 0, 0);
+    boosterFlight.rotation.z = 0;
+    detachBooster(false);
     env.sun.castShadow = home.shadows;
     camera.near = home.near; camera.far = home.far;
     camera.updateProjectionMatrix();
