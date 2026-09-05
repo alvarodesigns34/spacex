@@ -2,8 +2,10 @@
  * Tesla Roadster — Starman.
  *
  * PROVENANCE & HISTORICAL SPECIFICATIONS:
- *  - Vehicle: Original First-Generation Tesla Roadster (2008 / 2.5 Sport edition),
- *    personal car of Elon Musk, launched as mass simulator payload on the maiden flight
+ *  - Vehicle: first-generation Tesla Roadster, model year 2010, on the pre-2.5 bodywork
+ *    (Wikipedia — Elon Musk's Tesla Roadster). Not a 2.5: that facelift arrived in 2011 and
+ *    brought a different nose, which is precisely the part of the car this file models.
+ *    Personal car of Elon Musk, launched as mass simulator payload on the maiden flight
  *    of SpaceX Falcon Heavy on 6 February 2018 from Launch Complex 39A (KSC).
  *  - Documented Dimensions (Gen 1 Tesla Roadster published specifications):
  *      Overall length:  3.947 m (declared 3.95 m)
@@ -62,9 +64,9 @@ export const ROADSTER_SPECS = {
 // and cannot drift out of flush the way separately authored shapes do.
 //
 // The key tables reconstruct the shape between the points the published envelope actually
-// fixes (length 3.946, width 1.728, height 1.128, wheelbase 2.352, tracks 1.455 / 1.490);
-// everything between those is read off side, plan and three-quarter photographs of the Falcon
-// Heavy Demo car and is approximate, as the exhibit copy says.
+// fixes — see ROADSTER_SPECS above, which is where those figures live and the only place they
+// should be read from; everything between them is read off side, plan and three-quarter
+// photographs of the Falcon Heavy Demo car and is approximate, as the exhibit copy says.
 
 // The bumper caps roll forward of the last swept station, so the stations sit back from the
 // declared extremes by exactly the cap depth and the finished car measures 3.946 m.
@@ -81,7 +83,7 @@ const SHUT = 0.005;        // panel shut-line gap, 5 mm
 // so control point i sits exactly at t = i/12 and panels split on those values with no seam.
 const T_SILL_L = 0, T_SHOULDER_L = 4 / 12, T_CENTRE = 6 / 12, T_SHOULDER_R = 8 / 12, T_SILL_R = 1;
 
-// Half-width. Widest at the rear haunch (0.864 -> 1.728 m overall). The ends keep most of
+// Half-width. Widest at the rear haunch (0.926 -> 1.852 m overall). The ends keep most of
 // their width and round their corners in plan, which is what a bumper does; collapsing the
 // half-width to zero would make a boat prow, not a car.
 const halfWidth = curve([
@@ -760,8 +762,13 @@ function createRoadsterMaterials(M) {
     transmission: 0.35, ior: 1.5, thickness: 0.02,
   });
 
-  // One transmissive surface on the whole car. Mixing opacity with transmission is what left
-  // the old windscreen looking like a milky slab; transmission alone, front-facing, refracts.
+  // Four surfaces on the car transmit: this windscreen and the Arch quartz disc fully, the
+  // amber reflector and the tail lenses at around a third, where the effect wanted is a tint
+  // rather than a view through. Everything else that looks like glass — the headlight covers
+  // most of all — fakes it with clearcoat, because Three renders the scene again for each
+  // transmissive material and the car cannot afford a pass per lamp.
+  // Mixing opacity with transmission is what left the old windscreen looking like a milky
+  // slab; transmission alone, front-facing, refracts.
   const windshieldGlass = new THREE.MeshPhysicalMaterial({
     color: 0xdceaf2, metalness: 0.0, roughness: 0.02, transmission: 0.94, ior: 1.52,
     thickness: 0.006, envMapIntensity: 1.0,
@@ -870,7 +877,11 @@ function buildBodyShell(mats, M) {
   const zFront = denser(
     denser(stations(Z_COWL + SHUT / 2, Z_NOSE, 52), LAMP_FRONT.z0 + 0.02, LAMP_FRONT.z0 + LAMP_FRONT.za - 0.02, 0.005),
     MOUTH.zMin + 0.05, Z_NOSE, 0.004);
-  const zRear = denser(stations(Z_TAIL, Z_BULK - SHUT / 2, 52), LAMP_REAR.z0 - 0.06, LAMP_REAR.z0 + 0.06, 0.005);
+  // The rear panel's only cut is the fascia band, so the extra stations follow that band's own
+  // z range. They used to follow LAMP_REAR, from back when the tail lamps were cut out of the
+  // sweep; the lamps now live in the tail plane, and the density was landing in the wrong place
+  // — too far aft, and stopping 56 mm short of where the band actually ends.
+  const zRear = denser(stations(Z_TAIL, Z_BULK - SHUT / 2, 52), Z_TAIL, FASCIA_REAR.zMax + 0.01, 0.005);
   const zDoor = stations(Z_BULK + SHUT / 2, Z_COWL - SHUT / 2, 22);
 
   const panels = [
@@ -1034,9 +1045,9 @@ function buildBodyShell(mats, M) {
   g.add(mesh(mergeAll(wheelLinerParts), mats.satinBlack, { name: 'wheel-well-liners' }));
 
   // 6. UNDERBODY AERO PAN (Full-length flat belly tray from chin to diffuser)
-  // Kept inside the wheelbase: at 3.88 m it reached past the bumpers and, because the rocker
-  // line lifts to 0.33 m at each end, showed in side elevation as a slab hanging under the nose
-  // and the tail.
+  // 2.86 m — past the axles at both ends, but well inside the 3.947 m body. At the 3.88 m it
+  // used to be it reached the bumpers and, because the rocker line lifts to 0.33 m at each
+  // end, showed in side elevation as a slab hanging under the nose and the tail.
   const bellyPan = new THREE.BoxGeometry(1.34, 0.025, 2.86);
   g.add(mesh(bellyPan, mats.blackTrim, { position: [0, 0.138, 0], name: 'underbody-belly-pan' }));
 
@@ -1413,14 +1424,10 @@ const LAMP_FRONT = {
   shape: (a) => Math.sin(Math.PI * Math.pow(a, 0.55)) * 0.84 + 0.16,
   rise: 0.007, depth: 0.052,
 };
-// The tail lamp runs across the tail rather than along the car, so its long axis is t and its
-// short axis is z: on this surface, 45 mm of z at the tail is about 45 mm of height.
-const LAMP_REAR = {
-  z0: -1.876, za: 0.024, zb: 0.040,
-  t0: 0.178, ta: 0.204, tb: 0.0,
-  shape: (a) => Math.sin(Math.PI * Math.pow(a, 0.68)) * 0.84 + 0.16,
-  rise: 0.005, depth: 0.040,
-};
+// There is no LAMP_REAR here any more. The tail lamps were cut out of the sweep in (z, t)
+// while the tail was an end-cap fan; they are now cut out of the tail plane itself, in (x, y),
+// by TAIL_LAMP — which is the right frame for a feature that runs across the back of the car
+// rather than along it, and the reason the openings finally match their own rims.
 
 /** (a, b) -> a point of the master surface, plus its normal. */
 function lampPoint(L, s, a, b) {
@@ -2452,13 +2459,18 @@ function buildInterior(mats, M, texDontPanic, texPcb) {
   g.add(disc);
 
   // ---- Easter Egg 4: "Made on Earth by humans" Circuit Board -----------------------------
-  const pcbMesh = mesh(new THREE.PlaneGeometry(0.36, 0.18), new THREE.MeshStandardMaterial({
+  // The engraving is documented; where the board sits on the car is not. It used to be laid
+  // at z = 1.15, which is inside the frunk under a closed bonnet — nothing could see it, while
+  // a callout in mid-air announced it. Put on the console tunnel between the seats instead,
+  // where the open cockpit actually shows it. Its size is not published either; 16 × 8 cm is a
+  // plausible board and is listed with the other approximations on the sheet.
+  const pcbMesh = mesh(new THREE.PlaneGeometry(0.16, 0.08), new THREE.MeshStandardMaterial({
     map: texPcb,
     roughness: 0.45,
     metalness: 0.35,
     side: THREE.DoubleSide,
   }), {
-    position: [0.0, 0.24, 1.15],
+    position: [0.0, 0.2295, -0.30],
     rotation: [-Math.PI / 2, 0, 0],
     name: 'pcb-made-on-earth',
   });
@@ -2786,7 +2798,7 @@ export function buildRoadster(M) {
     { label: 'Starman · mannequin in a SpaceX IVA suit', position: [-0.34, 1.12, -0.34] },
     { label: "«DON'T PANIC!» · dashboard screen", position: [0.02, 0.66, 0.30], scope: 'near' },
     { label: '1:64 Hot Wheels model with a micro-Starman', position: [0.16, 0.76, 0.30], scope: 'near' },
-    { label: '«Made on Earth by humans» · circuit board', position: [0.0, 0.30, 1.15], scope: 'near' },
+    { label: '«Made on Earth by humans» · circuit board', position: [0.0, 0.30, -0.30], scope: 'near' },
     { label: 'Arch Mission 5D archive · the Foundation trilogy', position: [0.34, 0.44, -0.16], scope: 'near' },
     { label: 'Falcon Heavy payload attach fitting (PAF)', position: [0.0, -0.30, 0.0], scope: 'orbital' },
     { label: 'Selfie camera on a carbon-fibre boom', position: [0.55, 0.95, 3.10], scope: 'orbital' },

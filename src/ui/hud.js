@@ -151,8 +151,11 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
 
   function setActive(id) {
     rail.querySelectorAll('.rail-item').forEach(b => {
+      // `on` already accounts for the overview item, which has no dataset.id; toggling on the
+      // raw comparison instead meant aria-selected said "selected" while nothing was painted,
+      // so the overview row never highlighted and the two states disagreed.
       const on = b.dataset.id === id || (!id && b.classList.contains('rail-overview'));
-      b.classList.toggle('active', b.dataset.id === id);
+      b.classList.toggle('active', on);
       b.setAttribute('aria-selected', on ? 'true' : 'false');
     });
     const v = vehicles.find(x => x.id === id);

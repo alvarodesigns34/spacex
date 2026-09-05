@@ -39,6 +39,10 @@ export class CameraRig {
 
     this._onKeyDown = (e) => { if (e.target.tagName === 'INPUT') return; this.keys.add(e.code); };
     this._onKeyUp = (e) => this.keys.delete(e.code);
+    // A keyup that lands on another window never reaches us, so the key stays in the set and
+    // the camera flies on by itself when the tab comes back. Alt-Tab away mid-flight and the
+    // scene had drifted off into the distance by the time you returned.
+    this._onBlur = () => { this.keys.clear(); this.velocity.set(0, 0, 0); this.look.dragging = false; };
     this._onPointerDown = (e) => { this.releaseExternal(); if (this.mode !== 'fly') return; this.look.dragging = true; this.look.lastX = e.clientX; this.look.lastY = e.clientY; dom.setPointerCapture?.(e.pointerId); };
     this._onPointerUp = () => { this.look.dragging = false; };
     this._onPointerMove = (e) => {
@@ -55,6 +59,7 @@ export class CameraRig {
     };
     window.addEventListener('keydown', this._onKeyDown);
     window.addEventListener('keyup', this._onKeyUp);
+    window.addEventListener('blur', this._onBlur);
     dom.addEventListener('pointerdown', this._onPointerDown);
     dom.addEventListener('pointerup', this._onPointerUp);
     dom.addEventListener('pointermove', this._onPointerMove);
@@ -68,7 +73,7 @@ export class CameraRig {
     if (mode === this.mode) return;
     this.mode = mode;
     if (mode === 'fly') {
-      if (this.transition) { this.transition.resolve(); this.transition = null; }
+      this._endTransition();
       this.orbit.enabled = false;
       // derive yaw/pitch from the current view direction
       const dir = new THREE.Vector3();
@@ -88,6 +93,19 @@ export class CameraRig {
     this.onModeChange?.(mode);
   }
 
+  /**
+   * Ends whatever sweep is in flight. The promise a flyTo handed out has to settle even when
+   * the sweep is cut short — the guided tour awaits it, and a superseded flight that never
+   * resolved left that await pending for the rest of the session, so a tour interrupted by a
+   * click could not be restarted.
+   */
+  _endTransition() {
+    if (!this.transition) return;
+    const tr = this.transition;
+    this.transition = null;
+    tr.resolve();
+  }
+
   flyTo(position, target, duration = 1.7) {
     // prefers-reduced-motion only killed CSS transitions; a 1,7 s camera sweep across a 300 m
     // scene is the strongest motion the page produces, so honour the setting here too.
@@ -97,13 +115,14 @@ export class CameraRig {
     const to = new THREE.Vector3(...position);
     const toT = new THREE.Vector3(...target);
     if (this.mode === 'fly') this.setMode('orbit');
+    this._endTransition();
     return new Promise((resolve) => {
       this.transition = { from, fromT, to, toT, start: performance.now(), duration, resolve };
     });
   }
 
   jumpTo(position, target) {
-    this.transition = null;
+    this._endTransition();
     if (this.mode === 'fly') this.setMode('orbit');
     this.camera.position.set(...position);
     this.orbit.target.set(...target);
@@ -181,6 +200,8 @@ export class CameraRig {
   dispose() {
     window.removeEventListener('keydown', this._onKeyDown);
     window.removeEventListener('keyup', this._onKeyUp);
+    window.removeEventListener('blur', this._onBlur);
+    if (this.transition) { this.transition.resolve(); this.transition = null; }
     // The pointer and wheel handlers were never removed, so a disposed rig kept steering.
     this.dom.removeEventListener('pointerdown', this._onPointerDown);
     this.dom.removeEventListener('pointerup', this._onPointerUp);

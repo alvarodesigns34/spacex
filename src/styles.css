@@ -135,9 +135,9 @@ a:hover { border-bottom-color: var(--accent); }
   * { transition: none !important; }
 }
 
-/* Keyboard focus was invisible: the HUD is fully operable from the keyboard (1-6, 0, F, G,
-   L, R, T, H) but nothing showed where focus was. :focus-visible only paints for keyboard
-   users, so pointer users see no change. */
+/* Keyboard focus was invisible: the HUD is fully operable from the keyboard (1 to as many
+   exhibits as there are, 0, F, G, L, P, R, T, H) but nothing showed where focus was.
+   :focus-visible only paints for keyboard users, so pointer users see no change. */
 :where(button, input, a, [tabindex]):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;

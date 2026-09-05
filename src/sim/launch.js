@@ -7,11 +7,14 @@
  * The event times are taken verbatim from the published flight-test timeline (Wikipedia's
  * Starship flight test 7 article, itself transcribed from the SpaceX webcast): liftoff at
  * T+00:00:02, Max-Q at T+00:01:02, MECO at T+00:02:32, hot-stage separation at T+00:02:40.
- * The speed at separation, ≈ 5 700 km/h, is reported for IFT-3.
+ * The times are the cited part. The speed at separation is not: this file used to attribute
+ * ≈ 5 700 km/h to IFT-3 behind a link to an article about the flight 5 catch, which carries no
+ * such figure, and no flight timeline I could check gives one. It is the anchor the curve is
+ * authored to, and it is declared as reconstructed on the sheet.
  *
  * The altitude and speed *curve* between those points is not published as a table anywhere,
- * so it is reconstructed: a monotone cubic through keyframes that hit the cited times and the
- * cited separation speed, flagged `approx` in data/specs.js and labelled in the mission
+ * so it is reconstructed: a monotone cubic through keyframes that hit the cited times and that
+ * separation-speed anchor, flagged `approx` in data/specs.js and labelled in the mission
  * panel. Everything downstream is then derived from that one curve rather than invented
  * separately — the flight-path angle comes from dh/dt against speed, the downrange distance
  * from integrating the horizontal component, and the vehicle's attitude from the flight-path
@@ -47,8 +50,8 @@ export const EVENTS = {
  * Reconstructed ascent, built from exactly two authored inputs so that nothing in the
  * simulation can contradict anything else:
  *
- *   1. a speed curve v(t), pinned to zero until the cited liftoff time and to the cited
- *      ≈ 5 700 km/h (1 583 m/s) at the cited separation time;
+ *   1. a speed curve v(t), pinned to zero until the cited liftoff time and to the authored
+ *      ≈ 5 700 km/h (1 583 m/s) anchor at the cited separation time;
  *   2. a gravity-turn pitch programme θ(t) — zero while the vehicle clears the tower, then
  *      an exponential approach to 72° from vertical with a 64 s time constant.
  *
@@ -64,7 +67,11 @@ const SPEED_KEYS = [
   [62, 392],               // cited time: Max-Q
   [80, 548], [100, 745], [120, 978], [140, 1272],
   [152, 1470],             // cited time: MECO
-  [160, 1583],             // cited time and cited speed: separation at ≈ 5 700 km/h
+  // Cited time. The speed is NOT cited: it used to point at a NASASpaceflight article about
+  // the flight 5 catch, which does not carry a separation speed, and neither Wikipedia flight
+  // timeline gives one either. 1 583 m/s is the anchor this curve is authored to, and the
+  // sheet says so rather than dressing it as published.
+  [160, 1583],
   [175, 1690], [196, 1880], [260, 2380], [340, 3020], [436, 3760],
 ];
 const PITCH = { start: EVENTS.liftoff + 6, max: THREE.MathUtils.degToRad(72), tau: 64 };
@@ -306,7 +313,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
 
   const state = {
     running: false, armed: false, t: EVENTS.start, speed: 1,
-    phase: 'En plataforma', altitude: 0, velocity: 0, throttle: 0, downrange: 0,
+    phase: 'On the pad', altitude: 0, velocity: 0, throttle: 0, downrange: 0,
   };
   let visibilityHook = null;   // set by main.js: hides labels, rulers and figures while flying
 
@@ -598,7 +605,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
     camera.near = home.near; camera.far = home.far;
     camera.updateProjectionMatrix();
     visibilityHook?.(false);
-    Object.assign(state, { phase: 'En plataforma', altitude: 0, velocity: 0, throttle: 0, downrange: 0 });
+    Object.assign(state, { phase: 'On the pad', altitude: 0, velocity: 0, throttle: 0, downrange: 0 });
     onState(state);
     // The sequence ends 60 km up and 80 km downrange; leaving the viewer there would be a
     // trap, so control comes back looking at the pad the vehicle left.

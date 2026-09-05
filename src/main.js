@@ -67,15 +67,46 @@ const LAYOUT = {
 // nearly 300 m, so the frame has to sit further back and centre on the middle of it.
 const OVERVIEW = { pos: [4, 68, 300], target: [-2, 40, -68] };
 
-// Radius of the cylinder used to hide annotations that sit behind a vehicle. CSS2D labels
-// always draw on top of the scene, so without this the far-side callouts read as if they
-// were in front. Starlink is a flat panel and needs no occluder.
-const OCCLUDER = { starship: 4.5, falcon9: 1.9, falconheavy: 1.9, dragon: 2.0, starlink: 0, roadster: 1.0 };
+// Cylinders used to hide annotations that sit behind a vehicle. CSS2D labels always draw on
+// top of the scene, so without this the far-side callouts read as if they were in front.
+//
+// A number is one cylinder of that radius on the exhibit's axis, which is what a rocket is.
+// Engine Row is not: it is three separate engines standing side by side over nine metres, and
+// a single cylinder at the origin would both hide labels nothing is in front of and fail to
+// hide the ones behind the vacuum bell. It gets one cylinder per stand, given as [x, z, r, top]
+// in the exhibit's own frame — each with its own height, because a 2.9 m Raptor must not
+// occlude to the 4.8 m of the vacuum engine standing next to it. Starlink is a flat panel and
+// needs none.
+const OCCLUDER = {
+  starship: 4.5, falcon9: 1.9, falconheavy: 1.9, dragon: 2.0, starlink: 0, roadster: 1.0,
+  engines: [[-4.15, 0, 0.50, 2.6], [-1.75, 0, 0.70, 3.4], [1.55, 0, 1.20, 4.9]],
+};
 
 const nextFrame = () => new Promise(r => requestAnimationFrame(r));
 
+/**
+ * Without WebGL 2 the WebGLRenderer constructor throws, the loading card freezes on
+ * "Starting…" and the only explanation is in the console. The <noscript> covers a browser with
+ * scripting off; this covers the commoner case of scripting on and no WebGL 2 — an old
+ * browser, a locked-down machine, or hardware acceleration switched off, which is a setting
+ * the visitor can go and change if someone tells them that is what is wrong.
+ */
+function reportNoWebGL2() {
+  const card = document.querySelector('#loading .loading-card');
+  if (!card) return;
+  card.querySelector('.loading-title').textContent = 'This experience needs WebGL 2';
+  card.querySelector('.loading-track')?.remove();
+  card.querySelector('.loading-text').textContent =
+    'Your browser did not provide a WebGL 2 context. Enabling hardware acceleration in the '
+    + 'browser settings, or opening the page in an up-to-date Chrome, Edge, Firefox or Safari, '
+    + 'is usually enough.';
+}
+
 async function main() {
   const canvas = document.getElementById('scene');
+  // Probed on a throwaway canvas: the first getContext on a canvas is the one whose attributes
+  // stick, so testing on the real one would silently drop powerPreference below.
+  if (!document.createElement('canvas').getContext('webgl2')) { reportNoWebGL2(); return; }
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -236,11 +267,18 @@ async function main() {
     group.add(model);
     group.position.set(lay.x, 0, lay.z);
     scene.add(group);
-    exhibits[v.id] = { group, model, data: v, lay, occluder: OCCLUDER[v.id] ?? 0, labels: null, lod: null, hullTop: lay.mount + (model.userData.height ?? v.height) };
+    const cy = Math.cos(yaw), sy = Math.sin(yaw);
+    // Occluders are declared in the exhibit's own frame and stored turned into the world's,
+    // because the occlusion test works on world-axis offsets from the exhibit origin — the
+    // same frame the label positions below are put into.
+    const occSpec = OCCLUDER[v.id] ?? 0;
+    const occluders = typeof occSpec === 'number'
+      ? (occSpec > 0 ? [[0, 0, occSpec]] : [])
+      : occSpec.map(([ox, oz, r, top]) => [ox * cy + oz * sy, -ox * sy + oz * cy, r, top]);
+    exhibits[v.id] = { group, model, data: v, lay, occluders, labels: null, lod: null, hullTop: lay.mount + (model.userData.height ?? v.height) };
 
     // annotations
     const lg = new THREE.Group(); lg.name = `labels-${v.id}`; lg.visible = false;
-    const cy = Math.cos(yaw), sy = Math.sin(yaw);
     for (const a of model.userData.annotations ?? []) {
       const div = document.createElement('div');
       div.className = 'label';
@@ -519,36 +557,38 @@ async function main() {
     const ex = exhibits[active];
     const lg = ex.labels;
     if (!lg || !lg.visible) return;
-    const rr = ex.occluder;
-    if (rr <= 0) return;
+    if (!ex.occluders.length) return;
     const ax = ex.lay.x, az = ex.lay.z;
-    const cx = camera.position.x - ax, cz = camera.position.z - az;
+    const camX = camera.position.x - ax, camZ = camera.position.z - az;
     for (const obj of lg.children) {
       obj.getWorldPosition(_lab);
-      // Callouts that sit essentially on the vehicle's axis (nose tip, engine centreline)
-      // are never meaningfully hidden by it, and the constant-radius cylinder is a poor
-      // model of the hull up in the nose, so leave them alone.
       const lx = _lab.x - ax, lz = _lab.z - az;
-      const dx = lx - cx, dz = lz - cz;                          // camera → label
+      const dx = lx - camX, dz = lz - camZ;                      // camera → label
       const a = dx * dx + dz * dz;
       let hidden = false;
-      if (a > 1e-6 && lx * lx + lz * lz > rr * rr * 0.9) {
+      if (a > 1e-6) for (const [ox, oz, rr, oTop] of ex.occluders) {
+        // Recentred on this cylinder. Callouts that sit essentially on its axis (nose tip,
+        // engine centreline) are never meaningfully hidden by it, and a constant-radius
+        // cylinder is a poor model of the hull up in the nose, so leave them alone.
+        const cx = camX - ox, cz = camZ - oz;
+        const px = lx - ox, pz = lz - oz;
+        if (px * px + pz * pz <= rr * rr * 0.9) continue;
         // Segment/cylinder intersection in the horizontal plane. Both roots matter: the near
         // one catches a label on the far side seen from outside, the far one catches a label
         // outside the hull seen from inside it (looking up into the engine bay, say).
         const b = 2 * (cx * dx + cz * dz);
         const c = cx * cx + cz * cz - rr * rr;
         const disc = b * b - 4 * a * c;
-        if (disc > 0) {
-          const sq = Math.sqrt(disc);
-          const dy = _lab.y - camera.position.y;
-          for (const t of [(-b - sq) / (2 * a), (-b + sq) / (2 * a)]) {
-            if (t <= 0.02 || t >= 0.98) continue;
-            // Only count the hit if the hull actually spans that height.
-            const hy = camera.position.y + dy * t - ex.group.position.y;
-            if (hy > 0 && hy < ex.hullTop) { hidden = true; break; }
-          }
+        if (disc <= 0) continue;
+        const sq = Math.sqrt(disc);
+        const dy = _lab.y - camera.position.y;
+        for (const t of [(-b - sq) / (2 * a), (-b + sq) / (2 * a)]) {
+          if (t <= 0.02 || t >= 0.98) continue;
+          // Only count the hit if the hull actually spans that height.
+          const hy = camera.position.y + dy * t - ex.group.position.y;
+          if (hy > 0 && hy < (oTop ?? ex.hullTop)) { hidden = true; break; }
         }
+        if (hidden) break;
       }
       if (obj.element.classList.contains('is-occluded') !== hidden) {
         obj.element.classList.toggle('is-occluded', hidden);

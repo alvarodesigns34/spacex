@@ -94,6 +94,9 @@ export function buildStarlink(M) {
     g.add(wing);
   }
 
+  // How far the satellite stands above its mount, which for a spacecraft displayed lying flat
+  // is the thickness of its bus. Not 4.1 m: that is BUS_L, the bus's long horizontal side, and
+  // putting it here would claim a satellite standing four metres tall on the plinth.
   g.userData.height = BUS_T;
   g.userData.footprint = BUS_W + 2 * (0.55 + WING_L);
   g.userData.span = BUS_W + 2 * (0.55 + WING_L);
@@ -102,7 +105,7 @@ export function buildStarlink(M) {
     { label: 'Phased-array antennas (nadir face)', position: [0, -0.7, 0] },
     { label: 'Inter-satellite laser terminal', position: [-1.05, 0.75, -1.75] },
     { label: 'Argon Hall thruster', position: [0, 0.1, -BUS_L / 2 - 0.9] },
-    { label: 'Solar wing · ≈12.8 m × 4.1 m', position: [-(BUS_W / 2 + 0.55 + WING_L / 2), 0.4, 0] },
+    { label: `Solar wing · ≈${WING_L.toFixed(1)} m × ${WING_W.toFixed(1)} m`, position: [-(BUS_W / 2 + 0.55 + WING_L / 2), 0.4, 0] },
     { label: 'Star trackers', position: [0.6, 0.65, 0.6] },
   ];
   return g;

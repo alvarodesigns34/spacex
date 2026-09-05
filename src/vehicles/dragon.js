@@ -152,7 +152,7 @@ export function buildDragon(M) {
   for (let i = 0; i < 4; i++) {
     const a = Math.PI / 4 + (i * Math.PI) / 2;
     // Two side by side on the lower row, one centred above them.
-    for (const [dphi, dy] of [[-0.075, 0], [0.075, 0], [0, 0.2], [0.2, 0.2]]) {
+    for (const [dphi, dy] of [[-0.075, 0], [0.075, 0], [0, 0.2]]) {
       const y = TRUNK_H + 0.62 + dy;
       addDraco(a + dphi, y, wallR(y) - 0.015);
     }
