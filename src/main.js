@@ -35,14 +35,31 @@ import { createLaunch } from './sim/launch.js';
 // The four museum vehicles stand in a row on z = 0. Starship does not: it sits on a launch
 // complex of its own, set back behind the row, because a 144,5 m tower and a flame trench do
 // not belong in a line of display mounts and because the launch sequence needs the room.
+// `people` is declared per exhibit rather than inferred. It used to fall through to a generic
+// branch that read lay.mountRadius, which Engine Row does not have — undefined + 3.5 is NaN,
+// and three visitors were being planted at (NaN, 0, NaN). Inferring "is there a plinth?" from
+// a radius that only some layouts carry is the kind of thing that breaks the next time an
+// exhibit is added, so the layout says it outright.
 const LAYOUT = {
-  falcon9: { x: -135, z: 0, mount: 6.5, mountRadius: 6.5, inner: 3.1, clampRadius: 1.85 },
-  falconheavy: { x: -62, z: 0, mount: 6.5, mountRadius: 11.5, inner: 7.2, clampRadius: 1.85 },
-  starship: { x: 0, z: -185, mount: PAD.deckTop, yaw: 129.6, pad: true },
-  dragon: { x: 18, z: 0, mount: 1.6 },
-  starlink: { x: 78, z: 0, mount: 6.2 },
-  roadster: { x: 118, z: 0, mount: 1.4, yaw: 25 },
-  engines: { x: 163, z: 0, mount: 0, yaw: -12 },
+  falcon9: {
+    x: -135, z: 0, mount: 6.5, mountRadius: 6.5, inner: 3.1, clampRadius: 1.85,
+    people: [[10, 0, 2, 0.5], [8.5, 0, -4, -2.0], [-9.5, 0, 3, 2.2]],
+  },
+  falconheavy: {
+    x: -62, z: 0, mount: 6.5, mountRadius: 11.5, inner: 7.2, clampRadius: 1.85,
+    people: [[15, 0, 2, 0.5], [13.5, 0, -4, -2.0], [-14.5, 0, 3, 2.2]],
+  },
+  starship: {
+    x: 0, z: -185, mount: PAD.deckTop, yaw: 129.6, pad: true,
+    people: [[26, PAD.padY, 16, 0.8], [30, PAD.padY, -10, -1.6], [-19, PAD.padY, 24, 2.4]],
+  },
+  dragon: { x: 18, z: 0, mount: 1.6, people: [[3.4, 0, 1.6, 0.6], [-2.8, 0, 2.6, -0.8]] },
+  starlink: { x: 78, z: 0, mount: 6.2, people: [[3.2, 0, 2.4, 0.4], [-2.6, 0, 3.0, -1.2]] },
+  roadster: { x: 118, z: 0, mount: 1.4, yaw: 25, people: [[2.8, 0, 1.8, 0.5], [-2.8, 0, 1.2, -1.8]] },
+  engines: {
+    x: 163, z: 0, mount: 0, yaw: -12,
+    people: [[3.4, 0, 2.6, 0.4], [-5.8, 0, 2.2, -1.4], [1.2, 0, -3.0, 2.6]],
+  },
 };
 // Recomposed when the Roadster became the sixth exhibit: the old frame was centred on x = -14
 // and the car sat at the right-hand edge, so the first thing a visitor saw did not contain it.
@@ -83,8 +100,8 @@ async function main() {
   let sunRaf = 0, pendingSun = 42;
   const hud = createHUD({
     vehicles: VEHICLES,
-    onSelect: (id) => { stopTour(); select(id); },
-    onPreset: (id, presetId) => { stopTour(); goPreset(id, presetId); },
+    onSelect: (id) => select(id),
+    onPreset: (id, presetId) => goPreset(id, presetId),
     onToggle: (name, value) => setToggle(name, value),
     onMode: () => rig.setMode(rig.mode === 'fly' ? 'orbit' : 'fly'),
     onTour: () => toggleTour(),
@@ -95,7 +112,7 @@ async function main() {
       if (sunRaf) return;
       sunRaf = requestAnimationFrame(() => { sunRaf = 0; env.setSun(pendingSun, 34); });
     },
-    onReset: () => { stopTour(); select(null); },
+    onReset: () => select(null),
     onLaunch: () => toggleLaunch(),
     onLaunchAbort: () => launch?.reset(),
     onLaunchSpeed: (k) => launch?.setSpeed(k),
@@ -259,12 +276,7 @@ async function main() {
 
     // scale figures
     const baseY = 0;
-    const people = v.id === 'starlink' ? [[3.2, 0, 2.4, 0.4], [-2.6, 0, 3.0, -1.2]]
-      : v.id === 'dragon' ? [[3.4, 0, 1.6, 0.6], [-2.8, 0, 2.6, -0.8]]
-      : v.id === 'roadster' ? [[2.8, 0, 1.8, 0.5], [-2.8, 0, 1.2, -1.8]]
-      : lay.pad ? [[26, PAD.padY, 16, 0.8], [30, PAD.padY, -10, -1.6], [-19, PAD.padY, 24, 2.4]]
-      : [[lay.mountRadius + 3.5, 0, 2, 0.5], [lay.mountRadius + 2, 0, -4, -2.0], [-(lay.mountRadius + 3), 0, 3, 2.2]];
-    for (const [px, py, pz, ry] of people) {
+    for (const [px, py, pz, ry] of lay.people ?? []) {
       const h = buildHuman(M, { suit: humanSuit() > 0.5 ? 'white' : 'dark' });
       h.position.set(lay.x + px, baseY + py, lay.z + pz);
       h.rotation.y = ry;
@@ -296,6 +308,7 @@ async function main() {
   // ---- Launch sequence ----
   const launch = createLaunch({
     scene, exhibits, complex, env, rig, camera,
+    onStart: () => claimCamera('launch'),
     onState: (st) => hud.setMission(st.running ? st : null),
     onFinish: () => goPreset('starship', 'site'),
   });
@@ -391,10 +404,26 @@ async function main() {
       : ([x, y, z]) => [o.x + x * cy + z * sy, o.y + y, o.z - x * sy + z * cy];
     return { pos: put(p.pos), target: put(p.target) };
   }
+  /**
+   * One place decides who is driving the camera. Three things can: the visitor, the guided
+   * tour, and the launch sequence. They used to cancel each other only in some directions —
+   * starting the tour reset the launch, but starting the launch left the tour's timer running,
+   * so it went on calling jump() (switching exhibit, preset, labels and the orbital backdrop)
+   * underneath a sequence that was driving the camera every frame, and then dropped the viewer
+   * at the overview with the rocket still in flight. Key 0 had the same hole.
+   *
+   * The visitor claiming the camera ends both automatic drivers. It does NOT end the launch
+   * when the claim comes from dragging or scrolling: that courtesy is CameraRig.external's
+   * business and is deliberate.
+   */
+  function claimCamera(owner) {
+    if (owner !== 'tour') stopTour();
+    if (owner !== 'launch' && launch.running) launch.reset(false);
+  }
+
   function select(id) {
-    // Picking a vehicle is a request to look at the museum, so it ends a running sequence
-    // rather than fighting it for the camera.
-    if (launch.running) launch.reset(false);
+    // Picking a vehicle is a request to look at the museum, so it ends whatever was driving.
+    claimCamera('user');
     active = id;
     hud.setActive(id);
     activePreset = 'overview';
@@ -403,13 +432,16 @@ async function main() {
     const w = worldPreset(id, 'overview');
     rig.flyTo(w.pos, w.target, 1.9);
   }
-  function goPreset(id, presetId) {
+  function goPreset(id, presetId, owner = 'user') {
+    claimCamera(owner);
     activePreset = presetId;
     applyVisibility();
     const w = worldPreset(id, presetId);
     rig.flyTo(w.pos, w.target, 1.5);
   }
-  function jump(id, presetId) {
+  /** @param owner who is asking; the tour passes 'tour' so it does not cancel itself. */
+  function jump(id, presetId, owner = 'user') {
+    claimCamera(owner);
     if (!id) { active = null; activePreset = null; hud.setActive(null); applyVisibility(); rig.jumpTo(OVERVIEW.pos, OVERVIEW.target); return; }
     active = id; activePreset = presetId ?? 'overview'; hud.setActive(id); applyVisibility();
     const w = worldPreset(id, presetId ?? 'overview');
@@ -434,15 +466,15 @@ async function main() {
 
   function tourStep() {
     tourAt++;
-    if (tourAt >= TOUR.length) { stopTour(); jump(null); return; }
+    if (tourAt >= TOUR.length) { stopTour(); jump(null, undefined, 'tour'); return; }
     const [id, preset, hold] = TOUR[tourAt];
-    jump(id, preset);
+    jump(id, preset, 'tour');
     hud.setTour({ step: tourAt + 1, total: TOUR.length });
     tourTimer = window.setTimeout(tourStep, hold * 1000);
   }
   function startTour() {
     if (tourAt >= 0) return;
-    launch.reset(false);
+    claimCamera('tour');
     tourAt = -1;
     tourStep();
   }
@@ -459,7 +491,7 @@ async function main() {
   window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return;
     const k = e.key.toLowerCase();
-    if (k >= '1' && k <= String(VEHICLES.length)) { stopTour(); select(VEHICLES[Number(k) - 1].id); }
+    if (k >= '1' && k <= String(VEHICLES.length)) select(VEHICLES[Number(k) - 1].id);
     else if (k === '0') select(null);
     else if (k === 'f') rig.setMode(rig.mode === 'fly' ? 'orbit' : 'fly');
     else if (k === 'g') toggleLaunch();

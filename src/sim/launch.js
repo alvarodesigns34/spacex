@@ -221,7 +221,7 @@ const PHASES = [
 const phaseAt = (t) => (PHASES.find(p => t < p[0]) ?? PHASES[PHASES.length - 1])[1];
 
 // =========================================================================================
-export function createLaunch({ scene, exhibits, complex, env, rig, camera, onState = () => {}, onFinish = () => {} }) {
+export function createLaunch({ scene, exhibits, complex, env, rig, camera, onState = () => {}, onFinish = () => {}, onStart = () => {} }) {
   const ex = exhibits.starship;
   const flight = new THREE.Group();
   flight.name = 'flight';
@@ -555,6 +555,9 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
   // ---- Public API -------------------------------------------------------------------
   function start() {
     if (state.running) return;
+    // Whoever else was driving the camera has to be told, and it has to happen here rather
+    // than at the button: start() is also reachable from the API and from the check.
+    onStart();
     state.running = true;
     state.armed = true;
     state.t = EVENTS.start;

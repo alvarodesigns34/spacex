@@ -103,6 +103,10 @@ export function instanceEngines(geo, materials, transforms, { bellMaterial, head
   const group = new THREE.Group();
   group.name = 'engines';
   const n = transforms.length;
+  // Published engine counts are the one figure on every sheet that the geometry can silently
+  // disagree with — a loop bound is easy to mistype and nothing about the render says "34".
+  // Recording it here lets verify.js sum the whole vehicle and compare against the sheet.
+  group.userData.engineCount = n;
   const outer = new THREE.InstancedMesh(geo.outer, bellMaterial ?? materials.bell, n);
   const inner = new THREE.InstancedMesh(geo.inner, materials.bellInner, n);
   const head = new THREE.InstancedMesh(geo.head, headMaterial ?? materials.darkMetal, n);

@@ -2033,11 +2033,32 @@ function seatSection(w, d, bolster, round) {
 }
 
 function loft(sections, close = true) {
-  const n = sections[0].pts.length, pos = [], idx = [];
+  // Metric UVs, like the body sweep: accumulated arc length across the section and along the
+  // loft. The shell is carbon and the cushion is grained leather, and both were sampling a
+  // zero-filled placeholder — a constant vUv, which is the flat-shaded failure the integrity
+  // check exists to catch and which it could not see while it only asked whether the attribute
+  // existed at all.
+  const n = sections[0].pts.length, pos = [], uv = [], idx = [];
+  let vAcc = 0;
+  let prev = null;
   for (const sec of sections) {
-    for (const [x, z] of sec.pts) {
-      pos.push(x * sec.scale, sec.y, z * sec.scale + sec.z);
+    const row = [];
+    let uAcc = 0;
+    for (let j = 0; j < sec.pts.length; j++) {
+      const [x, z] = sec.pts[j];
+      const p = [x * sec.scale, sec.y, z * sec.scale + sec.z];
+      if (j > 0) uAcc += Math.hypot(p[0] - row[j - 1][0], p[1] - row[j - 1][1], p[2] - row[j - 1][2]);
+      row.push(p);
+      pos.push(p[0], p[1], p[2]);
+      uv.push(uAcc, 0);
     }
+    if (prev) {
+      let d = 0;
+      for (let j = 0; j < n; j++) d = Math.max(d, Math.hypot(row[j][0] - prev[j][0], row[j][1] - prev[j][1], row[j][2] - prev[j][2]));
+      vAcc += d;
+    }
+    for (let j = 0; j < n; j++) uv[(uv.length / 2 - n + j) * 2 + 1] = vAcc;
+    prev = row;
   }
   for (let i = 0; i < sections.length - 1; i++) {
     for (let j = 0; j < n - 1; j++) {
@@ -2056,7 +2077,7 @@ function loft(sections, close = true) {
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   g.setIndex(idx);
   g.computeVertexNormals();
   return g;

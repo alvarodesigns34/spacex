@@ -32,6 +32,35 @@ export const EXPECTED = {
 };
 
 /**
+ * Published part counts, checked against what the builders actually placed.
+ *
+ * A dimension that drifts shows up in a render; a count does not — nobody looks at a capsule
+ * and sees twenty thrusters where the label beside it says sixteen, which is exactly what this
+ * scene shipped until the count was measured. Each entry names a `userData` key the builders
+ * set; the value is summed over the whole exhibit, so a vehicle that places its engines in
+ * three rings still reports one number.
+ */
+export const COUNTS = {
+  dragon: [
+    { key: 'dracoCount', want: 16, label: 'Draco (spacex.com)' },
+    { key: 'superDracoCount', want: 8, label: 'SuperDraco (spacex.com)' },
+  ],
+  // 33 Raptor on the booster plus 3 Raptor and 3 Raptor Vacuum on the ship (spacex.com).
+  starship: [{ key: 'engineCount', want: 39, label: 'Raptor · 33 + 3 + 3 (spacex.com)' }],
+  // Nine Merlin 1D on the first stage and one Merlin Vacuum on the second (spacex.com).
+  falcon9: [{ key: 'engineCount', want: 10, label: 'Merlin · 9 + 1 MVac (spacex.com)' }],
+  // Three nine-engine cores plus the second stage's MVac (spacex.com).
+  falconheavy: [{ key: 'engineCount', want: 28, label: 'Merlin · 27 + 1 MVac (spacex.com)' }],
+};
+
+/** Sums a `userData` count over every descendant of a model. */
+function countParts(model, key) {
+  let n = 0;
+  model.traverse((o) => { if (typeof o.userData?.[key] === 'number') n += o.userData[key]; });
+  return n;
+}
+
+/**
  * Measures one model. `axisOnly` excludes parts that legitimately sit outside the reference
  * envelope (grid fins, flaps, pins) from the footprint check by measuring the named hull
  * meshes instead of the whole group.
@@ -114,11 +143,29 @@ export function verifyScene(root, { log = true } = {}) {
     // the hull is being patched over rather than built closed. The body is built as closed
     // panels, so this must stay FrontSide.
     if (o.name === 'body-paint' && mats.some(m => m && m.side === THREE.DoubleSide)) {
-      issues.push(`${o.name}: la pintura de carrocería está en DoubleSide`);
+      // Reported in the same shape as every other finding: this one used to be a bare string,
+      // so when it fired the gate failed with "undefined: undefined" and lost the diagnosis.
+      issues.push({ mesh: label, problem: 'la pintura de carrocería está en DoubleSide', severity: 'error' });
     }
     const slots = TEX_SLOTS.filter(k => mats.some(m => m && m[k]));
     if (slots.length && !g.attributes.uv) {
       issues.push({ mesh: label, problem: `usa ${slots.join(', ')} sin atributo uv`, severity: 'error' });
+    } else if (slots.length && g.attributes.uv) {
+      // An attribute full of zeros is not a UV map. mergeAll() fabricates one so that
+      // mergeGeometries() will not throw on a mixed batch, and a constant vUv is the same
+      // failure this check was written to catch: flat sampling, degenerate tangents, and a
+      // surface that shades as one colour. Ask whether the coordinates actually vary.
+      const uv = g.attributes.uv;
+      let minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
+      const step = Math.max(1, Math.floor(uv.count / 512));
+      for (let i = 0; i < uv.count; i += step) {
+        const u = uv.getX(i), v = uv.getY(i);
+        if (u < minU) minU = u; if (u > maxU) maxU = u;
+        if (v < minV) minV = v; if (v > maxV) maxV = v;
+      }
+      if (maxU - minU < 1e-6 && maxV - minV < 1e-6) {
+        issues.push({ mesh: label, problem: `usa ${slots.join(', ')} con uv constante`, severity: 'error' });
+      }
     }
     if (!g.attributes.normal) {
       issues.push({ mesh: label, problem: 'geometría sin normales', severity: 'error' });
@@ -129,6 +176,21 @@ export function verifyScene(root, { log = true } = {}) {
         issues.push({ mesh: label, problem: `vértice no finito (índice ${i})`, severity: 'error' });
         break;
       }
+    }
+  });
+
+  // Where an object was PUT, not just what it is made of. Every finding above is about
+  // geometry, which is why three visitor figures could stand at (NaN, 0, NaN) for a week: the
+  // layout arithmetic read a radius the exhibit did not have, and no vertex was ever wrong.
+  root.traverse((o) => {
+    const p = o.position, q = o.quaternion, sc = o.scale;
+    const bad = ![p.x, p.y, p.z, q.x, q.y, q.z, q.w, sc.x, sc.y, sc.z].every(Number.isFinite);
+    if (bad) {
+      issues.push({
+        mesh: o.name || `${o.parent?.name || '?'}/${o.type}`,
+        problem: `transformada no finita (${p.x}, ${p.y}, ${p.z})`,
+        severity: 'error',
+      });
     }
   });
   if (log) {
@@ -145,6 +207,13 @@ export function verifyScene(root, { log = true } = {}) {
 export function verifyExhibits(exhibits, { log = true } = {}) {
   const rows = [];
   for (const [id, ex] of Object.entries(exhibits)) {
+    for (const c of COUNTS[id] ?? []) {
+      const got = countParts(ex.model, c.key);
+      rows.push({
+        vehicle: id, label: c.label, declared: c.want, built: got,
+        errorPct: c.want ? +(((got - c.want) / c.want) * 100).toFixed(2) : 0, ok: got === c.want,
+      });
+    }
     const exp = EXPECTED[id];
     if (!exp) continue;
     const m = measure(ex.model, HULLS[id]);

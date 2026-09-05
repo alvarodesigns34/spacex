@@ -97,6 +97,7 @@ export function buildDragon(M) {
   // ---- SuperDraco pods ---------------------------------------------------------------
   // Eight engines in four pods, built into the capsule wall as shallow raised fairings
   // rather than external pods, with a pair of canted nozzles at the bottom of each.
+  let superDracos = 0;
   for (let i = 0; i < 4; i++) {
     const a = Math.PI / 4 + (i * Math.PI) / 2;
     const podY = TRUNK_H + 1.55;
@@ -107,11 +108,13 @@ export function buildDragon(M) {
     pod.add(mesh(new THREE.BoxGeometry(0.72, 0.34, 0.3), M.blackGloss, { position: [0, -0.62, 0.08] }));
     for (const dx of [-0.19, 0.19]) {
       pod.add(mesh(new THREE.CylinderGeometry(0.115, 0.085, 0.26, 20), M.bellCool, { position: [dx, -0.78, 0.05], rotation: [0.42, 0, 0] }));
+      superDracos++;
     }
     pod.position.set(Math.sin(a) * (wallR(podY) - 0.02), podY, Math.cos(a) * (wallR(podY) - 0.02));
     pod.rotation.set(-WALL_ANGLE, a, 0, 'YXZ');
     g.add(pod);
   }
+  g.userData.superDracoCount = superDracos;
 
   // ---- Windows, hatch and Draco ------------------------------------------------------
   const winY = TRUNK_H + 2.35;
@@ -135,7 +138,11 @@ export function buildDragon(M) {
     seam.position.copy(hatch.position); seam.rotation.copy(hatch.rotation);
     g.add(seam);
   }
-  // 16 Draco in four clusters near the shoulder and four around the nose.
+  // 16 Draco (spacex.com): four clusters of three near the shoulder, four more around the nose.
+  // The published figure is the count, not the grouping — how the sixteen are distributed round
+  // the hull is reconstructed from photographs, like the windows and the SuperDraco fairings.
+  // The nested 2 × 2 loop that used to sit here built four clusters of four and so flew twenty,
+  // contradicting both the sheet and the annotation a metre away from it.
   const dracos = [];
   const addDraco = (phi, y, r) => {
     const m = new THREE.Matrix4().makeRotationY(phi).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2 - WALL_ANGLE));
@@ -144,9 +151,10 @@ export function buildDragon(M) {
   };
   for (let i = 0; i < 4; i++) {
     const a = Math.PI / 4 + (i * Math.PI) / 2;
-    for (let k = 0; k < 2; k++) for (let j = 0; j < 2; j++) {
-      const y = TRUNK_H + 0.62 + k * 0.2;
-      addDraco(a + (j - 0.5) * 0.15, y, wallR(y) - 0.015);
+    // Two side by side on the lower row, one centred above them.
+    for (const [dphi, dy] of [[-0.075, 0], [0.075, 0], [0, 0.2], [0.2, 0.2]]) {
+      const y = TRUNK_H + 0.62 + dy;
+      addDraco(a + dphi, y, wallR(y) - 0.015);
     }
   }
   for (let i = 0; i < 4; i++) {
@@ -154,7 +162,8 @@ export function buildDragon(M) {
     const y = NOSE_BASE - 0.42;
     addDraco(a, y, wallR(y) - 0.015);
   }
-  g.add(mesh(mergeAll(dracos), M.blackMatte));
+  g.userData.dracoCount = dracos.length;
+  g.add(mesh(mergeAll(dracos), M.blackMatte, { name: 'draco' }));
 
   g.userData.height = TOP;
   g.userData.footprint = CAP_R * 2;

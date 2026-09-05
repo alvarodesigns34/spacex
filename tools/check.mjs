@@ -136,6 +136,39 @@ try {
     await page.evaluate(() => window.__vc.jump(null));
   }
 
+  // ---- The tour and the launch cannot both be driving --------------------------------------
+  // Each was tested alone. The combination was not, and it was broken in one direction: the
+  // tour reset the launch, the launch did not stop the tour, so its timer went on switching
+  // exhibit and preset underneath a sequence that owned the camera.
+  {
+    const state = () => page.evaluate(() => ({ tour: window.__vc.tourAt, launch: window.__vc.launch.running }));
+    const clear = () => page.evaluate(() => { window.__vc.stopTour(); window.__vc.launch.reset(false); });
+
+    await clear();
+    await page.evaluate(() => window.__vc.startTour());
+    await page.evaluate(() => window.__vc.launch.start());
+    const launchWins = await state();
+
+    await clear();
+    await page.evaluate(() => window.__vc.launch.start());
+    await page.evaluate(() => window.__vc.startTour());
+    const tourWins = await state();
+
+    await clear();
+    await page.evaluate(() => window.__vc.startTour());
+    await page.evaluate(() => window.__vc.select(null));
+    const selectWins = await state();
+    await clear();
+
+    const ok = launchWins.tour === -1 && launchWins.launch
+      && tourWins.tour >= 0 && !tourWins.launch
+      && selectWins.tour === -1 && !selectWins.launch;
+    report(ok, 'la visita y el lanzamiento no conducen a la vez',
+      ok ? 'arrancar uno detiene al otro, y elegir un vehículo detiene a los dos'
+        : `lanzamiento sobre visita ${JSON.stringify(launchWins)} · visita sobre lanzamiento ${JSON.stringify(tourWins)} · selección ${JSON.stringify(selectWins)}`);
+    await page.evaluate(() => window.__vc.jump(null));
+  }
+
   // ---- Day and night -------------------------------------------------------------------
   // The sun control now runs below the horizon and blends the whole centre into night. Two
   // things have to hold: the blend must be a pure function of the slider (an earlier version
@@ -155,7 +188,26 @@ try {
       pure && restored && darker
         ? `noche ${nightA.night}, sol ${day1.sun} -> ${nightA.sun}, cielo ${day1.sky} -> ${nightA.sky}`
         : `puro ${pure} · restaura ${restored} · oscurece ${darker} · ${JSON.stringify({ day1, nightA, nightB, day2 })}`);
-    await page.evaluate(() => window.__vc.env.setSun(42, 34));
+    // Night and altitude have to compose. setAltitude() runs every frame of the launch and
+    // used to reassign fog.density from the ground constant with no night factor, so flying at
+    // night pulled daytime fog back over the scene and reset()'s setAltitude(0) left it there
+    // under lit floodlights.
+    const read2 = (deg, alt) => page.evaluate(([d, a]) => {
+      window.__vc.env.setSun(d, 34); window.__vc.env.setAltitude(a);
+      return window.__vc.lightState();
+    }, [deg, alt]);
+    const nightGround = await read2(-8, 0);
+    await read2(-8, 12000);
+    const nightBack = await read2(-8, 0);
+    const dayGround = await read2(42, 0);
+    const composes = Math.abs(nightGround.fog - nightBack.fog) < 1e-9
+      && nightGround.fog > dayGround.fog * 2
+      && nightBack.night > 0.85;
+    report(composes, 'la niebla de noche sobrevive a un vuelo',
+      composes ? `densidad ${dayGround.fog} de día, ${nightGround.fog} de noche, y vuelve a ${nightBack.fog} tras subir a 12 km`
+        : `día ${dayGround.fog} · noche ${nightGround.fog} · tras el vuelo ${nightBack.fog} · nightK ${nightBack.night}`);
+
+    await page.evaluate(() => { window.__vc.env.setSun(42, 34); window.__vc.env.setAltitude(0); });
   }
 
   // ---- Launch sequence -----------------------------------------------------------------
@@ -170,10 +222,19 @@ try {
     return JSON.stringify({
       flight: [...f.position.toArray(), f.rotation.z],
       ship: v.scene.getObjectByName('ship').position.y,
-      booster: [v.scene.getObjectByName('superheavy').position.x, v.scene.getObjectByName('superheavy').rotation.z],
+      // Two different facts about the booster, under two different keys. They used to share
+      // the name `booster`, so the second silently replaced the first and the transform — the
+      // post-staging drift this reset is supposed to undo — was never compared at all.
+      boosterXform: [
+        v.scene.getObjectByName('superheavy').position.x,
+        v.scene.getObjectByName('superheavy').rotation.z,
+        ...v.exhibits.starship.boosterFlight.position.toArray(),
+        v.exhibits.starship.boosterFlight.rotation.z,
+      ],
       qd: parts.qdArm.rotation.y,
       chop: [parts.chopsticks.position.y, ...parts.chopsticks.children.filter(c => c.name.startsWith('arm-')).map(a => a.rotation.y)],
-      booster: v.scene.getObjectByName('superheavy').parent.name,
+      boosterParent: v.scene.getObjectByName('superheavy').parent.name,
+      flight: [...v.exhibits.starship.flight.position.toArray(), v.exhibits.starship.flight.rotation.z],
       clamps: parts.holddowns.children.map(c => c.position.toArray()),
       camera: [v.camera.near, v.camera.far],
       fog: v.scene.fog.density,
