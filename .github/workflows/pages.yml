@@ -16,14 +16,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Gate the deploy on the app actually building a valid scene: the dimensional table,
+      # Gate every change on the app actually building a valid scene: the dimensional table,
       # the mesh-integrity pass and every authored camera view all have to come back clean.
       - uses: actions/setup-node@v4
         with:
@@ -31,26 +28,25 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
       - run: npm run check
-      # Only the default branch publishes. Any claude/** push used to deploy to the same
-      # Pages environment, so two feature branches raced each other for production.
-      - if: github.ref_name != github.event.repository.default_branch
-        # Block scalar, not a plain one: the message contains ": " and a plain YAML scalar
-        # cannot, so it was being read as a nested mapping and the workflow failed to parse.
-        run: |
-          echo "::notice::Rama ${{ github.ref_name }} - comprobaciones en verde, sin desplegar (solo publica la rama por defecto)."
-      - if: github.ref_name == github.event.repository.default_branch
-        # The artifact was `path: .`, which shipped node_modules and the Playwright cache
-        # alongside the site. Assemble just what the page needs.
-        run: |
+
+  deploy:
+    # The github-pages environment only accepts production deployments. Keep feature-branch
+    # validation in the check job so it is not rejected by the environment before a runner starts.
+    if: github.ref_name == github.event.repository.default_branch
+    needs: check
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
           mkdir -p _site
           cp index.html _site/
           cp -r src vendor docs _site/
-      - if: github.ref_name == github.event.repository.default_branch
-        uses: actions/configure-pages@v5
-      - if: github.ref_name == github.event.repository.default_branch
-        uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
-      - if: github.ref_name == github.event.repository.default_branch
-        id: deployment
+      - id: deployment
         uses: actions/deploy-pages@v4
