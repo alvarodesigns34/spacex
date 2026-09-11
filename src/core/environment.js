@@ -253,7 +253,11 @@ export function createEnvironment(renderer, scene, M) {
 
   const _tmp = new THREE.Vector3();
   function updateShadow(target, distance) {
-    const size = THREE.MathUtils.clamp(distance * 1.25 + 8, 18, 340);
+    const size = THREE.MathUtils.clamp(distance * 1.25 + 4, 6, 340);
+    // Millimetre-scale contact at the car; larger bias only for the wide rocket views.
+    // A constant 6 cm normal offset visibly detached wheels and cockpit details.
+    sun.shadow.normalBias = THREE.MathUtils.clamp(size * 0.00045, 0.003, 0.06);
+    sun.shadow.bias = -0.000035;
     const cam = sun.shadow.camera;
     if (Math.abs(cam.right - size) > 0.5) {
       cam.left = -size; cam.right = size; cam.top = size; cam.bottom = -size;
