@@ -71,6 +71,9 @@ export class CameraRig {
 
   setMode(mode) {
     if (mode === this.mode) return;
+    this.releaseExternal();
+    this.keys.clear();
+    this.velocity.set(0, 0, 0);
     this.mode = mode;
     if (mode === 'fly') {
       this._endTransition();
@@ -148,7 +151,17 @@ export class CameraRig {
   releaseExternal() {
     if (!this.external) return;
     this.external = false;
-    this.orbit.enabled = true;
+    this._endTransition();
+    this.orbit.enabled = this.mode === 'orbit';
+    if (this.mode === 'fly') {
+      const dir = new THREE.Vector3();
+      this.camera.getWorldDirection(dir);
+      this.look.yaw = Math.atan2(-dir.x, -dir.z);
+      this.look.pitch = Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1));
+      this.velocity.set(0, 0, 0);
+      this.onExternalRelease?.();
+      return;
+    }
     this.applyPolarLimit();
     this.orbit.update();
     this.onExternalRelease?.();
