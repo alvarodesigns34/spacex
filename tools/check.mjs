@@ -90,6 +90,58 @@ try {
   }
   report(bad.length === 0, `${Object.values(presets).flat().length} vistas`, bad.length ? `inválidas: ${bad.join(', ')}` : 'todas válidas');
 
+  // Scripted views must keep the selected exhibit and view tab in sync.
+  {
+    await page.evaluate(() => window.__vc.jump('roadster', 'earth'));
+    report(await page.locator('.preset.active').getAttribute('data-preset') === 'earth',
+      'la pestaña coincide con la vista orbital');
+    await page.evaluate(() => window.__vc.goPreset('starship', 'site'));
+    report(await page.locator('.rail-item.active').getAttribute('data-id') === 'starship'
+      && await page.locator('.preset.active').getAttribute('data-preset') === 'site'
+      && !(await page.evaluate(() => window.__vc.spaceState().space)),
+      'cambiar de expositor por preset restaura el entorno y la selección');
+    await page.evaluate(() => window.__vc.jump(null));
+  }
+
+  // Both entry points for free flight must interrupt the guided tour.
+  for (const via of ['button', 'keyboard']) {
+    await page.evaluate(() => window.__vc.startTour());
+    if (via === 'button') await page.click('#mode-btn');
+    else await page.keyboard.press('f');
+    const result = await page.evaluate(() => ({ mode: window.__vc.rig.mode, tour: window.__vc.tourAt }));
+    report(result.mode === 'fly' && result.tour === -1, `vuelo libre detiene la visita (${via})`);
+    await page.evaluate(() => { window.__vc.stopTour(); window.__vc.jump(null); });
+  }
+
+  // Releasing a scripted shot in free flight preserves its orientation and does not
+  // wake a stale framing transition or enable OrbitControls alongside free flight.
+  {
+    const result = await page.evaluate(() => {
+      const v = window.__vc;
+      v.rig.setMode('fly');
+      v.launch.seek(62);
+      const before = v.camera.quaternion.clone();
+      v.rig.releaseExternal();
+      v.rig.update(0);
+      const same = 1 - Math.abs(before.dot(v.camera.quaternion)) < 1e-9;
+      const orbitDisabled = !v.rig.orbit.enabled;
+      v.launch.reset(false);
+      v.jump(null);
+      v.select('falcon9');
+      v.launch.start();
+      v.rig.releaseExternal();
+      const noTransition = !v.rig.transition;
+      v.launch.reset(false);
+      v.jump(null);
+      return same && orbitDisabled && noTransition;
+    });
+    report(result, 'recuperar la cámara conserva el plano sin controles incompatibles');
+    await page.evaluate(() => { window.__vc.startTour(); window.__vc.launch.seek(-10); });
+    report(await page.evaluate(() => window.__vc.tourAt === -1 && window.__vc.launch.running),
+      'seek también detiene la visita guiada');
+    await page.evaluate(() => { window.__vc.stopTour(); window.__vc.launch.reset(false); window.__vc.jump(null); });
+  }
+
   // ---- Orbital view leaves nothing behind -----------------------------------------------
   // The Roadster's "Tierra al fondo" view swaps the whole presentation: plinth away, payload
   // adapter in, ground, sky and fog off, Earth backdrop on. A one-way switch would leave every

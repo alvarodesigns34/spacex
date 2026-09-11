@@ -134,7 +134,7 @@ async function main() {
     onSelect: (id) => select(id),
     onPreset: (id, presetId) => goPreset(id, presetId),
     onToggle: (name, value) => setToggle(name, value),
-    onMode: () => rig.setMode(rig.mode === 'fly' ? 'orbit' : 'fly'),
+    onMode: () => toggleMode(),
     onTour: () => toggleTour(),
     // setSun regenerates the PMREM environment map, which is far too expensive to do on every
     // pointermove the range input fires. Coalesce to one regeneration per frame while dragging.
@@ -422,6 +422,11 @@ async function main() {
     humans.visible = state.humans && !launchFlying && !orbital;
   }
 
+  function toggleMode() {
+    stopTour();
+    rig.setMode(rig.mode === 'fly' ? 'orbit' : 'fly');
+  }
+
   function toggleLaunch() {
     if (launch.running) { launch.reset(); return; }
     active = 'starship';
@@ -472,17 +477,23 @@ async function main() {
   }
   function goPreset(id, presetId, owner = 'user') {
     claimCamera(owner);
-    activePreset = presetId;
+    active = id;
+    hud.setActive(id);
+    activePreset = exhibits[id].data.presets.find(p => p.id === presetId)?.id ?? exhibits[id].data.presets[0].id;
+    hud.setPreset(activePreset);
     applyVisibility();
-    const w = worldPreset(id, presetId);
+    const w = worldPreset(id, activePreset);
     rig.flyTo(w.pos, w.target, 1.5);
   }
   /** @param owner who is asking; the tour passes 'tour' so it does not cancel itself. */
   function jump(id, presetId, owner = 'user') {
     claimCamera(owner);
     if (!id) { active = null; activePreset = null; hud.setActive(null); applyVisibility(); rig.jumpTo(OVERVIEW.pos, OVERVIEW.target); return; }
-    active = id; activePreset = presetId ?? 'overview'; hud.setActive(id); applyVisibility();
-    const w = worldPreset(id, presetId ?? 'overview');
+    active = id; activePreset = presetId ?? 'overview'; hud.setActive(id);
+    activePreset = exhibits[id].data.presets.find(p => p.id === activePreset)?.id ?? exhibits[id].data.presets[0].id;
+    hud.setPreset(activePreset);
+    applyVisibility();
+    const w = worldPreset(id, activePreset);
     rig.jumpTo(w.pos, w.target);
   }
   // ---- Guided tour ----------------------------------------------------------------------
@@ -531,7 +542,7 @@ async function main() {
     const k = e.key.toLowerCase();
     if (k >= '1' && k <= String(VEHICLES.length)) select(VEHICLES[Number(k) - 1].id);
     else if (k === '0') select(null);
-    else if (k === 'f') rig.setMode(rig.mode === 'fly' ? 'orbit' : 'fly');
+    else if (k === 'f') toggleMode();
     else if (k === 'g') toggleLaunch();
     else if (k === 'p') toggleTour();
     else if (k === 'l') setToggle('labels', !state.labels);

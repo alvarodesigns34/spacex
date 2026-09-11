@@ -619,7 +619,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
    * there, which is the only way a frame-by-frame check means anything.
    */
   function seek(t) {
-    if (!state.running) { state.running = true; state.armed = true; visibilityHook?.(true); rig.external = true; }
+    if (!state.running) { onStart(); state.running = true; state.armed = true; visibilityHook?.(true); rig.external = true; }
     cloud.reset();
     const step = 1 / 30;
     // Two windows produce ground cloud: the launch, and the landing burn as the booster

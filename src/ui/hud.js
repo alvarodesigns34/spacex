@@ -144,8 +144,19 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       const b = document.createElement('button');
       b.className = 'preset' + (i === 0 ? ' active' : '');
       b.textContent = pr.label;
-      b.addEventListener('click', () => { onPreset(v.id, pr.id); p.querySelectorAll('.preset').forEach(x => x.classList.remove('active')); b.classList.add('active'); });
+      b.dataset.preset = pr.id;
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', String(i === 0));
+      b.addEventListener('click', () => onPreset(v.id, pr.id));
       p.appendChild(b);
+    });
+  }
+
+  function setPreset(id) {
+    root.querySelectorAll('.preset').forEach(b => {
+      const active = b.dataset.preset === id;
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-selected', String(active));
     });
   }
 
@@ -252,5 +263,5 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     if (map[name]) el(map[name]).checked = value;
   }
 
-  return { setActive, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setTour, showHelp: (s) => help.classList.toggle('hidden', !s) };
+  return { setActive, setPreset, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setTour, showHelp: (s) => help.classList.toggle('hidden', !s) };
 }
