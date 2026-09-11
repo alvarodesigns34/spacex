@@ -3,7 +3,7 @@ name: Deploy to GitHub Pages
 on:
   push:
     # The repository's default branch is the feature branch, so deploy from it too.
-    branches: [main, master, 'claude/**']
+    branches: [main, master, 'claude/**', 'codex/**']
   workflow_dispatch:
 
 permissions:
