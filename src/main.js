@@ -380,7 +380,7 @@ async function main() {
 
   // ---- Launch sequence ----
   const launch = createLaunch({
-    scene, exhibits, complex, env, rig, camera,
+    scene, exhibits, complex, env, rig, camera, quality,
     onStart: () => enforce(view.claim('launch')),
     onState: (st) => hud.setMission(st.running ? st : null),
     onFinish: () => goPreset('starship', 'site'),

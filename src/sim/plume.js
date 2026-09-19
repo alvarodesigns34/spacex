@@ -327,6 +327,12 @@ const _sunDir = new THREE.Vector3();
  * Bidirectional: exhausted strictly along the trench axis (±Z).
  */
 export class GroundCloud {
+  /**
+   * @param count how many puffs live in the ring buffer. Comes from the quality tier: the
+   *              cloud is transparent, overlapping and full-screen at liftoff, which is the
+   *              most fill-rate-expensive thing in the scene and the first thing a weak
+   *              device should be spending less on.
+   */
   constructor({ count = 860, rng = Math.random } = {}) {
     this.count = count;
     this.rng = rng;

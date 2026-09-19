@@ -2766,6 +2766,21 @@ export function buildRoadster(M) {
   root.add(interior);
   root.add(starman);
 
+  // ---- Level of detail ------------------------------------------------------------------
+  // This exhibit is 247 meshes and 219,000 triangles on a 3.9 m car, and in the overview it
+  // is eight pixels tall — the stitched seats, the Hot Wheels model on the dash, the circuit
+  // board on the console and Starman's gloves were all being drawn in full at 300 m. Nothing
+  // is simplified: whole assemblies stop being drawn once the detail they exist for has
+  // stopped resolving, and `lodFeature` is the size of the smallest thing each one carries,
+  // so the same threshold applies here as on a Dragon window frame or a Starship tile.
+  //
+  // The body, the wheels and the glass are NOT in this list. They are the car's silhouette
+  // and have to be drawn at every distance the car is drawn at all.
+  interior.userData.lodFeature = 0.035;     // stitching, switchgear, the easter eggs
+  starman.userData.lodFeature = 0.05;       // glove seams, helmet fittings
+  interior.name = 'roadster-interior';
+  starman.name = 'roadster-starman';
+
   // The exhibit was carrying two metaphors at once: a museum plinth AND the payload adapter
   // hanging under it with the three selfie booms. It is one or the other depending on the
   // view, so the flight hardware lives in its own group and only appears in the orbital

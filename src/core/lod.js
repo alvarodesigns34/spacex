@@ -62,7 +62,11 @@ export class LODManager {
     return e;
   }
 
-  /** Convenience for a whole group that simply stops being drawn when it is too small. */
+  /**
+   * Convenience for a whole group or mesh that simply stops being drawn when it is too
+   * small. Works on Groups as well as Meshes: an Object3D with visible = false skips its
+   * whole subtree, so one flag can retire a 90-mesh interior.
+   */
   registerHidden(name, objects, at, feature, bias = 1) {
     return this.register({ name, at, feature, near: objects, far: null, bias });
   }

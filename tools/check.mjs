@@ -108,6 +108,31 @@ try {
       `nivel ${q.name}${q.forced ? ' (forzado)' : ''}, sombras ${q.shadow}, lod ${q.lod} px`);
   }
 
+  // ---- Level of detail engages, and disengages -------------------------------------------
+  // The manager is only worth having if it actually sheds work at range AND puts every bit of
+  // it back up close. A rule that never fires costs nothing and saves nothing; one that never
+  // reverses quietly removes a vehicle's interior from the exhibit it belongs to.
+  {
+    await page.evaluate(() => window.__vc.jump('roadster', 'detail'));
+    const near = await page.evaluate(() => { window.__vc.lod.update(); return window.__vc.lod.snapshot(); });
+    await page.evaluate(() => window.__vc.jump(null));
+    const far = await page.evaluate(() => { window.__vc.lod.update(); return window.__vc.lod.snapshot(); });
+    await page.evaluate(() => window.__vc.jump('roadster', 'detail'));
+    const back = await page.evaluate(() => { window.__vc.lod.update(); return window.__vc.lod.snapshot(); });
+
+    const find = (rows, n) => rows.find(r => r.name === n);
+    const interiorNear = find(near, 'roadster-roadster-interior');
+    const interiorFar = find(far, 'roadster-roadster-interior');
+    const interiorBack = find(back, 'roadster-roadster-interior');
+    const shedAtRange = far.filter(r => r.detailed === false).length;
+    const allBackUp = back.every(r => r.detailed === true) || interiorBack?.detailed === true;
+    const ok = !!interiorNear?.detailed && interiorFar?.detailed === false && !!allBackUp && shedAtRange > 0;
+    report(ok, 'el detalle se retira con la distancia y vuelve al acercarse',
+      ok ? `${shedAtRange} de ${far.length} grupos retirados en la vista general, todos de vuelta en primer plano`
+        : `cerca ${JSON.stringify(interiorNear)} · lejos ${JSON.stringify(interiorFar)} · vuelta ${JSON.stringify(interiorBack)}`);
+    await page.evaluate(() => { window.__vc.lod.forceDetailed(); window.__vc.jump(null); });
+  }
+
   // ---- The state machine's own invariants ------------------------------------------------
   // What the centre is showing is one object now (core/viewState.js) rather than seven loose
   // flags, so the rules can be asserted directly instead of inferred from the scene's

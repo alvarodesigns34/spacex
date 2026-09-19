@@ -238,7 +238,7 @@ const PHASES = [
 const phaseAt = (t) => (PHASES.find(p => t < p[0]) ?? PHASES[PHASES.length - 1])[1];
 
 // =========================================================================================
-export function createLaunch({ scene, exhibits, complex, env, rig, camera, onState = () => {}, onFinish = () => {}, onStart = () => {} }) {
+export function createLaunch({ scene, exhibits, complex, env, rig, camera, quality = {}, onState = () => {}, onFinish = () => {}, onStart = () => {} }) {
   const ex = exhibits.starship;
   const flight = new THREE.Group();
   flight.name = 'flight';
@@ -321,7 +321,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
   booster.add(boosterPlume.group);
   ship.add(shipPlume.group);
 
-  const cloud = new GroundCloud({ rng: seeded(11) });
+  const cloud = new GroundCloud({ rng: seeded(11), count: quality.cloudParticles ?? 860 });
   cloud.points.position.set(ex.lay.x, 0, ex.lay.z);
   scene.add(cloud.points);
 
