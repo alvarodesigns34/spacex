@@ -53,20 +53,29 @@ const PLUME_VERT = /* glsl */`
   }`;
 const PLUME_FRAG = /* glsl */`
   uniform vec3 uHot, uWarm, uCool;
-  uniform float uAlpha, uFalloff, uDiamond, uOpacity;
+  uniform float uAlpha, uFalloff, uDiamond, uOpacity, uDiamondN;
   varying float vAxis;
   varying float vFace;
   void main() {
     float v = clamp(vAxis, 0.0, 1.0);
     vec3 c = v < 0.35 ? mix(uHot, uWarm, v / 0.35) : mix(uWarm, uCool, (v - 0.35) / 0.65);
-    // Shock train: only meaningful while the flow is over-expanded, so uDiamond is driven
-    // by ambient pressure at run time.
-    float shock = 1.0 + uDiamond * pow(max(abs(sin(v * 14.14)), 1e-4), 6.0) * (1.0 - v);
+    // Shock train. Only meaningful while the flow is over-expanded, so both the strength and
+    // the node spacing are driven by ambient pressure at run time: at sea level the diamonds
+    // are tight and bright, and by 20 km there is nothing left to reflect off.
+    float node = pow(max(abs(sin(v * uDiamondN)), 1e-4), 5.0);
+    float shock = 1.0 + uDiamond * node * (1.0 - v * 0.55);
+    // The throat itself is the brightest thing in the scene: a short, near-white region right
+    // at the exit plane that the rest of the column falls away from.
+    float throat = 1.0 + 1.9 * exp(-v * 26.0);
     float safeFace = max(vFace, 1e-4);
     float safeAxis = max(1.0 - v, 1e-4);
-    float a = uAlpha * pow(safeAxis, uFalloff) * pow(safeFace, 0.7) * uOpacity;
-    if (a < 0.002 || a != a) discard;
-    gl_FragColor = vec4(c * shock, clamp(a, 0.0, 1.0));
+    // A gentle falloff. At 1.2 the column was down to nothing within a fifth of its length and
+    // discarded the rest, so 33 Raptors rendered as a 7 m pilot light hanging under a 72 m
+    // booster — the single reason the launch did not read as powerful.
+    float a = uAlpha * pow(safeAxis, uFalloff) * pow(safeFace, 0.62) * uOpacity;
+    a *= 1.0 + 0.45 * node;
+    if (a < 0.0015 || a != a) discard;
+    gl_FragColor = vec4(c * shock * throat, clamp(a, 0.0, 1.0));
   }`;
 
 /**
@@ -82,7 +91,8 @@ function coneLayer({ hot, warm, cool, alpha, falloff }) {
     uniforms: {
       uHot: { value: lin(hot) }, uWarm: { value: lin(warm) }, uCool: { value: lin(cool) },
       uAlpha: { value: alpha }, uFalloff: { value: falloff },
-      uDiamond: { value: 0 }, uOpacity: { value: 1 }, uSpread: { value: 1 },
+      uDiamond: { value: 0 }, uDiamondN: { value: 14.14 },
+      uOpacity: { value: 1 }, uSpread: { value: 1 },
     },
     vertexShader: PLUME_VERT, fragmentShader: PLUME_FRAG,
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
@@ -108,8 +118,8 @@ export class Plume {
     this.group.visible = false;
 
     // Bright shock core, then the wide envelope of afterburning around it.
-    this.core = coneLayer({ hot: 0xfffaea, warm: 0xffa442, cool: 0x5b7bd6, alpha: 0.95, falloff: 1.2 });
-    this.shroud = coneLayer({ hot: 0xffdcb0, warm: 0xd68038, cool: 0x2b3a70, alpha: 0.38, falloff: 1.8 });
+    this.core = coneLayer({ hot: 0xfffaea, warm: 0xffa442, cool: 0x5b7bd6, alpha: 0.98, falloff: 0.55 });
+    this.shroud = coneLayer({ hot: 0xffdcb0, warm: 0xd68038, cool: 0x2b3a70, alpha: 0.42, falloff: 0.95 });
     this.group.add(this.shroud, this.core);
 
     // The plume is by far the brightest thing in the scene; it has to light the pad.
@@ -138,12 +148,19 @@ export class Plume {
     this.shroud.scale.set(rs, this.baseLength * stretch * 1.45 * t, rs);
     this.core.material.uniforms.uSpread.value = 1 + 2.4 * (1 - p);
     this.shroud.material.uniforms.uSpread.value = 1 + 5.2 * (1 - p);
-    this.core.material.uniforms.uDiamond.value = 0.75 * p;
+    this.core.material.uniforms.uDiamond.value = 1.15 * p;
+    // Node spacing follows the expansion: tight, repeated cells while the flow is squeezed
+    // back by sea-level pressure, stretching out and dying as the atmosphere thins.
+    this.core.material.uniforms.uDiamondN.value = 6.0 + 14.0 * p;
     // Dense and bright in the lower atmosphere, where the exhaust is still optically thick.
-    this.core.material.uniforms.uOpacity.value = 0.72 + 0.28 * p;
-    this.shroud.material.uniforms.uOpacity.value = 0.62 + 0.38 * (1 - p);
-    this.light.intensity = 1600 * throttle * (0.35 + 0.65 * p);
-    this.light.distance = 180 + 320 * (1 - p);
+    this.core.material.uniforms.uOpacity.value = 0.78 + 0.22 * p;
+    this.shroud.material.uniforms.uOpacity.value = 0.66 + 0.34 * (1 - p);
+    // 8,240 tf lights the pad. The old value lit a room.
+    this.light.intensity = 4200 * throttle * (0.35 + 0.65 * p);
+    this.light.distance = 260 + 420 * (1 - p);
+    // The light belongs in the column, not at the nozzle: at the nozzle it lit the engine
+    // bay and nothing else, and the deck below stayed in shadow through liftoff.
+    this.light.position.y = -this.baseLength * 0.22 * (1 + 3.4 * (1 - p)) * t;
   }
 
   dispose() {
@@ -321,6 +338,10 @@ export class GroundCloud {
     this.alpha = new Float32Array(count);
     this.rot = new Float32Array(count);
     this.rotSpeed = new Float32Array(count);
+    // Per-puff expansion, so one cloud can carry both a trench thunderhead and the much
+    // smaller steam boiling off the deck.
+    this.grow = new Float32Array(count);
+    this.base = new Float32Array(count);
     this.next = 0;
 
     const geo = new THREE.InstancedBufferGeometry();
@@ -371,15 +392,23 @@ export class GroundCloud {
     for (let i = 0; i < this.count; i++) {
       this.age[i] = 1; this.life[i] = 1; this.alpha[i] = 0; this.size[i] = 0;
       this.pos[i * 3] = 0; this.pos[i * 3 + 1] = -9999; this.pos[i * 3 + 2] = 0;
-      this.rotSpeed[i] = 0;
+      this.rotSpeed[i] = 0; this.grow[i] = 0; this.base[i] = 0;
     }
     this.points.material.uniforms.uFlame.value = 0.0;
     this.next = 0;
     this.flush();
   }
 
-  /** Spawns `n` puffs from one of the trench mouths. */
-  emit(n, origin, dir, speed, spread) {
+  /**
+   * Spawns `n` puffs from one source.
+   *
+   * `size0` and `grow` are per-source because the two things this cloud has to show are not
+   * the same size. What leaves a trench mouth at a hundred metres a second is a thunderhead
+   * that ends up a hundred metres across; what boils off the deck under the vehicle is
+   * deluge water flashing to steam, and it stays much smaller and closer. Emitting both at
+   * the trench's scale buried the entire 124 m stack at T+6.
+   */
+  emit(n, origin, dir, speed, spread, { size0 = 14, grow = 85, life0 = 8, lifeVar = 12 } = {}) {
     const r = this.rng;
     for (let k = 0; k < n; k++) {
       const i = this.next; this.next = (this.next + 1) % this.count;
@@ -391,13 +420,15 @@ export class GroundCloud {
 
       const s = speed * (0.65 + r() * 0.70);
       // Confined horizontal jet blast along trench axis Z with realistic lateral plume dispersion
-      this.vel[j] = (r() - 0.5) * speed * 0.32;
+      this.vel[j] = dir[0] * s + (r() - 0.5) * speed * 0.32;
       this.vel[j + 1] = dir[1] * s + r() * speed * 0.22 + 2.5;
       this.vel[j + 2] = dir[2] * s + (r() - 0.5) * speed * 0.12;
 
       this.age[i] = 0;
-      this.life[i] = 8 + r() * 12;
-      this.size[i] = 14 + r() * 10;
+      this.life[i] = life0 + r() * lifeVar;
+      this.size[i] = size0 + r() * (size0 * 0.7);
+      this.grow[i] = grow;
+      this.base[i] = size0;
       this.rot[i] = r() * Math.PI * 2;
       this.rotSpeed[i] = (r() - 0.5) * 0.35;
     }
@@ -413,7 +444,7 @@ export class GroundCloud {
       _sunDir.transformDirection(camera.matrixWorldInverse);
       this.points.material.uniforms.uSunDir.value.copy(_sunDir);
     }
-    const { pos, vel, age, life, size, alpha, rot, rotSpeed } = this;
+    const { pos, vel, age, life, size, alpha, rot, rotSpeed, grow, base } = this;
     for (let i = 0; i < this.count; i++) {
       if (age[i] >= life[i]) { if (alpha[i] !== 0) { alpha[i] = 0; size[i] = 0; } continue; }
       age[i] += dt;
@@ -435,8 +466,8 @@ export class GroundCloud {
       rot[i] += rotSpeed[i] * dt;
 
       const u = age[i] / life[i];
-      // Massive billowing expansion: starts at 14 m, rolls into 90-135 m thunderhead plumes
-      size[i] = (14.0 + u * 85.0) * (1.0 + (i % 5) * 0.18);
+      // Billowing expansion, at the rate this puff was emitted with.
+      size[i] = (base[i] + u * grow[i]) * (1.0 + (i % 5) * 0.18);
       // High volumetric density with smooth atmospheric decay
       const fadeIn = Math.min(1.0, u * 8.0);
       const fadeOut = Math.pow(Math.max(0.0, 1.0 - u), 1.3);

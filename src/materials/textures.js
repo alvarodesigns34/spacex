@@ -130,9 +130,14 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
     const streak = (colStreak[x] - 0.5) * 0.16;
     const grain = (noise2(x * 0.6, y * 0.6) - 0.5) * 0.045;
     const blotch = (fbm(u * 6 + 7, v * 9 + 3, 4) - 0.5) * 0.05;
+    // Plate-to-plate variation. A Starship hull is rolled from sheet that does not all come
+    // from the same coil, and the difference between neighbouring plates is clearly visible
+    // in photographs — it is most of what stops a 70 m barrel reading as one extruded tube.
+    // Keyed to the tile, so it varies by ring rather than washing across the whole vehicle.
+    const plate = (fbm(u * 1.7 + 31, v * 1.3 + 17, 2) - 0.5) * 0.085;
     // Mill-finish stainless is bright; the map is mostly reflectance modulation.
     // Mill-finish stainless photographs as a matte mid grey, not a mirror.
-    let base = 0.80 + streak * 0.7 + grain + blotch - vhaz[x] * 0.04;
+    let base = 0.80 + streak * 0.7 + grain + blotch + plate - vhaz[x] * 0.04;
     let r = base, g = base, b = base;
     // Heat-affected zone next to each weld runs slightly straw/blue.
     const hazMix = haz[y] * (0.35 + 0.65 * fbm(u * 6 + 2, v * 4, 3));

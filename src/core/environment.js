@@ -127,7 +127,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
    * angled in at the exhibit. No shadow map — seven shadow-casting spots is not worth it, and
    * the sun already owns the shadows.
    */
-  function addDisplayLight(x, z, radius, height) {
+  function addDisplayLight(x, z, radius, height, { tiers = 1 } = {}) {
     const H = THREE.MathUtils.clamp(height * 0.55 + 3.2, 4.2, 26);
     // Behind and to one side, so it never stands between the default views and the exhibit.
     const px = x + radius * 0.92, pz = z + radius * 0.92;
@@ -152,11 +152,22 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     g.add(head);
     lightMasts.add(g);
 
-    const spot = new THREE.SpotLight(0xffe9c8, 0, radius * 7, 0.60, 0.52, 1.15);
-    spot.position.set(px + Math.sin(g.rotation.y) * 0.6, H + 0.02, pz + Math.cos(g.rotation.y) * 0.6);
-    spot.target.position.set(x, height * 0.35, z);
-    night.add(spot, spot.target);
-    displayLights.push({ spot, peak: 55 + radius * radius * 3.4 });
+    // One spot per tier. A single beam aimed a third of the way up works for a car on a
+    // plinth and fails completely on a 124 m stack: the vehicle went black above the mount
+    // and the centrepiece of the whole centre became a silhouette after dark. Tall subjects
+    // get several beams from the same mast, each aimed at its own band, which is also how a
+    // real launch complex is lit.
+    for (let i = 0; i < tiers; i++) {
+      const aimT = tiers === 1 ? 0.35 : 0.14 + (i / (tiers - 1)) * 0.78;
+      // Higher beams are narrower and stronger: they have further to throw, and a wide cone
+      // aimed at the top of a tower mostly lights the sky.
+      const cone = THREE.MathUtils.lerp(0.62, 0.20, tiers === 1 ? 0 : i / (tiers - 1));
+      const spot = new THREE.SpotLight(0xffe9c8, 0, radius * 9, cone, 0.5, 1.05);
+      spot.position.set(px + Math.sin(g.rotation.y) * 0.6, H + 0.02 + i * 0.5, pz + Math.cos(g.rotation.y) * 0.6);
+      spot.target.position.set(x, height * aimT, z);
+      night.add(spot, spot.target);
+      displayLights.push({ spot, peak: (55 + radius * radius * 3.4) * (1 + aimT * 1.9) / tiers });
+    }
   }
 
   const fog = new THREE.FogExp2(0xc9d3de, 0.00019);

@@ -194,7 +194,17 @@ export const pitchAt = (t) => (t <= 0 ? 0 : sample(PROFILE.pit, t));
  */
 function boosterThrottle(t) {
   if (t < EVENTS.ignition) return 0;
-  if (t < EVENTS.liftoff) return THREE.MathUtils.smoothstep(t, EVENTS.ignition, EVENTS.liftoff);
+  if (t < EVENTS.liftoff) {
+    // Thirty-three engines do not come up together. Ignition is a staggered sequence over
+    // about two seconds — the inner three, then the middle ten, then the outer twenty — and
+    // the stack sits on the clamps at full thrust for a moment before they let go. A single
+    // smoothstep made the thrust build like a dimmer, which is the one thing in the sequence
+    // that reads as an animation rather than as a machine starting.
+    const u = THREE.MathUtils.clamp((t - EVENTS.ignition) / (EVENTS.liftoff - EVENTS.ignition), 0, 1);
+    const group = (start, share) =>
+      share * THREE.MathUtils.smoothstep(u, start, start + 0.2);
+    return Math.min(1, group(0.0, 3 / 33) + group(0.18, 10 / 33) + group(0.4, 20 / 33));
+  }
   if (t < 46) return 1;
   if (t < EVENTS.maxQ) return 1 - 0.28 * THREE.MathUtils.smoothstep(t, 46, EVENTS.maxQ);
   if (t < 82) return 0.72 + 0.28 * THREE.MathUtils.smoothstep(t, EVENTS.maxQ, 82);
@@ -469,8 +479,8 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
       const n2 = near * 34 * dt;
       if (n2 >= 0.05) {
         const m2 = Math.max(1, Math.round(n2 * 0.5));
-        cloud.emit(m2, [0, 2.4, 44], [0, 0.05, 1.0], 46, 16);
-        cloud.emit(m2, [0, 2.4, -44], [0, 0.05, -1.0], 46, 16);
+        cloud.emit(m2, [0, 2.4, 44], [0, 0.05, 1.0], 46, 16, { grow: 52 });
+        cloud.emit(m2, [0, 2.4, -44], [0, 0.05, -1.0], 46, 16, { grow: 52 });
       }
       return;
     }
@@ -484,15 +494,15 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
       if (nWater < 0.05) return;
       const m = Math.max(1, Math.round(nWater * 0.5));
       // North mouth (+Z)
-      cloud.emit(m, [0, 2.2, 44], [0, 0.05, 1.0], 52, 18);
+      cloud.emit(m, [0, 2.2, 44], [0, 0.05, 1.0], 52, 18, { size0: 10, grow: 46 });
       // South mouth (-Z)
-      cloud.emit(m, [0, 2.2, -44], [0, 0.05, -1.0], 52, 18);
+      cloud.emit(m, [0, 2.2, -44], [0, 0.05, -1.0], 52, 18, { size0: 10, grow: 46 });
       return;
     }
 
     // 2. High-energy rocket ignition and liftoff deluge vaporization (T-3 to T+34)
-    // 33 Raptors blast into the steel deflector ridge. The exhaust and steam are channeled
-    // exclusively in TWO opposing directions (<- ->) along the flame trench axis: +Z and -Z!
+    // 33 Raptors blast into the steel deflector ridge. Most of the exhaust and steam is
+    // channelled in TWO opposing directions (<- ->) along the flame trench axis, +Z and -Z.
     const alt = altitudeAt(t);
     const drive = boosterThrottle(t) * Math.max(0, 1 - alt / 380);
     const n = drive * 110 * dt;
@@ -502,6 +512,22 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
     const trenchCount = Math.max(1, Math.round(n * 0.50));
     cloud.emit(trenchCount, [0, 2.6, 44], [0, 0.06, 1.0], 92, 20);
     cloud.emit(trenchCount, [0, 2.6, -44], [0, 0.06, -1.0], 92, 20);
+
+    // ...but not all of it. The trench takes the exhaust; the deluge does not go with it.
+    // Thousands of litres a second flash to steam ON the deck and boil up around the mount,
+    // and every launch camera near the pad is looking through that. With the two mouths as
+    // the only sources, a shot framed on the vehicle at T+6 showed a smudge forty metres away
+    // on one side and clean air everywhere else — the pad looked like nothing was happening.
+    // Small, short-lived and low: deluge steam, not a second thunderhead. At the trench's
+    // own growth rate these puffs reached ninety metres across in a few seconds and buried
+    // the whole 124 m stack.
+    const near = Math.max(1, Math.round(n * 0.30));
+    for (const [px, pz] of [[16, 11], [-16, 11], [16, -11], [-16, -11]]) {
+      const r = Math.hypot(px, pz);
+      cloud.emit(Math.max(1, Math.round(near / 4)), [px, 19.0, pz],
+        [px / r * 0.5, 0.5, pz / r * 0.5], 17, 10,
+        { size0: 7, grow: 22, life0: 3.5, lifeVar: 3.5 });
+    }
   }
 
   // ---- The one function that maps a mission time to the whole scene ---------------------

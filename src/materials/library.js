@@ -13,7 +13,11 @@ export function createMaterials(onProgress = () => {}) {
   const T = {};
   const steps = [
     ['steel', () => TX.makeSteel()],
-    ['steelSkirt', () => TX.makeSteel({ heat: 0.85, soot: 0.5 })],
+    // The skirt of a flown booster is SOOTED, not bronzed. At heat 0.85 the tempering term
+    // pushed the whole band to base × (0.90, 0.76, 0.60) — a uniform straw tan that read as
+    // cardboard wrapped round the bottom of the vehicle in every trench and liftoff shot.
+    // Tempering is patchy and local to the welds; soot is what actually covers the skirt.
+    ['steelSkirt', () => TX.makeSteel({ heat: 0.3, soot: 0.78 })],
     ['steelWarm', () => TX.makeSteel({ heat: 0.3, soot: 0.12 })],
     ['f9Body', () => TX.makeFalconBody({ name: 'FALCON 9' })],
     ['fhBody', () => TX.makeFalconBody({ name: 'FALCON HEAVY' })],

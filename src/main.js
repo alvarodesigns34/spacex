@@ -268,13 +268,14 @@ async function main() {
       group.add(complex);
       model.position.y = lay.mount;
       // The pad has no display station, but at night an unlit 124 m stack against a black sky
-      // is just a hole in the frame.
-      env.addDisplayLight(lay.x, lay.z, 46, 90);
+      // is just a hole in the frame. Four tiers, because one beam aimed a third of the way up
+      // a vehicle that tall lights the mount and leaves the other eighty metres black.
+      env.addDisplayLight(lay.x, lay.z, 46, 124, { tiers: 4 });
     } else {
       group.add(buildMount(M, { radius: lay.mountRadius, inner: lay.inner, height: lay.mount, clampRadius: lay.clampRadius, clamps: v.id === 'falconheavy' ? 0 : 4 }));
       model.position.y = lay.mount;
       env.addStation(lay.x, lay.z, lay.mountRadius + 1.5);
-      env.addDisplayLight(lay.x, lay.z, lay.mountRadius + 4, 30);
+      env.addDisplayLight(lay.x, lay.z, lay.mountRadius + 4, 70, { tiers: 3 });
     }
     const yaw = THREE.MathUtils.degToRad(lay.yaw ?? 0);
     model.rotation.y = yaw;
