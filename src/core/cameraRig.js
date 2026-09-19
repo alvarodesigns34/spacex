@@ -75,6 +75,9 @@ export class CameraRig {
 
   setMode(mode) {
     if (mode === this.mode) return;
+    this.releaseExternal();
+    this.keys.clear();
+    this.velocity.set(0, 0, 0);
     this.mode = mode;
     if (mode === 'fly') {
       this._endTransition();
@@ -158,8 +161,22 @@ export class CameraRig {
   releaseExternal() {
     if (!this.external) return;
     this.external = false;
+    this._endTransition();
     this.orbit.enabled = this.mode === 'orbit';
-    if (this.orbit.enabled) { this.applyPolarLimit(); this.orbit.update(); }
+    if (this.mode === 'fly') {
+      // Free flight steers from yaw/pitch, so it has to adopt the direction the scripted shot
+      // left the camera pointing. Without this the view snapped back to whatever the fly
+      // integrator last believed the moment control came back.
+      const dir = new THREE.Vector3();
+      this.camera.getWorldDirection(dir);
+      this.look.yaw = Math.atan2(-dir.x, -dir.z);
+      this.look.pitch = Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1));
+      this.velocity.set(0, 0, 0);
+      this.onExternalRelease?.();
+      return;
+    }
+    this.applyPolarLimit();
+    this.orbit.update();
     this.onExternalRelease?.();
   }
 
