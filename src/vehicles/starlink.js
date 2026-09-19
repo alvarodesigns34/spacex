@@ -25,9 +25,35 @@ export function buildStarlink(M) {
   // Zenith face: white multi-layer insulation with the usual gold-taped seams. Photographs
   // of a deployed V2 Mini show a mostly white blanket, not the gold of a deep-space bus.
   g.add(mesh(new THREE.BoxGeometry(BUS_W - 0.1, 0.02, BUS_L - 0.1), M.mliWhite, { position: [0, BUS_T / 2 + 0.011, 0] }));
+  // Structural frame round the blanket, and the ribs under it. The zenith side is the face a
+  // visitor standing beside the exhibit looks down on, and it was a bare white slab: no
+  // frame, no fasteners, nothing to say the 4.1 m is 4.1 m.
+  {
+    const frame = [];
+    for (const s of [-1, 1]) {
+      frame.push({ geometry: new THREE.BoxGeometry(0.07, 0.07, BUS_L), matrix: mat4([s * (BUS_W / 2 - 0.035), BUS_T / 2 + 0.02, 0]) });
+      frame.push({ geometry: new THREE.BoxGeometry(BUS_W, 0.07, 0.07), matrix: mat4([0, BUS_T / 2 + 0.02, s * (BUS_L / 2 - 0.035)]) });
+    }
+    // Cross ribs, which also give the blanket its quilted look where they press through it.
+    for (const z of [-1.0, 0, 1.0]) {
+      frame.push({ geometry: new THREE.BoxGeometry(BUS_W - 0.14, 0.035, 0.05), matrix: mat4([0, BUS_T / 2 + 0.028, z]) });
+    }
+    g.add(mesh(mergeAll(frame), M.alumDark, { name: 'bus-frame' }));
+  }
+  // Kapton tape over the blanket's seams: 25 mm of foil, not a structural member. At 50 mm
+  // in a full grid it read as a set of brown beams laid across the deck and became the
+  // loudest thing on the satellite.
   const tape = [];
-  for (const z of [-1.35, 1.35]) tape.push({ geometry: new THREE.BoxGeometry(BUS_W - 0.14, 0.006, 0.08), matrix: mat4([0, BUS_T / 2 + 0.024, z]) });
+  for (const z of [-1.62, 1.62]) tape.push({ geometry: new THREE.BoxGeometry(BUS_W - 0.2, 0.004, 0.025), matrix: mat4([0, BUS_T / 2 + 0.023, z]) });
   g.add(mesh(mergeAll(tape), M.goldKapton, { castShadow: false }));
+  // Avionics and propellant boxes on the zenith deck.
+  {
+    const boxes = [];
+    for (const [x, z, w, l, h] of [[-0.85, -1.15, 0.5, 0.42, 0.16], [0.8, -0.3, 0.36, 0.6, 0.13], [-0.7, 1.3, 0.44, 0.5, 0.11]]) {
+      boxes.push({ geometry: new THREE.BoxGeometry(w, h, l), matrix: mat4([x, BUS_T / 2 + 0.03 + h / 2, z]) });
+    }
+    g.add(mesh(mergeAll(boxes), M.mliWhite, { name: 'bus-avionics' }));
+  }
   // Nadir face: dark radome/antenna deck
   g.add(mesh(new THREE.BoxGeometry(BUS_W - 0.06, 0.02, BUS_L - 0.06), M.blackMatte, { position: [0, -BUS_T / 2 - 0.01, 0] }));
   // Phased-array antennas (nadir): three large user-link arrays + two smaller gateway arrays (approx)
@@ -45,18 +71,34 @@ export function buildStarlink(M) {
   g.add(mesh(mergeAll(patches), M.alumDark, { castShadow: false }));
 
   // Laser inter-satellite link terminals (3): small gimballed turrets on the zenith side edges
+  // Built as a gimbal rather than a ball on a stick: a fixed base, a yoke that rotates in
+  // azimuth, and the optical head swinging in elevation between its arms. A sphere with a
+  // lens glued to it is the single crudest thing on the satellite at close range.
   for (const [x, z, rot] of [[-1.05, -1.75, 0.6], [1.05, -1.75, -0.6], [0, 1.85, Math.PI]]) {
     const t = new THREE.Group();
-    t.add(mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.18, 24), M.alumDark, { position: [0, 0.09, 0] }));
-    t.add(mesh(new THREE.SphereGeometry(0.16, 24, 16), M.aluminum, { position: [0, 0.3, 0] }));
-    t.add(mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.16, 20), M.lens, { position: [0, 0.3, 0.17], rotation: [Math.PI / 2, 0, 0] }));
+    t.name = 'laser-terminal';
+    t.add(mesh(new THREE.CylinderGeometry(0.19, 0.21, 0.1, 24), M.alumDark, { position: [0, 0.05, 0] }));
+    t.add(mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.12, 24), M.aluminum, { position: [0, 0.15, 0] }));
+    // Yoke arms.
+    for (const sx of [-1, 1]) {
+      t.add(mesh(new THREE.BoxGeometry(0.05, 0.26, 0.14), M.aluminum, { position: [sx * 0.16, 0.3, 0] }));
+    }
+    t.add(mesh(new THREE.CylinderGeometry(0.135, 0.135, 0.22, 24), M.alumDark, { position: [0, 0.36, 0], rotation: [0, 0, Math.PI / 2] }));
+    t.add(mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.2, 20), M.blackMatte, { position: [0, 0.36, 0.14], rotation: [Math.PI / 2, 0, 0] }));
+    t.add(mesh(new THREE.CylinderGeometry(0.082, 0.082, 0.02, 20), M.lens, { position: [0, 0.36, 0.245], rotation: [Math.PI / 2, 0, 0] }));
+    // Harness run down to the deck.
+    t.add(mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.3, 8), M.blackMatte, { position: [0.1, 0.16, -0.14], rotation: [0.4, 0, 0] }));
     t.position.set(x, BUS_T / 2, z);
     t.rotation.y = rot;
     g.add(t);
   }
-  // Star trackers (2) and GNSS patch
+  // Star trackers (2) and GNSS patch. Each gets a mounting block: a baffle tube canted off
+  // the deck with nothing under it reads as a tube someone dropped there.
   for (const [x, z] of [[-0.6, 0.6], [0.6, 0.6]]) {
-    g.add(mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.32, 16), M.blackMatte, { position: [x, BUS_T / 2 + 0.16, z], rotation: [0.5, 0, x > 0 ? -0.5 : 0.5] }));
+    const tilt = x > 0 ? -0.5 : 0.5;
+    g.add(mesh(new THREE.BoxGeometry(0.16, 0.08, 0.16), M.alumDark, { position: [x, BUS_T / 2 + 0.05, z] }));
+    g.add(mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.32, 16), M.blackMatte, { position: [x, BUS_T / 2 + 0.22, z], rotation: [0.5, 0, tilt] }));
+    g.add(mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.02, 16), M.lens, { position: [x + Math.sin(-tilt) * 0.15, BUS_T / 2 + 0.36, z + 0.08], rotation: [0.5, 0, tilt] }));
   }
   g.add(mesh(new THREE.BoxGeometry(0.25, 0.03, 0.25), M.aluminum, { position: [0, BUS_T / 2 + 0.03, -0.6] }));
   // Argon Hall thruster on the −Z edge (fires along −Z)
@@ -67,8 +109,18 @@ export function buildStarlink(M) {
   thr.add(mesh(new THREE.BoxGeometry(0.5, 0.18, 0.2), M.alumDark, { position: [0, 0, 0.15] }));
   thr.position.set(0, 0, -BUS_L / 2 - 0.12);
   g.add(thr);
-  // Argon tank (spherical, inside the bus but visible through an edge cut-out approximated as a bulge)
-  g.add(mesh(new THREE.SphereGeometry(0.28, 24, 16), M.aluminum, { position: [0.75, 0, -1.65] }));
+  // Argon tank. A bare sphere half-sunk in the deck read as a bubble blown through the
+  // blanket; it is housed now, in a faired cover with its fill and drain fittings, which is
+  // how a pressure vessel actually sits on a spacecraft bus.
+  {
+    const tank = new THREE.Group();
+    tank.position.set(0.75, BUS_T / 2, -1.55);
+    tank.add(mesh(new THREE.SphereGeometry(0.26, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.62), M.mliWhite));
+    tank.add(mesh(new THREE.CylinderGeometry(0.28, 0.3, 0.06, 22), M.alumDark, { position: [0, 0.01, 0] }));
+    tank.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.16, 10), M.aluminum, { position: [0.14, 0.18, 0.06], rotation: [0, 0, 0.5] }));
+    tank.add(mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.5, 8), M.aluminum, { position: [0.0, 0.05, 0.3], rotation: [1.3, 0, 0] }));
+    g.add(tank);
+  }
 
   // ---- Solar wings (2) ----
   const panels = 6; // accordion-folded segments (approx)
@@ -79,17 +131,35 @@ export function buildStarlink(M) {
     // Yoke/boom from bus edge to the first panel
     wing.add(mesh(new THREE.BoxGeometry(0.5, 0.08, 0.35), M.alumDark, { position: [s * 0.25, 0, 0] }));
     wing.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, WING_W - 0.4, 12), M.aluminum, { position: [s * 0.5, 0, 0], rotation: [Math.PI / 2, 0, 0] }));
+    // Panels are separated by a real gap, not a butt joint. At 6 cm the segments merged into
+    // one 13 m plane and the wing read as a single sheet of graph paper; the whole point of
+    // an accordion array is that you can see it is an accordion.
+    const GAP = 0.13;
+    const hinges = [], backs = [];
     for (let i = 0; i < panels; i++) {
       const x = s * (0.55 + segL * (i + 0.5));
-      const cells = mesh(new THREE.BoxGeometry(segL - 0.06, 0.028, WING_W - 0.06), M.solarStarlink, { position: [x, 0, 0] });
-      wing.add(cells);
-      // Backside substrate slightly larger and darker
-      wing.add(mesh(new THREE.BoxGeometry(segL - 0.02, 0.02, WING_W - 0.02), M.alumDark, { position: [x, -0.02, 0], castShadow: false }));
-      // Hinge lines between segments
-      if (i < panels - 1) wing.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, WING_W - 0.1, 8), M.aluminum, { position: [s * (0.55 + segL * (i + 1)), 0, 0], rotation: [Math.PI / 2, 0, 0] }));
+      wing.add(mesh(new THREE.BoxGeometry(segL - GAP, 0.028, WING_W - 0.06), M.solarStarlink, { position: [x, 0, 0], name: 'wing-panel' }));
+      // Backside substrate, slightly larger and darker, so the wing has a front and a back.
+      backs.push({ geometry: new THREE.BoxGeometry(segL - GAP + 0.03, 0.022, WING_W - 0.02), matrix: mat4([x, -0.026, 0]) });
+      // Hinge line between segments: two knuckles and the pin between them, at each edge.
+      if (i < panels - 1) {
+        const hx = s * (0.55 + segL * (i + 1));
+        hinges.push({ geometry: new THREE.CylinderGeometry(0.028, 0.028, WING_W - 0.1, 8), matrix: mat4([hx, 0, 0], [Math.PI / 2, 0, 0]) });
+        for (const z of [-(WING_W / 2 - 0.35), 0, WING_W / 2 - 0.35]) {
+          hinges.push({ geometry: new THREE.CylinderGeometry(0.055, 0.055, 0.16, 10), matrix: mat4([hx, 0, z], [Math.PI / 2, 0, 0]) });
+        }
+      }
     }
-    // Edge stiffener beams along the wing
-    for (const z of [-(WING_W / 2 - 0.02), WING_W / 2 - 0.02]) wing.add(mesh(new THREE.BoxGeometry(WING_L, 0.05, 0.04), M.aluminum, { position: [s * (0.55 + WING_L / 2), 0, z] }));
+    wing.add(mesh(mergeAll(backs), M.alumDark, { castShadow: false, name: 'wing-substrate' }));
+    wing.add(mesh(mergeAll(hinges), M.aluminum, { name: 'wing-hinges' }));
+    // Edge stiffener beams along the wing, and a longeron down its spine: a 13 m array with
+    // nothing running the length of it looks like it would fold in half.
+    const beams = [];
+    for (const z of [-(WING_W / 2 - 0.02), WING_W / 2 - 0.02]) {
+      beams.push({ geometry: new THREE.BoxGeometry(WING_L, 0.05, 0.04), matrix: mat4([s * (0.55 + WING_L / 2), 0, z]) });
+    }
+    beams.push({ geometry: new THREE.BoxGeometry(WING_L, 0.09, 0.07), matrix: mat4([s * (0.55 + WING_L / 2), -0.055, 0]) });
+    wing.add(mesh(mergeAll(beams), M.aluminum, { name: 'wing-beams' }));
     wing.position.x = s * (BUS_W / 2);
     g.add(wing);
   }

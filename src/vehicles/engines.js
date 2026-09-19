@@ -75,13 +75,38 @@ export function merlinGeometry({ exitRadius = 0.46, height = 2.3 } = {}) {
   ]);
   const outer = lathe(bell, { segments: 48, uvMode: 'normalized' });
   const inner = lathe(bell.map(p => ({ r: Math.max(p.r - 0.015, 0.12), y: p.y })), { segments: 48, flip: true, uvMode: 'normalized' });
+  // Powerhead. A Merlin is the most photographed rocket engine there is and it is not a
+  // smooth drum: the turbopump hangs off one side, the gas generator off the other, the
+  // turbine exhaust duct wraps down and out into the nozzle skirt, and the whole assembly is
+  // strapped together with braided lines. Nine of these sit in a bay the "Octaweb" preset
+  // looks straight into from two metres, where a plain cylinder is obvious.
   const parts = [];
   parts.push({ geometry: new THREE.CylinderGeometry(0.27, 0.24, 0.4, 32), matrix: mat4([0, 2.0, 0]) });
   parts.push({ geometry: new THREE.CylinderGeometry(0.14, 0.18, 0.15, 20), matrix: mat4([0, height - 0.07, 0]) });
   parts.push({ geometry: new THREE.CylinderGeometry(0.11, 0.11, 0.42, 16), matrix: mat4([0.26, 1.95, 0.05]) }); // turbopump
+  parts.push({ geometry: new THREE.CylinderGeometry(0.13, 0.10, 0.16, 16), matrix: mat4([0.26, 2.2, 0.05]) });  // pump volute
   parts.push({ geometry: new THREE.CylinderGeometry(0.07, 0.07, 0.3, 12), matrix: mat4([-0.2, 1.9, 0.2]) });   // gas generator
   parts.push({ geometry: new THREE.TorusGeometry(0.22, 0.03, 8, 32), matrix: mat4([0, 1.68, 0], [Math.PI / 2, 0, 0]) });
   parts.push({ geometry: new THREE.CylinderGeometry(0.04, 0.04, 0.9, 8), matrix: mat4([0.32, 1.35, -0.1], [0.25, 0, 0]) }); // turbine exhaust duct
+  // Propellant inlets and the braided runs down to the injector manifold.
+  for (const [ang, rad, len] of [[0.9, 0.05, 0.75], [2.5, 0.042, 0.68], [4.3, 0.038, 0.6], [5.6, 0.032, 0.52]]) {
+    parts.push({
+      geometry: new THREE.CylinderGeometry(rad, rad, len, 8),
+      matrix: mat4([Math.cos(ang) * 0.22, 1.58 + len / 2, Math.sin(ang) * 0.22]),
+    });
+  }
+  // Gimbal actuator: a Merlin steers on two of these, and their pivot blocks are the clearest
+  // thing separating an engine that moves from a cone stuck to a plate.
+  for (const ang of [0.6, 2.2]) {
+    parts.push({
+      geometry: new THREE.CylinderGeometry(0.045, 0.045, 0.62, 10),
+      matrix: mat4([Math.cos(ang) * 0.34, 1.96, Math.sin(ang) * 0.34], [0.3, -ang, 0]),
+    });
+    parts.push({
+      geometry: new THREE.BoxGeometry(0.12, 0.12, 0.1),
+      matrix: mat4([Math.cos(ang) * 0.36, 1.7, Math.sin(ang) * 0.36], [0, -ang, 0]),
+    });
+  }
   const head = mergeAll(parts);
   return { outer, inner, head, height, profile: bell };
 }

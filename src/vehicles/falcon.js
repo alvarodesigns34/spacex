@@ -28,34 +28,67 @@ const S2_TOP = S1_H + S2_H;        // 55.0 m
 const FAIRING_BASE = TOTAL_H - 13.1;    // 56.9 m (fairing height from spacex.com)
 const FAIRING_R = 2.6;             // 5.2 m diameter
 
-/** Titanium grid fin: an orthogonal waffle inside a closed frame. */
-function titaniumGridFin(M, { span = 1.55, chord = 1.25, depth = 0.12 } = {}) {
+/**
+ * Titanium grid fin: an orthogonal waffle inside a closed frame.
+ *
+ * Cast and machined from a single titanium piece, so the frame is chunky and the webs are
+ * thin — which is the proportion that makes it read as a grid fin rather than as a sheet of
+ * graph paper. The webs used to be a constant 18 mm and the whole thing 12 cm deep; a real
+ * fin is deeper than that relative to its chord, and the depth is what catches the light
+ * between the cells.
+ */
+function titaniumGridFin(M, { span = 1.55, chord = 1.25, depth = 0.2 } = {}) {
   const parts = [];
-  const frame = 0.035, web = 0.018;
+  const frame = 0.055, web = 0.016;
   parts.push({ geometry: new THREE.BoxGeometry(span, depth, frame), matrix: mat4([span / 2, 0, chord / 2]) });
   parts.push({ geometry: new THREE.BoxGeometry(span, depth, frame), matrix: mat4([span / 2, 0, -chord / 2]) });
   parts.push({ geometry: new THREE.BoxGeometry(frame, depth, chord), matrix: mat4([span, 0, 0]) });
-  parts.push({ geometry: new THREE.BoxGeometry(frame * 1.6, depth, chord), matrix: mat4([0, 0, 0]) });
+  parts.push({ geometry: new THREE.BoxGeometry(frame * 1.6, depth * 1.15, chord), matrix: mat4([0, 0, 0]) });
   const nx = 9, nz = 7;
-  for (let i = 1; i < nx; i++) parts.push({ geometry: new THREE.BoxGeometry(web, depth, chord), matrix: mat4([(span * i) / nx, 0, 0]) });
-  for (let j = 1; j < nz; j++) parts.push({ geometry: new THREE.BoxGeometry(span, depth * 0.95, web), matrix: mat4([span / 2, 0, -chord / 2 + (chord * j) / nz]) });
-  return mesh(mergeAll(parts), M.titanium);
+  for (let i = 1; i < nx; i++) parts.push({ geometry: new THREE.BoxGeometry(web, depth * 0.92, chord), matrix: mat4([(span * i) / nx, 0, 0]) });
+  for (let j = 1; j < nz; j++) parts.push({ geometry: new THREE.BoxGeometry(span, depth * 0.88, web), matrix: mat4([span / 2, 0, -chord / 2 + (chord * j) / nz]) });
+  // Rolled leading and trailing edges on the frame: a cast fin has no sharp corners, and the
+  // highlight running along them is most of what is visible of it from the ground.
+  for (const s of [-1, 1]) {
+    parts.push({
+      geometry: new THREE.CylinderGeometry(frame * 0.62, frame * 0.62, span, 8),
+      matrix: mat4([span / 2, 0, s * chord / 2], [0, 0, Math.PI / 2]),
+    });
+  }
+  return mesh(boxUV(mergeAll(parts)), M.titanium);
 }
 
-/** Landing leg, stowed flat against the base: a tapered composite fairing over the strut. */
+/**
+ * Landing leg, stowed flat against the base: a tapered composite fairing over the strut.
+ *
+ * The fairing is carbon, and carbon here is black with a woven sheen — not the mustard it was
+ * reading as. `plate()` emits ExtrudeGeometry cap UVs in metres, but its SIDE walls get the
+ * extruder's own parameterisation, and against a 0.6 m weave that left the visible faces
+ * sampling one corner of the map: four khaki slabs where the legs should be. boxUV puts the
+ * whole solid on metric coordinates.
+ */
 function landingLeg(M, { length = 9.6 } = {}) {
   const outline = [
     [-0.56, 0], [0.56, 0], [0.52, 1.1], [0.34, length * 0.55], [0.2, length - 0.5], [0.09, length],
     [-0.09, length], [-0.2, length - 0.5], [-0.34, length * 0.55], [-0.52, 1.1],
   ];
   const g = new THREE.Group();
-  g.add(mesh(plate(outline, 0.3, 0.06), M.carbon));
+  g.add(mesh(boxUV(plate(outline, 0.3, 0.06)), M.carbon, { name: 'leg-fairing' }));
   // Hinge block at the octaweb and the telescoping pusher behind the fairing.
-  g.add(mesh(mergeAll([
+  g.add(mesh(boxUV(mergeAll([
     { geometry: new THREE.BoxGeometry(1.34, 0.62, 0.46), matrix: mat4([0, 0.34, 0.0]) },
     { geometry: new THREE.CylinderGeometry(0.15, 0.19, 2.4, 14), matrix: mat4([0, 1.7, 0.24]) },
-  ]), M.darkMetal));
+  ])), M.darkMetal));
   g.add(mesh(new THREE.CylinderGeometry(0.1, 0.1, 3.2, 12), M.aluminum, { position: [0, 3.6, 0.2] }));
+  // Hold-down latches along the fairing, and the crush core at the foot. A stowed leg that is
+  // one smooth slab reads as a moulding; what says "this unfolds" is the hardware holding it.
+  const latches = [];
+  for (const y of [1.9, 4.6, 7.3]) {
+    latches.push({ geometry: new THREE.BoxGeometry(0.5, 0.16, 0.2), matrix: mat4([0, y, -0.2]) });
+    latches.push({ geometry: new THREE.CylinderGeometry(0.05, 0.05, 0.62, 8), matrix: mat4([0, y, -0.3], [0, 0, Math.PI / 2]) });
+  }
+  latches.push({ geometry: new THREE.CylinderGeometry(0.3, 0.26, 0.34, 14), matrix: mat4([0, 0.2, -0.1]) });
+  g.add(mesh(boxUV(mergeAll(latches)), M.alumDark, { name: 'leg-latches' }));
   return g;
 }
 
@@ -71,15 +104,42 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
   // Tank section: RP-1 below, LOX above, one unwrapped texture over the whole barrel.
   g.add(mesh(lathe([{ r: R, y: ENGINE_DROP }, { r: R, y: TANK_TOP }], { segments: 128, uvMode: 'normalized' }), body, { name: 'stage1' }));
 
-  // Octaweb thrust structure and base heat shield.
+  // Octaweb thrust structure and base heat shield. This is the view the "Octaweb · 9 Merlins"
+  // preset looks straight up into, and it was a dark cylinder with eight plates in it.
   g.add(mesh(lathe([{ r: R - 0.03, y: ENGINE_DROP + 0.05 }, { r: R - 0.03, y: ENGINE_DROP + 2.6 }], { segments: 64, flip: true }), M.darkMetal, { castShadow: false }));
   g.add(mesh(new THREE.CylinderGeometry(R - 0.03, R - 0.03, 0.25, 64), M.blackMatte, { position: [0, ENGINE_DROP + 2.6, 0] }));
   const octaweb = [];
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+    // Radial web between each pair of outer engines, with a flange top and bottom: the real
+    // structure is a welded aluminium spider, and the flanges are what give it depth when the
+    // camera is underneath looking up at it.
     octaweb.push({ geometry: new THREE.BoxGeometry(0.09, 2.4, 0.95), matrix: mat4([Math.sin(a) * 0.86, ENGINE_DROP + 1.3, Math.cos(a) * 0.86], [0, a, 0]) });
+    for (const dy of [-1.15, 1.15]) {
+      octaweb.push({ geometry: new THREE.BoxGeometry(0.2, 0.08, 0.95), matrix: mat4([Math.sin(a) * 0.86, ENGINE_DROP + 1.3 + dy, Math.cos(a) * 0.86], [0, a, 0]) });
+    }
+  }
+  // Base heat shield: the segmented apron between the engines and the tank, and the cutouts
+  // the nine bells come through.
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    octaweb.push({
+      geometry: new THREE.BoxGeometry(0.06, 0.5, 1.5),
+      matrix: mat4([Math.sin(a) * (R - 0.42), ENGINE_DROP + 0.3, Math.cos(a) * (R - 0.42)], [0, a, 0]),
+    });
   }
   g.add(mesh(boxUV(mergeAll(octaweb)), M.darkMetal));
+  // Helium COPVs and the hydraulic accumulators clustered round the thrust structure — the
+  // spheres and bottles that are the most recognisable thing in a photograph of a Falcon base.
+  {
+    const bottles = [];
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+      bottles.push({ geometry: new THREE.SphereGeometry(0.28, 16, 12), matrix: mat4([Math.sin(a) * (R - 0.52), ENGINE_DROP + 1.9, Math.cos(a) * (R - 0.52)]) });
+      bottles.push({ geometry: new THREE.CylinderGeometry(0.11, 0.11, 0.9, 12), matrix: mat4([Math.sin(a + 0.34) * (R - 0.4), ENGINE_DROP + 1.5, Math.cos(a + 0.34) * (R - 0.4)]) });
+    }
+    g.add(mesh(boxUV(mergeAll(bottles)), M.aluminum, { name: 'base-bottles' }));
+  }
   // 9 Merlin 1D: eight almost touching on a 1.27 m ring plus one on the axis.
   g.add(instanceEngines(merlinGeometry(), M, [
     { position: [0, 0, 0], tilt: [0, 0], spin: 0 },
@@ -128,9 +188,26 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
     return g;
   }
 
-  // Interstage: unpainted carbon composite, with the Merlin Vacuum nozzle inside it.
+  // Interstage: unpainted carbon composite, with the Merlin Vacuum nozzle inside it. The
+  // paint/composite boundary is the sharpest line on the vehicle and was a bare butt joint;
+  // on the real booster there is a lap, a ring of fasteners and a run of sooting above it.
   g.add(mesh(lathe([{ r: R, y: TANK_TOP }, { r: R, y: S1_H }], { segments: 128 }), M.carbon, { name: 'interstage' }));
   g.add(mesh(lathe([{ r: R - 0.03, y: TANK_TOP + 0.2 }, { r: R - 0.03, y: S1_H }], { segments: 64, flip: true }), M.blackMatte, { castShadow: false }));
+  {
+    const trim = [];
+    // Lap joint at the bottom of the interstage and the ring at the top.
+    trim.push({ geometry: new THREE.TorusGeometry(R + 0.03, 0.045, 8, 96), matrix: mat4([0, TANK_TOP + 0.12, 0], [Math.PI / 2, 0, 0]) });
+    trim.push({ geometry: new THREE.TorusGeometry(R + 0.025, 0.035, 8, 96), matrix: mat4([0, S1_H - 0.1, 0], [Math.PI / 2, 0, 0]) });
+    // Pneumatic pusher housings, spaced round the separation plane.
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.3;
+      trim.push({
+        geometry: new THREE.BoxGeometry(0.28, 0.7, 0.16),
+        matrix: mat4([Math.sin(a) * (R + 0.05), S1_H - 0.62, Math.cos(a) * (R + 0.05)], [0, a, 0]),
+      });
+    }
+    g.add(mesh(boxUV(mergeAll(trim)), M.alumDark, { name: 'interstage-trim' }));
+  }
   g.add(instanceEngines(merlinVacGeometry(), M, [{ position: [0, TANK_TOP + 0.9, 0], tilt: [0, 0], spin: 0 }], { bellMaterial: M.bellCool }));
 
   addGridFins(S1_H - 1.95);   // at the top of the interstage
