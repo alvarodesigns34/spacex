@@ -284,9 +284,20 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, onSta
     arms: chop.children.filter(c => c.name.startsWith('arm-')).map(a => ({ obj: a, ry: a.rotation.y })),
   };
   const CATCH_ARM = THREE.MathUtils.degToRad(6.5);   // arms just embracing the 9 m hull
-  const CATCH_CARRIAGE = 98;                          // carriage height at the catch: the lift
-                                                      // pins sit below the grid fins, not at the top
   const CATCH_ALT = 22;                               // booster held this far above its launch station
+  /**
+   * Where the carriage has to be for the arms to take the load on the pins.
+   *
+   * This used to be the literal 98, and it was 6.8 m low: the pins are at station
+   * finY - PIN_DROP = 64.77 m on the booster, and at the catch the booster's own origin is at
+   * mount + CATCH_ALT = 40 m, which puts them at 104.8 m. The arms were closing on the
+   * methane tank, eight metres under the hardware they are supposed to be holding - and the
+   * gate could not see it, because all it asked was that the carriage end up above 80 m.
+   *
+   * Derived from the booster's published station so the two cannot drift apart again: move
+   * the grid fins and the tower follows them.
+   */
+  const CATCH_CARRIAGE = ex.lay.mount + CATCH_ALT + ex.model.userData.stations.booster.pinY;
 
   // ---- Plumes -------------------------------------------------------------------------
   // Cluster radii: the 33 Raptors sit inside a 3,86 m ring, the ship's six inside a 2,3 m

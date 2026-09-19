@@ -85,6 +85,12 @@ export function toTexture(c, { srgb = false, tileSize = null, tileSizeU = null, 
   t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
   t.anisotropy = anisotropy;
   if (tileSize) t.repeat.set(1 / (tileSizeU ?? tileSize), 1 / tileSize);
+  // Recorded so verify.js can ask the question that matters about a UV map: not "does it
+  // vary?" but "does it vary at the rate this texture was authored for?". A map with a
+  // tileSize expects metric UVs; one without expects a single normalised wrap. Mixing the two
+  // is invisible in code and ruinous on screen — it is what left the 5 km apron untextured.
+  t.userData.tileSize = tileSize ?? null;
+  t.userData.tileSizeU = tileSize ? (tileSizeU ?? tileSize) : null;
   t.needsUpdate = true;
   return t;
 }

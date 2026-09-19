@@ -165,6 +165,36 @@ export function verifyScene(root, { log = true } = {}) {
       }
       if (maxU - minU < 1e-6 && maxV - minV < 1e-6) {
         issues.push({ mesh: label, problem: `usa ${slots.join(', ')} con uv constante`, severity: 'error' });
+      } else {
+        // Texel density. UVs that vary are still wrong if they vary at the wrong RATE, and
+        // this project has two authoring conventions: metric UVs against maps that set
+        // repeat = 1/tileSize, and normalised UVs against maps that wrap once. Mixing them is
+        // invisible in code and ruinous on screen — the apron disc emitted CircleGeometry's
+        // 0..1 UVs against a 48 m terrain tile, so one repeat covered five kilometres and the
+        // ground rendered as flat grey in every wide shot for as long as it existed.
+        //
+        // toTexture records the tile size it was authored for, so the question can be asked
+        // precisely: does a metre of this surface carry about as much texture as the map
+        // expects? The bound is deliberately loose — a factor of twelve either way — because
+        // the surface is measured by its bounding box, which under-reads a curved panel.
+        const tex = mats.map(m => m && TEX_SLOTS.map(k => m[k]).find(Boolean)).find(Boolean);
+        const want = tex?.userData?.tileSize;
+        if (want) {
+          g.computeBoundingBox();
+          const bb = g.boundingBox;
+          const world = Math.max(bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.max.z - bb.min.z)
+            * Math.max(o.scale.x, o.scale.y, o.scale.z);
+          const repeats = Math.max((maxU - minU) * Math.abs(tex.repeat.x), (maxV - minV) * Math.abs(tex.repeat.y));
+          const perRepeat = repeats > 1e-9 ? world / repeats : Infinity;
+          const ratio = perRepeat / want;
+          if (world > 0.25 && (ratio > 12 || ratio < 1 / 12)) {
+            issues.push({
+              mesh: label,
+              problem: `uv a escala equivocada: ${perRepeat.toFixed(3)} m por repetición sobre ${world.toFixed(1)} m, y el mapa se creó para ${want} m`,
+              severity: 'error',
+            });
+          }
+        }
       }
     }
     if (!g.attributes.normal) {
@@ -260,6 +290,119 @@ export const EXPECTED_PAD = {
   trenchDepth: { value: 8.2, label: 'zanja de llamas · profundidad' },
   clamps: { value: 20, label: 'pinzas de sujeción', cited: true },
 };
+
+// =========================================================================================
+//  Interfaces: where two independently built subsystems have to meet
+// =========================================================================================
+/**
+ * The dimensional table catches a vehicle drifting away from its own published envelope. It
+ * cannot catch two subsystems drifting away from EACH OTHER, and that is where this project's
+ * expensive mistakes have lived: a launch mount whose throat was cut 43 cm inside the engine
+ * bells it is meant to clear, twenty hold-down clamps closing six centimetres short of the
+ * hull, a tower carriage stopping seven metres under the pins it is supposed to catch. Each
+ * number was defensible on its own and wrong against its neighbour.
+ *
+ * Everything below is measured off built geometry in world space, never recomputed from the
+ * constants that produced it.
+ */
+
+/** Largest distance from the vertical axis reached by anything under `root`, in world XZ. */
+function maxRadius(root, origin) {
+  let best = 0;
+  const v = new THREE.Vector3();
+  root.updateWorldMatrix(true, true);
+  root.traverse((o) => {
+    const pos = o.geometry?.attributes?.position;
+    if (!pos) return;
+    // An InstancedMesh's vertices are its prototype's; each instance places a copy.
+    const instances = o.isInstancedMesh ? o.count : 1;
+    const im = new THREE.Matrix4();
+    for (let k = 0; k < instances; k++) {
+      const m = o.isInstancedMesh
+        ? new THREE.Matrix4().multiplyMatrices(o.matrixWorld, o.getMatrixAt(k, im) ?? im)
+        : o.matrixWorld;
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(m);
+        best = Math.max(best, Math.hypot(v.x - origin.x, v.z - origin.z));
+      }
+    }
+  });
+  return best;
+}
+
+/** Smallest distance from the vertical axis reached by anything under `root`, in world XZ. */
+function minRadius(root, origin) {
+  let best = Infinity;
+  const v = new THREE.Vector3();
+  root.updateWorldMatrix(true, true);
+  root.traverse((o) => {
+    const pos = o.geometry?.attributes?.position;
+    if (!pos) return;
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+      best = Math.min(best, Math.hypot(v.x - origin.x, v.z - origin.z));
+    }
+  });
+  return best;
+}
+
+/**
+ * @param exhibits the built exhibit map
+ * @param complex  the launch complex, or null
+ * @returns rows of { interface, a, b, rule, ok, detail }
+ */
+export function verifyInterfaces(exhibits, complex, { log = true } = {}) {
+  const rows = [];
+  const add = (name, ok, detail) => rows.push({ interface: name, ok, detail });
+  const ex = exhibits?.starship;
+  if (!ex || !complex) return rows;
+
+  const origin = new THREE.Vector3();
+  complex.getWorldPosition(origin);
+
+  const booster = ex.model.getObjectByName('superheavy');
+  const engines = booster?.getObjectByName('engines');
+  const seat = complex.getObjectByName('table-seat');
+  const skirt = booster?.getObjectByName('skirt');
+  const holds = complex.getObjectByName('holddowns');
+
+  // 1. The exhaust has to fit through the hole cut for it.
+  if (engines && seat) {
+    const bells = maxRadius(engines, origin);
+    const throat = minRadius(seat, origin);
+    add('engine bells clear the mount throat', throat >= bells,
+      `campanas hasta ${bells.toFixed(2)} m, garganta ${throat.toFixed(2)} m`);
+  }
+  // 2. The clamps have to reach the hull they hold down — not nearly reach it.
+  if (skirt && holds) {
+    const hull = maxRadius(skirt, origin);
+    const reach = minRadius(holds, origin);
+    const gap = reach - hull;
+    add('hold-down clamps meet the skirt', gap >= -0.05 && gap <= 0.08,
+      `faldón ${hull.toFixed(2)} m, pinzas hasta ${reach.toFixed(2)} m (holgura ${(gap * 100).toFixed(0)} mm)`);
+  }
+  // 3. The booster has to stand ON the deck, not in it or above it.
+  if (skirt && seat) {
+    skirt.updateWorldMatrix(true, true);
+    const sb = new THREE.Box3().setFromObject(skirt);
+    seat.updateWorldMatrix(true, true);
+    const tb = new THREE.Box3().setFromObject(seat);
+    const step = sb.min.y - tb.max.y;
+    add('the booster seats on the deck', Math.abs(step) <= 0.35,
+      `base del faldón ${sb.min.y.toFixed(2)} m, cota del asiento ${tb.max.y.toFixed(2)} m`);
+  }
+
+  if (log) {
+    const bad = rows.filter(r => !r.ok);
+    /* eslint-disable no-console */
+    console.groupCollapsed(`%cInterfaces vehículo/instalación — ${bad.length ? `${bad.length} discrepancia(s)` : 'todo encaja'}`,
+      `color:${bad.length ? '#e07a5f' : '#7fb069'};font-weight:600`);
+    console.table(rows);
+    console.groupEnd();
+    /* eslint-enable no-console */
+  }
+  return rows;
+}
 
 const _box = new THREE.Box3();
 /**

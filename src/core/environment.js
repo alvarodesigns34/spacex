@@ -6,6 +6,9 @@ import { Sky } from 'three/addons/objects/Sky.js';
 import { starShell } from './backdrop.js';
 import { mesh, mergeAll, mat4 } from '../geometry/utils.js';
 
+/** Radius of the apron disc at ground level, before the ascent stretches it. */
+const GROUND_R = 2500;
+
 export function createEnvironment(renderer, scene, M) {
   const sunDir = new THREE.Vector3();
 
@@ -61,11 +64,26 @@ export function createEnvironment(renderer, scene, M) {
   scene.add(hemi);
 
   // --- Ground: coastal plain terrain ---
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(2500, 96), M.terrain || M.concrete);
+  // CircleGeometry emits UVs normalised over the whole disc: (x/r + 1)/2. Every material in
+  // this project is keyed to metres and sets repeat = 1/tileSize, so a 48 m terrain tile was
+  // being stretched across the full 5 km - one texel per twenty metres, which is why the apron
+  // read as featureless grey in every wide shot. Rewriting the UVs in metres puts the texture
+  // back on its intended scale; the disc is rotated flat afterwards, so x/y of the flat
+  // geometry are the ground plane.
+  const groundGeo = new THREE.CircleGeometry(GROUND_R, 128);
+  {
+    const gp = groundGeo.attributes.position, guv = groundGeo.attributes.uv;
+    for (let i = 0; i < gp.count; i++) guv.setXY(i, gp.getX(i), gp.getY(i));
+    guv.needsUpdate = true;
+  }
+  const ground = new THREE.Mesh(groundGeo, M.terrain || M.concrete);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   ground.name = 'ground';
   scene.add(ground);
+  // The terrain material is the ground's alone, so its repeat can be driven from here.
+  const groundMaps = [ground.material.map, ground.material.roughnessMap, ground.material.normalMap].filter(Boolean);
+  const baseRepeat = groundMaps[0] ? groundMaps[0].repeat.clone() : new THREE.Vector2(1, 1);
 
   // Painted apron markings (subtle): a wide dark band and station lines under each exhibit.
   const markingMat = new THREE.MeshStandardMaterial({ color: 0xd9c25a, roughness: 0.9, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 });
@@ -205,9 +223,15 @@ export function createEnvironment(renderer, scene, M) {
     for (const d of displayLights) d.spot.intensity = d.peak * Math.pow(n, 1.3);
     lensMat.emissiveIntensity = 2.6 * Math.pow(n, 1.4);
 
-    // Stretch the apron so there is still a surface under the vehicle on the way up. The
-    // concrete tiles metrically, so it coarsens rather than smearing.
-    ground.scale.setScalar(THREE.MathUtils.clamp(1 + h / 900, 1, 34));
+    // Stretch the apron so there is still a surface under the vehicle on the way up. Scaling
+    // the mesh scales its metric UVs with it, which would smear one 48 m tile over 1.6 km at
+    // full stretch; counter-scaling the repeat keeps the texel density fixed in world space,
+    // so the ground coarsens in the frame rather than dissolving.
+    const gs = THREE.MathUtils.clamp(1 + h / 900, 1, 34);
+    if (ground.scale.x !== gs) {
+      ground.scale.setScalar(gs);
+      for (const t of groundMaps) t.repeat.set(baseRepeat.x * gs, baseRepeat.y * gs);
+    }
 
     scene.environmentIntensity = THREE.MathUtils.lerp(1.0, 1.6, n) * (1 - j * 0.55);
 

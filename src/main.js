@@ -24,7 +24,7 @@ import { buildOrbitalBackdrop } from './core/backdrop.js';
 import { buildMount, buildPedestal, buildHuman } from './vehicles/common.js';
 import { seeded } from './geometry/utils.js';
 import { buildLaunchComplex, PAD } from './vehicles/pad.js';
-import { verifyExhibits, verifyScene, verifyPad } from './data/verify.js';
+import { verifyExhibits, verifyScene, verifyPad, verifyInterfaces } from './data/verify.js';
 import { createLaunch } from './sim/launch.js';
 
 // Exhibit layout (world X, metres). Mount heights are presentation choices.
@@ -644,7 +644,12 @@ async function main() {
   // puts the sequence back on the pad first.
   const verify = () => {
     launch.reset(false);
-    return { dimensions: verifyExhibits(exhibits), pad: verifyPad(complex), scene: verifyScene(scene) };
+    return {
+      dimensions: verifyExhibits(exhibits),
+      pad: verifyPad(complex),
+      interfaces: verifyInterfaces(exhibits, complex),
+      scene: verifyScene(scene),
+    };
   };
     // Exposed for the headless check: the orbital view is a global scene change, so the gate
   // has to be able to see that leaving it puts everything back.

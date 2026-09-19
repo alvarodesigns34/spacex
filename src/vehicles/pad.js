@@ -20,6 +20,7 @@
  */
 import * as THREE from 'three';
 import { mesh, mergeAll, mat4, boxUV, tube, radial } from '../geometry/utils.js';
+import { RAPTOR_ENVELOPE_R, BOOSTER_R } from './starship.js';
 
 // ---- Dimensions -------------------------------------------------------------------------
 export const PAD = {
@@ -37,7 +38,16 @@ export const PAD = {
   openingR: 5.5,          // ø 11 m engine opening
   tableR: 5.2,            // steel ring the booster skirt seats on
   clamps: 20,
-  clampR: 4.92,
+  // Clamp ring radius, set so the shoe's inner face lands ON the skirt rather than near it.
+  // At the old 4.92 the twenty clamps closed to 4.56 m around a 4.50 m hull: six centimetres
+  // of air, in close-ups of the one piece of hardware whose whole job is to hold the vehicle
+  // down. CLAMP_DEPTH is the shoe's radial thickness, below.
+  clampR: BOOSTER_R + 0.36,
+  // The hole the exhaust leaves through, derived rather than declared: whatever the outermost
+  // Raptor bells reach, plus a working gap. Hard-coding it at 4.05 m put the steel lip 43 cm
+  // inside twenty of them — the seat is meant to be smaller than the 9 m vehicle, not smaller
+  // than its engines. Moving a ring now moves the throat with it.
+  throatR: RAPTOR_ENVELOPE_R + 0.25,
   pierHalf: 2.0,          // 4 m square corner piers
   pierAt: 12.0,
   // Tower (OLIT)
@@ -210,17 +220,18 @@ function buildMountTable(M) {
   // Water-cooled table seat: an annular steel plate cantilevered inboard of the deck opening
   // for the booster skirt to sit on. Its inner edge is what actually sets the size of the
   // hole the exhaust leaves through — smaller than the 9 m vehicle, as it has to be.
+  const { throatR } = PAD;
   const seat = new THREE.Shape();
   seat.absarc(0, 0, tableR + 1.0, 0, Math.PI * 2, false);
   const seatHole = new THREE.Path();
-  seatHole.absarc(0, 0, 4.05, 0, Math.PI * 2, true);
+  seatHole.absarc(0, 0, throatR, 0, Math.PI * 2, true);
   seat.holes.push(seatHole);
   const seatGeo = new THREE.ExtrudeGeometry(seat, { depth: 0.55, bevelEnabled: false, curveSegments: 48 });
   seatGeo.rotateX(-Math.PI / 2);
   seatGeo.translate(0, deckTop - 0.55, 0);
   const inner = new THREE.CylinderGeometry(openingR, openingR, deckThick, 64, 1, true);
   inner.translate(0, deckTop - deckThick / 2, 0);
-  const throat = new THREE.CylinderGeometry(4.05, 4.05, 1.9, 48, 1, true);
+  const throat = new THREE.CylinderGeometry(throatR, throatR, 1.9, 48, 1, true);
   throat.translate(0, deckTop - 1.5, 0);
   g.add(mesh(boxUV(mergeAll([{ geometry: seatGeo }, { geometry: inner }, { geometry: throat }])), M.darkMetal, { name: 'table-seat' }));
   const manifold = new THREE.TorusGeometry(openingR + 0.9, 0.32, 8, 64);
@@ -262,9 +273,13 @@ function buildMountTable(M) {
   // them individually; twenty extra draw calls is a fair price for that.
   const holds = new THREE.Group();
   holds.name = 'holddowns';
+  const CLAMP_DEPTH = 0.72;      // radial thickness of the shoe; PAD.clampR is set from it
+  const FOOT_DEPTH = 0.95;
   const clampGeo = boxUV(mergeAll([
-    { geometry: B(0.9, 1.05, 0.72), matrix: mat4([0, 0.52, 0]) },
-    { geometry: B(1.15, 0.28, 0.95), matrix: mat4([0, 0.14, 0]) },
+    { geometry: B(0.9, 1.05, CLAMP_DEPTH), matrix: mat4([0, 0.52, 0]) },
+    // The foot is deeper than the shoe, so it is pushed outboard to share the shoe's inner
+    // face. Centred on the same axis it reached 8 cm further in - through the hull.
+    { geometry: B(1.15, 0.28, FOOT_DEPTH), matrix: mat4([0, 0.14, (FOOT_DEPTH - CLAMP_DEPTH) / 2]) },
   ]));
   radial(PAD.clamps, (a) => {
     const m = mesh(clampGeo, M.mountYellow);

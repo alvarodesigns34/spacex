@@ -20,6 +20,8 @@ import {
 import { raptorGeometry, raptorVacGeometry, instanceEngines, ringLayout } from './engines.js';
 
 const R = 4.5;                 // 9 m diameter (spacex.com)
+/** The hull radius the pad's clamps and seat have to meet. Exported so they can derive it. */
+export const BOOSTER_R = R;
 const RING = 1.83;             // steel ring height (Wikipedia)
 const BOOSTER_H = 72;          // spacex.com
 const SHIP_H = 52;             // spacex.com
@@ -32,6 +34,19 @@ const DOOR_PHI = Math.PI * 1.18;
 // ≈0.264 m across the flats. Instanced; ~13 500 of them cover the ship.
 const TILE_R = 0.152;
 const TILE_T = 0.016;
+
+/**
+ * The 33 Raptors, as three rings of (count, radius, y). Named rather than inlined because the
+ * launch mount has to cut a hole the exhaust fits through, and it was cutting one 43 cm too
+ * small: the outer ring sits at 3.86 m and a Raptor's exit plane is 0.62 m across the radius,
+ * so the outermost bell rims reach 4.48 m — while the mount's water-cooled seat had a 4.05 m
+ * throat hard-coded into it. Twenty bells hung over the steel lip, in the one view (the flame
+ * trench) that looks straight up at it.
+ */
+const RAPTOR_EXIT_R = 0.62;
+const BOOSTER_RINGS = [[3, 1.02, 0.45, Math.PI / 6], [10, 2.48, 0.35, 0], [20, 3.86, 0.25, Math.PI / 20]];
+/** Radius the booster's engine bells actually reach. The pad derives its throat from this. */
+export const RAPTOR_ENVELOPE_R = Math.max(...BOOSTER_RINGS.map(([, r]) => r)) + RAPTOR_EXIT_R;
 
 // ---------------------------------------------------------------------------------------
 //  Shared sub-assemblies
@@ -57,6 +72,14 @@ function gridFin(M, { span = 5.4, chord = 3.5, depth = 0.42, cells = [8, 5], web
 }
 
 /**
+ * How far below the grid-fin station the catch pin sits. Published as part of the booster's
+ * stations because the tower has to close its arms on it: the launch sequence used to carry
+ * its own carriage height as a literal, and that literal was 6.8 m low, so the arms closed
+ * around the methane tank while the pins hung in the air above them.
+ */
+const PIN_DROP = 1.5;
+
+/**
  * Block 3 grid-fin assembly: the fin, its hinge shroud, the electric actuator housing and
  * the catch pin, which Block 3 integrates into the fin root rather than mounting separately.
  */
@@ -71,9 +94,9 @@ function gridFinAssembly(M, { withPin = true, span = 5.4, chord = 3.5, depth = 0
   g.add(mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.5, 20), M.darkMetal, { position: [0.3, -0.95, 0], rotation: [Math.PI / 2, 0, 0] }));
   if (withPin) {
     // Catch pin: a stub that the tower arms take the vehicle's weight on.
-    g.add(mesh(new THREE.CylinderGeometry(0.3, 0.34, 1.35, 24), M.darkMetal, { position: [0.95, -1.5, 0], rotation: [0, 0, -Math.PI / 2] }));
-    g.add(mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.18, 24), M.aluminum, { position: [1.6, -1.5, 0], rotation: [0, 0, -Math.PI / 2] }));
-    g.add(mesh(new THREE.BoxGeometry(0.8, 1.5, 1.5), M.steelSkirt, { position: [0.2, -1.5, 0] }));
+    g.add(mesh(new THREE.CylinderGeometry(0.3, 0.34, 1.35, 24), M.darkMetal, { position: [0.95, -PIN_DROP, 0], rotation: [0, 0, -Math.PI / 2], name: 'catch-pin' }));
+    g.add(mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.18, 24), M.aluminum, { position: [1.6, -PIN_DROP, 0], rotation: [0, 0, -Math.PI / 2] }));
+    g.add(mesh(new THREE.BoxGeometry(0.8, 1.5, 1.5), M.steelSkirt, { position: [0.2, -PIN_DROP, 0] }));
   }
   return g;
 }
@@ -245,12 +268,9 @@ export function buildSuperHeavy(M) {
   g.add(mesh(mergeAll(bays), M.darkMetal));
 
   // 33 Raptor 3: 3 + 10 gimballing on the thrust puck, 20 fixed on the outer ring.
-  const raptor = raptorGeometry();
-  g.add(instanceEngines(raptor, M, [
-    ...ringLayout(3, 1.02, 0.45, { phase: Math.PI / 6 }),
-    ...ringLayout(10, 2.48, 0.35, { phase: 0 }),
-    ...ringLayout(20, 3.86, 0.25, { phase: Math.PI / 20 }),
-  ]));
+  const raptor = raptorGeometry({ exitRadius: RAPTOR_EXIT_R });
+  g.add(instanceEngines(raptor, M,
+    BOOSTER_RINGS.flatMap(([n, r, y, phase]) => ringLayout(n, r, y, { phase }))));
 
   // Four chines low on the tank section. Block 3 spacing: the pair either side of the
   // raceway sits closer together and runs taller than the pair opposite it.
@@ -301,7 +321,7 @@ export function buildSuperHeavy(M) {
     { label: 'Liquid methane tank', position: [0, (commonDome + ringTop) / 2, R + 0.5] },
     { label: 'Raceway (plumbing and wiring)', position: [0, skirtTop + 8, -(R + 1.4)] },
   ];
-  g.userData.stations = { skirtTop, commonDome, ringTop, finY, height: BOOSTER_H };
+  g.userData.stations = { skirtTop, commonDome, ringTop, finY, pinY: finY - PIN_DROP, height: BOOSTER_H };
   return g;
 }
 

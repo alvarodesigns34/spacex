@@ -12,7 +12,7 @@
  * grid-fin size and Merlin plumbing detail are approximations from imagery.
  */
 import * as THREE from 'three';
-import { lathe, ogiveProfile, mesh, mergeAll, mat4, plate } from '../geometry/utils.js';
+import { lathe, ogiveProfile, mesh, mergeAll, mat4, plate, boxUV } from '../geometry/utils.js';
 import { merlinGeometry, merlinVacGeometry, instanceEngines, ringLayout } from './engines.js';
 
 const R = 1.85;                    // 3.7 m diameter
@@ -79,7 +79,7 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
     const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
     octaweb.push({ geometry: new THREE.BoxGeometry(0.09, 2.4, 0.95), matrix: mat4([Math.sin(a) * 0.86, ENGINE_DROP + 1.3, Math.cos(a) * 0.86], [0, a, 0]) });
   }
-  g.add(mesh(mergeAll(octaweb), M.darkMetal));
+  g.add(mesh(boxUV(mergeAll(octaweb)), M.darkMetal));
   // 9 Merlin 1D: eight almost touching on a 1.27 m ring plus one on the axis.
   g.add(instanceEngines(merlinGeometry(), M, [
     { position: [0, 0, 0], tilt: [0, 0], spin: 0 },
@@ -218,7 +218,10 @@ export function buildFalconHeavy(M) {
     strut([x0, 2.6, -0.7], [x1, 2.6, -0.7], 0.16);
     strut([x0, 4.4, 0], [x1, 4.4, 0], 0.16);
   }
-  g.add(mesh(mergeAll(struts), M.darkMetal));
+  // boxUV, like every other merged structural run in the project: merging keeps each
+  // cylinder's own 0..1 UVs, so the grey-metal map — authored for a one-metre tile — was being
+  // stretched over a four-metre strut. Planar metric UVs put it back on its own scale.
+  g.add(mesh(boxUV(mergeAll(struts)), M.darkMetal));
 
   g.userData.height = TOTAL_H;
   g.userData.width = 12.2;

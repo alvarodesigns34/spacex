@@ -67,13 +67,15 @@ try {
   await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'load', timeout: 120000 });
   await page.waitForFunction(() => window.__vc && !document.getElementById('loading'), null, { timeout: 300000 });
 
-  const { dimensions, pad, scene } = await page.evaluate(() => window.__vc.verify());
+  const { dimensions, pad, interfaces, scene } = await page.evaluate(() => window.__vc.verify());
   for (const d of dimensions) {
     report(d.ok, `${d.vehicle} · ${d.label}`, `declarado ${d.declared}, construido ${d.built} (${d.errorPct} %)`);
   }
   for (const d of pad) {
     report(d.ok, `pad · ${d.part}`, `declarado ${d.declared} (${d.origen}), construido ${d.built} (${d.errorPct} %)`);
   }
+  // Where two independently built subsystems have to meet. Each of these was wrong.
+  for (const d of interfaces) report(d.ok, `interfaz · ${d.interface}`, d.detail);
   report(scene.length === 0, 'integridad de la escena',
     scene.length ? scene.map(i => `${i.mesh}: ${i.problem}`).join('; ') : 'uv, normales y vértices correctos');
 
@@ -220,6 +222,9 @@ try {
     const f = v.exhibits.starship.flight;
     const parts = v.complex.userData.parts;
     return JSON.stringify({
+      // One `flight` key, not two. The duplicate that used to sit at the bottom of this object
+      // was the same shadowing mistake as the old `booster` pair — harmless only because both
+      // spellings happened to read the same object.
       flight: [...f.position.toArray(), f.rotation.z],
       ship: v.scene.getObjectByName('ship').position.y,
       // Two different facts about the booster, under two different keys. They used to share
@@ -234,7 +239,6 @@ try {
       qd: parts.qdArm.rotation.y,
       chop: [parts.chopsticks.position.y, ...parts.chopsticks.children.filter(c => c.name.startsWith('arm-')).map(a => a.rotation.y)],
       boosterParent: v.scene.getObjectByName('superheavy').parent.name,
-      flight: [...v.exhibits.starship.flight.position.toArray(), v.exhibits.starship.flight.rotation.z],
       clamps: parts.holddowns.children.map(c => c.position.toArray()),
       camera: [v.camera.near, v.camera.far],
       fog: v.scene.fog.density,
@@ -301,6 +305,29 @@ try {
     report(ok, 'el propulsor vuelve y la torre lo atrapa',
       ok ? `apogeo ${Math.round(apogee.y / 1000)} km a ${Math.round(apogee.x / 1000)} km, atrapado a ${caught.x.toFixed(1)} m del eje con los brazos cerrados`
         : `sube ${rose} · desciende ${descending} · vuelve ${home} · brazos ${closed} · ${JSON.stringify({ apogee, mid, caught })}`);
+
+    // ...and it catches it BY THE PINS. "chop > 80" only says the carriage went up; it passed
+    // happily while the arms closed 6,8 m below the hardware, around the methane tank. Measure
+    // the pin's world height against the carriage's load pads instead.
+    const grip = await page.evaluate((tt) => {
+      const v = window.__vc;
+      v.launch.seek(tt);
+      // Searched from the scene, not from ex.model: by the catch the booster has been
+      // re-parented out of the exhibit group into its own flight group.
+      const p = v.scene.getObjectByName('catch-pin');
+      const chop = v.complex.userData.parts.chopsticks;
+      if (!p) return null;
+      v.scene.updateMatrixWorld(true);
+      // World translation straight out of the matrix, so this needs no THREE in page scope.
+      return { pin: p.matrixWorld.elements[13], carriage: chop.matrixWorld.elements[13] };
+    }, 415);
+    if (grip) {
+      const off = grip.pin - grip.carriage;
+      report(Math.abs(off) <= 1.6, 'los brazos cierran a la altura de los pines',
+        `pin a ${grip.pin.toFixed(2)} m, carro a ${grip.carriage.toFixed(2)} m (desfase ${off.toFixed(2)} m)`);
+    } else {
+      report(false, 'los brazos cierran a la altura de los pines', 'no se encontró la malla catch-pin');
+    }
   }
 
   await page.evaluate(() => window.__vc.launch.reset(false));

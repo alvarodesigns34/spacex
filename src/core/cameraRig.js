@@ -43,7 +43,11 @@ export class CameraRig {
     // the camera flies on by itself when the tab comes back. Alt-Tab away mid-flight and the
     // scene had drifted off into the distance by the time you returned.
     this._onBlur = () => { this.keys.clear(); this.velocity.set(0, 0, 0); this.look.dragging = false; };
-    this._onPointerDown = (e) => { this.releaseExternal(); if (this.mode !== 'fly') return; this.look.dragging = true; this.look.lastX = e.clientX; this.look.lastY = e.clientY; dom.setPointerCapture?.(e.pointerId); };
+    // Touching the controls cancels a scripted sweep as well as releasing an external driver.
+    // Without the cancel, update() kept lerping towards the old target for the rest of the
+    // 1.5-2 s flight and overwrote the drag every frame — the rig promises "the first input
+    // hands control back", and on the most-used path in the page it did not keep that promise.
+    this._onPointerDown = (e) => { this.takeOver(); if (this.mode !== 'fly') return; this.look.dragging = true; this.look.lastX = e.clientX; this.look.lastY = e.clientY; dom.setPointerCapture?.(e.pointerId); };
     this._onPointerUp = () => { this.look.dragging = false; };
     this._onPointerMove = (e) => {
       if (this.mode !== 'fly' || !this.look.dragging) return;
@@ -53,7 +57,7 @@ export class CameraRig {
       this.look.pitch = THREE.MathUtils.clamp(this.look.pitch - dy * 0.0022, -1.45, 1.45);
     };
     this._onWheel = (e) => {
-      this.releaseExternal();
+      this.takeOver();
       if (this.mode !== 'fly') return;
       this.flySpeed = THREE.MathUtils.clamp(this.flySpeed * (e.deltaY > 0 ? 0.85 : 1.18), 0.5, 200);
     };
@@ -144,14 +148,25 @@ export class CameraRig {
     this.orbit.maxPolarAngle = Math.acos(THREE.MathUtils.clamp(cosMax, -1, 1));
   }
 
-  /** Hands the camera back to the viewer, from wherever the scripted shot had left it. */
+  /**
+   * Hands the camera back to the viewer, from wherever the scripted shot had left it.
+   *
+   * `orbit.enabled` follows the MODE, not the fact of release: forcing it true here while the
+   * rig was in free flight left OrbitControls and the fly integrator both writing
+   * camera.position, and the viewer had to press F twice to get out.
+   */
   releaseExternal() {
     if (!this.external) return;
     this.external = false;
-    this.orbit.enabled = true;
-    this.applyPolarLimit();
-    this.orbit.update();
+    this.orbit.enabled = this.mode === 'orbit';
+    if (this.orbit.enabled) { this.applyPolarLimit(); this.orbit.update(); }
     this.onExternalRelease?.();
+  }
+
+  /** Everything a direct input by the viewer cancels: a scripted shot and a framing sweep. */
+  takeOver() {
+    this.releaseExternal();
+    this._endTransition();
   }
 
   update(dt) {
