@@ -9,7 +9,7 @@ import { mesh, mergeAll, mat4 } from '../geometry/utils.js';
 /** Radius of the apron disc at ground level, before the ascent stretches it. */
 const GROUND_R = 2500;
 
-export function createEnvironment(renderer, scene, M) {
+export function createEnvironment(renderer, scene, M, quality = {}) {
   const sunDir = new THREE.Vector3();
 
   // --- Sky (physical atmosphere shader) ---
@@ -52,7 +52,10 @@ export function createEnvironment(renderer, scene, M) {
   // --- Lights ---
   const sun = new THREE.DirectionalLight(0xfff2e0, 3.2);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(4096, 4096);
+  // Shadow resolution is a tier decision: one map covers the whole apron, so its cost scales
+  // with nothing the viewer controls and a phone cannot afford 4096².
+  const SHADOW_MAP = quality.shadowMap ?? 4096;
+  sun.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);
   sun.shadow.camera.near = 5;
   sun.shadow.camera.far = 1200;
   sun.shadow.bias = -0.00035;

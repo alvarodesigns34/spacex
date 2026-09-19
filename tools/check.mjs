@@ -64,7 +64,10 @@ const report = (ok, label, detail = '') => {
 };
 
 try {
-  await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'load', timeout: 120000 });
+  // ?quality=high, always. The tier probe demotes a software rasteriser to the cheapest
+  // settings, and CI runs on SwiftShader — without this the gate would be measuring a reduced
+  // scene and reporting it as the one visitors get.
+  await page.goto(`http://127.0.0.1:${PORT}/index.html?quality=high`, { waitUntil: 'load', timeout: 120000 });
   await page.waitForFunction(() => window.__vc && !document.getElementById('loading'), null, { timeout: 300000 });
 
   const { dimensions, pad, interfaces, scene } = await page.evaluate(() => window.__vc.verify());
@@ -91,6 +94,80 @@ try {
     }
   }
   report(bad.length === 0, `${Object.values(presets).flat().length} vistas`, bad.length ? `inválidas: ${bad.join(', ')}` : 'todas válidas');
+
+  // The gate must be looking at the scene a visitor with a real GPU gets. If ?quality= is
+  // ever dropped or the forcing breaks, every dimensional row above silently starts measuring
+  // a reduced scene — and would keep passing, because the reduced scene is self-consistent.
+  {
+    const q = await page.evaluate(() => {
+      const v = window.__vc;
+      return { name: v.quality.name, forced: v.quality.forced, shadow: v.env.sun.shadow.mapSize.x, lod: v.lod.pixels };
+    });
+    report(q.name === 'high' && q.forced && q.shadow === 4096,
+      'la comprobación corre con la calidad completa',
+      `nivel ${q.name}${q.forced ? ' (forzado)' : ''}, sombras ${q.shadow}, lod ${q.lod} px`);
+  }
+
+  // ---- The state machine's own invariants ------------------------------------------------
+  // What the centre is showing is one object now (core/viewState.js) rather than seven loose
+  // flags, so the rules can be asserted directly instead of inferred from the scene's
+  // reaction to them. Each of these held only by convention before, and each was broken at
+  // least once: the tour ran on under a launch, the preset tabs disagreed with the camera,
+  // a typo'd deep link left the machine in a view that did not exist.
+  {
+    const S = () => page.evaluate(() => window.__vc.viewState());
+
+    // A requested view an exhibit does not have must resolve to one it does.
+    await page.evaluate(() => window.__vc.jump('dragon', 'no-such-view'));
+    const resolved = await S();
+    report(resolved.exhibit === 'dragon' && resolved.preset === 'overview',
+      'una vista inexistente cae en la primera del expositor', `quedó en ${resolved.preset}`);
+
+    // Orbital is derived, never set: it is true for exactly one exhibit, one view, on the
+    // ground. Asserting the derivation stops anyone reintroducing it as a flag.
+    await page.evaluate(() => window.__vc.jump('roadster', 'earth'));
+    const orb = await S();
+    await page.evaluate(() => window.__vc.jump('roadster', 'detail'));
+    const notOrb = await S();
+    report(orb.orbital && !orb.furniture && !notOrb.orbital && notOrb.furniture,
+      'la vista orbital se deduce del expositor y la vista',
+      `earth ${orb.orbital}/mobiliario ${orb.furniture} · detail ${notOrb.orbital}/mobiliario ${notOrb.furniture}`);
+
+    // Ownership. Each of the three drivers must displace the other two.
+    await page.evaluate(() => { window.__vc.stopTour(); window.__vc.launch.reset(false); window.__vc.jump(null); });
+    await page.evaluate(() => window.__vc.startTour());
+    const owned = await S();
+    await page.evaluate(() => window.__vc.launch.start());
+    const stolen = await S();
+    await page.evaluate(() => window.__vc.select('dragon'));
+    const back = await S();
+    report(owned.owner === 'tour' && stolen.owner === 'launch' && back.owner === 'user',
+      'el dueño de la cámara pasa de visita a lanzamiento a visitante',
+      `${owned.owner} -> ${stolen.owner} -> ${back.owner}`);
+    await page.evaluate(() => { window.__vc.stopTour(); window.__vc.launch.reset(false); });
+
+    // Churn: twenty view changes back to back must leave one coherent state, not a mixture.
+    await page.evaluate(() => {
+      const v = window.__vc;
+      const ids = Object.keys(v.exhibits);
+      for (let i = 0; i < 20; i++) {
+        const id = ids[i % ids.length];
+        const ps = v.exhibits[id].data.presets;
+        v.jump(id, ps[i % ps.length].id);
+      }
+      v.jump('starlink', 'bus');
+    });
+    const churn = await S();
+    const churnHud = await page.evaluate(() => ({
+      rail: document.querySelector('.rail-item.active')?.dataset.id ?? null,
+      preset: document.querySelector('.preset.active')?.dataset.preset ?? null,
+    }));
+    report(churn.exhibit === 'starlink' && churn.preset === 'bus'
+      && churnHud.rail === 'starlink' && churnHud.preset === 'bus' && !churn.orbital,
+      'veinte cambios de vista seguidos dejan un estado coherente',
+      `estado ${churn.exhibit}/${churn.preset} · interfaz ${churnHud.rail}/${churnHud.preset}`);
+    await page.evaluate(() => window.__vc.jump(null));
+  }
 
   // Scripted views must keep the selected exhibit and view tab in sync.
   {

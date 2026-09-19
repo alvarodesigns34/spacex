@@ -12,6 +12,9 @@ import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer
 import { createMaterials } from './materials/library.js';
 import { createEnvironment } from './core/environment.js';
 import { CameraRig } from './core/cameraRig.js';
+import { ViewState } from './core/viewState.js';
+import { pickQuality, applyQuality } from './core/quality.js';
+import { LODManager } from './core/lod.js';
 import { createHUD } from './ui/hud.js';
 import { VEHICLES } from './data/specs.js';
 import { buildStarship } from './vehicles/starship.js';
@@ -108,12 +111,17 @@ async function main() {
   // stick, so testing on the real one would silently drop powerPreference below.
   if (!document.createElement('canvas').getContext('webgl2')) { reportNoWebGL2(); return; }
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  // What this machine can afford, decided once from what it reports rather than from its
+  // user-agent string. ?quality=low|medium|high forces a tier, which is how a tier you do not
+  // own gets tested — and how the headless gate stays on the full scene, since a reduced one
+  // would be checking geometry the viewer never sees.
+  const params = new URLSearchParams(location.search);
+  const quality = pickQuality(renderer, params.get('quality'));
+  applyQuality(renderer, quality);
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 0.72;
-  renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const labelRenderer = new CSS2DRenderer({ element: document.getElementById('labels') });
@@ -125,9 +133,11 @@ async function main() {
 
   const rig = new CameraRig(camera, canvas);
   rig.target.set(...OVERVIEW.target);
+  // Detail is a function of how big something is on screen, so the manager needs the camera
+  // and the tier's pixel threshold; entries are registered as each exhibit is built.
+  const lod = new LODManager(camera, { pixels: quality.lodPixels });
 
   // ---- HUD ----
-  let active = null;
   let sunRaf = 0, pendingSun = 42;
   const hud = createHUD({
     vehicles: VEHICLES,
@@ -165,15 +175,19 @@ async function main() {
   timings.materials = performance.now() - t0;
   hud.setProgress('Lighting and environment…', 0.25);
   await nextFrame();
-  const env = createEnvironment(renderer, scene, M);
+  const env = createEnvironment(renderer, scene, M, quality);
 
   // ---- Post-processing (MSAA render target + subtle bloom) ----
-  const rt = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { samples: 4, type: THREE.HalfFloatType });
+  const rt = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { samples: quality.msaa, type: THREE.HalfFloatType });
   const composer = new EffectComposer(renderer, rt);
   const renderPass = new RenderPass(scene, camera);
   composer.addPass(renderPass);
-  const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.12, 0.6, 0.92);
-  composer.addPass(bloom);
+  // Bloom is the first thing a weak machine gives up: it costs a full-resolution blur chain
+  // and the scene reads correctly without it.
+  const bloom = quality.bloom
+    ? new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.12, 0.6, 0.92)
+    : null;
+  if (bloom) composer.addPass(bloom);
   composer.addPass(new OutputPass());
   // The render target above is sized in CSS pixels, which is what EffectComposer stores as its
   // width — so on a device with devicePixelRatio > 1 the scene was rendering into a 1x buffer
@@ -307,10 +321,30 @@ async function main() {
       labels.add(pg);
       exhibits[v.id].padLabels = pg;
     }
-    // Vehicles may publish a near/far pair for detail that is only worth drawing up close.
-    let lod = null;
-    model.traverse(o => { if (o.userData && o.userData.lod) lod = o.userData.lod; });
-    exhibits[v.id].lod = lod;
+    // ---- Level of detail ------------------------------------------------------------
+    // Two ways a vehicle takes part. A builder may publish a near/far PAIR — Starship's heat
+    // shield does, swapping 13,500 instanced hexagons for one textured shell — or it may
+    // simply name groups that stop being worth drawing below a pixel threshold. Both are
+    // registered against the exhibit's live position, because a vehicle in flight is not
+    // where its mount is.
+    const here = (out) => {
+      const f = exhibits[v.id].flight;
+      return out.set(lay.x + (f ? f.position.x : 0),
+        exhibits[v.id].hullTop * 0.5 + (f ? f.position.y : 0), lay.z);
+    };
+    let pair = null;
+    model.traverse(o => { if (o.userData && o.userData.lod) pair = o.userData.lod; });
+    if (pair) {
+      lod.register({ name: `${v.id}-tps`, at: here, feature: 0.26, near: pair.near, far: pair.far });
+    }
+    // Detail groups a builder has marked as small. `lodFeature` is the size of the smallest
+    // thing the group draws, so the same threshold means the same thing on a 2 cm panel gap
+    // and a 26 cm tile.
+    const small = [];
+    model.traverse((o) => { if (o.userData?.lodFeature) small.push(o); });
+    for (const o of small) {
+      lod.registerHidden(`${v.id}-${o.name || 'detail'}`, [o], here, o.userData.lodFeature);
+    }
 
     // scale figures
     const baseY = 0;
@@ -346,11 +380,11 @@ async function main() {
   // ---- Launch sequence ----
   const launch = createLaunch({
     scene, exhibits, complex, env, rig, camera,
-    onStart: () => claimCamera('launch'),
+    onStart: () => enforce(view.claim('launch')),
     onState: (st) => hud.setMission(st.running ? st : null),
     onFinish: () => goPreset('starship', 'site'),
   });
-  launch.setVisibilityHook((flying) => { launchFlying = flying; applyVisibility(); });
+  launch.setVisibilityHook((flying) => view.setFlying(flying));
 
   hud.setProgress('Compiling shaders…', 0.95);
   await nextFrame();
@@ -361,25 +395,38 @@ async function main() {
   hud.setActive(null);
 
   // ---- Interaction ----
-  const state = { labels: true, ruler: true, humans: true };
-  let launchFlying = false;
-  let activePreset = null;
-  // Views authored in the site frame are the ones the pad callouts belong to.
+  // One object holds what the centre is showing, and one function reacts to it. Everything
+  // that used to be a loose flag — which exhibit, which view, who owns the camera, is the
+  // vehicle flying, is the Roadster in orbit, is the furniture up — is a field or a derived
+  // property of ViewState now, so a transition cannot be half-applied. See core/viewState.js
+  // for why: every costly bug in this project lived in the gaps between those flags.
+  //
+  // `site` and the preset resolver are injected rather than imported, because only main.js
+  // knows the exhibit catalogue.
   const SITE_VIEWS = new Set(VEHICLES.flatMap(v => (v.presets ?? []).filter(p => p.frame === 'site').map(p => p.id)));
+  const view = new ViewState({
+    isSiteView: (v) => SITE_VIEWS.has(v.preset),
+    // A requested view that the exhibit does not have falls back to its first, so a typo in a
+    // deep link or a stale tour entry cannot put the machine into a view that does not exist.
+    resolvePreset: (id, want) => {
+      const list = exhibits[id]?.data.presets ?? [];
+      return list.find(p => p.id === want)?.id ?? list[0]?.id ?? null;
+    },
+  });
+  // Read-only aliases kept for the many places below that only look at the state.
+  const state = view.toggles;
   function setToggle(name, value) {
-    state[name] = value;
-    applyVisibility();
+    view.setToggle(name, value);
     hud.toggle(name, value);
   }
   // The Roadster is a museum piece in the row and a payload in the orbital view, never both:
   // plinth or payload adapter, ground or Earth. Entering the view swaps the presentation and
   // leaving it swaps back — env.setAltitude(0) restores sky, fog, ambient and ground exactly,
   // which is what the check asserts after walking every preset.
-  const ORBITAL_VIEW = 'earth';
-  let orbital = false, backdrop = null;
+  let orbitalMounted = false, backdrop = null;
   function setOrbital(on) {
-    if (on === orbital) return;
-    orbital = on;
+    if (on === orbitalMounted) return;
+    orbitalMounted = on;
     const ex = exhibits.roadster;
     ex?.model.userData.setOrbital?.(on);
     if (roadsterPedestal) roadsterPedestal.visible = !on;
@@ -398,29 +445,32 @@ async function main() {
     env.setSpace(on);
   }
 
+  /**
+   * The one place the scene is brought into line with the state. Subscribed to ViewState, so
+   * it runs once per settled transition rather than being remembered at each call site — the
+   * forgetting is what used to leave the preset tabs and the camera disagreeing.
+   */
   function applyVisibility() {
     // Callouts, rulers and the scale figures are museum furniture: they belong on a vehicle
     // standing on its mount, not on one that has left it.
-    const site = SITE_VIEWS.has(activePreset);
-    setOrbital(active === 'roadster' && activePreset === ORBITAL_VIEW && !launchFlying);
+    const { site, orbital, near, flying, toggles } = { ...view.snapshot(), toggles: view.toggles, near: view.near };
+    setOrbital(orbital);
     for (const [id, ex] of Object.entries(exhibits)) {
-      const on = id === active && !launchFlying;
+      const on = id === view.exhibit && !flying;
       const lg = labels.getObjectByName(`labels-${id}`);
-      lg.visible = on && state.labels && !(ex.padLabels && site);
+      lg.visible = on && toggles.labels && !(ex.padLabels && site);
       // Callouts carry the range they read at. Showing all nine on a 3,9 m car at once hides
       // the car behind its own captions, which is what the overview shot was doing.
-      const near = new Set(['starman', 'dontpanic', 'detail', 'selfie']);
       for (const o of lg.children) {
         const sc = o.userData.scope ?? 'all';
-        o.visible = sc === 'all'
-          || (sc === 'near' && near.has(activePreset))
-          || (sc === 'orbital' && orbital);
+        o.visible = sc === 'all' || (sc === 'near' && near) || (sc === 'orbital' && orbital);
       }
-      if (ex.padLabels) ex.padLabels.visible = on && state.labels && site;
-      ex.ruler.visible = on && state.ruler && !site && !(id === 'roadster' && orbital);
+      if (ex.padLabels) ex.padLabels.visible = on && toggles.labels && site;
+      ex.ruler.visible = on && toggles.ruler && !site && !(id === 'roadster' && orbital);
     }
-    humans.visible = state.humans && !launchFlying && !orbital;
+    humans.visible = toggles.humans && view.furniture;
   }
+  view.subscribe(applyVisibility);
 
   function toggleMode() {
     stopTour();
@@ -429,7 +479,7 @@ async function main() {
 
   function toggleLaunch() {
     if (launch.running) { launch.reset(); return; }
-    active = 'starship';
+    view.select('starship', 'launch');
     hud.setActive('starship');
     launch.start();
   }
@@ -448,52 +498,51 @@ async function main() {
     return { pos: put(p.pos), target: put(p.target) };
   }
   /**
-   * One place decides who is driving the camera. Three things can: the visitor, the guided
-   * tour, and the launch sequence. They used to cancel each other only in some directions —
-   * starting the tour reset the launch, but starting the launch left the tour's timer running,
-   * so it went on calling jump() (switching exhibit, preset, labels and the orbital backdrop)
-   * underneath a sequence that was driving the camera every frame, and then dropped the viewer
-   * at the overview with the rocket still in flight. Key 0 had the same hole.
+   * Carries out whatever the state machine says a change of camera owner has to stop. The
+   * machine decides the rule; this knows where the tour's timer and the launch sequence live.
    *
-   * The visitor claiming the camera ends both automatic drivers. It does NOT end the launch
-   * when the claim comes from dragging or scrolling: that courtesy is CameraRig.external's
-   * business and is deliberate.
+   * Three things can drive the camera — the visitor, the tour and the launch — and they used
+   * to cancel each other only in some directions: starting the tour reset the launch, but
+   * starting the launch left the tour's timer running, so it went on re-framing the scene
+   * under a sequence that owned the camera and then dropped the viewer at the overview with
+   * the rocket still in flight.
    */
-  function claimCamera(owner) {
-    if (owner !== 'tour') stopTour();
-    if (owner !== 'launch' && launch.running) launch.reset(false);
+  function enforce(stop) {
+    if (stop?.tour) stopTour();
+    if (stop?.launch && launch.running) launch.reset(false);
+  }
+
+  /** Brings the HUD into line with the state, after the scene has been. */
+  function syncHud() {
+    hud.setActive(view.exhibit);
+    if (view.preset) hud.setPreset(view.preset);
   }
 
   function select(id) {
     // Picking a vehicle is a request to look at the museum, so it ends whatever was driving.
-    claimCamera('user');
-    active = id;
-    hud.setActive(id);
-    activePreset = 'overview';
-    applyVisibility();
+    enforce(view.select(id, 'user'));
+    syncHud();
     if (!id) { rig.flyTo(OVERVIEW.pos, OVERVIEW.target, 2.0); return; }
-    const w = worldPreset(id, 'overview');
+    const w = worldPreset(id, view.preset);
     rig.flyTo(w.pos, w.target, 1.9);
   }
   function goPreset(id, presetId, owner = 'user') {
-    claimCamera(owner);
-    active = id;
-    hud.setActive(id);
-    activePreset = exhibits[id].data.presets.find(p => p.id === presetId)?.id ?? exhibits[id].data.presets[0].id;
-    hud.setPreset(activePreset);
-    applyVisibility();
-    const w = worldPreset(id, activePreset);
+    enforce(view.goPreset(id, presetId, owner));
+    syncHud();
+    const w = worldPreset(id, view.preset);
     rig.flyTo(w.pos, w.target, 1.5);
   }
   /** @param owner who is asking; the tour passes 'tour' so it does not cancel itself. */
   function jump(id, presetId, owner = 'user') {
-    claimCamera(owner);
-    if (!id) { active = null; activePreset = null; hud.setActive(null); applyVisibility(); rig.jumpTo(OVERVIEW.pos, OVERVIEW.target); return; }
-    active = id; activePreset = presetId ?? 'overview'; hud.setActive(id);
-    activePreset = exhibits[id].data.presets.find(p => p.id === activePreset)?.id ?? exhibits[id].data.presets[0].id;
-    hud.setPreset(activePreset);
-    applyVisibility();
-    const w = worldPreset(id, activePreset);
+    if (!id) {
+      enforce(view.select(null, owner));
+      syncHud();
+      rig.jumpTo(OVERVIEW.pos, OVERVIEW.target);
+      return;
+    }
+    enforce(view.goPreset(id, presetId ?? 'overview', owner));
+    syncHud();
+    const w = worldPreset(id, view.preset);
     rig.jumpTo(w.pos, w.target);
   }
   // ---- Guided tour ----------------------------------------------------------------------
@@ -523,7 +572,7 @@ async function main() {
   }
   function startTour() {
     if (tourAt >= 0) return;
-    claimCamera('tour');
+    enforce(view.claim('tour'));
     tourAt = -1;
     tourStep();
   }
@@ -564,8 +613,8 @@ async function main() {
   // Hides annotations whose line of sight to the camera passes through the vehicle body.
   const _lab = new THREE.Vector3();
   function updateLabelOcclusion() {
-    if (!active || !state.labels) return;
-    const ex = exhibits[active];
+    if (!view.exhibit || !view.toggles.labels) return;
+    const ex = exhibits[view.exhibit];
     const lg = ex.labels;
     if (!lg || !lg.visible) return;
     if (!ex.occluders.length) return;
@@ -607,27 +656,7 @@ async function main() {
     }
   }
 
-  // Swaps the heat shield between instanced tiles and a textured shell. A 0.26 m tile stops
-  // resolving at roughly a couple of pixels; past that the instances only add sparkle.
-  const _lodC = new THREE.Vector3();
   const _fwd = new THREE.Vector3();
-  function updateLOD() {
-    const mpp = (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) / window.innerHeight;
-    for (const ex of Object.values(exhibits)) {
-      if (!ex.lod) continue;
-      // A vehicle that has left its mount is measured from where it actually is.
-      const f = ex.flight;
-      _lodC.set(ex.lay.x + (f ? f.position.x : 0), ex.hullTop * 0.5 + (f ? f.position.y : 0), ex.lay.z);
-      const px = 0.26 / (camera.position.distanceTo(_lodC) * mpp);
-      const near = px > 3.5;
-      // Track the state explicitly: inferring it from the far group's visibility silently
-      // no-ops on the first evaluation, when both halves are still visible.
-      if (ex.lod.state === near) continue;
-      ex.lod.state = near;
-      ex.lod.far.visible = !near;
-      for (const o of ex.lod.near) o.visible = near;
-    }
-  }
 
   function frame() {
     const dt = Math.min(clock.getDelta(), 0.05);
@@ -643,7 +672,7 @@ async function main() {
     const mpp = (2 * dist * Math.tan(fovH / 2)) / window.innerHeight;
     hud.setScale(mpp, dist);
     updateLabelOcclusion();
-    updateLOD();
+    lod.update();
     composer.render();
     labelRenderer.render(scene, camera);
     requestAnimationFrame(frame);
@@ -655,6 +684,9 @@ async function main() {
   // puts the sequence back on the pad first.
   const verify = () => {
     launch.reset(false);
+    // Measure the geometry the builders produced, never whichever half of it the camera
+    // happened to be close enough for.
+    lod.forceDetailed();
     return {
       dimensions: verifyExhibits(exhibits),
       pad: verifyPad(complex),
@@ -719,8 +751,15 @@ async function main() {
     hudEl.style.visibility = 'hidden'; labelEl.style.visibility = 'hidden';
   }
 
-  window.__vc = { M, scene, camera, rig, exhibits, complex, launch, select, goPreset, jump, renderer, env, setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour, get tourAt() { return tourAt; } };
-  const params = new URLSearchParams(location.search);
+  window.__vc = {
+    M, scene, camera, rig, exhibits, complex, launch, select, goPreset, jump, renderer, env,
+    setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour,
+    // The state machine itself, so the gate can assert on transitions rather than on the
+    // scene's reaction to them.
+    view, viewState: () => view.snapshot(),
+    quality, lod,
+    get tourAt() { return tourAt; },
+  };
   if (params.has('verify')) verify();
   if (params.has('vehicle')) {
     // Unvalidated, a typo here threw inside worldPreset after the loading card was gone: black
