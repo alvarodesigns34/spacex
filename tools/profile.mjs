@@ -99,7 +99,14 @@ if (!args.includes('--census-only')) {
 situations.push(await situation('overview', () => window.__vc.jump(null)));
 situations.push(await situation('starship-site', () => window.__vc.jump('starship', 'site')));
 situations.push(await situation('starship-engines', () => window.__vc.jump('starship', 'engines')));
-situations.push(await situation('starship-tps-far', () => window.__vc.jump('starship', 'site')));
+situations.push(await situation('starship-tps-near', () => window.__vc.jump('starship', 'tiles')));
+situations.push(await situation('starship-tps-far', () => {
+  // Far enough that the shield is on its baked shell, framed on the same barrel.
+  const v = window.__vc, e = v.exhibits.starship;
+  const oy = e.model.position.y + 95;
+  v.rig.jumpTo([e.lay.x + 55, oy + 18, e.lay.z + 140], [e.lay.x, oy, e.lay.z]);
+}));
+situations.push(await situation('pad-site', () => window.__vc.jump('starship', 'site')));
 situations.push(await situation('roadster-detail', () => window.__vc.jump('roadster', 'detail')));
 situations.push(await situation('roadster-far', () => window.__vc.jump(null)));
 situations.push(await situation('dragon-detail', () => window.__vc.jump('dragon', 'superdraco')));

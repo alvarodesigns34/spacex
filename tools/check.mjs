@@ -133,6 +133,36 @@ try {
     await page.evaluate(() => { window.__vc.lod.forceDetailed(); window.__vc.jump(null); });
   }
 
+  // ---- Detail must never change what is measured ------------------------------------------
+  // Every dimensional row, every pad row and every interface row has to describe the geometry
+  // the builders produced, whatever the camera happens to be close enough for. The measurement
+  // is a property of the model; the level of detail is a property of the view, and the moment
+  // one can move the other, a vehicle could shed the part being measured and pass.
+  //
+  // Asked the only way that settles it: run the whole verification from 300 m with the detail
+  // shed, run it again from two metres with everything up, and require the two to be identical
+  // character for character.
+  {
+    const run = async (setup, forceDetail) => {
+      await page.evaluate(setup);
+      await page.evaluate(() => window.__vc.lod.update());
+      return page.evaluate((f) => {
+        const r = window.__vc.verify({ forceDetail: f });
+        const shed = window.__vc.lod.snapshot().filter(x => x.detailed === false).length;
+        return { shed, v: JSON.stringify({ d: r.dimensions, p: r.pad, i: r.interfaces }) };
+      }, forceDetail);
+    };
+    // From 300 m with the detail shed and the forcing turned OFF, against the same
+    // verification run normally. Leaving the forcing on would have both runs looking at the
+    // same visible scene, and a measurement that quietly consulted `visible` would pass.
+    const shedRun = await run(() => window.__vc.jump(null), false);
+    const fullRun = await run(() => window.__vc.jump('starship', 'engines'), true);
+    report(shedRun.v === fullRun.v && shedRun.shed > 0,
+      'el nivel de detalle no altera ninguna medición',
+      `${shedRun.shed} grupos retirados y sin forzar detalle · medidas ${shedRun.v === fullRun.v ? 'idénticas' : 'DISTINTAS'}`);
+    await page.evaluate(() => { window.__vc.lod.forceDetailed(); window.__vc.jump(null); });
+  }
+
   // ---- The state machine's own invariants ------------------------------------------------
   // What the centre is showing is one object now (core/viewState.js) rather than seven loose
   // flags, so the rules can be asserted directly instead of inferred from the scene's

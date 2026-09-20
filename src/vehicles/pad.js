@@ -133,7 +133,7 @@ function buildGround(M) {
       ramps.push(block(-tw + 0.2, tw - 0.2, yr - 0.1, yr + 0.18, sz * r - 0.18, sz * r + 0.18));
     }
   }
-  g.add(mesh(boxUV(mergeAll(ramps)), M.trenchArmor || M.darkMetal));
+  g.add(mesh(boxUV(mergeAll(ramps)), M.trenchArmor || M.darkMetal, { name: 'trench-ramps' }));
   return g;
 }
 
@@ -171,7 +171,7 @@ function buildMountTable(M) {
     steel.push(block(x - pierHalf, x + pierHalf, padY + 1.35, deckBottom, z - pierHalf, z + pierHalf));
   }
   g.add(mesh(boxUV(mergeAll(plinths)), M.concrete));
-  g.add(mesh(boxUV(mergeAll(baseplates)), M.darkMetal));
+  g.add(mesh(boxUV(mergeAll(baseplates)), M.darkMetal, { name: 'mount-baseplates' }));
 
   // Girders under the deck, spanning pier to pier both ways.
   for (const s of [-1, 1]) {
@@ -204,8 +204,8 @@ function buildMountTable(M) {
     catwalkRail.push(block(-pierAt + pierHalf, pierAt - pierHalf, 14.65, 14.75, s * (pierAt - 1.25) - 0.04, s * (pierAt - 1.25) + 0.04));
     catwalkRail.push(block(s * (pierAt - 1.25) - 0.04, s * (pierAt - 1.25) + 0.04, 14.65, 14.75, -pierAt + pierHalf, pierAt - pierHalf));
   }
-  g.add(mesh(boxUV(mergeAll(catwalk)), M.steelGrating || M.mount));
-  g.add(mesh(boxUV(mergeAll(catwalkRail)), M.mount, { castShadow: false }));
+  g.add(mesh(boxUV(mergeAll(catwalk)), M.steelGrating || M.mount, { name: 'mount-catwalk' }));
+  g.add(mesh(boxUV(mergeAll(catwalkRail)), M.mount, { castShadow: false, name: 'mount-catwalk-rail' }));
 
   // Deluge water supply risers climbing the piers to the table manifold
   const risers = [];
@@ -215,7 +215,7 @@ function buildMountTable(M) {
       matrix: mat4([sx * (pierAt - 1.2), padY + 1.35 + (deckBottom - 0.4 - padY - 1.35) / 2, -pierAt - pierHalf - 0.45]),
     });
   }
-  g.add(mesh(boxUV(mergeAll(risers)), M.pipeBlue || M.conduit));
+  g.add(mesh(boxUV(mergeAll(risers)), M.pipeBlue || M.conduit, { name: 'mount-risers' }));
 
   // Water-cooled table seat: an annular steel plate cantilevered inboard of the deck opening
   // for the booster skirt to sit on. Its inner edge is what actually sets the size of the
@@ -237,14 +237,14 @@ function buildMountTable(M) {
   const manifold = new THREE.TorusGeometry(openingR + 0.9, 0.32, 8, 64);
   manifold.rotateX(Math.PI / 2);
   manifold.translate(0, deckBottom - 0.4, 0);
-  g.add(mesh(boxUV(mergeAll([{ geometry: manifold }])), M.conduit));
+  g.add(mesh(boxUV(mergeAll([{ geometry: manifold }])), M.conduit, { name: 'deck-manifold' }));
 
   // Deluge headers on the deck: a ring of nozzles pointing at the vehicle base.
   const nozzles = [];
   radial(32, (a) => {
     nozzles.push({ geometry: new THREE.CylinderGeometry(0.09, 0.09, 0.75, 6), matrix: mat4([Math.sin(a) * (tableR + 0.85), deckTop + 0.38, Math.cos(a) * (tableR + 0.85)], [0.35 * Math.cos(a), 0, -0.35 * Math.sin(a)]) });
   });
-  g.add(mesh(boxUV(mergeAll(nozzles)), M.conduit, { castShadow: false }));
+  g.add(mesh(boxUV(mergeAll(nozzles)), M.conduit, { castShadow: false, name: 'deck-nozzles' }));
 
   // Deck fascia and the perimeter walkway rail. Without them the deck reads as a bare table
   // rather than a structure people work on, and the rail is the only thing at the top of the
@@ -254,7 +254,7 @@ function buildMountTable(M) {
     trim.push(block(-h, h, deckTop - deckThick - 0.9, deckTop - deckThick, s2 * h - 0.5, s2 * h));
     trim.push(block(s2 * h - 0.5, s2 * h, deckTop - deckThick - 0.9, deckTop - deckThick, -h, h));
   }
-  g.add(mesh(boxUV(mergeAll(trim)), M.mount));
+  g.add(mesh(boxUV(mergeAll(trim)), M.mount, { name: 'mount-trim' }));
   const rail = [];
   for (const s2 of [-1, 1]) {
     for (const y of [deckTop + 0.62, deckTop + 1.15]) {
@@ -267,7 +267,7 @@ function buildMountTable(M) {
       rail.push(block(s2 * (h - 0.35) - 0.05, s2 * (h - 0.35) + 0.05, deckTop, deckTop + 1.15, t - 0.05, t + 0.05));
     }
   }
-  g.add(mesh(boxUV(mergeAll(rail)), M.mount, { castShadow: false }));
+  g.add(mesh(boxUV(mergeAll(rail)), M.mount, { castShadow: false, name: 'mount-rail' }));
 
   // Twenty hold-down clamps. Kept as separate meshes so the launch sequence can release
   // them individually; twenty extra draw calls is a fair price for that.
@@ -404,7 +404,7 @@ function buildQdArm(M) {
       geometry: tube([[0.2, 1.9, dz], [L * 0.35, 2.5, dz], [L * 0.75, 2.1, dz], [L - 1.6, 1.4, dz]], 0.17, { tubular: 20, radial: 7 }),
     });
   }
-  pivot.add(mesh(boxUV(mergeAll(lines)), M.conduit, { castShadow: false }));
+  pivot.add(mesh(boxUV(mergeAll(lines)), M.conduit, { castShadow: false, name: 'qd-lines' }));
   return pivot;
 }
 
@@ -625,6 +625,22 @@ export function buildLaunchComplex(M) {
     qdArm: qd,
     chopsticks: chop,
   };
+  // ---- Level of detail --------------------------------------------------------------------
+  // The complex is nearly always looked at from a hundred metres or more, and a good deal of
+  // what it carries is centimetres: the grating on the mount's catwalk and its handrail, the
+  // deluge nozzles across the deck, the blue risers feeding them, the trim strips, the
+  // carriage rail and the QD arm's flex lines. None of it changes the shape of anything.
+  //
+  // Everything structural stays at every distance — tower, mount, deck, clamps, arms, trench
+  // and its armour — because the complex's silhouette is the reason it is there.
+  const FINE = {
+    'mount-catwalk': 0.05, 'mount-catwalk-rail': 0.05, 'mount-risers': 0.12,
+    'deck-manifold': 0.2, 'deck-nozzles': 0.06, 'mount-trim': 0.09,
+    'mount-rail': 0.1, 'trench-ramps': 0.3, 'qd-lines': 0.08,
+    'mount-baseplates': 0.14,
+  };
+  g.traverse((o) => { const f = FINE[o.name]; if (f) o.userData.lodFeature = f; });
+
   g.userData.annotations = [
     { label: 'Integration and launch tower · 144.5 m', position: [PAD.towerX - 9, PAD.padY + 96, 0] },
     { label: 'Catch arms · 36 m', position: [PAD.towerX + 16, PAD.armY + 4, -22] },

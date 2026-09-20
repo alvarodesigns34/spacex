@@ -503,7 +503,15 @@ export function buildShip(M) {
   for (const f of flapFaces) far.add(mesh(f.geometry, M.tpsShell, { castShadow: false, matrix: f.matrix }));
   far.visible = false;              // the pair starts in the near state; main.js drives it
   g.add(far);
-  g.userData.lod = { near: [tiles, backing], far, state: true };
+  // The swap has to happen where the two states look the same, and that is much further in
+  // than the default threshold put it. At 3.5 px a 0.26 m tile is two or three pixels of hull:
+  // the mosaic and its grooves are then a signal finer than the sampling grid, and it aliases
+  // into a field of bright speckle that is both wrong and noticeably lighter than the baked
+  // shell it replaced — visible as a hard pop across the whole windward face at about ninety
+  // metres. `bias` is a multiplier on the threshold, so 2.1 holds the shell until a tile is
+  // about seven pixels, where the hexagons and their grooves actually resolve. It is also the
+  // cheaper setting: the one-mesh shell covers more of the range, not less.
+  g.userData.lod = { name: 'tps', near: [tiles, backing], far, state: true, feature: TILE_R * 2, bias: 2.1 };
 
   // Leeward raceway over the LOX downcomer, stopping below the forward flaps.
   const raceLen = barrelTop - skirtTop - 2.4;

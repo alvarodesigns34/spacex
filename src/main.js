@@ -333,18 +333,28 @@ async function main() {
       return out.set(lay.x + (f ? f.position.x : 0),
         exhibits[v.id].hullTop * 0.5 + (f ? f.position.y : 0), lay.z);
     };
-    let pair = null;
-    model.traverse(o => { if (o.userData && o.userData.lod) pair = o.userData.lod; });
-    if (pair) {
-      lod.register({ name: `${v.id}-tps`, at: here, feature: 0.26, near: pair.near, far: pair.far });
+    // EVERY pair, not the last one found. The traverse used to assign into a single variable,
+    // so a vehicle publishing two swaps registered one of them — which happened to be harmless
+    // only because Starship's heat shield was the sole publisher.
+    const pairs = [];
+    model.traverse(o => { if (o.userData?.lod) pairs.push([o, o.userData.lod]); });
+    for (const [owner, pair] of pairs) {
+      lod.register({
+        name: `${v.id}-${pair.name ?? owner.name ?? 'swap'}`,
+        at: here, bounds: owner,
+        feature: pair.feature ?? 0.26, bias: pair.bias ?? 1,
+        near: pair.near, far: pair.far,
+      });
     }
     // Detail groups a builder has marked as small. `lodFeature` is the size of the smallest
     // thing the group draws, so the same threshold means the same thing on a 2 cm panel gap
-    // and a 26 cm tile.
+    // and a 26 cm tile. Each is measured against ITS OWN bounds: on a 124 m vehicle the
+    // midpoint of the hull is nowhere near most of what hangs off it.
     const small = [];
     model.traverse((o) => { if (o.userData?.lodFeature) small.push(o); });
     for (const o of small) {
-      lod.registerHidden(`${v.id}-${o.name || 'detail'}`, [o], here, o.userData.lodFeature);
+      lod.registerHidden(`${v.id}-${o.name || 'detail'}`, [o], here,
+        o.userData.lodFeature, o.userData.lodBias ?? 1, o);
     }
 
     // scale figures
@@ -376,6 +386,18 @@ async function main() {
     ruler.visible = false;
     rulers.add(ruler);
     exhibits[v.id].ruler = ruler;
+  }
+
+  // The launch complex is not an exhibit, so the loop above never reached it — and it is the
+  // largest single object in the scene, drawn in most Starship views from a hundred metres or
+  // more. Its fine hardware is registered the same way, against its own bounds.
+  if (complex) {
+    const padSmall = [];
+    complex.traverse((o) => { if (o.userData?.lodFeature) padSmall.push(o); });
+    for (const o of padSmall) {
+      lod.registerHidden(`pad-${o.name || 'detail'}`, [o], null,
+        o.userData.lodFeature, o.userData.lodBias ?? 1, o);
+    }
   }
 
   // ---- Launch sequence ----
@@ -746,11 +768,17 @@ async function main() {
   // expose for debugging / automated checks
   // Measuring a vehicle in mid-flight would measure the wrong thing, so verification always
   // puts the sequence back on the pad first.
-  const verify = () => {
+  /**
+   * @param opts.forceDetail  normally true: measure the geometry the builders produced, never
+   *        whichever half of it the camera happened to be close enough for. The gate passes
+   *        false to prove the stronger property — that no measurement READS the level-of-detail
+   *        state at all, so that running it against a shed scene gives the same answer. With
+   *        the forcing left on, both runs see the same visible scene and a measurement that
+   *        did depend on visibility would go unnoticed.
+   */
+  const verify = ({ forceDetail = true } = {}) => {
     launch.reset(false);
-    // Measure the geometry the builders produced, never whichever half of it the camera
-    // happened to be close enough for.
-    lod.forceDetailed();
+    if (forceDetail) lod.forceDetailed();
     return {
       dimensions: verifyExhibits(exhibits),
       pad: verifyPad(complex),
@@ -819,6 +847,11 @@ async function main() {
     M, scene, camera, rig, exhibits, complex, launch, select, goPreset, jump, renderer, env,
     setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour,
     claimUserControl, tourRunToEnd, toggleMode,
+    // Exposed so a tool can render a frame and read it back in the same task, before the
+    // drawing buffer is presented and cleared. Comparing the two states of a level-of-detail
+    // swap from one camera is the only way to measure whether the switch is visible, and it
+    // cannot be done from outside the page.
+    composer,
     // The state machine itself, so the gate can assert on transitions rather than on the
     // scene's reaction to them.
     view, viewState: () => view.snapshot(),

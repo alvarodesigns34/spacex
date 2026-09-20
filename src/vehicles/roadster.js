@@ -2794,6 +2794,56 @@ export function buildRoadster(M) {
   interior.name = 'roadster-interior';
   starman.name = 'roadster-starman';
 
+  // The rest of the car, by the size of the smallest thing each part carries.
+  //
+  // Retiring the interior and the occupant was the easy half and left the hard half in place:
+  // in the overview this car is eight pixels tall and was still drawing both headlight bowls
+  // with their reflector cups and retaining rims, both taillight pockets, the wiper, the
+  // ceramic frit band, the arch lips, the splitter, the diffuser strakes and its mesh, the
+  // belly pan, two subframe crossmembers, the battery cooling strake, and on each of the four
+  // wheels a double wishbone, a vented rotor, a caliper, five lug nuts and a valve stem.
+  //
+  // WHAT IS DELIBERATELY NOT HERE: the painted body, the four tyres, the rims and their
+  // spokes, the glass, the lamp lenses and the roll hoops. Those are the car's silhouette and
+  // its colour — the things that make eight pixels read as a red Roadster rather than a red
+  // smudge — and they are drawn whenever the car is drawn at all.
+  //
+  // Each figure is a measurement of that assembly, not a tuning knob: it is the smallest
+  // feature the assembly exists to show, and the manager turns it into a distance.
+  const FINE = {
+    // Lamp internals. Visible through the covers up close; at range the lens is the lamp.
+    'lamp-cup': 0.015, 'lamp-housing': 0.015, 'lamp-aperture-wall': 0.015, 'lamp-rim': 0.012,
+    'taillight-back': 0.015, 'taillight-pocket': 0.015, 'taillight-rim': 0.012,
+    'chmsl-brake-light': 0.012,
+    // Surface trim and apertures: none of it changes the outline, all of it is centimetres.
+    'wheel-arch-lips': 0.02, 'rear-deck-lip': 0.02, 'nose-crease': 0.018,
+    'bonnet-strakes': 0.02, 'front-splitter': 0.025, 'front-grille': 0.015,
+    'front-corner-intake': 0.02, 'front-mouth-plenum': 0.03, 'rear-cooling-port': 0.015,
+    'rear-diffuser-strakes': 0.02, 'rear-diffuser-mesh': 0.012, 'rear-plate-recess': 0.02,
+    'rear-bulkhead-panel': 0.025, 'battery-cooling-strake': 0.02,
+    'windshield-wiper': 0.015, 'windshield-ceramic-frit': 0.02, 'windshield-surround': 0.02,
+    // Underbody: not visible at all except from the one preset that goes looking for it.
+    'underbody-belly-pan': 0.04, 'front-subframe-crossmember': 0.03,
+    'rear-subframe-crossmember': 0.03, 'chassis-support-struts': 0.03,
+    // Wheel hardware. The brakes sit behind the spokes, so they cannot resolve before the
+    // spokes do; the spokes themselves stay, because a rim with no spokes reads as a disc.
+    'suspension-wishbones': 0.03, 'lug-nuts': 0.012, 'valve-stem': 0.01,
+    'wheel-well-liners': 0.05,
+  };
+  let marked = 0;
+  root.traverse((o) => {
+    const f = FINE[o.name];
+    if (f && !o.userData.lodFeature) { o.userData.lodFeature = f; marked++; }
+  });
+  // The brake rotor and its hat are built unnamed, one pair per wheel, and sit inside the rim.
+  for (const w of ['wheel-fl', 'wheel-fr', 'wheel-rl', 'wheel-rr']) {
+    const g = root.getObjectByName(w);
+    for (const c of g?.children ?? []) {
+      if (!c.name && c.isMesh) { c.userData.lodFeature = 0.02; c.name = `${w}-brake`; marked++; }
+    }
+  }
+  root.userData.lodMarked = marked;
+
   // The exhibit was carrying two metaphors at once: a museum plinth AND the payload adapter
   // hanging under it with the three selfie booms. It is one or the other depending on the
   // view, so the flight hardware lives in its own group and only appears in the orbital

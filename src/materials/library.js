@@ -76,9 +76,19 @@ export function createMaterials(onProgress = () => {}) {
   M.tileUnder = new THREE.MeshStandardMaterial({ color: 0x24242a, roughness: 0.98, envMapIntensity: 0.15 });
   // Distant stand-in for the instanced tiles: the same mosaic baked into a map, so the shield
   // reads as one clean panel instead of dissolving into sub-pixel sparkle.
+  // Roughness and ambient response are matched to M.tile above, not chosen independently: the
+  // shell and the tile field are two renderings of the same surface, and a visitor walking in
+  // crosses from one to the other. At 1.0 roughness and 0.62 ambient the shell read as a
+  // markedly darker, flatter band than the mosaic that replaces it, and the switch was a
+  // visible change of material rather than a change of detail.
   M.tpsShell = new THREE.MeshStandardMaterial({
     map: T.tps.map, roughnessMap: T.tps.roughnessMap, normalMap: T.tps.normalMap,
-    normalScale: new THREE.Vector2(0.5, 0.5), roughness: 1.0, metalness: 0.0, envMapIntensity: 0.62,
+    // The baked map is darker than the mosaic it stands in for, because it averages the tile
+    // faces together with the grooves between them while the real field is mostly tile face.
+    // The lift is measured, not guessed: tools/lod-pop.mjs renders both states from the switch
+    // distance and reports the signed luminance difference, which was +18/255 before this.
+    color: new THREE.Color(2.0, 2.0, 2.07),
+    normalScale: new THREE.Vector2(0.5, 0.5), roughness: 0.84, metalness: 0.0, envMapIntensity: 0.9,
     // It sits a couple of centimetres off the hull it covers; at a few hundred metres that is
     // inside the depth buffer's precision, so bias it forward as well.
     polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,

@@ -36,6 +36,13 @@ export class CameraRig {
     // is never locked out of a shot they want to leave.
     this.external = false;
     this.onExternalRelease = null;
+    // Scratch vectors for the free-flight integrator and the two mode switches, which also
+    // built a Vector3 each time they were called.
+    this._fwd = new THREE.Vector3();
+    this._right = new THREE.Vector3();
+    this._up = new THREE.Vector3();
+    this._wish = new THREE.Vector3();
+    this._dir = new THREE.Vector3();
 
     this._onKeyDown = (e) => { if (e.target.tagName === 'INPUT') return; this.keys.add(e.code); };
     this._onKeyUp = (e) => this.keys.delete(e.code);
@@ -83,13 +90,13 @@ export class CameraRig {
       this._endTransition();
       this.orbit.enabled = false;
       // derive yaw/pitch from the current view direction
-      const dir = new THREE.Vector3();
+      const dir = this._dir;
       this.camera.getWorldDirection(dir);
       this.look.yaw = Math.atan2(-dir.x, -dir.z);
       this.look.pitch = Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1));
     } else {
       // keep the orbit target ahead of the camera
-      const dir = new THREE.Vector3();
+      const dir = this._dir;
       this.camera.getWorldDirection(dir);
       const d = Math.max(this.distance, 5);
       this.orbit.target.copy(this.camera.position).addScaledVector(dir, Math.min(d, 60));
@@ -167,7 +174,7 @@ export class CameraRig {
       // Free flight steers from yaw/pitch, so it has to adopt the direction the scripted shot
       // left the camera pointing. Without this the view snapped back to whatever the fly
       // integrator last believed the moment control came back.
-      const dir = new THREE.Vector3();
+      const dir = this._dir;
       this.camera.getWorldDirection(dir);
       this.look.yaw = Math.atan2(-dir.x, -dir.z);
       this.look.pitch = Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1));
@@ -206,12 +213,15 @@ export class CameraRig {
     }
 
     // ---- free-fly ----
+    // Scratch vectors, not fresh ones. Four Vector3 per frame is a small allocation and an
+    // unbounded one: free flight runs for as long as the visitor holds W, so it is a steady
+    // drip of garbage in the one loop that never stops. Reused in place instead.
     const cam = this.camera;
     cam.rotation.set(this.look.pitch, this.look.yaw, 0, 'YXZ');
-    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
-    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(cam.quaternion);
-    const up = new THREE.Vector3(0, 1, 0);
-    const wish = new THREE.Vector3();
+    const fwd = this._fwd.set(0, 0, -1).applyQuaternion(cam.quaternion);
+    const right = this._right.set(1, 0, 0).applyQuaternion(cam.quaternion);
+    const up = this._up.set(0, 1, 0);
+    const wish = this._wish.set(0, 0, 0);
     if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) wish.add(fwd);
     if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) wish.sub(fwd);
     if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) wish.add(right);

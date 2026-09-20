@@ -266,10 +266,35 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   }
 
   function setAltitude(h) { air.altitude = h; applyAtmosphere(); }
-  function setSun(elevationDeg, azimuthDeg) {
+
+  /**
+   * Moving the Sun changes two things at very different prices. The sky uniforms, the light
+   * directions, the fog and the exposure are a handful of writes. The reflection probe is a
+   * full PMREM pass over a private scene — and the slider fires on every input event, so
+   * dragging it from noon to midnight asked for a hundred of them, one per pixel of travel.
+   *
+   * The cheap half runs on every input, so the sky and the shadows track the control exactly.
+   * The probe is rebuilt at most `PROBE_MS` apart while the control is moving, and once more
+   * when it stops, so what is left on screen is always the probe for the sun that is actually
+   * set. Reflections lag a fraction of a second behind the sky during a drag, which is not
+   * visible; a full pass per event is.
+   */
+  const PROBE_MS = 130;
+  let probeAt = 0, probeTimer = 0;
+  function setSun(elevationDeg, azimuthDeg, { immediate = false } = {}) {
     air.elev = elevationDeg;
     air.azim = azimuthDeg;
-    applyAtmosphere({ rebuildProbe: true });
+    const now = performance.now();
+    const due = immediate || (now - probeAt) >= PROBE_MS;
+    applyAtmosphere({ rebuildProbe: due });
+    if (due) { probeAt = now; clearTimeout(probeTimer); probeTimer = 0; return; }
+    // Always settle on the real thing: the last event of a drag is usually inside the window,
+    // and without this the session would keep a probe for a sun position nobody chose.
+    clearTimeout(probeTimer);
+    probeTimer = setTimeout(() => {
+      probeTimer = 0; probeAt = performance.now();
+      applyAtmosphere({ rebuildProbe: true });
+    }, PROBE_MS);
   }
 
   /**
@@ -305,7 +330,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
 
   // Azimuth is chosen so the exhibits are lit from the side the default views look from,
   // raked about 35° off the camera axis for modelling rather than flat frontal light.
-  setSun(42, 34);
+  setSun(42, 34, { immediate: true });
 
   return {
     sun, sky, hemi, ground, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation,

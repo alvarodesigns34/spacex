@@ -106,7 +106,7 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
 
   // Octaweb thrust structure and base heat shield. This is the view the "Octaweb · 9 Merlins"
   // preset looks straight up into, and it was a dark cylinder with eight plates in it.
-  g.add(mesh(lathe([{ r: R - 0.03, y: ENGINE_DROP + 0.05 }, { r: R - 0.03, y: ENGINE_DROP + 2.6 }], { segments: 64, flip: true }), M.darkMetal, { castShadow: false }));
+  g.add(mesh(lathe([{ r: R - 0.03, y: ENGINE_DROP + 0.05 }, { r: R - 0.03, y: ENGINE_DROP + 2.6 }], { segments: 64, flip: true }), M.darkMetal, { castShadow: false, name: 'octaweb-wall' }));
   g.add(mesh(new THREE.CylinderGeometry(R - 0.03, R - 0.03, 0.25, 64), M.blackMatte, { position: [0, ENGINE_DROP + 2.6, 0] }));
   const octaweb = [];
   for (let i = 0; i < 8; i++) {
@@ -128,7 +128,7 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
       matrix: mat4([Math.sin(a) * (R - 0.42), ENGINE_DROP + 0.3, Math.cos(a) * (R - 0.42)], [0, a, 0]),
     });
   }
-  g.add(mesh(boxUV(mergeAll(octaweb)), M.darkMetal));
+  g.add(mesh(boxUV(mergeAll(octaweb)), M.darkMetal, { name: 'octaweb-structure' }));
   // Helium COPVs and the hydraulic accumulators clustered round the thrust structure — the
   // spheres and bottles that are the most recognisable thing in a photograph of a Falcon base.
   {
@@ -155,9 +155,9 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
     g.add(leg);
   }
   // Raceway up the tank section.
-  g.add(mesh(new THREE.BoxGeometry(0.44, TANK_TOP - ENGINE_DROP - 2.6, 0.2), M.blackMatte, { position: [0, (TANK_TOP + ENGINE_DROP) / 2 + 1.0, R + 0.09] }));
+  g.add(mesh(new THREE.BoxGeometry(0.44, TANK_TOP - ENGINE_DROP - 2.6, 0.2), M.blackMatte, { position: [0, (TANK_TOP + ENGINE_DROP) / 2 + 1.0, R + 0.09], name: 'raceway' }));
   // Stage separation flange.
-  g.add(mesh(new THREE.TorusGeometry(R + 0.015, 0.05, 6, 96), M.darkMetal, { position: [0, TANK_TOP, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false }));
+  g.add(mesh(new THREE.TorusGeometry(R + 0.015, 0.05, 6, 96), M.darkMetal, { position: [0, TANK_TOP, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false, name: 'sep-flange' }));
 
   // Four titanium grid fins, stowed flat. Every Falcon booster that flies back carries them,
   // side boosters included — they perform their own boostback and landing burns.
@@ -238,7 +238,26 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
   }
   g.add(mesh(new THREE.TorusGeometry(R * 0.97 + 0.02, 0.055, 6, 96), M.darkMetal, { position: [0, FAIRING_BASE + 0.06, 0], rotation: [Math.PI / 2, 0, 0] }));
   g.userData.top = TOTAL_H;
+  markFalconDetail(g);
   return g;
+}
+
+/**
+ * What stops being worth drawing on a 70 m booster, by the size of the smallest thing it
+ * carries. Almost all of it lives in the two and a half metres above the ground, inside the
+ * Octaweb, where the "9 Merlins" preset looks straight up into it — and where nothing at all
+ * can be seen of it from the museum row, because it is under the rocket.
+ *
+ * The grid fins, the legs and the raceway stay: they break the cylinder's outline, and a
+ * Falcon without them reads as a white tube.
+ */
+function markFalconDetail(g) {
+  const FINE = {
+    'octaweb-wall': 0.12, 'octaweb-structure': 0.06, 'base-bottles': 0.22,
+    'leg-latches': 0.04, 'interstage-trim': 0.05, 'sep-flange': 0.1,
+    'fh-attach-struts': 0.14,
+  };
+  g.traverse((o) => { const f = FINE[o.name]; if (f) o.userData.lodFeature = f; });
 }
 
 const commonAnnotations = () => [
@@ -298,7 +317,8 @@ export function buildFalconHeavy(M) {
   // boxUV, like every other merged structural run in the project: merging keeps each
   // cylinder's own 0..1 UVs, so the grey-metal map — authored for a one-metre tile — was being
   // stretched over a four-metre strut. Planar metric UVs put it back on its own scale.
-  g.add(mesh(boxUV(mergeAll(struts)), M.darkMetal));
+  g.add(mesh(boxUV(mergeAll(struts)), M.darkMetal, { name: 'fh-attach-struts' }));
+  markFalconDetail(g);
 
   g.userData.height = TOTAL_H;
   g.userData.width = 12.2;

@@ -349,6 +349,7 @@ export class GroundCloud {
     this.grow = new Float32Array(count);
     this.base = new Float32Array(count);
     this.next = 0;
+    this.live = 0;
 
     const geo = new THREE.InstancedBufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
@@ -402,7 +403,10 @@ export class GroundCloud {
     }
     this.points.material.uniforms.uFlame.value = 0.0;
     this.next = 0;
+    // One full upload to clear the buffers, then back to the live window.
+    this.live = this.count;
     this.flush();
+    this.live = 0;
   }
 
   /**
@@ -437,6 +441,7 @@ export class GroundCloud {
       this.base[i] = size0;
       this.rot[i] = r() * Math.PI * 2;
       this.rotSpeed[i] = (r() - 0.5) * 0.35;
+      if (i + 1 > (this.live ?? 0)) this.live = i + 1;
     }
   }
 
@@ -451,8 +456,15 @@ export class GroundCloud {
       this.points.material.uniforms.uSunDir.value.copy(_sunDir);
     }
     const { pos, vel, age, life, size, alpha, rot, rotSpeed, grow, base } = this;
+    // Highest slot holding a live puff. At the most expensive moment in the scene — liftoff,
+    // where this cloud is transparent, overlapping and full-screen — the ring is mostly empty
+    // for the first few seconds, and both the upload and the draw were paying for all 860
+    // slots regardless. Neither the simulation nor `seek()` is affected: every slot is still
+    // stepped, this only bounds what is sent and what is rasterised.
+    let hi = -1;
     for (let i = 0; i < this.count; i++) {
       if (age[i] >= life[i]) { if (alpha[i] !== 0) { alpha[i] = 0; size[i] = 0; } continue; }
+      hi = i;
       age[i] += dt;
       if (age[i] >= life[i]) { alpha[i] = 0; size[i] = 0; continue; }
       const j = i * 3;
@@ -479,14 +491,23 @@ export class GroundCloud {
       const fadeOut = Math.pow(Math.max(0.0, 1.0 - u), 1.3);
       alpha[i] = 0.92 * fadeIn * fadeOut;
     }
+    this.live = hi + 1;
     this.flush();
   }
 
+  /**
+   * Uploads and draws only the slots that hold something. `live` is a high-water mark rather
+   * than a count, because the ring wraps and the live set is not contiguous from zero — but it
+   * is always contained in [0, live), which is enough to bound both costs.
+   */
   flush() {
-    this.aOffset.needsUpdate = true;
-    this.aSize.needsUpdate = true;
-    this.aAlpha.needsUpdate = true;
-    this.aRot.needsUpdate = true;
+    const n = this.live ?? this.count;
+    for (const a of [this.aOffset, this.aSize, this.aAlpha, this.aRot]) {
+      a.clearUpdateRanges();
+      if (n > 0) a.addUpdateRange(0, n * a.itemSize);
+      a.needsUpdate = true;
+    }
+    this.points.geometry.instanceCount = n;
   }
 
   dispose() {

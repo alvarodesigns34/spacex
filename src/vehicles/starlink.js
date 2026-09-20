@@ -45,7 +45,7 @@ export function buildStarlink(M) {
   // loudest thing on the satellite.
   const tape = [];
   for (const z of [-1.62, 1.62]) tape.push({ geometry: new THREE.BoxGeometry(BUS_W - 0.2, 0.004, 0.025), matrix: mat4([0, BUS_T / 2 + 0.023, z]) });
-  g.add(mesh(mergeAll(tape), M.goldKapton, { castShadow: false }));
+  g.add(mesh(mergeAll(tape), M.goldKapton, { castShadow: false, name: 'bus-tape' }));
   // Avionics and propellant boxes on the zenith deck.
   {
     const boxes = [];
@@ -68,7 +68,7 @@ export function buildStarlink(M) {
   for (const [x, z] of big) for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) {
     patches.push({ geometry: new THREE.BoxGeometry(0.11, 0.01, 0.11), matrix: mat4([x - 0.53 + i * 0.152, -BUS_T / 2 - 0.085, z - 0.53 + j * 0.152]) });
   }
-  g.add(mesh(mergeAll(patches), M.alumDark, { castShadow: false }));
+  g.add(mesh(mergeAll(patches), M.alumDark, { castShadow: false, name: 'array-patches' }));
 
   // Laser inter-satellite link terminals (3): small gimballed turrets on the zenith side edges
   // Built as a gimbal rather than a ball on a stick: a fixed base, a yoke that rotates in
@@ -96,11 +96,14 @@ export function buildStarlink(M) {
   // the deck with nothing under it reads as a tube someone dropped there.
   for (const [x, z] of [[-0.6, 0.6], [0.6, 0.6]]) {
     const tilt = x > 0 ? -0.5 : 0.5;
-    g.add(mesh(new THREE.BoxGeometry(0.16, 0.08, 0.16), M.alumDark, { position: [x, BUS_T / 2 + 0.05, z] }));
-    g.add(mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.32, 16), M.blackMatte, { position: [x, BUS_T / 2 + 0.22, z], rotation: [0.5, 0, tilt] }));
-    g.add(mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.02, 16), M.lens, { position: [x + Math.sin(-tilt) * 0.15, BUS_T / 2 + 0.36, z + 0.08], rotation: [0.5, 0, tilt] }));
+    const st = new THREE.Group();
+    st.name = 'star-tracker';
+    st.add(mesh(new THREE.BoxGeometry(0.16, 0.08, 0.16), M.alumDark, { position: [x, BUS_T / 2 + 0.05, z] }));
+    st.add(mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.32, 16), M.blackMatte, { position: [x, BUS_T / 2 + 0.22, z], rotation: [0.5, 0, tilt] }));
+    st.add(mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.02, 16), M.lens, { position: [x + Math.sin(-tilt) * 0.15, BUS_T / 2 + 0.36, z + 0.08], rotation: [0.5, 0, tilt] }));
+    g.add(st);
   }
-  g.add(mesh(new THREE.BoxGeometry(0.25, 0.03, 0.25), M.aluminum, { position: [0, BUS_T / 2 + 0.03, -0.6] }));
+  g.add(mesh(new THREE.BoxGeometry(0.25, 0.03, 0.25), M.aluminum, { position: [0, BUS_T / 2 + 0.03, -0.6], name: 'gnss-patch' }));
   // Argon Hall thruster on the −Z edge (fires along −Z)
   const thr = new THREE.Group();
   thr.add(mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.14, 32), M.darkMetal, { rotation: [Math.PI / 2, 0, 0] }));
@@ -163,6 +166,22 @@ export function buildStarlink(M) {
     wing.position.x = s * (BUS_W / 2);
     g.add(wing);
   }
+
+  // ---- Level of detail --------------------------------------------------------------------
+  // A 30 m span of which almost everything is centimetres thick. In the museum row the wings
+  // are an edge-on line and the bus is a tile, and all of this was being drawn: 192 patch
+  // elements 11 cm across, three gimballed laser turrets with their harness runs, two star
+  // trackers, the avionics boxes, the frame ribs pressing through the blanket, the 25 mm tape
+  // over the seams, the hinge knuckles at every panel joint and the substrate behind them.
+  //
+  // What stays is what the satellite IS from any distance: the bus, its blankets, the black
+  // phased-array face and the wings themselves.
+  const FINE = {
+    'bus-frame': 0.03, 'bus-avionics': 0.09, 'bus-tape': 0.025, 'array-patches': 0.11,
+    'laser-terminal': 0.045, 'star-tracker': 0.035, 'gnss-patch': 0.03,
+    'wing-hinges': 0.03, 'wing-substrate': 0.06, 'wing-beams': 0.05,
+  };
+  g.traverse((o) => { const f = FINE[o.name]; if (f) o.userData.lodFeature = f; });
 
   // How far the satellite stands above its mount, which for a spacecraft displayed lying flat
   // is the thickness of its bus. Not 4.1 m: that is BUS_L, the bus's long horizontal side, and
