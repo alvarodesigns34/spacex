@@ -234,6 +234,17 @@ const _bp = new THREE.Vector3();
 /** One point on the master surface. t runs 0 (left sill) -> 0.5 (centreline) -> 1 (right sill). */
 function bodyPoint(z, t) {
   sectionCurve(z).getPoint(THREE.MathUtils.clamp(t, 0, 1), _bp);
+  // Form the bonnet ribs in the panel itself, not intersecting tubes. The smooth
+  // envelope fades to zero before the cowl and lamps, preserving their fit.
+  if (z > 0.56 && z < 1.64) {
+    const u = (z - 0.56) / 1.08;
+    const taper = Math.sin(Math.PI * u) ** 2;
+    const spread = 0.62 + 0.38 * Math.sin(Math.PI * Math.min(1, u * 1.15));
+    for (const d of [0.052, 0.104]) {
+      const offset = (Math.abs(t - 0.5) - d * spread) / 0.010;
+      _bp.y += 0.0045 * taper * Math.exp(-offset * offset);
+    }
+  }
   return { x: _bp.x, y: _bp.y, z: _bp.z };
 }
 
@@ -306,6 +317,17 @@ function sweep(zs, ts, flip = false, skip = null) {
   geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   geo.setIndex(idx);
   geo.computeVertexNormals();
+  // Use the continuous surface derivative rather than triangle-area weighting.
+  // Aperture refinement makes a very uneven grid: averaged face normals left
+  // ripples in the clearcoat and lighting seams at independently sampled panels.
+  const normals = geo.attributes.normal;
+  for (let i = 0; i < Nu; i++) {
+    for (let j = 0; j < Nv; j++) {
+      const n = bodyNormal(zs[i], ts[j]);
+      const sign = flip ? -1 : 1;
+      normals.setXYZ(i * Nv + j, n.x * sign, n.y * sign, n.z * sign);
+    }
+  }
   return geo;
 }
 
@@ -396,14 +418,14 @@ const _n1 = new THREE.Vector3(), _n2 = new THREE.Vector3(), _n3 = new THREE.Vect
  * as accessories glued to the fender.
  */
 function bodyNormal(z, t) {
-  const dz = 0.004, dt = 0.004;
+  const dz = 0.0002, dt = 0.0002;
   const a = bodyPoint(z + dz, t), b = bodyPoint(z - dz, t);
   const c = bodyPoint(z, Math.min(1, t + dt)), d = bodyPoint(z, Math.max(0, t - dt));
   _n1.set(a.x - b.x, a.y - b.y, a.z - b.z);
   _n2.set(c.x - d.x, c.y - d.y, c.z - d.z);
   _n3.crossVectors(_n1, _n2).normalize();
-  // t increases left-to-right, so the cross product points inward on one half of the car.
-  if (_n3.y < 0) _n3.negate();
+  // z cross t points out on BOTH sides, including the tucked-under rocker.
+  // Flipping every downward normal folded the lower flanks' reflections inward.
   return _n3;
 }
 
@@ -718,14 +740,14 @@ function createRoadsterMaterials(M) {
   // Midnight Cherry Red. Dielectric base coat + clear coat, calibrated so that under the
   // exhibit's raked sun it reads as the saturated cherry the car photographs as, not black.
   const cherryRed = new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color(0x6f121e),
-    metalness: 0.0,
-    roughness: 0.26,
+    color: new THREE.Color(0x870f22),
+    metalness: 0.12,
+    roughness: 0.38,
     roughnessMap: flake.roughnessMap,
     normalMap: flake.normalMap,
-    normalScale: new THREE.Vector2(0.10, 0.10),
+    normalScale: new THREE.Vector2(0.025, 0.025),
     clearcoat: 1.0,
-    clearcoatRoughness: 0.045,
+    clearcoatRoughness: 0.10,
     envMapIntensity: 1.05,
   });
 
@@ -1360,29 +1382,7 @@ function buildBodyShell(mats, M) {
     }
   }
 
-  // Bonnet strakes. The clamshell is not a plain dome: it carries raised longitudinal ridges
-  // either side of a raised centre panel, which is the first thing the eye picks up in every
-  // photograph of the front of this car. Each is drawn along the master surface, so it follows
-  // the crown instead of floating over it.
-  {
-    const ridges = [];
-    for (const s2 of [-1, 1]) {
-      for (const dt of [0.052, 0.104]) {
-        const pts = [];
-        for (let i = 0; i <= 30; i++) {
-          const u = i / 30;
-          const z = 0.560 + (1.640 - 0.560) * u;
-          const t = T_CENTRE + s2 * dt * (0.62 + 0.38 * Math.sin(Math.PI * Math.min(1, u * 1.15)));
-          const p = bodyPoint(z, t), n = bodyNormal(z, t);
-          // Fade into the paint at both ends so the ridge starts and stops like pressed metal.
-          const f = Math.min(1, Math.sin(Math.PI * u) * 2.2);
-          pts.push([p.x + n.x * (f * 0.004 - 0.005), p.y + n.y * (f * 0.004 - 0.005), p.z + n.z * (f * 0.004 - 0.005)]);
-        }
-        ridges.push({ geometry: tube(pts, 0.0115, { tubular: 42, radial: 8 }) });
-      }
-    }
-    g.add(mesh(mergeAll(ridges), mats.cherryRed, { name: 'bonnet-strakes' }));
-  }
+  // Bonnet ribs are formed directly by bodyPoint(), with no overlapping meshes.
 
   // Rear deck lip. The tail finishes in a raised blade between the lamps, which is what stops
   // the back of the car reading as a rounded-off lump.
