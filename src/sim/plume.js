@@ -272,8 +272,8 @@ const CLOUD_VERT = /* glsl */`
 
     // Fire illumination: intense strictly near the two bidirectional trench mouths (|Z| ~ 44m, Y < 18m)
     float dFlame = length(vec3(aOffset.x * 2.0, max(0.0, aOffset.y - 3.0) * 2.2, max(0.0, abs(aOffset.z) - 38.0) * 0.9));
-    float heightFade = smoothstep(24.0, 2.0, aOffset.y);
-    vFire = uFlame * smoothstep(52.0, 5.0, dFlame) * heightFade;
+    float heightFade = 1.0 - smoothstep(2.0, 24.0, aOffset.y);
+    vFire = uFlame * (1.0 - smoothstep(5.0, 52.0, dFlame)) * heightFade;
 
     gl_Position = projectionMatrix * vec4(c + vec3(q, 0.0), 1.0);
   }`;
@@ -395,7 +395,8 @@ export class GroundCloud {
     this.points.material.uniforms.uFlame.value = intensity;
   }
 
-  reset() {
+  reset(rng = this.rng) {
+    this.rng = rng;
     for (let i = 0; i < this.count; i++) {
       this.age[i] = 1; this.life[i] = 1; this.alpha[i] = 0; this.size[i] = 0;
       this.pos[i * 3] = 0; this.pos[i * 3 + 1] = -9999; this.pos[i * 3 + 2] = 0;
@@ -407,6 +408,7 @@ export class GroundCloud {
     this.live = this.count;
     this.flush();
     this.live = 0;
+    this.points.geometry.instanceCount = 0;
   }
 
   /**

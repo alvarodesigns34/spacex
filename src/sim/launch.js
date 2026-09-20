@@ -119,19 +119,19 @@ const PROFILE = buildProfile();
 // drop with nothing after it overshoots straight through the ground, which is exactly what it
 // did — the booster arrived at altitude 0 and 80 cm the wrong side of the pad centre.
 const RETURN_ALT = [
-  [160, 55800], [180, 68000], [200, 78500], [221, 85000], [250, 93000], [272, 96000],
+  [160, PROFILE.alt[EVENTS.separation / PROFILE.step]], [180, 68000], [200, 78500], [221, 85000], [250, 93000], [272, 96000],
   [300, 91000], [330, 76000], [360, 49000], [385, 17000], [398, 4200], [405, 900],
   [410, 140], [413, 34], [414, 22], [418, 22], [426, 22], [436, 22],
 ];
 const RETURN_DOWN = [
-  [160, 84000], [180, 92000], [200, 95500], [221, 93000], [250, 79000], [272, 66000],
+  [160, PROFILE.down[EVENTS.separation / PROFILE.step]], [180, 92000], [200, 95500], [221, 93000], [250, 79000], [272, 66000],
   [300, 46000], [330, 26000], [360, 10500], [385, 2400], [398, 420], [405, 90],
   [410, 14], [413, 2], [414, 0], [418, 0], [426, 0], [436, 0],
 ];
 // Attitude, in radians from vertical. Nose-up at staging, swung retrograde for the boostback
 // burn, then engines-first — which for Super Heavy means upright — for the descent and catch.
 const RETURN_PITCH = [
-  [160, 1.14], [166, 1.60], [180, 2.30], [221, 2.30], [240, 1.20], [270, 0.34],
+  [160, PROFILE.pit[EVENTS.separation / PROFILE.step]], [166, 1.60], [180, 2.30], [221, 2.30], [240, 1.20], [270, 0.34],
   [330, 0.16], [385, 0.05], [414, 0.0], [436, 0.0],
 ];
 
@@ -471,6 +471,29 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
    * Confinement: The pad has concrete walls on X; exhaust is forced solely along Z (North & South).
    */
   const CLOUD_UNTIL = EVENTS.liftoff + 34;
+  const CLOUD_STEP = 1 / 30;
+  let cloudTick = 0;
+  function resetCloud() {
+    cloud.reset(seeded(11));
+    cloudTick = 0;
+  }
+  // Integer ticks give playback and seeking the same random samples, emission counts and
+  // integration intervals, independent of render rate or mission speed. Never cap cloud
+  // time separately from mission time: doing so leaves smoke hanging around at ×10.
+  function advanceCloud(t) {
+    const target = Math.max(0, Math.floor((t - EVENTS.start) / CLOUD_STEP + 1e-7));
+    while (cloudTick < target) {
+      const u = EVENTS.start + cloudTick * CLOUD_STEP;
+      // Once all launch puffs have died, the coast contains no cloud work to replay.
+      if (!cloud.live && u >= CLOUD_UNTIL && u < EVENTS.catch - 16) {
+        cloudTick = Math.min(target, Math.round((EVENTS.catch - 16 - EVENTS.start) / CLOUD_STEP));
+        continue;
+      }
+      emitCloud(u, CLOUD_STEP);
+      cloud.update(CLOUD_STEP, camera, env.sun);
+      cloudTick++;
+    }
+  }
   function emitCloud(t, dt) {
     // The landing burn kicks up its own cloud off the pad as the booster settles into the
     // arms. Same trench mouths, much less of it: three engines, not thirty-three.
@@ -605,7 +628,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     state.running = true;
     state.armed = true;
     state.t = EVENTS.start;
-    cloud.reset();
+    resetCloud();
     visibilityHook?.(true);
     rig.external = true;
     apply(state.t);
@@ -629,7 +652,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     booster.position.x = 0;
     boosterPlume.setThrottle(0, 0);
     shipPlume.setThrottle(0, 0);
-    cloud.reset();
+    resetCloud();
     parts.qdArm.rotation.y = 0;
     parts.holddowns.children.forEach((c, i) => c.position.copy(home.clamps[i]));
     env.setAltitude(0);
@@ -657,18 +680,12 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
    */
   function seek(t) {
     if (!state.running) { onStart(); state.running = true; state.armed = true; visibilityHook?.(true); rig.external = true; }
-    cloud.reset();
-    const step = 1 / 30;
-    // Two windows produce ground cloud: the launch, and the landing burn as the booster
-    // settles into the arms. Seeking past either has to re-simulate it, or the check and the
-    // screenshot tool see a different pad from the one the animation reaches.
-    const from = t > EVENTS.catch - 16 ? EVENTS.catch - 16 : -6.0;
-    const until = t > EVENTS.catch - 16 ? t : Math.min(t, CLOUD_UNTIL);
-    for (let u = from; u < until; u += step) {
-      emitCloud(u, step);
-      cloud.update(step, camera, env.sun);
-    }
+    resetCloud();
+    advanceCloud(t);
     apply(t);
+    // Seeking changes the camera after replay; refresh lighting in its final view space.
+    camera.updateMatrixWorld();
+    cloud.update(0, camera, env.sun);
     onState(state);
   }
 
@@ -678,9 +695,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     const t = prev + dt * state.speed;
     apply(t);
 
-    const cdt = Math.min(dt * state.speed, 0.12);
-    emitCloud(t, cdt);
-    cloud.update(cdt, camera, env.sun);
+    advanceCloud(t);
 
     if (t >= EVENTS.end) { reset(); return; }
     onState(state);
