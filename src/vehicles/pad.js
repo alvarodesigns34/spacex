@@ -413,9 +413,12 @@ function buildField(M) {
   const g = new THREE.Group();
   g.name = 'pad-field';
   const masts = [];
-  for (const sz of [-1, 1]) {
-    // Behind the tower, where they do not stand between the standard views and the vehicle.
-    const x = -96, z = sz * 78;
+  // Both on the far side of the complex from the museum row, not one either side of it.
+  // Straddling the pad put one of them 107 m directly behind the Falcon Heavy as seen from
+  // the row, so a 150 m spike ran up through the middle of that exhibit's overview. Their
+  // position is reconstructed, not cited, so it can serve the composition.
+  for (const z of [-58, -132]) {
+    const x = -96;
     masts.push({ geometry: new THREE.CylinderGeometry(0.35, 1.5, PAD.mastH, 12), matrix: mat4([x, PAD.mastH / 2, z]) });
     masts.push({ geometry: new THREE.CylinderGeometry(0.08, 0.2, 9, 8), matrix: mat4([x, PAD.mastH + 4.5, z]) });
   }

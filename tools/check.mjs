@@ -502,6 +502,143 @@ try {
   report(speed.during === 10 && speed.after === 1, 'el multiplicador de tiempo vuelve a ×1',
     `durante la secuencia ×${speed.during}, tras terminarla ×${speed.after}`);
 
+  // ---- Transitions between modes ---------------------------------------------------------
+  // Each mode was tested alone. The combinations were not, and the combinations are where
+  // this project's bugs have actually lived: the tour running under a launch, the atmosphere
+  // left in a night state with daytime fog, an orbital backdrop still up over a vehicle that
+  // had gone back to its plinth. Each of these drives one full round trip and asserts the
+  // scene came back to the state the museum starts in.
+  {
+    const clean = { space: false, ground: true, fog: true, backdrop: false, pedestal: true, adapter: false };
+    const eq = (a, b) => Object.keys(b).every(k => a[k] === b[k]);
+    const reset = () => page.evaluate(() => {
+      const v = window.__vc;
+      v.stopTour(); v.launch.reset(false); v.rig.setMode('orbit');
+      v.env.setSun(42, 34); v.jump(null);
+    });
+
+    // Launch straight into free flight: the sequence owns the camera, and F takes it back.
+    await reset();
+    await page.evaluate(() => { window.__vc.launch.seek(40); window.__vc.rig.setMode('fly'); });
+    const toFly = await page.evaluate(() => ({
+      mode: window.__vc.rig.mode,
+      orbitOff: !window.__vc.rig.orbit.enabled,
+      external: window.__vc.rig.external,
+      finite: window.__vc.camera.position.toArray().every(Number.isFinite),
+    }));
+    report(toFly.mode === 'fly' && toFly.orbitOff && !toFly.external && toFly.finite,
+      'del lanzamiento al vuelo libre', JSON.stringify(toFly));
+
+    // Orbital view straight into a launch, and back. The orbital view turns off the ground,
+    // the sky and the fog; a launch starting from inside it must not inherit any of that.
+    await reset();
+    await page.evaluate(() => window.__vc.jump('roadster', 'earth'));
+    await page.evaluate(() => window.__vc.launch.start());
+    const duringLaunch = await page.evaluate(() => window.__vc.spaceState());
+    await page.evaluate(() => { window.__vc.launch.reset(false); window.__vc.jump(null); });
+    const afterLaunch = await page.evaluate(() => window.__vc.spaceState());
+    report(!duringLaunch.space && eq(afterLaunch, clean),
+      'de la vista orbital al lanzamiento y de vuelta',
+      `durante ${JSON.stringify(duringLaunch)} · después ${JSON.stringify(afterLaunch)}`);
+
+    // Night, a full flight, then reset. The atmosphere has three inputs and one writer; this
+    // is the path that used to leave daytime fog under lit floodlights.
+    await reset();
+    await page.evaluate(() => window.__vc.env.setSun(-8, 34));
+    const nightBefore = await page.evaluate(() => window.__vc.lightState());
+    await page.evaluate(() => window.__vc.launch.seek(120));
+    await page.evaluate(() => window.__vc.launch.reset(false));
+    const nightAfter = await page.evaluate(() => window.__vc.lightState());
+    report(JSON.stringify(nightBefore) === JSON.stringify(nightAfter),
+      'noche, vuelo completo y reset devuelven la misma atmósfera',
+      `antes ${JSON.stringify(nightBefore)} · después ${JSON.stringify(nightAfter)}`);
+    await reset();
+
+    // A resize in the middle of a framing sweep. The composer, the label renderer and the
+    // camera all have to survive it, and the sweep has to finish where it was going.
+    await page.evaluate(() => window.__vc.goPreset('dragon', 'nose'));
+    await page.setViewportSize({ width: 900, height: 620 });
+    await page.waitForTimeout(140);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    // Waited for, not slept through. A framing sweep finishes inside the render loop, and on
+    // the software rasteriser CI runs on that loop ticks once or twice a second — a fixed
+    // 2.2 s wait passed on one machine and failed on the next for reasons that had nothing
+    // to do with the resize.
+    await page.waitForFunction(() => !window.__vc.rig.transition, null, { timeout: 30000 });
+    const afterResize = await page.evaluate(() => ({
+      finite: window.__vc.camera.position.toArray().every(Number.isFinite),
+      aspect: +window.__vc.camera.aspect.toFixed(3),
+      transition: !!window.__vc.rig.transition,
+      preset: window.__vc.viewState().preset,
+    }));
+    report(afterResize.finite && Math.abs(afterResize.aspect - 1.6) < 0.01
+      && !afterResize.transition && afterResize.preset === 'nose',
+      'redimensionar durante una transición no la rompe', JSON.stringify(afterResize));
+    await reset();
+  }
+
+  // ---- The help dialog behaves like a dialog ----------------------------------------------
+  // It declares aria-modal, and until now Tab walked straight out of it onto the rail
+  // underneath: a keyboard user was operating controls hidden behind an overlay.
+  {
+    await page.evaluate(() => window.__vc.jump(null));
+    await page.click('#help-btn');
+    const opened = await page.evaluate(() => document.activeElement?.id);
+    await page.keyboard.press('Tab');
+    const stillInside = await page.evaluate(() => !!document.getElementById('help')?.contains(document.activeElement));
+    await page.keyboard.press('Escape');
+    const closed = await page.evaluate(() => ({
+      hidden: document.getElementById('help').classList.contains('hidden'),
+      focus: document.activeElement?.id,
+    }));
+    report(opened === 'help-close' && stillInside && closed.hidden && closed.focus === 'help-btn',
+      'el diálogo de ayuda atrapa el foco y lo devuelve',
+      `abre en ${opened} · tab dentro ${stillInside} · cierra en ${closed.focus}`);
+  }
+
+  // ---- Performance budget (reports, does not gate) ----------------------------------------
+  // Machine-dependent numbers must not fail a build, but a change that doubles the scene
+  // should be impossible to merge without noticing. These print every time and only fail on
+  // a gross regression — the kind that means something is being built in a loop.
+  {
+    const budget = await page.evaluate(() => {
+      const v = window.__vc;
+      const mats = new Set(); let tris = 0, meshes = 0, visible = 0, drawnTris = 0;
+      v.jump(null); v.lod.update();
+      const count = (o, shown) => {
+        // `traverse` does not stop at a hidden group, and a hidden group's children each
+        // still carry visible === true, so counting them individually said 859 of 866 were
+        // being drawn when the real figure was 705. Walk it properly.
+        const on = shown && o.visible;
+        if (o.isMesh || o.isInstancedMesh) {
+          meshes++;
+          const g = o.geometry;
+          if (g?.attributes?.position) {
+            const n = (g.index ? g.index.count : g.attributes.position.count) / 3;
+            const t = n * (o.isInstancedMesh ? o.count : 1);
+            tris += t;
+            if (on) { visible++; drawnTris += t; }
+          }
+          for (const m of Array.isArray(o.material) ? o.material : [o.material]) if (m) mats.add(m);
+        }
+        for (const c of o.children) count(c, on);
+      };
+      count(v.scene, true);
+      return {
+        tris: Math.round(tris), drawnTris: Math.round(drawnTris), meshes, visible,
+        materials: mats.size, textures: v.renderer.info.memory.textures,
+      };
+    });
+    // Ceilings sit well clear of today's figures: they catch a doubling, not a drift.
+    const LIMITS = { tris: 2_200_000, meshes: 1400, materials: 160, textures: 120 };
+    const over = Object.entries(LIMITS).filter(([k, max]) => budget[k] > max);
+    report(over.length === 0, 'presupuesto de escena',
+      `${budget.tris.toLocaleString('es-ES')} triángulos construidos, ${budget.drawnTris.toLocaleString('es-ES')} dibujados `
+      + `en la vista general · ${budget.meshes} mallas (${budget.visible} dibujadas) · `
+      + `${budget.materials} materiales · ${budget.textures} texturas`
+      + (over.length ? ` — POR ENCIMA: ${over.map(([k]) => k).join(', ')}` : ''));
+  }
+
   report(consoleErrors.length === 0, 'consola limpia', consoleErrors.slice(0, 5).join(' | '));
 } catch (err) {
   report(false, 'carga de la aplicación', err.message);

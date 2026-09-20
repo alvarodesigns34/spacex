@@ -192,9 +192,40 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     tourBtn.classList.toggle('is-live', !!st);
     tourBtn.innerHTML = st ? `Tour ${st.step}/${st.total} <kbd>P</kbd>` : 'Tour <kbd>P</kbd>';
   }
+  // ---- Help dialog -----------------------------------------------------------------------
+  // It declares aria-modal, so it has to behave like one: focus moves into it when it opens,
+  // Tab cannot leave it while it is up, and closing returns focus to whatever opened it.
+  // Without that, Tab walked straight out through the overlay onto the rail underneath and a
+  // keyboard user was operating controls they could not see.
   const help = el('#help');
-  el('#help-btn').addEventListener('click', () => help.classList.toggle('hidden'));
-  el('#help-close').addEventListener('click', () => help.classList.add('hidden'));
+  const helpBtn = el('#help-btn');
+  let helpOpener = null;
+  const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+  function showHelp(on) {
+    const wasOpen = !help.classList.contains('hidden');
+    if (on === wasOpen) return;
+    help.classList.toggle('hidden', !on);
+    if (on) {
+      helpOpener = document.activeElement;
+      help.querySelector('#help-close')?.focus();
+    } else {
+      (helpOpener instanceof HTMLElement ? helpOpener : helpBtn).focus();
+      helpOpener = null;
+    }
+  }
+  help.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { showHelp(false); return; }
+    if (e.key !== 'Tab') return;
+    const items = [...help.querySelectorAll(FOCUSABLE)].filter(n => n.offsetParent !== null);
+    if (!items.length) return;
+    const first = items[0], last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+  // Clicking the scrim closes it, which is what every dialog on the web does.
+  help.addEventListener('pointerdown', (e) => { if (e.target === help) showHelp(false); });
+  helpBtn.addEventListener('click', () => showHelp(help.classList.contains('hidden')));
+  el('#help-close').addEventListener('click', () => showHelp(false));
 
   // ---- Mission panel ----
   const mission = el('#mission');
@@ -263,5 +294,5 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     if (map[name]) el(map[name]).checked = value;
   }
 
-  return { setActive, setPreset, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setTour, showHelp: (s) => help.classList.toggle('hidden', !s) };
+  return { setActive, setPreset, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setTour, showHelp };
 }

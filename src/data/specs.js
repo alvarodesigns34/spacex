@@ -89,7 +89,11 @@ export const VEHICLES = [
     presets: [
       { id: 'overview', label: 'Overview', pos: [150, 70, 190], target: [0, 58, 0] },
       { id: 'engines', label: '33 Raptors', pos: [1.6, -7.6, 2.0], target: [0, 2.4, 0] },
-      { id: 'tiles', label: 'Heat shield', pos: [6, 100, 24], target: [0, 100, 0] },
+      // Framed on the TILE LINE, not on the tiles. At [6, 100, 24] the camera sat 14° off the
+      // belly and 25 m out, so the frame was hull from edge to edge and the one thing worth
+      // looking at — where the mosaic stops and the bare steel starts — was round the side.
+      // Coverage runs to ±97° from the belly, so the camera stands at that azimuth.
+      { id: 'tiles', label: 'Heat shield', pos: [34, 97, -5], target: [0, 100, 1] },
       { id: 'flaps', label: 'Flaps and nose', pos: [26, 124, 30], target: [0, 112, 0] },
       { id: 'lee', label: 'Leeward side', pos: [10, 96, -48], target: [0, 96, 0] },
       { id: 'gridfins', label: 'Grid fins and pins', pos: [28, 76, 22], target: [0, 70, 0] },
