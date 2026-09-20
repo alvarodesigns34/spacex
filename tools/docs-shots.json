@@ -1,0 +1,18 @@
+[
+  { "name": "overview.jpg", "jump": [null], "wait": 1400 },
+  { "name": "starship-full.jpg", "jump": ["starship", "site"], "wait": 1400 },
+  { "name": "starship-tiles.jpg", "jump": ["starship", "tiles"], "wait": 1400 },
+  { "name": "starship-engines.jpg", "jump": ["starship", "engines"], "wait": 1400 },
+  { "name": "starship-gridfins.jpg", "jump": ["starship", "gridfins"], "wait": 1400 },
+  { "name": "starship-nose.jpg", "jump": ["starship", "flaps"], "wait": 1400 },
+  { "name": "starship-leeward.jpg", "jump": ["starship", "lee"], "wait": 1400 },
+  { "name": "launch-trench.jpg", "jump": ["starship", "trench"], "wait": 1400 },
+  { "name": "falcon9.jpg", "jump": ["falcon9", "overview"], "wait": 1400 },
+  { "name": "falcon9-interstage.jpg", "jump": ["falcon9", "interstage"], "wait": 1400 },
+  { "name": "falconheavy.jpg", "jump": ["falconheavy", "overview"], "wait": 1400 },
+  { "name": "dragon.jpg", "jump": ["dragon", "overview"], "wait": 1400 },
+  { "name": "dragon-trunk-inside.jpg", "jump": ["dragon", "superdraco"], "wait": 1400 },
+  { "name": "starlink-bus.jpg", "jump": ["starlink", "bus"], "wait": 1400 },
+  { "name": "engines-row.jpg", "jump": ["engines", "overview"], "wait": 1400 },
+  { "name": "engines-rvac.jpg", "jump": ["engines", "rvac"], "wait": 1400 }
+]

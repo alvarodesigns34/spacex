@@ -106,11 +106,21 @@ starlink      envergadura             30         30         0
 
 **2. Complejo de lanzamiento** — `verifyPad()` mide la geometría construida del pad contra las cifras declaradas (altura de torre, longitud de brazo, cotas de cubierta y explanada, profundidad de la zanja, número de pinzas) y marca cada fila como *prensa* o *reconstruido*. Detectó la losa de la cubierta extruida hacia arriba desde su cota, que había enterrado los 2,4 m inferiores del vehículo dentro de ella.
 
-**3. Integridad de la escena** — recorre todas las mallas y detecta los modos de fallo que realmente han ocurrido en este proyecto: material que muestrea una textura sobre una geometría **sin atributo `uv`** (Three.js deriva las tangentes de las derivadas de `vUv`, así que un `vUv` constante las degenera y la superficie sale negra o reventada), geometría sin normales, y vértices no finitos. La comprobación está auto-testeada: romper una malla a propósito la hace saltar, repararla la devuelve a cero.
+**2b. Interfaces** — `verifyInterfaces()` mide **dónde dos subsistemas construidos por separado tienen que encajar**, que es donde han vivido los errores caros de este proyecto: cada cifra era defendible por su cuenta y estaba mal contra su vecina. Las campanas de los motores tienen que pasar por el agujero de la mesa (la garganta se cortaba 43 cm dentro de veinte de ellas), las pinzas tienen que llegar al faldón (cerraban a 6 cm de él, y su pie entraba 8 cm por dentro), el propulsor tiene que apoyarse en la cubierta, y los brazos de la torre tienen que cerrarse **a la altura de los pines** (lo hacían 6,8 m por debajo, alrededor del tanque de metano). Todo se mide sobre la geometría construida, nunca recalculando la constante que la produjo.
+
+**3. Integridad de la escena** — recorre todas las mallas y detecta los modos de fallo que realmente han ocurrido en este proyecto: material que muestrea una textura sobre una geometría **sin atributo `uv`** (Three.js deriva las tangentes de las derivadas de `vUv`, así que un `vUv` constante las degenera y la superficie sale negra o reventada), UVs que existen pero son **constantes** (`mergeAll` fabrica un atributo a ceros para que `mergeGeometries` no reviente, que es el mismo fallo disfrazado), UVs **a la escala equivocada**, geometría sin normales, vértices no finitos y **transformadas no finitas**.
+
+La escala de UVs merece su propia nota. El proyecto tiene dos convenciones: UVs en metros contra mapas que fijan `repeat = 1/tileSize`, y UVs normalizadas contra mapas que envuelven una sola vez. Mezclarlas es invisible en el código y ruinoso en pantalla. `toTexture` guarda el tamaño de teselado para el que se creó cada mapa, así que la comprobación no pregunta *¿varían estas UVs?* sino *¿varían al ritmo que esta textura espera?*. Fue lo que dejó cinco kilómetros de explanada con una sola repetición de una textura de 48 m — un téxel cada veinte metros, y el suelo gris liso en todas las vistas generales.
+
+Todas están auto-testeadas: romper cada cosa a propósito hace saltar su comprobación con un diagnóstico útil, y repararla la devuelve a cero.
 
 ### Puerta de validación en CI
 
-`npm run check` (`tools/check.mjs`) levanta el sitio, lo carga en Chromium headless y ejecuta las pasadas anteriores, recorre las 41 vistas autoradas comprobando que la cámara resultante es finita y queda sobre la explanada, y exige consola limpia.
+`npm run check` (`tools/check.mjs`) levanta el sitio, lo carga en Chromium headless y ejecuta las pasadas anteriores, recorre las 39 vistas autoradas comprobando que la cámara resultante es finita y queda sobre la explanada, y exige consola limpia. Carga con `?quality=high` y **lo comprueba**: el rasterizador por software sobre el que corre CI caería en el nivel más barato, y la puerta estaría midiendo una escena reducida sin enterarse, porque una escena reducida es coherente consigo misma.
+
+También comprueba las **combinaciones**, que es donde han estado los errores: del lanzamiento al vuelo libre, de la vista orbital al lanzamiento y de vuelta, noche + vuelo completo + reset devolviendo la misma atmósfera, redimensionar en mitad de una transición, veinte cambios de vista seguidos dejando un estado coherente, y el detalle retirándose con la distancia y volviendo al acercarse. Y las invariantes de la máquina de estados directamente: que una vista inexistente cae en la primera del expositor, que la vista orbital se *deduce* en vez de fijarse, y que el dueño de la cámara pasa limpiamente de visita a lanzamiento a visitante.
+
+Cierra con un **presupuesto de escena** que informa en vez de bloquear: triángulos construidos y dibujados, mallas, materiales y texturas. Sus techos están muy por encima de las cifras de hoy, así que detecta que algo se ha duplicado — algo construido dentro de un bucle — sin tumbar una compilación por ruido entre máquinas.
 
 También **recorre la secuencia de lanzamiento**. `launch.seek(t)` reproduce el estado completo de un instante de misión — nube de tierra incluida, resimulada desde la ignición a paso fijo — en vez de limitarse a avanzar, y eso es lo que la hace comprobable: el gate visita diecisiete hitos exigiendo transformadas finitas y cámara sobre la explanada, comprueba que el perfil de ascenso nunca retrocede (hasta la separación: después el panel sigue al propulsor, que baja a propósito), comprueba que **el propulsor sube, vuelve al eje de la torre y los brazos se cierran sobre él**, y comprueba que guardar la secuencia deja la escena **exactamente** como estaba (vehículo, brazo de desconexión, las veinte pinzas, los brazos de captura, planos de cámara y niebla). Sale con código distinto de cero si algo falla, y el flujo de GitHub Actions **bloquea el despliegue** con ella.
 
@@ -130,7 +140,10 @@ También **recorre la secuencia de lanzamiento**. `launch.seek(t)` reproduce el 
 | ![El centro de noche](docs/screenshots/night-centre.jpg) | ![Vista general](docs/screenshots/overview.jpg) |
 | ![Tesla Roadster](docs/screenshots/roadster_overview.png) | ![Starman](docs/screenshots/roadster_starman.png) |
 | ![Faros y morro](docs/screenshots/roadster_detail.png) | ![Tierra al fondo](docs/screenshots/roadster_earth.png) |
-| ![Rueda y paso](docs/screenshots/roadster_underbody.png) | ![Engine Row](docs/screenshots/engines-row.png) |
+| ![Rueda y paso](docs/screenshots/roadster_underbody.png) | ![Fila de motores](docs/screenshots/engines-row.jpg) |
+| ![Raptor Vacuum](docs/screenshots/engines-rvac.jpg) | ![Starship completo](docs/screenshots/starship-full.jpg) |
+
+Regenerables con `npm run shots`, que recorre los encuadres declarados en `tools/docs-shots.json` y `tools/launch-shots.json`.
 
 ## Estructura
 
@@ -138,6 +151,10 @@ También **recorre la secuencia de lanzamiento**. `launch.seek(t)` reproduce el 
 index.html                 entrada (import map de Three.js)
 vendor/three/              Three.js r170 (build + addons usados)
 src/main.js                escena, distribución de los vehículos, oclusión de etiquetas, bucle
+src/core/viewState.js      qué está mostrando el centro: dueño de la cámara, expositor, vista,
+                           vuelo y mobiliario, como una máquina de estados con transiciones
+src/core/lod.js            detalle en función del tamaño en pantalla, para todo el centro
+src/core/quality.js        nivel de calidad del dispositivo (píxeles, sombras, post, partículas)
 src/core/environment.js    cielo físico, sol, sombras dinámicas, mapa de entorno PMREM
 src/core/backdrop.js       fondo orbital (Tierra ilustrativa + estrellas) de la vista del Roadster
 src/core/cameraRig.js      órbita + vuelo libre + transiciones + límite polar sobre el suelo
@@ -156,20 +173,34 @@ src/ui/hud.js              interfaz
 
 ## Presupuesto de rendimiento
 
-Medido en la vista general con los siete expositores cargados:
+Medido con `npm run profile`, que informa del reparto del arranque, triángulos, draw calls, materiales, texturas y tiempo de fotograma en la vista general, en un primer plano y durante el lanzamiento. La puerta de CI imprime las cifras de escena en cada ejecución.
 
 | | |
 |---|---|
-| Triángulos en vista general | ≈490 000 (escudo en su nivel de detalle lejano) |
-| Triángulos de cerca | ≈863 000 (de los cuales ≈372 000 son las losetas instanciadas) |
-| Coste del complejo de lanzamiento | ≈6 000 triángulos, sin texturas nuevas |
-| Memoria de texturas | ≈81 MB en 37 mapas |
-| Generación de materiales | ≈2,8 s en el arranque |
+| Triángulos construidos | ≈1 205 000 |
+| Triángulos dibujados en la vista general | ≈763 000 |
+| Mallas | 866, de las cuales 705 se dibujan en la vista general |
+| Materiales / texturas | 87 / 73 · ≈101 MB estimados |
+| Generación de materiales | ≈2,7 s en el arranque |
 | Losetas instanciadas | 13 274 en 1 draw call |
 
 Las losetas usan un prisma hexagonal de 28 triángulos sin cara trasera (nunca visible, siempre apoyada en el casco) y un chaflán superior que da el brillo del borde.
 
-**Nivel de detalle del escudo térmico.** Trece mil hexágonos de 0,26 m se convierten en ruido sub-píxel en cuanto el vehículo está a más de unas decenas de metros: el escudo deja de leerse como una superficie y pasa a ser una mancha moteada de borde deshilachado. A partir de unos 90 m (cuando una loseta baja de ~3,5 px) las instancias se sustituyen por una superficie de revolución con el mismo mosaico horneado en textura, que cubre exactamente la misma ventana angular. De cerca se ve la geometría real; de lejos, un panel limpio con el borde nítido — y 373 000 triángulos menos.
+### Nivel de detalle
+
+`src/core/lod.js` hace una sola pregunta por entrada — *¿cuántos píxeles ocupa ahora mismo el detalle más pequeño que esto dibuja?* — y con la respuesta cambia entre estados que los constructores ya produjeron, o deja de dibujar lo que nadie puede ver. **No simplifica mallas ni construye modelos alternativos**, así que las vistas cercanas quedan exactamente igual.
+
+Cada entrada declara `lodFeature`: el tamaño real, en metros, de la pieza más pequeña que contiene. Así el mismo umbral significa lo mismo en una loseta de 0,26 m, en el marco de una ventana de la Dragon y en la junta de 2 cm de su panel trasero.
+
+- **Escudo térmico.** Trece mil hexágonos de 0,26 m se vuelven ruido sub-píxel a unas decenas de metros. Pasados ~90 m las instancias se sustituyen por una superficie de revolución con el mismo mosaico horneado, cubriendo la misma ventana angular: de cerca se ve la geometría real; de lejos, un panel limpio — y 373 000 triángulos menos.
+- **Interior del Roadster y Starman.** 247 mallas sobre un coche de 3,9 m que en la vista general mide ocho píxeles. Los asientos cosidos, el Hot Wheels del salpicadero y la placa de circuito dejan de dibujarse; la carrocería, las ruedas y el cristal no, porque son la silueta.
+- **Filigrana de la Dragon.** Juntas de panel, marcos, bisagras y tornillería, separadas en dos lotes porque un marco de ventana de 26 cm se lee mucho más lejos que un tornillo de 1,4 cm.
+
+Medido en la vista general contra la misma escena con todo forzado a su estado detallado: **705 mallas y 763 000 triángulos, frente a 787 y 1 157 000**.
+
+### Niveles de calidad
+
+`src/core/quality.js` elige uno de tres niveles al arrancar, a partir de lo que la máquina declara —no de su *user-agent*— y fija con él la densidad de píxeles, la resolución del mapa de sombras, el bloom, el MSAA, el umbral de detalle y el número de partículas de la nube. **El nivel cambia el coste, nunca la corrección**: los vehículos se siguen construyendo a 1:1 desde las mismas cifras y la verificación mide lo mismo. `?quality=low|medium|high` fuerza uno, que es como se prueba un nivel que no tienes — y cómo la puerta de CI se asegura de estar midiendo la escena completa, ya que el rasterizador por software sobre el que corre caería si no en el nivel más bajo.
 
 ## Despliegue
 

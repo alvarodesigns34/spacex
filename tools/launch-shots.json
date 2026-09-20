@@ -1,0 +1,10 @@
+[
+  { "name": "launch-ignition.jpg", "seek": -1, "wait": 1800 },
+  { "name": "launch-ascent.jpg", "seek": 26, "wait": 1800 },
+  { "name": "launch-staging.jpg", "seek": 162, "wait": 1800 },
+  { "name": "launch-boostback.jpg", "seek": 200, "wait": 1800 },
+  { "name": "launch-catch.jpg", "seek": 405, "wait": 1800 },
+  { "name": "launch-caught.jpg", "seek": 420, "wait": 1800 },
+  { "name": "launch-site.jpg", "jump": ["starship", "site"], "wait": 1400 },
+  { "name": "night-centre.jpg", "jump": [null], "sun": -8, "wait": 1800 }
+]

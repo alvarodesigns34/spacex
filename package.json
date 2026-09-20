@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "serve": "python3 -m http.server 8080",
-    "check": "node tools/check.mjs"
+    "check": "node tools/check.mjs",
+    "profile": "node tools/profile.mjs",
+    "shots": "node tools/shot.mjs docs/screenshots tools/docs-shots.json && node tools/shot.mjs docs/screenshots tools/launch-shots.json"
   },
   "devDependencies": {
     "playwright": "1.56.1"
