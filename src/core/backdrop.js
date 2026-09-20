@@ -8,6 +8,7 @@
  * this is scenery, and is labelled as scenery.
  */
 import * as THREE from 'three';
+import { anisotropyLimit } from '../materials/textures.js';
 import { canvas, shade, fbm } from '../materials/textures.js';
 import { mesh, seeded } from '../geometry/utils.js';
 
@@ -36,7 +37,7 @@ function earthMaps() {
   });
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8;
+  t.anisotropy = Math.min(8, anisotropyLimit());
   return t;
 }
 

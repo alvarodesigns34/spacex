@@ -79,11 +79,25 @@ export function heightToNormal(src, strength = 2) {
   return out;
 }
 
+/**
+ * Ceiling on anisotropic filtering, set once from the quality tier and from what the hardware
+ * actually offers.
+ *
+ * The tiers declared an `anisotropy` field from the day they were written and nothing read it:
+ * every builder here asked for 8 or 16 outright, so the cheap tier paid the same per-sample
+ * cost as the expensive one and the knob was decoration. Values passed below are requests now,
+ * and this is the limit they are held to — which also stops the code asking a device for 16×
+ * when it caps at 4 and silently getting something else.
+ */
+let ANISO_LIMIT = 8;
+export function setAnisotropyLimit(n) { ANISO_LIMIT = Math.max(1, Math.floor(n) || 1); }
+export function anisotropyLimit() { return ANISO_LIMIT; }
+
 export function toTexture(c, { srgb = false, tileSize = null, tileSizeU = null, wrap = THREE.RepeatWrapping, anisotropy = 8 } = {}) {
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = wrap;
   t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-  t.anisotropy = anisotropy;
+  t.anisotropy = Math.min(anisotropy, ANISO_LIMIT);
   if (tileSize) t.repeat.set(1 / (tileSizeU ?? tileSize), 1 / tileSize);
   // Recorded so verify.js can ask the question that matters about a UV map: not "does it
   // vary?" but "does it vary at the rate this texture was authored for?". A map with a

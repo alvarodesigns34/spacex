@@ -195,6 +195,48 @@ export function verifyScene(root, { log = true } = {}) {
             });
           }
         }
+
+        // Degenerate UV ISLANDS. The two checks above both ask about the geometry as a whole:
+        // do the coordinates vary at all, and do they vary at roughly the right rate. Neither
+        // can see a patch of triangles inside an otherwise well-mapped geometry whose UV area
+        // is zero — and that is what was actually there. The Roadster's body panels carry real
+        // metric UVs, but the end caps, edge flanges, tail panels, fascias, lamp apertures and
+        // taillight pockets merged into the same `body-paint` batch were each handed an
+        // all-zeros uv attribute so that mergeGeometries() would not throw on a mixed batch.
+        // The merged attribute varies, so both checks passed, while 21,644 of that mesh's
+        // 127,470 triangles — one in six — sampled a single texel of the paint's normal,
+        // roughness and flake maps and read as flat plastic against the panels beside them.
+        //
+        // Measured per triangle, sampled rather than exhaustive: a 127 k-triangle body does
+        // not need every face inspected to notice that a sixth of it is flat.
+        const pos = g.attributes.position, idx = g.index;
+        if (pos) {
+          const n = idx ? idx.count : pos.count;
+          const stride = Math.max(3, 3 * Math.floor(n / 3 / 4000));   // ≤ ~4000 triangles
+          let tested = 0, degenerate = 0;
+          for (let i = 0; i + 2 < n; i += stride) {
+            const a = idx ? idx.getX(i) : i, b = idx ? idx.getX(i + 1) : i + 1, c = idx ? idx.getX(i + 2) : i + 2;
+            // Skip triangles that are degenerate in 3D too: those carry no surface either way.
+            const e1x = pos.getX(b) - pos.getX(a), e1y = pos.getY(b) - pos.getY(a), e1z = pos.getZ(b) - pos.getZ(a);
+            const e2x = pos.getX(c) - pos.getX(a), e2y = pos.getY(c) - pos.getY(a), e2z = pos.getZ(c) - pos.getZ(a);
+            const cx = e1y * e2z - e1z * e2y, cy = e1z * e2x - e1x * e2z, cz = e1x * e2y - e1y * e2x;
+            if (Math.hypot(cx, cy, cz) < 1e-9) continue;
+            tested++;
+            const u1 = uv.getX(b) - uv.getX(a), v1 = uv.getY(b) - uv.getY(a);
+            const u2 = uv.getX(c) - uv.getX(a), v2 = uv.getY(c) - uv.getY(a);
+            if (Math.abs(u1 * v2 - u2 * v1) < 1e-10) degenerate++;
+          }
+          // 2 % of a batch is a cap ring or a seam strip and is not worth a build failure;
+          // a twentieth of the surface sampling one texel is a mapping that was never written.
+          const share = tested ? degenerate / tested : 0;
+          if (tested >= 40 && share > 0.05) {
+            issues.push({
+              mesh: label,
+              problem: `${(share * 100).toFixed(0)} % de los triángulos con área UV nula (islas sin mapear dentro de una geometría mapeada)`,
+              severity: 'error',
+            });
+          }
+        }
       }
     }
     if (!g.attributes.normal) {
@@ -390,6 +432,60 @@ export function verifyInterfaces(exhibits, complex, { log = true } = {}) {
     const step = sb.min.y - tb.max.y;
     add('the booster seats on the deck', Math.abs(step) <= 0.35,
       `base del faldón ${sb.min.y.toFixed(2)} m, cota del asiento ${tb.max.y.toFixed(2)} m`);
+  }
+  // 4. The heat shield's backing layer must not stand past the tiles it backs.
+  //
+  // The tile field's angular half-width depends on height — a little over half the
+  // circumference on the barrel, widening across the nose. The backing was a lathe, and a
+  // lathe spans the same angle at every height, so cutting it at the WIDEST value the tile
+  // field ever reaches left fifteen degrees of bare black backing standing past the last
+  // column of tiles for the whole length of the barrel: a 1.2 m stripe up each side of the
+  // ship, in every view of the windward face, invisible to a check that measured the ship's
+  // envelope rather than the relationship between two of its parts.
+  //
+  // Measured where it went wrong — on the barrel, well below where the nose starts widening.
+  {
+    const ship = ex.model.getObjectByName('ship');
+    const tiles = ship?.getObjectByName('tps');
+    const backing = ship?.getObjectByName('tps-backing');
+    if (tiles && backing) {
+      // The quantity that went wrong is an ANGLE, so measure the angle: how far round from the
+      // windward centreline (+Z) each part reaches, counting only what sits on the hull. A
+      // radius filter is what keeps the flaps out of it — their tiles stand a couple of metres
+      // proud of the barrel and would otherwise report a tile line far wider than the hull's,
+      // which is exactly the kind of false pass that lets a defect through.
+      const HULL_R = 4.5;
+      const halfAngle = (obj, y0, y1) => {
+        let half = 0;
+        const onHull = (x, y, z) => {
+          if (y < y0 || y > y1) return;
+          const r = Math.hypot(x, z);
+          if (Math.abs(r - HULL_R) > 0.6) return;
+          half = Math.max(half, Math.abs(Math.atan2(x, z)));
+        };
+        if (obj.isInstancedMesh) {
+          const m = new THREE.Matrix4(), v = new THREE.Vector3();
+          for (let i = 0; i < obj.count; i++) {
+            obj.getMatrixAt(i, m);
+            v.setFromMatrixPosition(m);
+            onHull(v.x, v.y, v.z);
+          }
+        } else {
+          const pos = obj.geometry?.attributes?.position;
+          for (let i = 0; pos && i < pos.count; i++) onHull(pos.getX(i), pos.getY(i), pos.getZ(i));
+        }
+        return half;
+      };
+      const [y0, y1] = [6, 24];                      // barrel, clear of the nose transition
+      const deg = (r) => THREE.MathUtils.radToDeg(r);
+      const tileHalf = halfAngle(tiles, y0, y1);
+      const backHalf = halfAngle(backing, y0, y1);
+      // A tile centred on the edge of the window overhangs by its circumradius, so the backing
+      // is entitled to that much and no more: 0.152 m at a 4.5 m radius is about 2°. Allow 4°.
+      const over = deg(backHalf - tileHalf);
+      add('TPS backing stays under the tiles', over <= 4 && tileHalf > 0,
+        `entre ${y0} y ${y1} m: losetas hasta ±${deg(tileHalf).toFixed(1)}°, respaldo hasta ±${deg(backHalf).toFixed(1)}° (sobresale ${over.toFixed(1)}°)`);
+    }
   }
 
   if (log) {

@@ -37,7 +37,8 @@
  * driver side on -X (left-hand drive).
  */
 import * as THREE from 'three';
-import { mesh, mergeAll, mat4, tube, lathe, curve } from '../geometry/utils.js';
+import { mesh, mergeAll, mat4, tube, lathe, curve, boxUV } from '../geometry/utils.js';
+import { anisotropyLimit } from '../materials/textures.js';
 import { canvas, shade, fbm, noise2, heightToNormal, toTexture } from '../materials/textures.js';
 
 // ---- Dimensions -------------------------------------------------------------------------
@@ -362,9 +363,9 @@ function endCap(ring, dirZ, depth, flatFrac, rings = 4, flip = false) {
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
   geo.setIndex(idx);
   geo.computeVertexNormals();
+  boxUV(geo);
   return geo;
 }
 
@@ -382,9 +383,9 @@ function edgeFlange(edge, inZ, drop, flip = false) {
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(n * 4), 2));
   geo.setIndex(idx);
   geo.computeVertexNormals();
+  boxUV(geo);
   return geo;
 }
 
@@ -459,9 +460,9 @@ function tailPanel(ring, skip) {
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    geo.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
     geo.setIndex(idx);
     geo.computeVertexNormals();
+    boxUV(geo);
     parts.push({ geometry: geo });
   }
 
@@ -482,9 +483,9 @@ function tailPanel(ring, skip) {
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    geo.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
     geo.setIndex(idx);
     geo.computeVertexNormals();
+    boxUV(geo);
     parts.push({ geometry: geo });
   }
 
@@ -559,7 +560,7 @@ function makeDontPanicTexture() {
 
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
+  tex.anisotropy = Math.min(4, anisotropyLimit());
   return tex;
 }
 
@@ -607,7 +608,7 @@ function makePcbTexture() {
 
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
+  tex.anisotropy = Math.min(4, anisotropyLimit());
   return tex;
 }
 
@@ -927,9 +928,9 @@ function buildBodyShell(mats, M) {
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    geo.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(lip.length * 4), 2));
     geo.setIndex(idx);
     geo.computeVertexNormals();
+    boxUV(geo);
     panels.push({ geometry: geo });
   }
 
@@ -1138,9 +1139,9 @@ function buildBodyShell(mats, M) {
     }
     const valance = new THREE.BufferGeometry();
     valance.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    valance.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
     valance.setIndex(idx);
     valance.computeVertexNormals();
+    boxUV(valance);
     g.add(mesh(valance, mats.lowerFascia, { name: 'front-lower-fascia' }));
 
     // The plenum behind the slot, and what is in it.
@@ -1166,9 +1167,9 @@ function buildBodyShell(mats, M) {
     for (let i = 0; i < N; i++) widx.push(N + i, N + (i + 1) % N, back);
     const wall = new THREE.BufferGeometry();
     wall.setAttribute('position', new THREE.Float32BufferAttribute(wpos, 3));
-    wall.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((wpos.length / 3) * 2), 2));
     wall.setIndex(widx);
     wall.computeVertexNormals();
+    boxUV(wall);
     g.add(mesh(wall, mats.lampHousing, { name: 'front-mouth-plenum' }));
 
     // Radiator mesh, set well back in the plenum. Kept small and dark: anything bright at the
@@ -1236,9 +1237,9 @@ function buildBodyShell(mats, M) {
     }
     const panel = new THREE.BufferGeometry();
     panel.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    panel.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
     panel.setIndex(idx);
     panel.computeVertexNormals();
+    boxUV(panel);
     g.add(mesh(panel, mats.lowerFascia, { name: 'rear-lower-fascia' }));
 
     // Diffuser: mesh across the middle with four strakes standing on it.
@@ -1512,9 +1513,9 @@ function lampSurround(L, s, mats, out) {
   }
   const wall = new THREE.BufferGeometry();
   wall.setAttribute('position', new THREE.Float32BufferAttribute(wallPos, 3));
-  wall.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((N + 1) * 4), 2));
   wall.setIndex(wallIdx);
   wall.computeVertexNormals();
+  boxUV(wall);
   out.add(mesh(wall, mats.lampHousing, { name: 'lamp-aperture-wall' }));
   out.add(mesh(tube(rim, 0.0090, { tubular: 64, radial: 8, closed: true }), mats.cherryRed, { name: 'lamp-rim' }));
 }
@@ -1611,9 +1612,9 @@ function buildTaillights(mats, M) {
     }
     const wall = new THREE.BufferGeometry();
     wall.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    wall.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((N + 1) * 4), 2));
     wall.setIndex(idx);
     wall.computeVertexNormals();
+    boxUV(wall);
     side.add(mesh(wall, mats.lampHousing, { name: 'taillight-pocket' }));
 
     // Back plate of the pocket.
@@ -1629,9 +1630,9 @@ function buildTaillights(mats, M) {
     for (let i = 0; i < N; i++) bidx.push(i, i + 1, bc);
     const back = new THREE.BufferGeometry();
     back.setAttribute('position', new THREE.Float32BufferAttribute(bpos, 3));
-    back.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((bpos.length / 3) * 2), 2));
     back.setIndex(bidx);
     back.computeVertexNormals();
+    boxUV(back);
     side.add(mesh(back, mats.lampHousing, { name: 'taillight-back' }));
 
     // Pressed body-colour rim around the opening.
@@ -1743,9 +1744,9 @@ function buildWindshieldAndRollHoop(mats) {
   }
   const frit = new THREE.BufferGeometry();
   frit.setAttribute('position', new THREE.Float32BufferAttribute(fritPos, 3));
-  frit.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(fritPos.length / 3 * 2), 2));
   frit.setIndex(fritIdx);
   frit.computeVertexNormals();
+  boxUV(frit);
   g.add(mesh(frit, mats.satinBlack, { name: 'windshield-ceramic-frit' }));
 
   // Surround: A-pillars and header traced along the glass edge, slimmer than the 44 mm tubes
@@ -2074,8 +2075,20 @@ function loft(sections, close = true) {
     }
   }
   if (close) {
+    // The caps get their OWN vertices with a planar projection, instead of fanning over the
+    // ring's side-wall vertices. Reusing those gave every triangle in a cap the same v — the
+    // ring's accumulated distance along the loft — so all three corners sat on one line in UV
+    // space and the triangle had zero area there. Fifty-two faces per seat, on the leather and
+    // on the carbon shell, sampling a single texel: flat, and invisible to a check that only
+    // asked whether the attribute as a whole varied.
     for (const [ring, flip] of [[0, true], [sections.length - 1, false]]) {
-      const base = ring * n;
+      const src = ring * n;
+      const base = pos.length / 3;
+      for (let j = 0; j < n; j++) {
+        const x = pos[(src + j) * 3], y = pos[(src + j) * 3 + 1], z = pos[(src + j) * 3 + 2];
+        pos.push(x, y, z);
+        uv.push(x, z);                    // metres, like every other cap in the project
+      }
       for (let j = 1; j < n - 2; j++) {
         if (flip) idx.push(base, base + j + 1, base + j);
         else idx.push(base, base + j, base + j + 1);

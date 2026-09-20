@@ -27,6 +27,8 @@ export const SOURCES = {
   se_pad2: { label: 'Space Explored — progress on the second Starship pad (474 ft tower)', url: 'https://spaceexplored.com/2025/02/07/spacex-makes-progress-on-second-starship-launch-pad/' },
   wiki_ft7: { label: 'Wikipedia — Starship flight test 7 (flight timeline)', url: 'https://en.wikipedia.org/wiki/Starship_flight_test_7' },
   wiki_ft5: { label: 'Wikipedia — Starship flight test 5 (first booster catch, timeline)', url: 'https://en.wikipedia.org/wiki/Starship_flight_test_5' },
+  wiki_ft12: { label: 'Wikipedia — Starship flight test 12 (V3 debut, 22 May 2026)', url: 'https://en.wikipedia.org/wiki/Starship_flight_test_12' },
+  spacex_v3: { label: 'spacex.com — Introducing Starship V3 (May 2026 update)', url: 'https://www.spacex.com/updates/' },
   space_tiles: { label: 'Space.com — hexagonal Starship heat shield tiles', url: 'https://www.space.com/spacex-starship-hexagon-heat-shield-tile-test.html' },
   wiki_dragon_crew: { label: 'Wikipedia — Crew Dragon (capsule dimensions)', url: 'https://en.wikipedia.org/wiki/Dragon_2' },
   starlink_gen2: { label: 'starlink.com — Second generation satellites (PDF)', url: 'https://starlink.com/public-files/Gen2StarlinkSatellites.pdf' },
@@ -75,6 +77,7 @@ export const VEHICLES = [
       { label: 'Sequence · milestones', value: 'liftoff T+0:02 · Max-Q T+1:02 · MECO T+2:32 · hot-staging T+2:40', source: 'wiki', ref: 'wiki_ft7' },
       { label: 'Sequence · booster return', value: 'boostback burn T+2:45 to T+3:41 · landing burn T+6:30 · caught by the tower T+6:54', source: 'wiki', ref: 'wiki_ft5' },
       { label: 'Sequence · speed at separation', value: '≈ 5,700 km/h (1,583 m/s) — the anchor the speed curve is built to, not a published figure', source: 'derived', approx: true },
+      { label: 'Sequence · what it is', value: 'A composite catch demonstration, not one flight: V3 on Pad 2 as flown on flight 12 (22 May 2026), ascent milestones from flight 7, return and catch milestones from flight 5. Flight 12 itself did not attempt a catch — booster 19 targeted a Gulf splashdown and its landing burn failed to relight.', source: 'derived', approx: true, ref: 'wiki_ft12' },
       { label: 'Sequence · ascent profile', value: 'speed curve and gravity turn (72°, τ = 64 s) reconstructed; altitude and downrange are integrated from them, not declared separately', source: 'derived', approx: true },
     ],
     approximations: [
@@ -85,7 +88,7 @@ export const VEHICLES = [
       'The night lighting on the Sun control is display lighting for the centre, not a record of how Starbase is actually lit after dark.',
       'The booster\'s return trajectory is authored, not integrated: no public source gives Super Heavy\'s altitude second by second. It is pinned to the four cited times of the flight 5 return and to an apogee near 96 km; everything between those pins is a reconstruction, as the ascent curve is.',
     ],
-    sources: ['spacex_starship', 'wiki_starship', 'wiki_superheavy', 'wiki_raptor', 'space_tiles', 'nsf_sh_block3', 'nsf_flight12', 'wiki_ft5'],
+    sources: ['spacex_starship', 'spacex_v3', 'wiki_starship', 'wiki_superheavy', 'wiki_raptor', 'space_tiles', 'nsf_sh_block3', 'nsf_flight12', 'wiki_ft5', 'wiki_ft12'],
     presets: [
       { id: 'overview', label: 'Overview', pos: [150, 70, 190], target: [0, 58, 0] },
       { id: 'engines', label: '33 Raptors', pos: [1.6, -7.6, 2.0], target: [0, 2.4, 0] },

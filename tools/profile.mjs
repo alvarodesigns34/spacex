@@ -16,6 +16,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { sceneCensus, bootAtQuality } from './census.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const PORT = 8803;
@@ -44,70 +45,20 @@ const browser = await chromium.launch({
 const page = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
 page.on('pageerror', e => console.error('PAGEERROR', e.message));
 
+// Force the tier rather than let the probe pick it: this runs on SwiftShader, which is
+// correctly demoted to `low`, and a profile of the reduced scene would be measuring something
+// nobody ships. `--quality` exists so the cheap tiers can be profiled on purpose.
+const TIER = argOf('--quality') ?? 'high';
 const t0 = Date.now();
-await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: 'load' });
-await page.waitForFunction(() => window.__vc, null, { timeout: 180000 });
-await page.waitForFunction(() => !document.getElementById('loading'), null, { timeout: 180000 });
+await bootAtQuality(page, `http://127.0.0.1:${PORT}/`, TIER);
 const wallMs = Date.now() - t0;
 
 /**
- * Scene census. renderer.info.render only reports what the LAST frame drew, so it is read
- * after a render in each situation rather than once; memory counts are process-wide.
+ * Scene census — the shared walk in census.mjs, which propagates visibility through parents
+ * instead of asking each mesh its own local flag. renderer.info.render only reports what the
+ * LAST frame drew, so it is read per situation below; these counts are process-wide.
  */
-const census = await page.evaluate(() => {
-  const v = window.__vc;
-  const mats = new Set(), geos = new Set(), texes = new Map();
-  let tris = 0, visTris = 0, meshes = 0, visMeshes = 0, shadowCasters = 0, doubleSided = 0;
-  const perExhibit = {};
-  const triOf = (o) => {
-    const g = o.geometry;
-    if (!g?.attributes?.position) return 0;
-    const n = (g.index ? g.index.count : g.attributes.position.count) / 3;
-    return n * (o.isInstancedMesh ? o.count : 1);
-  };
-  const noteMat = (m) => {
-    if (!m) return;
-    for (const mm of Array.isArray(m) ? m : [m]) {
-      mats.add(mm);
-      if (mm.side === 2) doubleSided++;
-      for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap', 'clearcoatNormalMap']) {
-        const t = mm[k];
-        if (!t?.image) continue;
-        const w = t.image.width ?? 0, h = t.image.height ?? 0;
-        // 4 bytes/texel, +1/3 for the mip chain. An estimate, but a stable one to diff.
-        texes.set(t, Math.round(w * h * 4 * 1.33));
-      }
-    }
-  };
-  v.scene.traverse((o) => {
-    if (!o.isMesh && !o.isInstancedMesh) return;
-    meshes++;
-    const t = triOf(o);
-    tris += t;
-    if (o.castShadow) shadowCasters++;
-    if (o.visible) { visMeshes++; visTris += t; }
-    if (o.geometry) geos.add(o.geometry);
-    noteMat(o.material);
-  });
-  for (const [id, ex] of Object.entries(v.exhibits)) {
-    let et = 0, em = 0;
-    ex.model.traverse((o) => { if (o.isMesh || o.isInstancedMesh) { em++; et += triOf(o); } });
-    perExhibit[id] = { tris: Math.round(et), meshes: em };
-  }
-  let padTris = 0, padMeshes = 0;
-  v.complex?.traverse((o) => { if (o.isMesh || o.isInstancedMesh) { padMeshes++; padTris += triOf(o); } });
-  const mem = v.renderer.info.memory;
-  let texBytes = 0; for (const b of texes.values()) texBytes += b;
-  return {
-    tris: Math.round(tris), visibleTris: Math.round(visTris), meshes, visibleMeshes: visMeshes,
-    shadowCasters, doubleSidedMaterials: doubleSided,
-    materials: mats.size, geometries: geos.size, textures: texes.size,
-    textureMB: +(texBytes / 1048576).toFixed(1),
-    rendererGeometries: mem.geometries, rendererTextures: mem.textures,
-    perExhibit, pad: { tris: Math.round(padTris), meshes: padMeshes },
-    startup: v.timings,
-  };
-});
+const census = await page.evaluate(sceneCensus, { perExhibit: true, startup: true });
 
 /** Frame time and draw calls in one situation, after letting it settle. */
 async function situation(name, setup, { frames = Number(argOf('--frames') ?? 18) } = {}) {
@@ -148,7 +99,12 @@ if (!args.includes('--census-only')) {
 situations.push(await situation('overview', () => window.__vc.jump(null)));
 situations.push(await situation('starship-site', () => window.__vc.jump('starship', 'site')));
 situations.push(await situation('starship-engines', () => window.__vc.jump('starship', 'engines')));
+situations.push(await situation('starship-tps-far', () => window.__vc.jump('starship', 'site')));
 situations.push(await situation('roadster-detail', () => window.__vc.jump('roadster', 'detail')));
+situations.push(await situation('roadster-far', () => window.__vc.jump(null)));
+situations.push(await situation('dragon-detail', () => window.__vc.jump('dragon', 'superdraco')));
+situations.push(await situation('starlink-bus', () => window.__vc.jump('starlink', 'bus')));
+situations.push(await situation('falconheavy', () => window.__vc.jump('falconheavy', 'overview')));
 situations.push(await situation('engines-row', () => window.__vc.jump('engines', 'overview')));
 situations.push(await situation('launch-liftoff', () => { window.__vc.launch.seek(6); }));
 situations.push(await situation('launch-maxq', () => { window.__vc.launch.seek(62); }));
@@ -184,7 +140,8 @@ if (basePath) {
   const base = JSON.parse(await readFile(basePath, 'utf8'));
   const pct = (a, b) => (b ? `${(((a - b) / b) * 100).toFixed(1)}%` : 'n/a');
   console.error('\n--- vs baseline ---');
-  for (const k of ['wallStartupMs', 'tris', 'meshes', 'materials', 'textures', 'textureMB']) {
+  for (const k of ['wallStartupMs', 'tris', 'drawnTris', 'meshes', 'drawnMeshes', 'vertices',
+    'bufferMB', 'materials', 'textures', 'textureMB']) {
     console.error(`  ${k.padEnd(16)} ${base[k]} -> ${out[k]}  (${pct(out[k], base[k])})`);
   }
   for (const s of out.situations) {

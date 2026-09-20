@@ -171,6 +171,57 @@ try {
       `${owned.owner} -> ${stolen.owner} -> ${back.owner}`);
     await page.evaluate(() => { window.__vc.stopTour(); window.__vc.launch.reset(false); });
 
+    // Ownership, the harder half. The test above walks the three drivers displacing each other
+    // through their own entry points, which always worked. What did not work was every route
+    // by which the VISITOR takes the camera back — and none of them was covered, because the
+    // scene looks identical either way: `applyVisibility` keys off exhibit and flying, never
+    // off owner. The damage was to every decision made by asking who is driving.
+    {
+      const ownerAfter = async (fn) => {
+        await page.evaluate(() => { window.__vc.stopTour(); window.__vc.launch.reset(false); window.__vc.jump(null); });
+        await page.evaluate(() => window.__vc.startTour());
+        await page.waitForTimeout(120);
+        const during = (await S()).owner;
+        await fn();
+        await page.waitForTimeout(160);
+        return { during, after: (await S()).owner, tour: await page.evaluate(() => window.__vc.tourAt) };
+      };
+
+      const ended = await ownerAfter(() => page.evaluate(() => window.__vc.tourRunToEnd()));
+      const dragged = await ownerAfter(async () => {
+        await page.mouse.move(800, 450); await page.mouse.down(); await page.mouse.move(820, 460); await page.mouse.up();
+      });
+      const wheeled = await ownerAfter(async () => { await page.mouse.move(800, 450); await page.mouse.wheel(0, -200); });
+      const flew = await ownerAfter(() => page.evaluate(() => window.__vc.toggleMode()));
+      await page.evaluate(() => window.__vc.toggleMode());       // back to orbit
+
+      const good = (r) => r.during === 'tour' && r.after === 'user' && r.tour < 0;
+      report([ended, dragged, wheeled, flew].every(good),
+        'el visitante recupera la cámara por las cuatro rutas',
+        `fin natural ${ended.after}/${ended.tour} · arrastre ${dragged.after}/${dragged.tour} · `
+        + `rueda ${wheeled.after}/${wheeled.tour} · vuelo libre ${flew.after}/${flew.tour}`);
+
+      // Dragging during a LAUNCH is the one case that must not stop what is driving: the rig
+      // hands the camera over and the rocket goes on flying. The state has to say both.
+      await page.evaluate(() => { window.__vc.stopTour(); window.__vc.launch.reset(false); window.__vc.launch.start(); });
+      await page.waitForTimeout(120);
+      const ownedByLaunch = (await S()).owner;
+      await page.mouse.move(800, 450); await page.mouse.down(); await page.mouse.move(830, 470); await page.mouse.up();
+      await page.waitForTimeout(160);
+      const afterDrag = await S();
+      const stillRunning = await page.evaluate(() => window.__vc.launch.running);
+      report(ownedByLaunch === 'launch' && afterDrag.owner === 'user' && stillRunning,
+        'arrastrar durante el lanzamiento toma la cámara sin detener la secuencia',
+        `dueño ${ownedByLaunch} -> ${afterDrag.owner}, secuencia ${stillRunning ? 'sigue' : 'PARADA'}`);
+      await page.evaluate(() => window.__vc.launch.reset(false));
+      const afterEnd = (await S()).owner;
+      report(afterEnd === 'user', 'terminar el lanzamiento deja la cámara al visitante', afterEnd);
+      await page.evaluate(() => window.__vc.jump(null));
+      // Let the sweep and OrbitControls' damping settle before handing the page to the next
+      // block: an unsettled camera looks like a surviving tour timer to the test below.
+      await page.waitForTimeout(2600);
+    }
+
     // Churn: twenty view changes back to back must leave one coherent state, not a mixture.
     await page.evaluate(() => {
       const v = window.__vc;
@@ -278,17 +329,34 @@ try {
     const started = await page.evaluate(() => window.__vc.tourAt);
     await page.evaluate(() => window.__vc.stopTour());
     const stopped = await page.evaluate(() => window.__vc.tourAt);
+    // Let the framing sweep the first stop started finish before reading a position. The
+    // question here is whether a TIMER survived, not whether the camera is frozen: sampling
+    // mid-sweep compares two points on the same easing curve and reports movement that has
+    // nothing to do with the tour. It passed only because the state this ran in happened to
+    // make the first jump a no-op, so it failed the moment anything before it changed.
+    await page.waitForFunction(() => {
+      const p = window.__vc.camera.position;
+      const last = window.__settle;
+      window.__settle = [p.x, p.y, p.z];
+      return !window.__vc.rig.transition && last
+        && Math.abs(last[0] - p.x) < 1e-4 && Math.abs(last[1] - p.y) < 1e-4 && Math.abs(last[2] - p.z) < 1e-4;
+    }, null, { timeout: 20000, polling: 250 });
     // Wait past the first stop's dwell. Anything shorter proves nothing: a surviving timer
     // would not have fired yet, and the assertion would pass on a tour that never stops.
     const before = await page.evaluate(() => window.__vc.camera.position.toArray());
     await page.waitForTimeout(TOUR_FIRST_HOLD_MS + 800);
     const after = await page.evaluate(() => window.__vc.camera.position.toArray());
-    const still = before.every((v, i) => Math.abs(v - after[i]) < 1e-6);
+    // A surviving tour timer RE-FRAMES the camera: the closest two stops on the route are
+    // tens of metres apart, so that is what this has to detect. 1e-6 detected something else —
+    // OrbitControls' damping bleeding a drag out over several seconds, which on CI's one-or-two
+    // frames a second takes long enough to still be running when the window closes. Half a
+    // metre is three orders of magnitude below any re-frame and well above the residue.
+    const still = before.every((v, i) => Math.abs(v - after[i]) < 0.5);
     const idle = await page.evaluate(() => window.__vc.tourAt);
     const ok = started === 0 && stopped === -1 && still && idle === -1;
     report(ok, 'la visita guiada arranca y se detiene de verdad',
       ok ? 'primer alto encuadrado, y al pararla no queda ningún temporizador moviendo la cámara'
-        : `arranque ${started} · parada ${stopped} · cámara quieta ${still} · inactiva ${idle === -1}`);
+        : `arranque ${started} · parada ${stopped} · cámara quieta ${still} · inactiva ${idle === -1} · antes ${before.map(v=>v.toFixed(2))} después ${after.map(v=>v.toFixed(2))}`);
     await page.evaluate(() => window.__vc.jump(null));
   }
 

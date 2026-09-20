@@ -1,9 +1,9 @@
 [
-  { "name": "roadster_overview", "jump": ["roadster", "overview"], "wait": 1000 },
-  { "name": "roadster_starman", "jump": ["roadster", "starman"], "wait": 1000 },
-  { "name": "roadster_dontpanic", "jump": ["roadster", "dontpanic"], "wait": 1000 },
-  { "name": "roadster_selfie", "jump": ["roadster", "selfie"], "wait": 1000 },
-  { "name": "roadster_earth", "jump": ["roadster", "earth"], "wait": 1000 },
-  { "name": "roadster_detail", "jump": ["roadster", "detail"], "wait": 1000 },
-  { "name": "roadster_underbody", "jump": ["roadster", "underbody"], "wait": 1000 }
+  { "name": "roadster-overview.jpg", "jump": ["roadster", "overview"], "wait": 1400 },
+  { "name": "roadster-starman.jpg", "jump": ["roadster", "starman"], "wait": 1400 },
+  { "name": "roadster-dontpanic.jpg", "jump": ["roadster", "dontpanic"], "wait": 1400 },
+  { "name": "roadster-selfie.jpg", "jump": ["roadster", "selfie"], "wait": 1400 },
+  { "name": "roadster-earth.jpg", "jump": ["roadster", "earth"], "wait": 1800 },
+  { "name": "roadster-detail.jpg", "jump": ["roadster", "detail"], "wait": 1400 },
+  { "name": "roadster-underbody.jpg", "jump": ["roadster", "underbody"], "wait": 1400 }
 ]

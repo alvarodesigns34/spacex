@@ -20,6 +20,8 @@
  * particles the ground cloud carries.
  */
 
+import { setAnisotropyLimit } from '../materials/textures.js';
+
 /**
  * Reads what the platform will tell us. Deliberately cheap and side-effect free: it runs
  * before anything else is built, and a probe that hangs is worse than a wrong guess.
@@ -115,8 +117,17 @@ export function pickQuality(renderer, force = null) {
   return tier;
 }
 
-/** Applies the parts of a tier that belong to the renderer itself. */
+/**
+ * Applies the parts of a tier that belong to the renderer itself, and publishes the
+ * anisotropy ceiling to the texture builders — which is the one setting that has to be in
+ * place BEFORE the materials are generated, because a CanvasTexture takes its filtering at
+ * construction. It is also held to what the context reports: asking a device for 16× when it
+ * caps at 4 does not fail, it just quietly gives you something else.
+ */
 export function applyQuality(renderer, tier) {
   renderer.setPixelRatio(tier.pixelRatio);
   renderer.shadowMap.enabled = tier.shadows;
+  const hw = renderer.capabilities.getMaxAnisotropy?.() ?? 1;
+  tier.anisotropy = Math.max(1, Math.min(tier.anisotropy, hw));
+  setAnisotropyLimit(tier.anisotropy);
 }

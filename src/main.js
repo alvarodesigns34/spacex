@@ -414,6 +414,9 @@ async function main() {
       return list.find(p => p.id === want)?.id ?? list[0]?.id ?? null;
     },
   });
+  // The rig releases a scripted shot on its own, from its own pointer and wheel handlers. This
+  // is how the state machine finds out, so the two can never disagree about who is driving.
+  rig.onExternalRelease = () => { view.claim('user'); };
   // Read-only aliases kept for the many places below that only look at the state.
   const state = view.toggles;
   function setToggle(name, value) {
@@ -473,8 +476,39 @@ async function main() {
   }
   view.subscribe(applyVisibility);
 
-  function toggleMode() {
+  /**
+   * The one route by which the visitor takes the camera back.
+   *
+   * There were several before, and each knew about a different subset of the machinery, so the
+   * logical state and the rig disagreed in exactly the cases nobody tested. `stopTour` cleared
+   * the timer and the HUD but never claimed the camera, so a drag during the tour left
+   * `owner === 'tour'` with no tour running; the tour's own last step called `stopTour()` and
+   * then jumped as `'tour'`, so finishing the tour normally left it owning the camera for the
+   * rest of the session; and `CameraRig.takeOver()`, which fires on every pointerdown and
+   * wheel inside the canvas, released the external driver without telling the state machine
+   * anything at all.
+   *
+   * Nothing visible broke, which is why it survived: the *scene* was right because
+   * `applyVisibility` keys off exhibit and flying, not off owner. What was wrong was every
+   * decision made by asking who owns the camera — so `claim('user')` reported no transition
+   * and cancelled nothing.
+   *
+   * @param {boolean} endLaunch  true when the visitor asked for something incompatible with
+   *        the sequence (free flight, the tour, picking a vehicle). A plain drag or scroll
+   *        does NOT end the launch: the rig hands over the camera and the rocket flies on.
+   */
+  function claimUserControl({ endLaunch = false } = {}) {
+    rig.takeOver();
     stopTour();
+    const stop = view.claim('user');
+    if (stop.tour) stopTour();
+    if (endLaunch && launch.running) launch.reset(false);
+  }
+
+  // Free flight during a launch is deliberate — flying alongside the rocket is one of the
+  // things the sequence is for — so F takes the camera without ending the sequence.
+  function toggleMode() {
+    claimUserControl();
     rig.setMode(rig.mode === 'fly' ? 'orbit' : 'fly');
   }
 
@@ -565,7 +599,14 @@ async function main() {
 
   function tourStep() {
     tourAt++;
-    if (tourAt >= TOUR.length) { stopTour(); jump(null, undefined, 'tour'); return; }
+    if (tourAt >= TOUR.length) {
+      // Finishing the tour has to hand the camera back, not just stop the timer. Returning to
+      // the overview as 'tour' left the machine believing a tour that no longer existed owned
+      // the camera, so the next thing the visitor did reported no change of owner.
+      stopTour();
+      jump(null, undefined, 'user');
+      return;
+    }
     const [id, preset, hold] = TOUR[tourAt];
     jump(id, preset, 'tour');
     hud.setTour({ step: tourAt + 1, total: TOUR.length });
@@ -582,10 +623,32 @@ async function main() {
     clearTimeout(tourTimer);
     tourAt = -1;
     hud.setTour(null);
+    // A tour that has stopped cannot still own the camera. The guard is what keeps this from
+    // fighting `enforce`: when the launch takes over, the machine is already on 'launch' by
+    // the time this runs to clear the timer, and claiming 'user' here would take the camera
+    // straight back off the sequence that had just been handed it.
+    if (view.owner === 'tour') view.claim('user');
   }
-  const toggleTour = () => (tourAt >= 0 ? stopTour() : startTour());
-  // Any attempt to drive the camera ends the tour rather than fighting it.
-  for (const ev of ['pointerdown', 'wheel']) canvas.addEventListener(ev, stopTour, { passive: true });
+  const toggleTour = () => (tourAt >= 0 ? claimUserControl() : startTour());
+  /**
+   * Runs the tour's LAST step now, for the gate. Not a shortcut round the code it is testing:
+   * it drops the timer onto the final index and lets the real `tourStep` take the real
+   * end-of-tour branch, because waiting out fourteen stops at four to six seconds each is not
+   * something a build can do and "the tour ends" is exactly where the owner went stale.
+   */
+  function tourRunToEnd() {
+    if (tourAt < 0) return;
+    clearTimeout(tourTimer);
+    tourAt = TOUR.length - 1;
+    tourStep();
+  }
+  // Any attempt to drive the camera ends the tour rather than fighting it — and takes
+  // ownership with it, which is the part that used to be missed. The rig's own takeOver()
+  // fires on the same events and releases the scripted shot; this is what tells the state
+  // machine that it did.
+  for (const ev of ['pointerdown', 'wheel']) {
+    canvas.addEventListener(ev, () => claimUserControl(), { passive: true });
+  }
 
   window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return;
@@ -755,6 +818,7 @@ async function main() {
   window.__vc = {
     M, scene, camera, rig, exhibits, complex, launch, select, goPreset, jump, renderer, env,
     setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour,
+    claimUserControl, tourRunToEnd, toggleMode,
     // The state machine itself, so the gate can assert on transitions rather than on the
     // scene's reaction to them.
     view, viewState: () => view.snapshot(),

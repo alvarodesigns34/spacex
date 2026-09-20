@@ -64,7 +64,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
         </div>
         <button class="mission-abort" id="mission-abort">End</button>
       </div>
-      <p class="mission-note">Milestones follow published flight timelines: liftoff T+0:02 · Max-Q 1:02 · MECO 2:32 · hot-staging 2:40, then the booster's return — boostback 2:45–3:41, landing burn 6:30, caught by the tower at 6:54. The curves between the milestones are a reconstruction.</p>
+      <p class="mission-note"><b>Composite catch demonstration — not a reconstruction of one flight.</b> The vehicle and the pad are the V3 / Pad 2 configuration that debuted on flight 12 (22 May 2026), but that flight did <i>not</i> attempt a catch: booster 19 was sent to the Gulf and its landing burn failed to relight. So the ascent milestones are flight 7's (liftoff T+0:02 · Max-Q 1:02 · MECO 2:32 · hot-staging 2:40) and the return milestones are flight 5's, the flight on which a booster was first caught (boostback 2:45–3:41, landing burn 6:30, caught 6:54). Everything between the milestones — the speed curve, the gravity turn, the separation speed and the whole return trajectory — is authored.</p>
     </div>
 
     <div class="scale" id="scale">

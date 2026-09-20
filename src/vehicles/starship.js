@@ -385,10 +385,26 @@ export function buildShip(M) {
   tiles.receiveShadow = true;
 
   // Ablative backing layer just under the tiles, so the gaps read as deep grooves.
+  //
+  // It has to follow coverage(y), not a constant angle. A lathe spans the same phi window at
+  // every height, so cutting it at COVER_NOSE — the widest the tile field ever gets, up on the
+  // nose — left 15° of bare backing standing past the last column of tiles all the way down
+  // the barrel: at a 4.5 m radius that is a 1.2 m black stripe running thirty metres up each
+  // side of the ship, in every view of the windward face. The tiles, this backing, the far
+  // shell and the verification all take their footprint from the one `coverage` function now.
+  //
+  // It is allowed to stand proud by one tile circumradius, and no more: a tile whose centre
+  // sits on the edge of the window overhangs by exactly that much, and backing narrower than
+  // that would leave the outermost tiles lipping over bare steel.
   const tileBase = 1.0;
-  const backProfile = profile.filter(p => p.y >= tileBase).map(p => ({ r: p.r + 0.002, y: p.y }));
-  backProfile.unshift({ r: profileAt(profile, tileBase).r + 0.002, y: tileBase });
-  const backing = mesh(lathe(backProfile, { segments: 112, phiStart: -COVER_NOSE, phiLength: 2 * COVER_NOSE }), M.tileUnder, { castShadow: false });
+  const backCoverage = (y) => {
+    const r = profileAt(profile, y)?.r ?? 1;
+    return Math.min(Math.PI, coverage(y) + TILE_R / r);
+  };
+  const backing = mesh(
+    coverageShell(profile, backCoverage, tileBase, SHIP_H - 0.02, 0.002, 140, 96),
+    M.tileUnder, { castShadow: false });
+  backing.name = 'tps-backing';
   g.add(backing);
 
   let count = tileSurfaceOfRevolution(tiles, profile, {

@@ -108,14 +108,18 @@ export class ViewState {
    */
   claim(owner) {
     const stop = { tour: this.owner === 'tour' && owner !== 'tour', launch: this.owner === 'launch' && owner !== 'launch' };
-    this.owner = owner;
+    // Who is driving is observable state, so a change of owner is a transition like any other
+    // and subscribers hear about it. It was silent before, which meant anything that wanted to
+    // react to the camera changing hands had to poll for it or be wired in by hand.
+    if (this.owner !== owner) { this.owner = owner; this._changed(); }
     return stop;
   }
 
   /** Selects an exhibit (or the overview, with `null`) at its opening view. */
   select(id, owner = 'user') {
-    const stop = this.claim(owner);
+    let stop;
     this._batch(() => {
+      stop = this.claim(owner);
       this.exhibit = id;
       this.preset = id ? this._resolvePreset(id, 'overview') : null;
       this._changed();
@@ -125,8 +129,9 @@ export class ViewState {
 
   /** Moves to another view of an exhibit, selecting it if it was not already selected. */
   goPreset(id, preset, owner = 'user') {
-    const stop = this.claim(owner);
+    let stop;
     this._batch(() => {
+      stop = this.claim(owner);
       this.exhibit = id;
       this.preset = this._resolvePreset(id, preset);
       this._changed();
