@@ -36,7 +36,7 @@ import { createLaunch } from './sim/launch.js';
 // bare steel on the lee side — and facing its belly straight at the default camera shows
 // nothing but the black shield. Turning it puts the tile line across the vehicle, which is
 // how it is almost always photographed and how the two finishes read against each other.
-// The four museum vehicles stand in a row on z = 0. Starship does not: it sits on a launch
+// The seven museum exhibits stand in a row on z = 0. Starship does not: it sits on a launch
 // complex of its own, set back behind the row, because a 144,5 m tower and a flame trench do
 // not belong in a line of display mounts and because the launch sequence needs the room.
 // `people` is declared per exhibit rather than inferred. It used to fall through to a generic
@@ -45,7 +45,8 @@ import { createLaunch } from './sim/launch.js';
 // a radius that only some layouts carry is the kind of thing that breaks the next time an
 // exhibit is added, so the layout says it outright.
 const LAYOUT = {
-  falcon1: { x: -101, z: 34, mount: 2.5, mountRadius: 3.1, inner: 1.0, clampRadius: 0.8382, people: [[4, 0, 2, 0.5], [-4, 0, 2, -0.5]] },
+  // Falcon 1 is the small historical bookend of the row, immediately outside Falcon 9.
+  falcon1: { x: -153, z: 0, mount: 1.6, mountRadius: 3.1, inner: 1.0, clampRadius: 0.8382, people: [[4, 0, 2, 0.5], [-4, 0, 2, -0.5]] },
   falcon9: {
     x: -135, z: 0, mount: 6.5, mountRadius: 6.5, inner: 3.1, clampRadius: 1.85,
     people: [[10, 0, 2, 0.5], [8.5, 0, -4, -2.0], [-9.5, 0, 3, 2.2]],
@@ -70,7 +71,7 @@ const LAYOUT = {
 // and the car sat at the right-hand edge, so the first thing a visitor saw did not contain it.
 // Recomposed again when Engine Row became the seventh exhibit at x = 163: the row now spans
 // nearly 300 m, so the frame has to sit further back and centre on the middle of it.
-const OVERVIEW = { pos: [4, 68, 300], target: [-2, 40, -68] };
+const OVERVIEW = { pos: [3, 72, 330], target: [-1, 39, -68] };
 
 // Cylinders used to hide annotations that sit behind a vehicle. CSS2D labels always draw on
 // top of the scene, so without this the far-side callouts read as if they were in front.
@@ -277,7 +278,8 @@ async function main() {
       // a vehicle that tall lights the mount and leaves the other eighty metres black.
       env.addDisplayLight(lay.x, lay.z, 46, 124, { tiers: 4 });
     } else {
-      group.add(buildMount(M, { radius: lay.mountRadius, inner: lay.inner, height: lay.mount, clampRadius: lay.clampRadius, clamps: v.id === 'falconheavy' ? 0 : 4 }));
+      group.add(buildMount(M, { radius: lay.mountRadius, inner: lay.inner, height: lay.mount, clampRadius: lay.clampRadius,
+        clamps: ['falconheavy', 'falcon1'].includes(v.id) ? 0 : 4 }));
       model.position.y = lay.mount;
       env.addStation(lay.x, lay.z, lay.mountRadius + 1.5);
       env.addDisplayLight(lay.x, lay.z, lay.mountRadius + 4, v.height, { tiers: v.height > 40 ? 3 : 1 });

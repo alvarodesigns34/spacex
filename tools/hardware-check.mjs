@@ -12,11 +12,12 @@ registerHooks({ resolve(specifier, context, next) {
 } });
 const T = await import('three');
 const { buildFalcon9, buildFalconHeavy } = await import('../src/vehicles/falcon.js');
+const { buildFalcon1 } = await import('../src/vehicles/falcon1.js');
 const { buildLaunchComplex } = await import('../src/vehicles/pad.js');
 const { buildSuperHeavy } = await import('../src/vehicles/starship.js');
 const material = new T.MeshStandardMaterial();
 const M = new Proxy({}, { get: () => material });
-const f9 = buildFalcon9(M), fh = buildFalconHeavy(M), pad = buildLaunchComplex(M), booster = buildSuperHeavy(M);
+const f1 = buildFalcon1(M), f9 = buildFalcon9(M), fh = buildFalconHeavy(M), pad = buildLaunchComplex(M), booster = buildSuperHeavy(M);
 const mutant = process.argv.find(a => a.startsWith('--mutant='))?.split('=')[1];
 const sides = fh.children.filter(o => o.name === 'falcon-core-fh-side');
 const paths = fh.getObjectByName('fh-attach-struts');
@@ -30,10 +31,27 @@ if (mutant === 'qd') pad.getObjectByName('booster-qd-methane').position.x -= 40;
 if (mutant === 'actuator') actuators[0].position.x += 10;
 if (mutant === 'lod-path') paths.userData.lodFeature = 0.14;
 if (mutant === 'lod-side') delete sides[0].getObjectByName('base-bottles').userData.lodFeature;
-for (const root of [f9, fh, pad, booster]) root.updateMatrixWorld(true);
+if (mutant === 'f1-fairing') f1.getObjectByName('falcon1-fairing').scale.y = 0.8;
+if (mutant === 'f1-engine') f1.getObjectByName('falcon1-merlin1c-turbopump').removeFromParent();
+for (const root of [f1, f9, fh, pad, booster]) root.updateMatrixWorld(true);
 const world = o => o.getWorldPosition(new T.Vector3());
 const bounds = o => new T.Box3().setFromObject(o);
 const finite = p => p.toArray().every(Number.isFinite);
+
+const f1Fairing = f1.getObjectByName('falcon1-fairing'), f1FairingBox = bounds(f1Fairing);
+assert.ok(Math.abs(f1FairingBox.max.y - f1FairingBox.min.y - 3.5) < 0.002, 'Falcon 1 fairing is the published 3.50 m');
+assert.ok(Math.abs(Math.max(Math.abs(f1FairingBox.min.x), Math.abs(f1FairingBox.max.x)) - 0.77) < 0.002,
+  'Falcon 1 fairing is the published 1.54 m diameter');
+assert.equal(f1.children.filter(o => o.name === 'falcon1-fairing-frame').length, 2, 'Falcon 1 has both biconic break frames');
+assert.equal(f1.getObjectByName('falcon1-closed-shell').children.filter(o => o.name === 'falcon1-upper-stage-rcs').length, 4,
+  'Falcon 1 RCS stays attached to the hidden shell in cutaway');
+assert.ok(f1.getObjectByName('falcon1-cutaway-rear-shell')?.isMesh, 'Falcon 1 cutaway retains airframe context');
+assert.ok(f1.getObjectByName('falcon1-cutaway-interstage-shell')?.isMesh, 'Falcon 1 cutaway retains interstage context');
+assert.equal(f1.getObjectsByProperty('name', 'falcon1-kestrel-thrust-frame').length, 6, 'Falcon 1 has a six-member Kestrel thrust frame');
+for (const name of ['falcon1-merlin1c-turbopump', 'falcon1-merlin1c-gas-generator',
+  'falcon1-merlin1c-turbine-exhaust', 'falcon1-merlin1c-thrust-ring']) {
+  assert.ok(f1.getObjectByName(name), `Falcon 1 engine carries ${name}`);
+}
 
 for (const root of [f9, fh]) {
   const core = root.children.find(o => o.name === 'falcon-core-f9' || o.name === 'falcon-core-fh-center');
@@ -107,7 +125,7 @@ for (const actuator of actuators) actuator.traverse(o => {
   for (let i = 0; i < a.count; i++) { p.fromBufferAttribute(a, i).applyMatrix4(o.matrixWorld); assert.ok(Math.hypot(p.x, p.z) < 4.5, 'every V3 actuator vertex lies inside booster hull'); }
 });
 console.log('PASS hardware: stage release counts, FH contacts/orientation/LOD, dual QDs, separate bunker rooms, internal V3 actuators');
-if (!mutant) for (const name of ['raceway', 'rod', 'pusher', 'qd', 'actuator', 'lod-path', 'lod-side']) {
+if (!mutant) for (const name of ['raceway', 'rod', 'pusher', 'qd', 'actuator', 'lod-path', 'lod-side', 'f1-fairing', 'f1-engine']) {
   const run = spawnSync(process.execPath, [fileURLToPath(import.meta.url), `--mutant=${name}`], { encoding: 'utf8' });
   assert.notEqual(run.status, 0, `must detect sabotage ${name}`);
   assert.match(run.stderr, /AssertionError/, `sabotage ${name} must fail an assertion`);

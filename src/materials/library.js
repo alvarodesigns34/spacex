@@ -21,6 +21,8 @@ export function createMaterials(onProgress = () => {}) {
     ['steelWarm', () => TX.makeSteel({ heat: 0.3, soot: 0.12 })],
     ['f9Body', () => TX.makeFalconBody({ name: 'FALCON 9' })],
     ['fhBody', () => TX.makeFalconBody({ name: 'FALCON HEAVY' })],
+    ['f1Body', () => TX.makeFalconBody({ height: 12.65, name: 'FALCON 1', flown: false })],
+    ['f1Interstage', () => TX.makeFalcon1Interstage()],
     ['white', () => TX.makeWhitePaint({ tile: 2.0 })],
     ['whitePanel', () => TX.makeWhitePaint({ size: 512, tile: 0.8, grid: 3, tone: 0.9 })],
     ['carbon', () => TX.makeCarbon()],
@@ -103,6 +105,8 @@ export function createMaterials(onProgress = () => {}) {
   // Side boosters carry the same markings as the centre core: reuse the map rather than
   // generating a second 1024×2048 pair for it.
   M.fhSide = M.fhCore;
+  M.falcon1Stage1 = new THREE.MeshPhysicalMaterial({ ...paintBase, map: T.f1Body.map, roughnessMap: T.f1Body.roughnessMap, clearcoat: 0.16, clearcoatRoughness: 0.5 });
+  M.falcon1Interstage = new THREE.MeshPhysicalMaterial({ map: T.f1Interstage.map, roughnessMap: T.f1Interstage.roughnessMap, color: 0xffffff, metalness: 0.08, roughness: 1.0, clearcoat: 0.08, clearcoatRoughness: 0.72 });
   M.white = new THREE.MeshPhysicalMaterial({ ...paintBase, map: T.white.map, roughnessMap: T.white.roughnessMap, normalMap: T.white.normalMap, normalScale: new THREE.Vector2(0.3, 0.3) });
   M.whiteFresh = new THREE.MeshPhysicalMaterial({ ...paintBase, color: 0xf6f6f4, clearcoat: 0.3, clearcoatRoughness: 0.34, map: T.white.map, roughnessMap: T.white.roughnessMap, normalMap: T.white.normalMap, normalScale: new THREE.Vector2(0.2, 0.2) });
   M.whitePanel = new THREE.MeshPhysicalMaterial({ ...paintBase, clearcoat: 0.18, map: T.whitePanel.map, roughnessMap: T.whitePanel.roughnessMap, normalMap: T.whitePanel.normalMap, normalScale: new THREE.Vector2(0.55, 0.55) });

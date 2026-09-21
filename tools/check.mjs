@@ -93,6 +93,12 @@ try {
     return { good, catchesDuplicate };
   });
   report(lodNames.good && lodNames.catchesDuplicate, 'LOD: identificadores únicos; sabotaje de nombres duplicados detectado');
+  const falcon1Row = await page.evaluate(() => {
+    const f1 = window.__vc.exhibits.falcon1.lay, f9 = window.__vc.exhibits.falcon9.lay;
+    return { aligned: f1.z === f9.z, atEnd: f1.x < f9.x, gap: +(f9.x - f1.x).toFixed(1) };
+  });
+  report(falcon1Row.aligned && falcon1Row.atEnd && falcon1Row.gap < 30,
+    'Falcon 1 cierra la fila junto a Falcon 9', `alineado ${falcon1Row.aligned}, separación ${falcon1Row.gap} m`);
   const presets = await page.evaluate(() => Object.fromEntries(
     Object.entries(window.__vc.exhibits).map(([id, e]) => [id, e.data.presets.map(p => p.id)])));
   let bad = [];

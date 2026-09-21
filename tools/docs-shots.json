@@ -169,7 +169,18 @@
       "merlin1c"
     ],
     "labels": false,
-    "ruler": false
+    "ruler": false,
+    "humans": false
+  },
+  {
+    "name": "falcon1-interstage.jpg",
+    "jump": [
+      "falcon1",
+      "interstage"
+    ],
+    "labels": false,
+    "ruler": false,
+    "humans": false
   },
   {
     "name": "falcon1-cutaway.jpg",
@@ -178,7 +189,8 @@
       "cutaway"
     ],
     "labels": false,
-    "ruler": false
+    "ruler": false,
+    "humans": false
   },
   {
     "name": "falcon1-fairing.jpg",
@@ -187,7 +199,8 @@
       "fairing"
     ],
     "labels": false,
-    "ruler": false
+    "ruler": false,
+    "humans": false
   },
   {
     "name": "falcon1-night.jpg",

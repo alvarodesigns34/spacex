@@ -257,6 +257,45 @@ export function makeFalconBody({ w = 1024, h = 2048, height = 41.2, name = 'FALC
   };
 }
 
+/**
+ * Falcon 1's exposed interstage was a dark, panel-built cylinder rather than a featureless
+ * black band. This is a single normalized unwrap: broad composite/aluminium panels, lap seams
+ * and restrained fastener rows. The pattern is intentionally low contrast so it survives at
+ * the scale of a 1.68 m vehicle without turning into a checkerboard.
+ */
+export function makeFalcon1Interstage({ w = 768, h = 768 } = {}) {
+  const map = canvas(w, h);
+  const rough = canvas(w / 2, h / 2);
+  shade(map, (x, y, u, v) => {
+    const panel = (Math.floor(u * 8) + Math.floor(v * 3) * 3) % 5;
+    const grain = (fbm(u * 22 + 5, v * 34 + 9, 4) - 0.5) * 0.055;
+    const vertical = Math.min((u * 8) % 1, 1 - ((u * 8) % 1));
+    const horizontal = Math.min((v * 3) % 1, 1 - ((v * 3) % 1));
+    const seam = vertical < 0.010 || horizontal < 0.008;
+    const fastenerPhase = ((u * 64 + 0.5) % 1);
+    const nearBand = horizontal < 0.020;
+    const rivet = nearBand && Math.abs(fastenerPhase - 0.5) < 0.08;
+    let r = 0.105 + panel * 0.004 + grain;
+    let g = 0.092 + panel * 0.003 + grain * 0.85;
+    let b = 0.086 + panel * 0.002 + grain * 0.72;
+    if (seam) { r *= 0.60; g *= 0.60; b *= 0.62; }
+    if (rivet) { r += 0.20; g += 0.19; b += 0.18; }
+    return [clamp(r * 255), clamp(g * 255), clamp(b * 255)];
+  });
+  shade(rough, (x, y, u, v) => {
+    const vertical = Math.min((u * 8) % 1, 1 - ((u * 8) % 1));
+    const horizontal = Math.min((v * 3) % 1, 1 - ((v * 3) % 1));
+    const seam = vertical < 0.014 || horizontal < 0.012;
+    const value = 0.63 + (fbm(u * 24, v * 30, 3) - 0.5) * 0.13 + (seam ? 0.18 : 0);
+    const g = clamp(value * 255);
+    return [g, g, g];
+  });
+  return {
+    map: toTexture(map, { srgb: true, wrap: THREE.ClampToEdgeWrapping }),
+    roughnessMap: toTexture(rough, { wrap: THREE.ClampToEdgeWrapping }),
+  };
+}
+
 // =====================================================================================
 //  GENERIC WHITE PAINT (second stage, fairing, Dragon) with faint panel structure.
 // =====================================================================================
