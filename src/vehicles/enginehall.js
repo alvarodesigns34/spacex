@@ -126,7 +126,7 @@ export function buildEngineHall(M) {
     const eng = new THREE.Group();
     eng.position.y = CRADLE_Y;
 
-    const bellMat = st.id === 'merlin' ? M.bellCool : M.bell;
+    const bellMat = st.id === 'merlin' || st.id === 'rvac' ? M.bellCool : M.bell;
     if (st.flutes && geo.profile) {
       eng.add(mesh(flutedLathe(geo.profile, { flutes: st.flutes, amp: st.exitR * 0.008 }), bellMat,
         { name: `${st.id}-bell` }));

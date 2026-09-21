@@ -75,12 +75,23 @@ export function lathe(profile, opts = {}) {
       const phi = phiStart + phiLength * t;
       const sn = Math.sin(phi), cs = Math.cos(phi);
       const idx = (j * cols + k);
-      positions[idx * 3 + 0] = row.r * sn;
+      const pole = row.r < 1e-5;
+      // A ring at r = 0 is the same point 96 times. Using the cylindrical frame for its
+      // normal fans them into the XZ plane, which is the firefly at every ogive tip and
+      // lamp cup. The pole points along ±Y; coincident vertices are then harmless.
+      positions[idx * 3 + 0] = pole ? 0 : row.r * sn;
       positions[idx * 3 + 1] = row.y;
-      positions[idx * 3 + 2] = row.r * cs;
-      normals[idx * 3 + 0] = sign * row.n[0] * sn;
-      normals[idx * 3 + 1] = sign * row.n[1];
-      normals[idx * 3 + 2] = sign * row.n[0] * cs;
+      positions[idx * 3 + 2] = pole ? 0 : row.r * cs;
+      if (pole) {
+        const ny = row.n[1] >= 0 ? 1 : -1;
+        normals[idx * 3 + 0] = 0;
+        normals[idx * 3 + 1] = sign * ny;
+        normals[idx * 3 + 2] = 0;
+      } else {
+        normals[idx * 3 + 0] = sign * row.n[0] * sn;
+        normals[idx * 3 + 1] = sign * row.n[1];
+        normals[idx * 3 + 2] = sign * row.n[0] * cs;
+      }
       if (uvMode === 'metric') {
         uvs[idx * 2 + 0] = t * phiLength * maxR;
         uvs[idx * 2 + 1] = row.s;
@@ -225,6 +236,7 @@ export function tube(points, radius, opts = {}) {
 /** Merges a list of geometries after baking their transforms. */
 export function mergeAll(items) {
   if (!items.length) return new THREE.BufferGeometry();
+  let missingUV = false;
   const geos = items.map(it => {
     const g = it.geometry.clone();
     if (it.matrix) g.applyMatrix4(it.matrix);
@@ -234,6 +246,7 @@ export function mergeAll(items) {
     }
     if (!g.attributes.normal) g.computeVertexNormals();
     if (!g.attributes.uv) {
+      missingUV = true;
       const count = g.attributes.position.count;
       g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(count * 2), 2));
     }
@@ -241,7 +254,12 @@ export function mergeAll(items) {
     // mergeGeometries needs a consistent indexing scheme; extrusions are non-indexed.
     return g.index ? g.toNonIndexed() : g;
   });
-  return mergeGeometries(geos, false);
+  const merged = mergeGeometries(geos, false);
+  // Zero-fill exists only so mergeGeometries will accept the set. Leaving those UVs in
+  // place is the "constant vUv → black surface" failure verify.js exists to catch.
+  // Metric planar UVs match the tiled maps the rest of the project authors.
+  if (missingUV && merged) boxUV(merged);
+  return merged;
 }
 
 export function mat4(position = [0, 0, 0], rotation = [0, 0, 0], scale = [1, 1, 1]) {

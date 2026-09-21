@@ -22,6 +22,8 @@ const mutant = process.argv.find(a => a.startsWith('--mutant='))?.split('=')[1];
 const sides = fh.children.filter(o => o.name === 'falcon-core-fh-side');
 const paths = fh.getObjectByName('fh-attach-struts');
 const actuators = []; booster.traverse(o => { if (o.name === 'grid-fin-internal-actuator') actuators.push(o); });
+const lattices = []; booster.traverse(o => { if (o.name === 'grid-fin-lattice') lattices.push(o); });
+const pins = []; booster.traverse(o => { if (o.name === 'catch-pin') pins.push(o); });
 // Deliberately alter real geometry/transforms/nodes after construction: changing a metadata
 // count cannot make these tests pass when the model a visitor sees is wrong.
 if (mutant === 'raceway') sides[0].rotation.y *= -1;
@@ -119,12 +121,20 @@ const methane = bounds(bunker.getObjectByName('bunker-methane-access'));
 const oxygen = bounds(bunker.getObjectByName('bunker-oxygen-access'));
 assert.ok(methane.max.z < divider.min.z && oxygen.min.z > divider.max.z, 'independent access to separate fluid rooms');
 assert.equal(actuators.length, 3, 'three V3 fin actuators');
+assert.equal(lattices.length, 3, 'three V3 grid-fin lattices');
+assert.equal(pins.length, 2, 'two catch pins on Super Heavy');
+for (const fin of lattices) {
+  const b = bounds(fin);
+  assert.ok(b.max.y - b.min.y > 3, 'grid fin stands taller than 3 m (not a shelf)');
+  assert.ok(b.max.y - b.min.y < 7, 'grid fin span stays inside the published envelope');
+}
+assert.ok(fh.getObjectByName('fh-octaweb-beam')?.isMesh, 'Falcon Heavy has a shared aft thrust beam');
 for (const actuator of actuators) actuator.traverse(o => {
   if (!o.isMesh) return;
   const a = o.geometry.getAttribute('position'), p = new T.Vector3();
   for (let i = 0; i < a.count; i++) { p.fromBufferAttribute(a, i).applyMatrix4(o.matrixWorld); assert.ok(Math.hypot(p.x, p.z) < 4.5, 'every V3 actuator vertex lies inside booster hull'); }
 });
-console.log('PASS hardware: stage release counts, FH contacts/orientation/LOD, dual QDs, separate bunker rooms, internal V3 actuators');
+console.log('PASS hardware: stage release counts, FH contacts/orientation/LOD, dual QDs, separate bunker rooms, internal V3 actuators, grid-fin pose, FH thrust beam');
 if (!mutant) for (const name of ['raceway', 'rod', 'pusher', 'qd', 'actuator', 'lod-path', 'lod-side', 'f1-fairing', 'f1-engine']) {
   const run = spawnSync(process.execPath, [fileURLToPath(import.meta.url), `--mutant=${name}`], { encoding: 'utf8' });
   assert.notEqual(run.status, 0, `must detect sabotage ${name}`);

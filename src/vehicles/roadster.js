@@ -1882,7 +1882,7 @@ function buildWheels(mats, M) {
       { r: rimRadius * 1.02, y: hw * 1.02 },
       { r: rimRadius, y: hw },
     ];
-    const tyreGeo = lathe(tyreProfile, { segments: 64 });
+    const tyreGeo = lathe(tyreProfile, { segments: 64, uvMode: 'normalized' });
     tyreGeo.rotateZ(Math.PI / 2);
     wGroup.add(mesh(tyreGeo, mats.tyreRubber, { name: 'tyre' }));
 

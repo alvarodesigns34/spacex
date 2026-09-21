@@ -17,7 +17,7 @@ import { pickQuality, applyQuality } from './core/quality.js';
 import { LODManager } from './core/lod.js';
 import { createHUD } from './ui/hud.js';
 import { VEHICLES } from './data/specs.js';
-import { buildStarship } from './vehicles/starship.js';
+import { buildStarship, STARSHIP_YAW_DEG } from './vehicles/starship.js';
 import { buildFalcon9, buildFalconHeavy } from './vehicles/falcon.js';
 import { buildFalcon1 } from './vehicles/falcon1.js';
 import { buildDragon } from './vehicles/dragon.js';
@@ -56,7 +56,7 @@ const LAYOUT = {
     people: [[15, 0, 2, 0.5], [13.5, 0, -4, -2.0], [-14.5, 0, 3, 2.2]],
   },
   starship: {
-    x: 0, z: -185, mount: PAD.deckTop, yaw: 129.6, pad: true,
+    x: 0, z: -185, mount: PAD.deckTop, yaw: STARSHIP_YAW_DEG, pad: true,
     people: [[26, PAD.padY, 16, 0.8], [30, PAD.padY, -10, -1.6], [-19, PAD.padY, 24, 2.4]],
   },
   dragon: { x: 18, z: 0, mount: 1.6, people: [[3.4, 0, 1.6, 0.6], [-2.8, 0, 2.6, -0.8]] },
@@ -71,7 +71,7 @@ const LAYOUT = {
 // and the car sat at the right-hand edge, so the first thing a visitor saw did not contain it.
 // Recomposed again when Engine Row became the seventh exhibit at x = 163: the row now spans
 // nearly 300 m, so the frame has to sit further back and centre on the middle of it.
-const OVERVIEW = { pos: [3, 72, 330], target: [-1, 39, -68] };
+const OVERVIEW = { pos: [8, 34, 336], target: [-12, 16, -48] };
 
 // Cylinders used to hide annotations that sit behind a vehicle. CSS2D labels always draw on
 // top of the scene, so without this the far-side callouts read as if they were in front.
@@ -176,7 +176,7 @@ async function main() {
   // instant is the one that ships — and the headless check ignores font errors, so it never
   // showed up there.
   if (document.fonts?.ready) await document.fonts.ready;
-  const { M } = createMaterials((name, frac) => hud.setProgress(`Generating materials · ${name}`, 0.05 + frac * 0.2));
+  const { M } = createMaterials((name, frac) => hud.setProgress(`Generating materials · ${name}`, 0.05 + frac * 0.2), quality);
   timings.materials = performance.now() - t0;
   hud.setProgress('Lighting and environment…', 0.25);
   await nextFrame();

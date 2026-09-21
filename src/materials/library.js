@@ -9,33 +9,40 @@
 import * as THREE from 'three';
 import * as TX from './textures.js';
 
-export function createMaterials(onProgress = () => {}) {
+export function createMaterials(onProgress = () => {}, tier = {}) {
+  const S = tier.mapSize ?? 768;
+  const mid = Math.max(256, Math.round(S * 512 / 768));
+  const small = Math.max(192, Math.round(S * 384 / 768));
+  const bodyW = tier.bodyW ?? 1024;
+  const bodyH = tier.bodyH ?? 2048;
   const T = {};
   const steps = [
-    ['steel', () => TX.makeSteel()],
+    ['steel', () => TX.makeSteel({ size: S })],
     // The skirt of a flown booster is SOOTED, not bronzed. At heat 0.85 the tempering term
     // pushed the whole band to base × (0.90, 0.76, 0.60) — a uniform straw tan that read as
     // cardboard wrapped round the bottom of the vehicle in every trench and liftoff shot.
     // Tempering is patchy and local to the welds; soot is what actually covers the skirt.
-    ['steelSkirt', () => TX.makeSteel({ heat: 0.3, soot: 0.78 })],
-    ['steelWarm', () => TX.makeSteel({ heat: 0.3, soot: 0.12 })],
-    ['f9Body', () => TX.makeFalconBody({ name: 'FALCON 9' })],
-    ['fhBody', () => TX.makeFalconBody({ name: 'FALCON HEAVY' })],
-    ['f1Body', () => TX.makeFalconBody({ height: 12.65, name: 'FALCON 1', flown: false })],
-    ['f1Interstage', () => TX.makeFalcon1Interstage()],
-    ['white', () => TX.makeWhitePaint({ tile: 2.0 })],
-    ['whitePanel', () => TX.makeWhitePaint({ size: 512, tile: 0.8, grid: 3, tone: 0.9 })],
-    ['carbon', () => TX.makeCarbon()],
-    ['solar', () => TX.makeSolar()],
-    ['concrete', () => TX.makeConcrete()],
-    ['terrain', () => TX.makeGroundTerrain()],
-    ['trenchArmor', () => TX.makeTrenchArmor()],
-    ['foil', () => TX.makeFoil()],
-    ['tps', () => TX.makeTpsPattern()],
-    ['pica', () => TX.makePica()],
-    ['bell', () => TX.makeEngineBell({ copper: 0.6 })],
-    ['bellCool', () => TX.makeEngineBell({ copper: 0.12 })],
-    ['greyDark', () => TX.makeGreyMetal({ tone: 0.28 })],
+    ['steelSkirt', () => TX.makeSteel({ size: S, heat: 0.3, soot: 0.78 })],
+    ['steelWarm', () => TX.makeSteel({ size: S, heat: 0.3, soot: 0.12 })],
+    // Ship aft has not done 33-engine boostbacks; mill stainless, not the booster's dirty sock.
+    ['steelShip', () => TX.makeSteel({ size: S, heat: 0.12, soot: 0.08 })],
+    ['f9Body', () => TX.makeFalconBody({ w: bodyW, h: bodyH, name: 'FALCON 9' })],
+    ['fhBody', () => TX.makeFalconBody({ w: bodyW, h: bodyH, name: 'FALCON HEAVY' })],
+    ['f1Body', () => TX.makeFalconBody({ w: bodyW, h: bodyH, height: 12.65, name: 'FALCON 1', flown: false })],
+    ['f1Interstage', () => TX.makeFalcon1Interstage({ w: S, h: S })],
+    ['white', () => TX.makeWhitePaint({ size: mid, tile: 2.0 })],
+    ['whitePanel', () => TX.makeWhitePaint({ size: mid, tile: 0.8, grid: 3, tone: 0.9 })],
+    ['carbon', () => TX.makeCarbon({ size: mid })],
+    ['solar', () => TX.makeSolar({ size: mid })],
+    ['concrete', () => TX.makeConcrete({ size: S })],
+    ['terrain', () => TX.makeGroundTerrain({ size: S })],
+    ['trenchArmor', () => TX.makeTrenchArmor({ size: mid })],
+    ['foil', () => TX.makeFoil({ size: Math.max(128, Math.round(S * 256 / 768)) })],
+    ['tps', () => TX.makeTpsPattern({ size: mid })],
+    ['pica', () => TX.makePica({ size: mid })],
+    ['bell', () => TX.makeEngineBell({ size: small, copper: 0.6 })],
+    ['bellCool', () => TX.makeEngineBell({ size: small, copper: 0.12 })],
+    ['greyDark', () => TX.makeGreyMetal({ size: Math.max(128, Math.round(S * 256 / 768)), tone: 0.28 })],
   ];
   for (let i = 0; i < steps.length; i++) {
     const [key, fn] = steps[i];
@@ -57,6 +64,7 @@ export function createMaterials(onProgress = () => {}) {
   M.steel = new THREE.MeshPhysicalMaterial({ ...steelBase, map: T.steel.map, roughnessMap: T.steel.roughnessMap, normalMap: T.steel.normalMap });
   M.steelSkirt = new THREE.MeshPhysicalMaterial({ ...steelBase, anisotropy: 0.2, envMapIntensity: 0.7, map: T.steelSkirt.map, roughnessMap: T.steelSkirt.roughnessMap, normalMap: T.steelSkirt.normalMap });
   M.steelWarm = new THREE.MeshPhysicalMaterial({ ...steelBase, anisotropy: 0.3, envMapIntensity: 0.78, map: T.steelWarm.map, roughnessMap: T.steelWarm.roughnessMap, normalMap: T.steelWarm.normalMap });
+  M.steelShip = new THREE.MeshPhysicalMaterial({ ...steelBase, anisotropy: 0.35, envMapIntensity: 0.92, map: T.steelShip.map, roughnessMap: T.steelShip.roughnessMap, normalMap: T.steelShip.normalMap });
   // Payload-bay door seam: the same steel, darkened, so the outline reads without a decal.
   M.steelDoor = new THREE.MeshPhysicalMaterial({ ...steelBase, color: 0xeceded, map: T.steel.map, roughnessMap: T.steel.roughnessMap, normalMap: T.steel.normalMap });
   // Flap skins: the same steel, but rougher so the rounded leading edge catches a soft

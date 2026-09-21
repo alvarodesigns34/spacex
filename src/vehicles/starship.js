@@ -15,7 +15,7 @@
 import * as THREE from 'three';
 import {
   lathe, ogiveProfile, mesh, mergeAll, mat4, hexPrism, tileSurfaceOfRevolution, tilePolygon,
-  profileAt, seeded, plate, aeroPlate, spanTaper,
+  profileAt, seeded, plate, aeroPlate, spanTaper, boxUV, tube,
 } from '../geometry/utils.js';
 import { raptorGeometry, raptorVacGeometry, instanceEngines, ringLayout } from './engines.js';
 
@@ -29,6 +29,13 @@ const rings = (n) => n * RING; // helper: express a station as a ring count
 // Leeward-side furniture, kept clear of each other (φ measured from the belly, +Z).
 const RACE_PHI = Math.PI * 0.78;
 const DOOR_PHI = Math.PI * 1.18;
+/**
+ * Exhibit yaw applied in main.js so the tile line, not the belly, faces the default camera.
+ * Catch pins have to land on the pad's ±Z after this rotation: Mechazilla's arms close on
+ * that axis (tower at −X). Keep this number in one place so the fins and the mount cannot
+ * drift apart by 40° again.
+ */
+export const STARSHIP_YAW_DEG = 129.6;
 
 // Tile geometry: reported ≈12 in (0.305 m) point to point → circumradius ≈0.152 m,
 // ≈0.264 m across the flats. Instanced; ~13 500 of them cover the ship.
@@ -44,9 +51,15 @@ const TILE_T = 0.016;
  * trench) that looks straight up at it.
  */
 const RAPTOR_EXIT_R = 0.62;
-const BOOSTER_RINGS = [[3, 1.02, 0.45, Math.PI / 6], [10, 2.48, 0.35, 0], [20, 3.86, 0.25, Math.PI / 20]];
-/** Radius the booster's engine bells actually reach. The pad derives its throat from this. */
+// y = 0 is the skirt / pad seat. Bells hang a little below so the trench can see them, the
+// way Falcon 9 hangs Merlin below the tank datum. The outer ring's exit is the widest point;
+// at the seat plane the bell has already tapered inboard of the 4.50 m skirt.
+const ENGINE_HANG = 0.38;
+const BOOSTER_RINGS = [[3, 1.02, 0.45 - ENGINE_HANG, Math.PI / 6], [10, 2.48, 0.35 - ENGINE_HANG, 0], [20, 3.86, 0.25 - ENGINE_HANG, Math.PI / 20]];
+/** Radius the booster's engine bells actually reach at the EXIT plane. */
 export const RAPTOR_ENVELOPE_R = Math.max(...BOOSTER_RINGS.map(([, r]) => r)) + RAPTOR_EXIT_R;
+/** Inner radius of the annular seat the skirt sits on — inboard of the 9 m hull. */
+export const RAPTOR_SEAT_R = BOOSTER_R - 0.08;
 
 // ---------------------------------------------------------------------------------------
 //  Shared sub-assemblies
@@ -63,11 +76,12 @@ function gridFin(M, { span = 5.4, chord = 3.5, depth = 0.42, cells = [8, 5], web
   parts.push({ geometry: new THREE.BoxGeometry(span, depth, frame), matrix: mat4([span / 2, 0, chord / 2 - frame / 2]) });
   parts.push({ geometry: new THREE.BoxGeometry(span, depth, frame), matrix: mat4([span / 2, 0, -chord / 2 + frame / 2]) });
   parts.push({ geometry: new THREE.BoxGeometry(frame, depth, chord), matrix: mat4([span - frame / 2, 0, 0]) });
+  parts.push({ geometry: new THREE.BoxGeometry(frame, depth, chord), matrix: mat4([frame / 2, 0, 0]) });
   // Internal webs.
   for (let i = 1; i < cells[0]; i++) parts.push({ geometry: new THREE.BoxGeometry(web, depth, chord), matrix: mat4([(span * i) / cells[0], 0, 0]) });
   for (let j = 1; j < cells[1]; j++) parts.push({ geometry: new THREE.BoxGeometry(span, depth * 0.94, web), matrix: mat4([span / 2, 0, -chord / 2 + (chord * j) / cells[1]]) });
   const g = new THREE.Group();
-  g.add(mesh(mergeAll(parts), M.steelWarm));
+  g.add(mesh(boxUV(mergeAll(parts)), M.steelWarm));
   return g;
 }
 
@@ -85,9 +99,21 @@ const PIN_DROP = 1.5;
  */
 function gridFinAssembly(M, { withPin = true, span = 5.4, chord = 3.5, depth = 0.42 } = {}) {
   const g = new THREE.Group();
+  g.name = 'grid-fin-assembly';
   const fin = gridFin(M, { span, chord, depth });
-  fin.position.x = 0.75;
-  g.add(fin);
+  fin.name = 'grid-fin-lattice';
+  // Same Euler as Falcon 9: span → vertical, depth → radial. Without it the waffle is a
+  // 5.4 × 3.5 m shelf, 42 cm tall — which is what the gridfins preset was looking at.
+  fin.rotation.set(0, Math.PI / 2, Math.PI / 2);
+  fin.position.set(0.75, -span * 0.18, 0);
+  // Hinge is a child so the launch sequence can stow the waffle against the tank without
+  // moving the catch pin, which lives on the root (the tower takes the vehicle's weight
+  // there whether the fin is out or not).
+  const hinge = new THREE.Group();
+  hinge.name = 'grid-fin-hinge';
+  hinge.userData.stowY = Math.PI / 2;
+  hinge.add(fin);
+  g.add(hinge);
   // SpaceX's 12 May 2026 V3 update places the shaft, actuator and fixed structure
   // inside the fuel tank. Only the fin-root fairing remains outside. The internal
   // envelope below is a reconstruction, not a published equipment dimension.
@@ -230,17 +256,22 @@ function chine(M, { length = 22, width = 1.9, depth = 0.85 } = {}) {
 /** Vented hot-stage section: on Block 3 this is built into the top of the methane tank. */
 function hotStageSection(M, height = 1.83) {
   const g = new THREE.Group();
-  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: height }], { segments: 160 }), M.steelSkirt));
   const n = 24;
+  const step = (Math.PI * 2) / n;
+  const ventPhi = step * 0.62;
+  const colPhi = step - ventPhi;
+  // Inner wall so the apertures read as holes, not boxes glued to a closed tube.
+  g.add(mesh(lathe([{ r: R - 0.09, y: 0.06 }, { r: R - 0.09, y: height - 0.06 }], { segments: 96 }), M.steelInner, { castShadow: false }));
+  for (let i = 0; i < n; i++) {
+    const a0 = i * step + ventPhi / 2;
+    g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: height }], { segments: 6, phiStart: a0, phiLength: colPhi }), M.steelSkirt));
+  }
   const vents = [];
   for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2;
-    // Vent apertures with the structural columns between them.
-    vents.push({ geometry: new THREE.BoxGeometry(0.72, 1.0, 0.1), matrix: mat4([Math.sin(a) * (R + 0.01), height * 0.52, Math.cos(a) * (R + 0.01)], [0, a, 0]) });
-    const b = a + Math.PI / n;
+    const b = i * step + ventPhi / 2 + colPhi / 2;
     vents.push({ geometry: new THREE.BoxGeometry(0.16, height * 0.94, 0.16), matrix: mat4([Math.sin(b) * (R + 0.07), height * 0.5, Math.cos(b) * (R + 0.07)], [0, b, 0]) });
   }
-  g.add(mesh(mergeAll(vents), M.blackMatte));
+  g.add(mesh(boxUV(mergeAll(vents)), M.blackMatte));
   g.add(mesh(new THREE.TorusGeometry(R + 0.03, 0.08, 8, 160), M.darkMetal, { position: [0, height - 0.06, 0], rotation: [Math.PI / 2, 0, 0] }));
   g.add(mesh(new THREE.TorusGeometry(R + 0.03, 0.06, 8, 160), M.darkMetal, { position: [0, 0.05, 0], rotation: [Math.PI / 2, 0, 0] }));
   return g;
@@ -275,9 +306,14 @@ export function buildSuperHeavy(M) {
   g.add(mesh(mergeAll(bays), M.darkMetal));
 
   // 33 Raptor 3: 3 + 10 gimballing on the thrust puck, 20 fixed on the outer ring.
+  // Inner rings get the small outward cant that ringLayout already knew how to apply;
+  // the twenty on the skirt stay axial. The cant is a reconstruction from photographs,
+  // not a published installation angle.
+  const INNER_CANT = 0.055;
   const raptor = raptorGeometry({ exitRadius: RAPTOR_EXIT_R });
   g.add(instanceEngines(raptor, M,
-    BOOSTER_RINGS.flatMap(([n, r, y, phase]) => ringLayout(n, r, y, { phase }))));
+    BOOSTER_RINGS.flatMap(([n, r, y, phase]) =>
+      ringLayout(n, r, y, { phase, tilt: n < 20 ? INNER_CANT : 0 }))));
 
   // Four chines low on the tank section. Block 3 spacing: the pair either side of the
   // raceway sits closer together and runs taller than the pair opposite it.
@@ -292,16 +328,22 @@ export function buildSuperHeavy(M) {
     g.add(c);
   }
 
-  // Raceway up the leeward side, clear of the grid fins.
+  // Raceway up the leeward side, clear of the grid fins. Same φ as the chines that flank it.
   const raceLen = ringTop - skirtTop - 1.2;
   const race = raceway(M, raceLen, { width: 1.2, depth: 0.42 });
-  race.position.set(0, skirtTop + 0.6 + raceLen / 2, -(R - 0.02));
-  race.rotation.y = Math.PI;                                // local +Z → radially outward
+  race.position.set(Math.sin(RACE_PHI) * (R - 0.02), skirtTop + 0.6 + raceLen / 2, Math.cos(RACE_PHI) * (R - 0.02));
+  race.rotation.y = RACE_PHI;
   g.add(race);
 
-  // Grid fins: 3 in a 90°/90°/180° layout, catch pins integrated into two of them.
+  // Grid fins: 3 in a 90°/90°/180° layout, catch pins on the two that face the chopsticks.
+  // The exhibit is yawed STARSHIP_YAW_DEG so the tile line reads from the default camera;
+  // the fins compensate so that after that yaw the pins sit on the pad's ±Z, which is the
+  // axis Mechazilla's arms close on. Without the compensation the pins were ~40° off the
+  // load pads — the height check still passed because it only looked at Y.
   const finY = ringTop - 3.9;
-  const finPhis = [Math.PI / 2, Math.PI, Math.PI * 1.5];
+  const yaw = THREE.MathUtils.degToRad(STARSHIP_YAW_DEG);
+  // World +Z, world +X (far side, no pin), world −Z. 90° / 90° / 180°.
+  const finPhis = [-yaw, Math.PI / 2 - yaw, Math.PI - yaw];
   finPhis.forEach((phi, i) => {
     const a = gridFinAssembly(M, { withPin: i !== 1 });
     a.position.set(Math.sin(phi) * R, finY, Math.cos(phi) * R);
@@ -356,14 +398,23 @@ export function buildShip(M) {
     ...nose.slice(1),
   ];
 
-  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: skirtTop }], { segments: 160 }), M.steelSkirt, { name: 'skirt' }));
+  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: skirtTop }], { segments: 160 }), M.steelShip ?? M.steel, { name: 'skirt' }));
   g.add(mesh(lathe(profile.slice(1), { segments: 160 }), M.steel, { name: 'hull' }));
   g.add(mesh(lathe([{ r: R - 0.03, y: 0.1 }, { r: R - 0.03, y: 3.9 }], { segments: 96, flip: true }), M.steelInner, { castShadow: false }));
   g.add(mesh(new THREE.CylinderGeometry(R - 0.03, R - 0.03, 0.4, 96), M.darkMetal, { position: [0, 3.95, 0] }));
 
+  // Common-dome stiffener on the ship — Super Heavy already has one; the annotation pointed
+  // at a weld that was never built.
+  g.add(mesh(new THREE.TorusGeometry(R + 0.025, 0.055, 6, 160), M.steelWarm, { position: [0, commonDome, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false }));
+
   // 3 Raptor (centre, gimballing) + 3 Raptor Vacuum (outer, fixed).
-  g.add(instanceEngines(raptorGeometry(), M, ringLayout(3, 0.95, 0.35, { phase: 0 })));
-  g.add(instanceEngines(raptorVacGeometry(), M, ringLayout(3, 3.05, 0.25, { phase: Math.PI / 3 }), { bellMaterial: M.bellCool }));
+  // y = 0 is the ship's skirt / hot-stage interface. RVac is 4.4 m; hanging it 0.85 m
+  // below the skirt puts the bells in the booster's vented ring — which is where they
+  // sit on the stacked vehicle — instead of burying a 2.3 m nozzle inside a 4.6 m can.
+  const SHIP_SL_Y = 0.12;
+  const SHIP_VAC_Y = -0.85;
+  g.add(instanceEngines(raptorGeometry(), M, ringLayout(3, 0.95, SHIP_SL_Y, { phase: 0 })));
+  g.add(instanceEngines(raptorVacGeometry(), M, ringLayout(3, 3.05, SHIP_VAC_Y, { phase: Math.PI / 3 }), { bellMaterial: M.bellCool }));
 
   // ---- Thermal protection ------------------------------------------------------------
   // Coverage: a little over half the circumference on the barrel, widening across the nose
@@ -375,11 +426,15 @@ export function buildShip(M) {
   // last metre or so of the tip is wrapped all the way round. Growing the coverage to a full
   // wrap across the whole nose turns the vehicle into a black bullet from every angle.
   const COVER_BARREL = THREE.MathUtils.degToRad(97);
-  const COVER_NOSE = THREE.MathUtils.degToRad(112);
+  const COVER_NOSE = THREE.MathUtils.degToRad(118);
   const coverage = (y) => {
+    const tip = 1.0;
+    if (y > SHIP_H - tip) {
+      const t = THREE.MathUtils.clamp((y - (SHIP_H - tip)) / tip, 0, 1);
+      return COVER_NOSE + t * t * (Math.PI - COVER_NOSE);
+    }
     const y0 = barrelTop - 3, y1 = SHIP_H - 3.4;
     if (y < y0) return COVER_BARREL;
-    if (y > y1) return Math.PI;                       // small tiled cap over the tip
     const t = THREE.MathUtils.clamp((y - y0) / (y1 - y0), 0, 1);
     return COVER_BARREL + t * (COVER_NOSE - COVER_BARREL);
   };
@@ -464,12 +519,24 @@ export function buildShip(M) {
     });
 
     // Hinge fairing blended into the hull along the root, capped so the ends do not read as
-    // bright spheres against the tiled hull.
+    // bright spheres against the tiled hull. Forward flaps straddle the barrel/ogive
+    // transition: a vertical capsule at constant radius punches through the nose or floats
+    // off it. Follow the hull when a profile is supplied.
     const y0 = Math.min(...outline.map(p => p[1])), y1 = Math.max(...outline.map(p => p[1]));
     const hr = opts.hinge ?? 0.5;
-    const hinge = mesh(new THREE.CapsuleGeometry(hr, Math.max(0.1, y1 - y0 - hr * 1.2), 6, 20), M.steelFlap);
-    hinge.position.set(e1.x * (rootOffset - 0.12), yBase + (y0 + y1) / 2, e1.z * (rootOffset - 0.12));
-    g.add(hinge);
+    if (opts.followProfile) {
+      const pts = [];
+      for (let i = 0; i <= 10; i++) {
+        const y = yBase + y0 + (y1 - y0) * (i / 10);
+        const r = (profileAt(opts.followProfile, y)?.r ?? R) - 0.12;
+        pts.push([e1.x * r, y, e1.z * r]);
+      }
+      g.add(mesh(tube(pts, hr, { tubular: 12, radial: 8, type: 'centripetal' }), M.steelFlap));
+    } else {
+      const hinge = mesh(new THREE.CapsuleGeometry(hr, Math.max(0.1, y1 - y0 - hr * 1.2), 6, 20), M.steelFlap);
+      hinge.position.set(e1.x * (rootOffset - 0.12), yBase + (y0 + y1) / 2, e1.z * (rootOffset - 0.12));
+      g.add(hinge);
+    }
     return flap;
   };
 
@@ -494,8 +561,8 @@ export function buildShip(M) {
   for (const [y, w] of [[6.5, 0.55], [5.45, 2.25], [2.05, 3.05], [0.75, 2.35], [0.1, 0.9]]) fwdOutline.push([rootAt(y) + w, y]);
   const fwdPhi = THREE.MathUtils.degToRad(110);   // ±110° ⇒ 140° apart across the lee side
   const FWD_FOLD = THREE.MathUtils.degToRad(60);
-  makeFlap(fwdOutline, fwdPhi, fwdBase, R - 0.08, { hinge: 0.42, tipScale: 0.55, fold: FWD_FOLD });
-  makeFlap(fwdOutline, -fwdPhi, fwdBase, R - 0.08, { hinge: 0.42, tipScale: 0.55, fold: FWD_FOLD });
+  makeFlap(fwdOutline, fwdPhi, fwdBase, R - 0.08, { hinge: 0.42, tipScale: 0.55, fold: FWD_FOLD, followProfile: profile });
+  makeFlap(fwdOutline, -fwdPhi, fwdBase, R - 0.08, { hinge: 0.42, tipScale: 0.55, fold: FWD_FOLD, followProfile: profile });
 
   tiles.count = count;
   tiles.instanceMatrix.needsUpdate = true;

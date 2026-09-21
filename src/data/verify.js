@@ -408,15 +408,23 @@ export function verifyInterfaces(exhibits, complex, { log = true } = {}) {
   const booster = ex.model.getObjectByName('superheavy');
   const engines = booster?.getObjectByName('engines');
   const seat = complex.getObjectByName('table-seat');
+  const throatMesh = complex.getObjectByName('table-throat') ?? seat;
   const skirt = booster?.getObjectByName('skirt');
   const holds = complex.getObjectByName('holddowns');
 
   // 1. The exhaust has to fit through the hole cut for it.
-  if (engines && seat) {
+  if (engines && throatMesh) {
     const bells = maxRadius(engines, origin);
-    const throat = minRadius(seat, origin);
+    const throat = minRadius(throatMesh, origin);
     add('engine bells clear the mount throat', throat >= bells,
       `campanas hasta ${bells.toFixed(2)} m, garganta ${throat.toFixed(2)} m`);
+  }
+  // 1b. The annular seat has to sit under the skirt, not around a hole larger than the hull.
+  if (skirt && seat) {
+    const hull = maxRadius(skirt, origin);
+    const lip = minRadius(seat, origin);
+    add('the booster seats on the deck lip', lip < hull - 0.03,
+      `faldón ${hull.toFixed(2)} m, labio ${lip.toFixed(2)} m`);
   }
   // 2. The clamps have to reach the hull they hold down — not nearly reach it.
   if (skirt && holds) {
@@ -488,6 +496,25 @@ export function verifyInterfaces(exhibits, complex, { log = true } = {}) {
       const over = deg(backHalf - tileHalf);
       add('TPS backing stays under the tiles', over <= 4 && tileHalf > 0,
         `entre ${y0} y ${y1} m: losetas hasta ±${deg(tileHalf).toFixed(1)}°, respaldo hasta ±${deg(backHalf).toFixed(1)}° (sobresale ${over.toFixed(1)}°)`);
+    }
+  }
+  // 5. Catch pins have to sit on the axis the chopsticks close on. Height was already
+  // gated; azimuth was not, and with the exhibit yawed 129.6° the pins sat ~40° off the
+  // load pads. After yaw, pad ±Z is the arm plane (tower at −X).
+  {
+    const pins = [];
+    ex.model.traverse((o) => { if (o.name === 'catch-pin') pins.push(o); });
+    if (pins.length) {
+      ex.model.updateWorldMatrix(true, true);
+      const v = new THREE.Vector3();
+      const aligned = pins.every((p) => {
+        p.getWorldPosition(v);
+        const dx = v.x - origin.x, dz = v.z - origin.z;
+        const r = Math.hypot(dx, dz);
+        return r > 4 && Math.abs(dx) < r * 0.30;
+      });
+      add('catch pins face the chopsticks', pins.length === 2 && aligned,
+        `${pins.length} pines; ${aligned ? 'sobre el eje ±Z de la torre' : 'desfasados en azimut respecto a los brazos'}`);
     }
   }
 

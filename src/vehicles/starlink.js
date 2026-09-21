@@ -6,7 +6,7 @@
  * Local frame: bus centred at origin, nadir face = −Y, wings along ±X.
  */
 import * as THREE from 'three';
-import { mesh, mergeAll, mat4 } from '../geometry/utils.js';
+import { mesh, mergeAll, mat4, boxUV } from '../geometry/utils.js';
 
 const BUS_W = 2.7;   // along X (approx, derived)
 const BUS_L = 4.1;   // along Z (press)
@@ -21,7 +21,7 @@ export function buildStarlink(M) {
 
   // ---- Bus ----
   const bus = new THREE.BoxGeometry(BUS_W, BUS_T, BUS_L, 1, 1, 1);
-  g.add(mesh(bus, M.aluminum, { name: 'bus' }));
+  g.add(mesh(bus, M.mliWhite, { name: 'bus' }));
   // Zenith face: white multi-layer insulation with the usual gold-taped seams. Photographs
   // of a deployed V2 Mini show a mostly white blanket, not the gold of a deep-space bus.
   g.add(mesh(new THREE.BoxGeometry(BUS_W - 0.1, 0.02, BUS_L - 0.1), M.mliWhite, { position: [0, BUS_T / 2 + 0.011, 0] }));
@@ -104,14 +104,17 @@ export function buildStarlink(M) {
     g.add(st);
   }
   g.add(mesh(new THREE.BoxGeometry(0.25, 0.03, 0.25), M.aluminum, { position: [0, BUS_T / 2 + 0.03, -0.6], name: 'gnss-patch' }));
-  // Argon Hall thruster on the −Z edge (fires along −Z)
-  const thr = new THREE.Group();
-  thr.add(mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.14, 32), M.darkMetal, { rotation: [Math.PI / 2, 0, 0] }));
-  thr.add(mesh(new THREE.TorusGeometry(0.11, 0.035, 12, 40), M.copper, { position: [0, 0, -0.08] }));
-  thr.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.1, 16), M.alumDark, { position: [0, 0, -0.1], rotation: [Math.PI / 2, 0, 0] }));
-  thr.add(mesh(new THREE.BoxGeometry(0.5, 0.18, 0.2), M.alumDark, { position: [0, 0, 0.15] }));
-  thr.position.set(0, 0, -BUS_L / 2 - 0.12);
-  g.add(thr);
+  // Argon Hall thrusters on the −Z and +Z edges.
+  for (const zSign of [-1, 1]) {
+    const thr = new THREE.Group();
+    thr.add(mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.14, 32), M.darkMetal, { rotation: [Math.PI / 2, 0, 0] }));
+    thr.add(mesh(new THREE.TorusGeometry(0.11, 0.035, 12, 40), M.copper, { position: [0, 0, -0.08 * zSign] }));
+    thr.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.1, 16), M.alumDark, { position: [0, 0, -0.1 * zSign], rotation: [Math.PI / 2, 0, 0] }));
+    thr.add(mesh(new THREE.BoxGeometry(0.5, 0.18, 0.2), M.alumDark, { position: [0, 0, 0.15 * zSign] }));
+    thr.position.set(0, 0, zSign * (BUS_L / 2 + 0.12));
+    if (zSign > 0) thr.rotation.y = Math.PI;
+    g.add(thr);
+  }
   // Argon tank. A bare sphere half-sunk in the deck read as a bubble blown through the
   // blanket; it is housed now, in a faired cover with its fill and drain fittings, which is
   // how a pressure vessel actually sits on a spacecraft bus.
@@ -141,7 +144,7 @@ export function buildStarlink(M) {
     const hinges = [], backs = [];
     for (let i = 0; i < panels; i++) {
       const x = s * (0.55 + segL * (i + 0.5));
-      wing.add(mesh(new THREE.BoxGeometry(segL - GAP, 0.028, WING_W - 0.06), M.solarStarlink, { position: [x, 0, 0], name: 'wing-panel' }));
+      wing.add(mesh(boxUV(new THREE.BoxGeometry(segL - GAP, 0.028, WING_W - 0.06)), M.solarStarlink, { position: [x, 0, 0], name: 'wing-panel' }));
       // Backside substrate, slightly larger and darker, so the wing has a front and a back.
       backs.push({ geometry: new THREE.BoxGeometry(segL - GAP + 0.03, 0.022, WING_W - 0.02), matrix: mat4([x, -0.026, 0]) });
       // Hinge line between segments: two knuckles and the pin between them, at each edge.
