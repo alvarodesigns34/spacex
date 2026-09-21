@@ -80,7 +80,7 @@ function gridFin(M, { span = 5.4, chord = 3.5, depth = 0.42, cells = [8, 5], web
 const PIN_DROP = 1.5;
 
 /**
- * Block 3 grid-fin assembly: the fin, its hinge shroud, the electric actuator housing and
+ * Block 3 grid-fin assembly: the fin, its hinge shroud, the internal electric actuator and
  * the catch pin, which Block 3 integrates into the fin root rather than mounting separately.
  */
 function gridFinAssembly(M, { withPin = true, span = 5.4, chord = 3.5, depth = 0.42 } = {}) {
@@ -88,10 +88,17 @@ function gridFinAssembly(M, { withPin = true, span = 5.4, chord = 3.5, depth = 0
   const fin = gridFin(M, { span, chord, depth });
   fin.position.x = 0.75;
   g.add(fin);
-  // Hinge shroud blended into the hull, and the actuator can behind it.
-  g.add(mesh(new THREE.CylinderGeometry(depth * 0.85, depth * 0.85, chord, 20), M.steelSkirt, { position: [0.62, 0, 0], rotation: [Math.PI / 2, 0, 0] }));
-  g.add(mesh(new THREE.BoxGeometry(1.0, depth + 0.85, chord * 0.88), M.steelSkirt, { position: [0.2, 0, 0] }));
-  g.add(mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.5, 20), M.darkMetal, { position: [0.3, -0.95, 0], rotation: [Math.PI / 2, 0, 0] }));
+  // SpaceX's 12 May 2026 V3 update places the shaft, actuator and fixed structure
+  // inside the fuel tank. Only the fin-root fairing remains outside. The internal
+  // envelope below is a reconstruction, not a published equipment dimension.
+  g.add(mesh(new THREE.CylinderGeometry(depth * 0.85, depth * 0.85, chord, 20), M.steelSkirt, { position: [0.62, 0, 0], rotation: [Math.PI / 2, 0, 0], name: 'grid-fin-root' }));
+  const actuator = new THREE.Group();
+  actuator.name = 'grid-fin-internal-actuator';
+  actuator.userData.reconstruction = true;
+  actuator.visible = false; // Internal envelope retained for inspection checks, fully occluded by tank skin.
+  actuator.add(mesh(new THREE.BoxGeometry(1.0, depth + 0.85, chord * 0.88), M.steelSkirt, { position: [-1.15, 0, 0] }));
+  actuator.add(mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.5, 20), M.darkMetal, { position: [-1.15, -0.95, 0], rotation: [Math.PI / 2, 0, 0] }));
+  g.add(actuator);
   if (withPin) {
     // Catch pin: a stub that the tower arms take the vehicle's weight on.
     g.add(mesh(new THREE.CylinderGeometry(0.3, 0.34, 1.35, 24), M.darkMetal, { position: [0.95, -PIN_DROP, 0], rotation: [0, 0, -Math.PI / 2], name: 'catch-pin' }));

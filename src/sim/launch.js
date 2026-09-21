@@ -330,6 +330,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     near: camera.near, far: camera.far,
     shadows: env.sun.castShadow,
     clamps: parts.holddowns.children.map(c => c.position.clone()),
+    boosterQds: (parts.boosterQds ?? []).map(q => q.position.clone()),
   };
 
   const state = {
@@ -456,6 +457,12 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     // Ship quick disconnect swings clear before ignition.
     const qd = THREE.MathUtils.clamp((t - (EVENTS.ignition - 5)) / 4, 0, 1);
     parts.qdArm.rotation.y = -THREE.MathUtils.degToRad(112) * (qd * qd * (3 - 2 * qd));
+    // Reconstructed release timing/stroke: both fluid heads withdraw before liftoff.
+    // Fixed housings and supply lines remain on the mount.
+    const boosterRelease = THREE.MathUtils.smoothstep(t, 0.6, 1.6);
+    (parts.boosterQds ?? []).forEach((q, i) => {
+      q.position.copy(home.boosterQds[i]); q.position.x += 1.2 * boosterRelease;
+    });
     // Hold-downs release at liftoff and retract radially out of the way.
     const rel = THREE.MathUtils.clamp((t - EVENTS.liftoff) / 0.7, 0, 1);
     parts.holddowns.children.forEach((c, i) => {
@@ -654,6 +661,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     shipPlume.setThrottle(0, 0);
     resetCloud();
     parts.qdArm.rotation.y = 0;
+    (parts.boosterQds ?? []).forEach((q, i) => q.position.copy(home.boosterQds[i]));
     parts.holddowns.children.forEach((c, i) => c.position.copy(home.clamps[i]));
     env.setAltitude(0);
     chop.position.y = chopHome.y;

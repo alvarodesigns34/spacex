@@ -19,6 +19,7 @@ import { createHUD } from './ui/hud.js';
 import { VEHICLES } from './data/specs.js';
 import { buildStarship } from './vehicles/starship.js';
 import { buildFalcon9, buildFalconHeavy } from './vehicles/falcon.js';
+import { buildFalcon1 } from './vehicles/falcon1.js';
 import { buildDragon } from './vehicles/dragon.js';
 import { buildStarlink } from './vehicles/starlink.js';
 import { buildRoadster } from './vehicles/roadster.js';
@@ -44,6 +45,7 @@ import { createLaunch } from './sim/launch.js';
 // a radius that only some layouts carry is the kind of thing that breaks the next time an
 // exhibit is added, so the layout says it outright.
 const LAYOUT = {
+  falcon1: { x: -101, z: 34, mount: 2.5, mountRadius: 3.1, inner: 1.0, clampRadius: 0.8382, people: [[4, 0, 2, 0.5], [-4, 0, 2, -0.5]] },
   falcon9: {
     x: -135, z: 0, mount: 6.5, mountRadius: 6.5, inner: 3.1, clampRadius: 1.85,
     people: [[10, 0, 2, 0.5], [8.5, 0, -4, -2.0], [-9.5, 0, 3, 2.2]],
@@ -81,6 +83,7 @@ const OVERVIEW = { pos: [4, 68, 300], target: [-2, 40, -68] };
 // occlude to the 4.8 m of the vacuum engine standing next to it. Starlink is a flat panel and
 // needs none.
 const OCCLUDER = {
+  falcon1: 0.8382,
   starship: 4.5, falcon9: 1.9, falconheavy: 1.9, dragon: 2.0, starlink: 0, roadster: 1.0,
   engines: [[-4.15, 0, 0.50, 2.6], [-1.75, 0, 0.70, 3.4], [1.55, 0, 1.20, 4.9]],
 };
@@ -146,6 +149,7 @@ async function main() {
     onToggle: (name, value) => setToggle(name, value),
     onMode: () => toggleMode(),
     onTour: () => toggleTour(),
+    onHelp: () => { rig.keys.clear(); rig.velocity.set(0, 0, 0); },
     // setSun regenerates the PMREM environment map, which is far too expensive to do on every
     // pointermove the range input fires. Coalesce to one regeneration per frame while dragging.
     onSun: (elev) => {
@@ -203,6 +207,7 @@ async function main() {
   const rulers = new THREE.Group(); rulers.name = 'rulers'; scene.add(rulers);
 
   const builders = {
+    falcon1: [buildFalcon1, 'Falcon 1 · historical exhibit…'],
     starship: [buildStarship, 'Starship and Super Heavy · 18,000 instanced tiles…'],
     falcon9: [buildFalcon9, 'Falcon 9…'],
     falconheavy: [buildFalconHeavy, 'Falcon Heavy…'],
@@ -275,7 +280,7 @@ async function main() {
       group.add(buildMount(M, { radius: lay.mountRadius, inner: lay.inner, height: lay.mount, clampRadius: lay.clampRadius, clamps: v.id === 'falconheavy' ? 0 : 4 }));
       model.position.y = lay.mount;
       env.addStation(lay.x, lay.z, lay.mountRadius + 1.5);
-      env.addDisplayLight(lay.x, lay.z, lay.mountRadius + 4, 70, { tiers: 3 });
+      env.addDisplayLight(lay.x, lay.z, lay.mountRadius + 4, v.height, { tiers: v.height > 40 ? 3 : 1 });
     }
     const yaw = THREE.MathUtils.degToRad(lay.yaw ?? 0);
     model.rotation.y = yaw;
@@ -483,6 +488,12 @@ async function main() {
     setOrbital(orbital);
     for (const [id, ex] of Object.entries(exhibits)) {
       const on = id === view.exhibit && !flying;
+      const cut = ex.model.userData.cutaway;
+      if (cut) {
+        const open = on && view.preset === 'cutaway';
+        for (const name of cut.shell) ex.model.getObjectByName(name).visible = !open;
+        ex.model.getObjectByName(cut.interior).visible = open;
+      }
       const lg = labels.getObjectByName(`labels-${id}`);
       lg.visible = on && toggles.labels && !(ex.padLabels && site);
       // Callouts carry the range they read at. Showing all nine on a 3,9 m car at once hides
@@ -616,6 +627,7 @@ async function main() {
     ['roadster', 'overview', 5], ['roadster', 'detail', 4], ['roadster', 'starman', 4],
     ['roadster', 'earth', 6],
     ['engines', 'overview', 5], ['engines', 'rvac', 4],
+    ['falcon1', 'overview', 5], ['falcon1', 'cutaway', 5],
   ];
   let tourAt = -1, tourTimer = 0;
 

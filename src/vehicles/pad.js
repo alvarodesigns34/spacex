@@ -291,15 +291,51 @@ function buildMountTable(M) {
   });
   g.add(holds);
 
-  // Booster quick disconnect: at Starbase this comes up through the mount itself, not from
-  // the tower, so it is part of the table rather than a swing arm.
-  const bqd = boxUV(mergeAll([
-    block(-1.5, 1.5, deckTop - 0.2, deckTop + 3.4, -tableR - 2.6, -tableR - 0.2),
-    block(-0.6, 0.6, deckTop + 1.0, deckTop + 2.4, -tableR - 0.4, -tableR + 0.9),
-  ]));
-  const bqdMesh = mesh(bqd, M.mount, { name: 'booster-qd' });
-  bqdMesh.rotation.y = -Math.PI / 2;   // face the tower
-  g.add(bqdMesh);
+  // SpaceX, Introducing Starship V3 (12 May 2026): two separate methane/oxygen
+  // QDs on the side opposite the tower, fed from separate rooms in a hardened
+  // bunker beside the mount. Counts and topology are documented; spacing,
+  // envelopes and pipe routing are reconstructed. +X is opposite this tower.
+  const bqd = new THREE.Group();
+  bqd.name = 'booster-qd';
+  bqd.userData.reconstruction = true;
+  for (const [fluid, z] of [['methane', -1.5], ['oxygen', 1.5]]) {
+    const mechanism = new THREE.Group();
+    mechanism.name = `booster-qd-${fluid}`;
+    mechanism.userData.fluid = fluid;
+    mechanism.add(mesh(boxUV(mergeAll([
+      block(tableR + 0.1, tableR + 2.5, deckTop, deckTop + 2.7, z - 0.55, z + 0.55),
+    ])), M.mount));
+    mechanism.add(mesh(boxUV(mergeAll([
+      block(4.15, tableR + 0.4, deckTop + 1.35, deckTop + 2.2, z - 0.35, z + 0.35),
+    ])), M.mount, { name: `booster-qd-contact-${fluid}` }));
+    mechanism.add(mesh(tube([
+      [tableR + 2.2, deckTop + 0.9, z],
+      [17, deckTop + 0.9, z], [18, padY + 5.6, z],
+    ], 0.21, { tubular: 24, radial: 8 }), M.pipeCryo || M.conduit, { name: `booster-fill-${fluid}` }));
+    bqd.add(mechanism);
+  }
+  g.add(bqd);
+
+  const bunker = new THREE.Group();
+  bunker.name = 'booster-fluid-bunker';
+  bunker.userData.reconstruction = true;
+  bunker.add(mesh(boxUV(mergeAll([
+    block(14, 23, padY, padY + 0.45, -5, 5),
+    block(14, 23, padY + 5.6, padY + 6.4, -5, 5),
+    block(14, 14.6, padY, padY + 5.6, -5, 5),
+    block(14, 23, padY, padY + 5.6, -5, -4.4),
+    block(14, 23, padY, padY + 5.6, 4.4, 5),
+    block(22.4, 23, padY, padY + 5.6, -5, 5),
+  ])), M.concrete, { name: 'bunker-shell' }));
+  bunker.add(mesh(boxUV(mergeAll([
+    block(14.6, 22.4, padY + 0.45, padY + 5.6, -0.3, 0.3),
+  ])), M.concrete, { name: 'bunker-fluid-divider' }));
+  for (const [fluid, z] of [['methane', -2.5], ['oxygen', 2.5]]) {
+    bunker.add(mesh(new THREE.BoxGeometry(0.12, 3.2, 2.4), M.darkMetal, {
+      position: [23.07, padY + 2.05, z], name: `bunker-${fluid}-access`,
+    }));
+  }
+  g.add(bunker);
   return g;
 }
 
@@ -621,6 +657,7 @@ export function buildLaunchComplex(M) {
     qdY: PAD.qdY,
   };
   g.userData.parts = {
+    boosterQds: ['methane', 'oxygen'].map(fluid => table.getObjectByName(`booster-qd-contact-${fluid}`)),
     holddowns: table.getObjectByName('holddowns'),
     qdArm: qd,
     chopsticks: chop,

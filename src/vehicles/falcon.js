@@ -185,6 +185,7 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
     g.add(mesh(lathe(prof, { segments: 128 }), M.whiteFresh, { name: 'nosecone' }));
     addGridFins(TANK_TOP - 1.6);
     g.userData.top = TANK_TOP + noseL;
+    markFalconDetail(g);
     return g;
   }
 
@@ -198,16 +199,28 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
     // Lap joint at the bottom of the interstage and the ring at the top.
     trim.push({ geometry: new THREE.TorusGeometry(R + 0.03, 0.045, 8, 96), matrix: mat4([0, TANK_TOP + 0.12, 0], [Math.PI / 2, 0, 0]) });
     trim.push({ geometry: new THREE.TorusGeometry(R + 0.025, 0.035, 8, 96), matrix: mat4([0, S1_H - 0.1, 0], [Math.PI / 2, 0, 0]) });
-    // Pneumatic pusher housings, spaced round the separation plane.
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2 + 0.3;
-      trim.push({
-        geometry: new THREE.BoxGeometry(0.28, 0.7, 0.16),
-        matrix: mat4([Math.sin(a) * (R + 0.05), S1_H - 0.62, Math.cos(a) * (R + 0.05)], [0, a, 0]),
-      });
-    }
     g.add(mesh(boxUV(mergeAll(trim)), M.alumDark, { name: 'interstage-trim' }));
   }
+  // User's Guide §2.4: three latch points and four stage pushers, including one
+  // redundant CENTRAL pusher. Counts/roles are cited; housing shape and station are
+  // reconstructed. The fourth pusher is inside the interstage, not on its exterior.
+  const pushers = new THREE.Group(), latches = new THREE.Group();
+  pushers.name = 'stage-separation-pushers'; latches.name = 'stage-separation-latches';
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + 0.3;
+    pushers.add(mesh(new THREE.BoxGeometry(0.28, 0.7, 0.16), M.alumDark, {
+      position: [Math.sin(a) * (R + 0.05), S1_H - 0.62, Math.cos(a) * (R + 0.05)],
+      rotation: [0, a, 0], name: `stage-pusher-peripheral-${i + 1}`,
+    }));
+    latches.add(mesh(new THREE.BoxGeometry(0.36, 0.18, 0.22), M.darkMetal, {
+      position: [Math.sin(a) * (R + 0.04), S1_H - 0.18, Math.cos(a) * (R + 0.04)],
+      rotation: [0, a, 0], name: `stage-latch-${i + 1}`,
+    }));
+  }
+  pushers.add(mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.7, 12), M.alumDark,
+    { position: [0, S1_H - 0.62, 0], name: 'stage-pusher-center' }));
+  g.add(pushers, latches);
+  g.userData.separation = { pusherCount: 4, latchCount: 3, centralPushers: 1, reconstructedGeometry: true };
   g.add(instanceEngines(merlinVacGeometry(), M, [{ position: [0, TANK_TOP + 0.9, 0], tilt: [0, 0], spin: 0 }], { bellMaterial: M.bellCool }));
 
   addGridFins(S1_H - 1.95);   // at the top of the interstage
@@ -255,7 +268,8 @@ function markFalconDetail(g) {
   const FINE = {
     'octaweb-wall': 0.12, 'octaweb-structure': 0.06, 'base-bottles': 0.22,
     'leg-latches': 0.04, 'interstage-trim': 0.05, 'sep-flange': 0.1,
-    'fh-attach-struts': 0.14,
+    'stage-separation-pushers': 0.16, 'stage-separation-latches': 0.18,
+    'fh-pusher-detail': 0.08,
   };
   g.traverse((o) => { const f = FINE[o.name]; if (f) o.userData.lodFeature = f; });
 }
@@ -291,33 +305,52 @@ export function buildFalconHeavy(M) {
   const left = buildFalconCore(M, { variant: 'fh-side', bodyMaterial: M.fhSide });
   const right = buildFalconCore(M, { variant: 'fh-side', bodyMaterial: M.fhSide });
   left.position.x = -spacing; right.position.x = spacing;
-  left.rotation.y = Math.PI / 2; right.rotation.y = -Math.PI / 2;   // raceways face outward
+  left.rotation.y = -Math.PI / 2; right.rotation.y = Math.PI / 2;   // local +Z raceways face outward
   g.add(center, left, right);
 
-  // Attachment struts at the nose-cone shoulder and across the octawebs.
+  // Falcon User's Guide (May 2025), §2.4: two forward and two aft pneumatic
+  // separation mechanisms connect EACH side booster. Forward loads enter the top of
+  // the centre LOX tank, not the carbon interstage. Exact stations, clevis sizes and
+  // cylinder dimensions below are a reconstruction; the count and role are published.
+  // https://www.spacex.com/assets/media/falcon-users-guide-2025-05-09.pdf
   const struts = [];
-  const strut = (a, b, r = 0.13) => {
+  const detail = [], interfaces = [];
+  const cylinder = (target, a, b, r) => {
     const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b);
     const len = A.distanceTo(B);
     const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize());
-    struts.push({
+    target.push({
       geometry: new THREE.CylinderGeometry(r, r, len, 12),
       matrix: new THREE.Matrix4().compose(A.clone().add(B).multiplyScalar(0.5), q, new THREE.Vector3(1, 1, 1)),
     });
   };
   for (const s of [-1, 1]) {
-    const x0 = s * (spacing - R), x1 = s * R;
-    strut([x0 + s * 0.2, TANK_TOP + 0.8, 0.55], [x1 - s * 0.2, TANK_TOP + 2.4, 0.55]);
-    strut([x0 + s * 0.2, TANK_TOP + 0.8, -0.55], [x1 - s * 0.2, TANK_TOP + 2.4, -0.55]);
-    strut([x0 + s * 0.2, TANK_TOP + 0.8, 0.55], [x0 + s * 0.2, TANK_TOP + 0.8, -0.55], 0.1);
-    strut([x0, 2.6, 0.7], [x1, 2.6, 0.7], 0.16);
-    strut([x0, 2.6, -0.7], [x1, 2.6, -0.7], 0.16);
-    strut([x0, 4.4, 0], [x1, 4.4, 0], 0.16);
+    for (const station of ['forward', 'aft']) for (const front of [-1, 1]) {
+      const z = front * (station === 'forward' ? 0.55 : 0.7);
+      // At an off-axis Z the skin lies on sqrt(R²-Z²), not X=R. Embed both ends
+      // slightly into that actual surface so the pusher remains physically attached.
+      const skinX = Math.sqrt(R * R - z * z) - 0.06;
+      const y = station === 'forward' ? TANK_TOP - 0.45 : 2.6;
+      const a = [s * skinX, y, z];
+      const b = [s * (spacing - skinX), y, z];
+      cylinder(struts, a, b, 0.12);
+      interfaces.push({ station, side: s, center: a, booster: b });
+      // Short sleeve, clevis blocks and hinge pins show how the pneumatic load path
+      // meets the skin. Fine fittings can disappear; the connecting rods cannot.
+      const sleeveEnd = a.map((v, i) => v + (b[i] - v) * 0.58);
+      cylinder(detail, a, sleeveEnd, 0.21);
+      for (const p of [a, b]) {
+        detail.push({ geometry: new THREE.BoxGeometry(0.24, 0.52, 0.46), matrix: mat4(p) });
+        cylinder(detail, [p[0], p[1], p[2] - 0.28], [p[0], p[1], p[2] + 0.28], 0.065);
+      }
+    }
   }
   // boxUV, like every other merged structural run in the project: merging keeps each
   // cylinder's own 0..1 UVs, so the grey-metal map — authored for a one-metre tile — was being
   // stretched over a four-metre strut. Planar metric UVs put it back on its own scale.
   g.add(mesh(boxUV(mergeAll(struts)), M.darkMetal, { name: 'fh-attach-struts' }));
+  g.add(mesh(boxUV(mergeAll(detail)), M.alumDark, { name: 'fh-pusher-detail' }));
+  g.userData.attachments = { reconstructedGeometry: true, interfaces };
   markFalconDetail(g);
 
   g.userData.height = TOTAL_H;
@@ -327,7 +360,7 @@ export function buildFalconHeavy(M) {
     { label: '27 Merlin 1D (3 × 9)', position: [0, -0.3, 2.8] },
     { label: 'Side booster with nose cone', position: [-spacing, TANK_TOP + 4.4, 1.2] },
     { label: 'Reinforced centre core', position: [0, 18, R + 0.35] },
-    { label: 'Upper attach point (nose cone / interstage)', position: [spacing - 2.1, TANK_TOP + 1.8, 1.2] },
+    { label: 'Forward pneumatic attach points (LOX tank)', position: [spacing - 2.1, TANK_TOP - 0.45, 1.2] },
     { label: 'Lower attach point (Octaweb)', position: [spacing - 2.1, 3.2, 1.4] },
     { label: 'Fairing · 13.1 m × 5.2 m', position: [0, FAIRING_BASE + 6, FAIRING_R + 0.4] },
   ];

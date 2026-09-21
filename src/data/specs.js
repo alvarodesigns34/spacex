@@ -1,3 +1,4 @@
+import { FALCON1, FALCON1_SOURCES } from './falcon1.js';
 /**
  * Vehicle data sheet. Every figure carries its provenance:
  *  - source: 'spacex'   → published on spacex.com vehicle pages (values as displayed there).
@@ -9,6 +10,8 @@
  * Units: metres, tonnes (t), kilonewtons (kN), tonne-force (tf) as used on spacex.com.
  */
 export const SOURCES = {
+  ...FALCON1_SOURCES,
+  falcon_guide_2025: { label: "SpaceX — Falcon User’s Guide, May 2025, §2.4", url: "https://www.spacex.com/assets/media/falcon-users-guide-2025-05-09.pdf" },
   spacex_starship: { label: 'spacex.com — Starship', url: 'https://www.spacex.com/vehicles/starship/' },
   spacex_f9: { label: 'spacex.com — Falcon 9', url: 'https://www.spacex.com/vehicles/falcon-9/' },
   spacex_fh: { label: 'spacex.com — Falcon Heavy', url: 'https://www.spacex.com/vehicles/falcon-heavy/' },
@@ -65,6 +68,8 @@ export const VEHICLES = [
       { label: 'RVac · diameter / height', value: '2.3 m / 4.4 m · 275 tf', source: 'spacex', ref: 'spacex_starship' },
       { label: 'Steel rings', value: '1.83 m tall · 3.97 mm thick', source: 'wiki', ref: 'wiki_superheavy' },
       { label: 'Heat shield', value: '≈18,000 hexagonal silica tiles (1,400 °C)', source: 'wiki', ref: 'wiki_starship' },
+      { label: 'V3 aft-flap actuation', value: 'One actuator with three motors per aft flap; internal detail is not reconstructed', source: 'spacex', ref: 'spacex_v3' },
+      { label: 'Pad 2 · booster servicing', value: 'Separate methane and oxygen QDs opposite the tower; divided hardened bunker', source: 'spacex', ref: 'spacex_v3' },
       { label: 'Flaps', value: '2 forward (leeward) + 2 aft', source: 'wiki', ref: 'wiki_starship' },
       { label: 'Tile size', value: '≈0.26 m across flats (≈12 in across vertices)', source: 'press', ref: 'space_tiles' },
       { label: 'Tank split', value: 'LOX 59 % / CH4 41 % by volume (derived from 2,700 t and 700 t at cryogenic density)', source: 'derived' },
@@ -81,6 +86,7 @@ export const VEHICLES = [
       { label: 'Sequence · ascent profile', value: 'speed curve and gravity turn (72°, τ = 64 s) reconstructed; altitude and downrange are integrated from them, not declared separately', source: 'derived', approx: true },
     ],
     approximations: [
+      'Pad 2 QD housings, bunker dimensions and pipe routing are reconstructed; the separation of methane and oxygen mechanisms is documented by SpaceX.',
       'Nose cone length, flap planform, grid fin and chine sizes, and external plumbing: reconstructed from photographs; the number and function of the chines is documented, their dimensions are not.',
       'Radial layout of the 33 Raptors (rings of 3 / 10 / 20): the arrangement is documented, the radii were tuned so the outer nozzles stay inside the 9 m skirt.',
       'Tiles: the published count (~18,000, Wikipedia) and the published size (≈12 in across vertices) do not agree exactly; the model follows the size and covers about 13,700 tiles over the exposed half, the nose and the flaps.',
@@ -102,6 +108,7 @@ export const VEHICLES = [
       { id: 'gridfins', label: 'Grid fins and pins', pos: [28, 76, 22], target: [0, 70, 0] },
       { id: 'site', label: 'Launch complex', frame: 'site', pos: [268, 118, 286], target: [4, 62, 0] },
       { id: 'tower', label: 'Tower and arms', frame: 'site', pos: [58, 72, 64], target: [-24, 64, 0] },
+      { id: 'booster-qd', label: 'LOX / methane QDs', pos: [34, 29, 20], target: [12, 19, 0], frame: 'site' },
       { id: 'trench', label: 'Flame trench', frame: 'site', pos: [3, 11, 74], target: [0, 12, 0] },
     ],
   },
@@ -136,7 +143,7 @@ export const VEHICLES = [
       'The published figures (41.2 + 13.8 + 13.1 = 68.1 m) do not add up to the declared 70 m: the model assigns the difference to the payload adapter under the fairing.',
       'Markings and soot: this represents a flight-proven booster; the soot pattern is procedural.',
     ],
-    sources: ['spacex_f9', 'wiki_f9b5', 'wiki_merlin'],
+    sources: ['spacex_f9', 'falcon_guide_2025', 'wiki_f9b5', 'wiki_merlin'],
     presets: [
       { id: 'overview', label: 'Overview', pos: [70, 35, 95], target: [0, 33, 0] },
       { id: 'octaweb', label: 'Octaweb · 9 Merlins', pos: [1.5, -5.6, 1.9], target: [0, 0.5, 0] },
@@ -161,6 +168,7 @@ export const VEHICLES = [
       { label: 'First stage · thrust (sea level / vacuum)', value: '22,819 / 24,681 kN', source: 'spacex', ref: 'spacex_fh' },
       { label: 'Second stage · engine', value: '1 Merlin Vacuum · 981 kN · 397 s', source: 'spacex', ref: 'spacex_fh' },
       { label: 'Fairing · height / diameter', value: '13.1 m / 5.2 m', source: 'spacex', ref: 'spacex_fh' },
+      { label: 'Booster separation', value: '2 forward + 2 aft pneumatic mechanisms per side booster', source: 'spacex', ref: 'falcon_guide_2025' },
       { label: 'Core centreline spacing', value: '4.25 m (derived from the 12.2 m width and the 3.7 m diameter)', source: 'derived' },
       { label: 'Side nose cones', value: 'replace the interstage on the side boosters', source: 'spacex', ref: 'spacex_fh' },
     ],
@@ -168,12 +176,13 @@ export const VEHICLES = [
       'Side nose cone height and attach strut geometry: estimated from imagery.',
       'The 12.2 m width is measured between the tank cylinders; the stowed legs on the side boosters protrude about 0.3 m beyond that outline.',
     ],
-    sources: ['spacex_fh', 'wiki_fh', 'wiki_merlin'],
+    sources: ['spacex_fh', 'falcon_guide_2025', 'wiki_fh', 'wiki_merlin'],
     presets: [
       { id: 'overview', label: 'Overview', pos: [80, 38, 100], target: [0, 33, 0] },
       { id: 'engines', label: '27 Merlins', pos: [3.2, -5.8, 4.2], target: [0, 0.5, 0] },
       { id: 'nosecones', label: 'Side nose cones', pos: [15, 41, 17], target: [0, 37.5, 0] },
-      { id: 'struts', label: 'Core attach points', pos: [3, 38, 13], target: [2, 36.2, 0] },
+      { id: 'struts', label: 'Forward interfaces', pos: [3, 36, 8], target: [2.1, 34.1, 0] },
+      { id: 'aft-interfaces', label: 'Aft interfaces', pos: [3.2, 4.9, 8], target: [2.1, 2.9, 0] },
     ],
   },
   {
@@ -328,9 +337,11 @@ export const VEHICLES = [
       { id: 'bells', label: 'Inside the bells', pos: [-1.75, 0.30, 4.4], target: [-1.75, 0.38, 0] },
     ],
   },
+  FALCON1,
 ];
 
 export const SOURCE_LABEL = {
+  nasa: 'NASA',
   spacex: 'spacex.com',
   wiki: 'Wikipedia',
   press: 'press',

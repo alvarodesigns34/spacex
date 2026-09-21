@@ -6,7 +6,7 @@ import { SOURCES, SOURCE_LABEL } from '../data/specs.js';
 
 const fmtHeight = (h) => `${h >= 10 ? Math.round(h) : h} m`;
 
-export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSun, onReset, onLaunch, onLaunchAbort, onLaunchSpeed, onTour }) {
+export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSun, onReset, onLaunch, onLaunchAbort, onLaunchSpeed, onTour, onHelp }) {
   const root = document.getElementById('hud');
   root.innerHTML = `
     <header class="hud-header">
@@ -64,7 +64,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
         </div>
         <button class="mission-abort" id="mission-abort">End</button>
       </div>
-      <p class="mission-note"><b>Composite catch demonstration — not a reconstruction of one flight.</b> The vehicle and the pad are the V3 / Pad 2 configuration that debuted on flight 12 (22 May 2026), but that flight did <i>not</i> attempt a catch: booster 19 was sent to the Gulf and its landing burn failed to relight. So the ascent milestones are flight 7's (liftoff T+0:02 · Max-Q 1:02 · MECO 2:32 · hot-staging 2:40) and the return milestones are flight 5's, the flight on which a booster was first caught (boostback 2:45–3:41, landing burn 6:30, caught 6:54). Everything between the milestones — the speed curve, the gravity turn, the separation speed and the whole return trajectory — is authored.</p>
+      <details class="mission-note"><summary>Composite demonstration · sources and limits</summary><p><b>Not a reconstruction of one flight.</b> The vehicle and the pad are the V3 / Pad 2 configuration that debuted on flight 12 (22 May 2026), but that flight did <i>not</i> attempt a catch: booster 19 was sent to the Gulf and its landing burn failed to relight. So the ascent milestones are flight 7's (liftoff T+0:02 · Max-Q 1:02 · MECO 2:32 · hot-staging 2:40) and the return milestones are flight 5's, the flight on which a booster was first caught (boostback 2:45–3:41, landing burn 6:30, caught 6:54). Everything between the milestones — the speed curve, the gravity turn, the separation speed and the whole return trajectory — is authored.</p></details>
     </div>
 
     <div class="scale" id="scale">
@@ -78,7 +78,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
         <table>
           <tr><td>Drag</td><td>orbit · <em>wheel</em> zoom · <em>right button</em> pan</td></tr>
           <tr><td><kbd>F</kbd></td><td>free flight: <kbd>W A S D</kbd> move · <kbd>Q</kbd>/<kbd>E</kbd> (or <kbd>C</kbd>/<kbd>space</kbd>) down/up · drag to look · <kbd>Shift</kbd> ×4 · <kbd>Ctrl</kbd> ×0.2 · wheel adjusts speed</td></tr>
-          <tr><td><kbd>1</kbd>–<kbd>7</kbd></td><td>select exhibit</td></tr>
+          <tr><td><kbd>1</kbd>–<kbd>${vehicles.length}</kbd></td><td>select exhibit</td></tr>
           <tr><td><kbd>L</kbd> <kbd>R</kbd> <kbd>T</kbd></td><td>labels · ruler · data sheet</td></tr>
           <tr><td><kbd>0</kbd></td><td>overview of the centre</td></tr>
           <tr><td><kbd>P</kbd></td><td>guided tour — the camera walks the centre stop by stop; any drag, scroll or click ends it</td></tr>
@@ -118,6 +118,8 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     const collapsed = force ?? !sheet.classList.contains('collapsed');
     sheet.classList.toggle('collapsed', collapsed);
     root.querySelector('#sheet-toggle').textContent = collapsed ? '+' : '–';
+    root.querySelector('#sheet-toggle').setAttribute('aria-expanded', String(!collapsed));
+    root.querySelector('#sheet-toggle').setAttribute('aria-label', collapsed ? 'Expand data sheet' : 'Collapse data sheet');
   }
 
   function renderSheet(v) {
@@ -205,6 +207,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     const wasOpen = !help.classList.contains('hidden');
     if (on === wasOpen) return;
     help.classList.toggle('hidden', !on);
+    onHelp?.(on);
     if (on) {
       helpOpener = document.activeElement;
       help.querySelector('#help-close')?.focus();
@@ -214,6 +217,9 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     }
   }
   help.addEventListener('keydown', (e) => {
+    // A modal owns keyboard input, including the camera's W/A/S/D and launch shortcuts.
+    // Keep keyup bubbling so keys held before opening cannot become stuck.
+    e.stopPropagation();
     if (e.key === 'Escape') { showHelp(false); return; }
     if (e.key !== 'Tab') return;
     const items = [...help.querySelectorAll(FOCUSABLE)].filter(n => n.offsetParent !== null);
@@ -227,9 +233,15 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
   helpBtn.addEventListener('click', () => showHelp(help.classList.contains('hidden')));
   el('#help-close').addEventListener('click', () => showHelp(false));
 
+  // On compact screens the sheet opens on demand instead of covering the selected model.
+  const compact = window.matchMedia('(max-width: 820px), (max-height: 600px)');
+  toggleSheet(compact.matches);
+  compact.addEventListener('change', e => { if (e.matches) toggleSheet(true); });
+
   // ---- Mission panel ----
   const mission = el('#mission');
   const launchBtn = el('#launch-btn');
+  new ResizeObserver(() => root.style.setProperty('--mission-height', `${mission.getBoundingClientRect().height}px`)).observe(mission);
   const mClock = el('#mission-clock'), mPhase = el('#mission-phase');
   const mAlt = el('#m-alt'), mVel = el('#m-vel'), mDown = el('#m-down'), mThr = el('#m-thr');
   const speeds = [...root.querySelectorAll('#mission-speeds button')];

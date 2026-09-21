@@ -71,12 +71,17 @@ export class LODManager {
    * @param spec.bias     multiplies the threshold for this entry; > 1 sheds sooner
    */
   register(spec) {
+    // Repeated hardware (four legs, three Falcon cores, several tank rings) may share a
+    // scene name. Diagnostics and pin() need an unambiguous entry, not the first sibling.
+    const baseName = spec.name ?? '(lod)';
+    let name = baseName, suffix = 2;
+    while (this.entries.some(entry => entry.name === name)) name = `${baseName}#${suffix++}`;
     const e = {
       at: spec.at, bounds: spec.bounds ?? null,
       feature: spec.feature ?? 0.26,
       near: spec.near ?? [], far: spec.far ?? null,
       bias: spec.bias ?? 1,
-      name: spec.name ?? '(lod)',
+      name,
       // Tracked explicitly rather than inferred from visibility: inferring it silently
       // no-ops on the first evaluation, when both halves are still visible.
       state: null,

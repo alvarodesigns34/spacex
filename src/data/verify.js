@@ -13,6 +13,7 @@ const TOL = 0.02;   // 2 % — enough slack for antennas, pins and hinge fairing
 
 /** Declared reference dimensions, keyed by vehicle id. Sources are cited in specs.js. */
 export const EXPECTED = {
+  falcon1: { height: 21.336, footprint: 1.6764, note: 'SpaceX Falcon 1 User Guide 2008, 70 ft × 5.5 ft' },
   starship: { height: 124, footprint: 9, note: 'Altura del apilado y diámetro (spacex.com)' },
   falcon9: { height: 70, footprint: 5.2, note: 'Altura total y diámetro de cofia (spacex.com)' },
   falconheavy: { height: 70, footprint: 12.2, note: 'Altura y anchura (spacex.com)' },
@@ -41,6 +42,7 @@ export const EXPECTED = {
  * three rings still reports one number.
  */
 export const COUNTS = {
+  falcon1: [{ key: 'engineCount', want: 2, label: 'Merlin 1C + Kestrel (SpaceX 2008)' }],
   dragon: [
     { key: 'dracoCount', want: 16, label: 'Draco (spacex.com)' },
     { key: 'superDracoCount', want: 8, label: 'SuperDraco (spacex.com)' },
@@ -103,6 +105,7 @@ function measure(model, hullNames) {
 }
 
 const HULLS = {
+  falcon1: ['falcon1-stage1', 'falcon1-stage2', 'falcon1-fairing'],
   starship: ['skirt', 'tanks', 'hull'],
   falcon9: ['stage1', 'interstage', 'stage2', 'fairing'],
   // The 12.2 m width is measured across the three tank barrels; the stowed landing legs of
