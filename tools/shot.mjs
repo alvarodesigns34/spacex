@@ -24,7 +24,7 @@ import { chromium } from 'playwright';
 import { sceneCensus, bootAtQuality } from './census.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const PORT = 8801;
+const PORT = Number(process.env.VC_SHOT_PORT ?? 8801);
 const TYPES = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
   '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png', '.woff2': 'font/woff2',
@@ -69,6 +69,7 @@ const shots = JSON.parse(await readFile(manifest, 'utf8'));
 for (const s of shots) {
   await page.evaluate((s) => {
     const v = window.__vc;
+    document.getElementById('hud').style.display = s.hud === false ? 'none' : '';
     // Reset the state a previous shot may have left, so order cannot change a frame.
     if (s.seek === undefined) v.launch.reset(false);
     v.ortho(null);

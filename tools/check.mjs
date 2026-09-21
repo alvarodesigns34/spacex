@@ -83,6 +83,16 @@ try {
     scene.length ? scene.map(i => `${i.mesh}: ${i.problem}`).join('; ') : 'uv, normales y vértices correctos');
 
   // Every authored view must produce a finite camera that stays above the apron.
+  const lodNames = await page.evaluate(() => {
+    const entries = window.__vc.lod.entries;
+    const unique = () => new Set(entries.map(e => e.name)).size === entries.length;
+    const good = unique(), saved = entries[1].name;
+    entries[1].name = entries[0].name;
+    const catchesDuplicate = !unique();
+    entries[1].name = saved;
+    return { good, catchesDuplicate };
+  });
+  report(lodNames.good && lodNames.catchesDuplicate, 'LOD: identificadores únicos; sabotaje de nombres duplicados detectado');
   const presets = await page.evaluate(() => Object.fromEntries(
     Object.entries(window.__vc.exhibits).map(([id, e]) => [id, e.data.presets.map(p => p.id)])));
   let bad = [];
@@ -489,6 +499,7 @@ try {
         v.exhibits.starship.boosterFlight.rotation.z,
       ],
       qd: parts.qdArm.rotation.y,
+      boosterQds: (parts.boosterQds ?? []).map(q => q.position.toArray()),
       chop: [parts.chopsticks.position.y, ...parts.chopsticks.children.filter(c => c.name.startsWith('arm-')).map(a => a.rotation.y)],
       boosterParent: v.scene.getObjectByName('superheavy').parent.name,
       clamps: parts.holddowns.children.map(c => c.position.toArray()),

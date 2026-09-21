@@ -30,7 +30,7 @@ import { chromium } from 'playwright';
 import { bootAtQuality } from './census.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const PORT = 8804;
+const PORT = Number(process.env.VC_LOD_PORT ?? 8804);
 const TYPES = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
   '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png', '.woff2': 'font/woff2',
@@ -50,6 +50,7 @@ await mkdir(outdir, { recursive: true });
  * flickered the pad.
  */
 const TARGETS = [
+  { name: 'falcon1', exhibit: 'falcon1', at: [0, 3, 0], from: 250, to: 3, match: /^falcon1-/ },
   { name: 'tps', exhibit: 'starship', at: [0, 95, 6], from: 420, to: 12, match: /^starship-/ },
   { name: 'roadster', exhibit: 'roadster', at: [0, 0.9, 0], from: 260, to: 3.2, match: /^roadster-/ },
   { name: 'dragon', exhibit: 'dragon', at: [0, 3.2, 0], from: 260, to: 4.5, match: /^dragon-/ },
@@ -63,9 +64,10 @@ const TARGETS = [
 const server = createServer(async (req, res) => {
   try {
     const rel = normalize(decodeURIComponent(req.url.split('?')[0])).replace(/^(\.\.[/\\])+/, '');
-    const p = join(ROOT, (rel === '/' || rel === '') ? 'index.html' : rel);
+    const p = join(ROOT, (rel === '/' || rel === '\\' || rel === '') ? 'index.html' : rel);
+    const body = await readFile(p);
     res.writeHead(200, { 'Content-Type': TYPES[extname(p)] ?? 'application/octet-stream' });
-    res.end(await readFile(p));
+    res.end(body);
   } catch { res.writeHead(404).end('nf'); }
 });
 await new Promise(r => server.listen(PORT, '127.0.0.1', r));

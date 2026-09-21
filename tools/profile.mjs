@@ -10,6 +10,7 @@
  * it to a file; `--baseline <path>` compares against one and prints the deltas.
  *
  * Usage: node tools/profile.mjs [--json out.json] [--baseline base.json]
+ * Short diagnostic: --frames 3 --gcframes 3 --only overview,starship-tps-near
  */
 import { createServer } from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -27,6 +28,14 @@ const TYPES = {
 
 const args = process.argv.slice(2);
 const argOf = (flag) => { const i = args.indexOf(flag); return i >= 0 ? args[i + 1] : null; };
+const positiveInt = (flag, fallback) => {
+  const value = Number(argOf(flag) ?? fallback);
+  if (!Number.isSafeInteger(value) || value < 1) throw new Error(`${flag} must be a positive integer`);
+  return value;
+};
+const sampleFrames = positiveInt('--frames', 18);
+const gcFrames = positiveInt('--gcframes', 120);
+const selected = argOf('--only')?.split(',');
 
 const server = createServer(async (req, res) => {
   try {
@@ -45,6 +54,7 @@ const browser = await chromium.launch({
 const page = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
 page.on('pageerror', e => console.error('PAGEERROR', e.message));
 
+try {
 // Force the tier rather than let the probe pick it: this runs on SwiftShader, which is
 // correctly demoted to `low`, and a profile of the reduced scene would be measuring something
 // nobody ships. `--quality` exists so the cheap tiers can be profiled on purpose.
@@ -52,6 +62,28 @@ const TIER = argOf('--quality') ?? 'high';
 const t0 = Date.now();
 await bootAtQuality(page, `http://127.0.0.1:${PORT}/`, TIER);
 const wallMs = Date.now() - t0;
+
+// EffectComposer renders several scenes per frame. With the default autoReset, the last
+// fullscreen pass overwrites the scene's cost with one triangle and one draw call. Reset
+// BEFORE the main renderer.render invocation (thus before shadows), then accumulate all
+// shadow, main-scene and postprocessing passes. Environment-map setup runs before this
+// boundary and is deliberately excluded. No application rendering behavior is changed.
+const rendererDetails = await page.evaluate(() => {
+  const v = window.__vc, renderer = v.renderer;
+  renderer.info.autoReset = false;
+  const originalRender = renderer.render;
+  renderer.render = function (scene, camera) {
+    if (scene === v.scene) this.info.reset();
+    return originalRender.call(this, scene, camera);
+  };
+  const gl = renderer.getContext();
+  const debug = gl.getExtension('WEBGL_debug_renderer_info');
+  return {
+    name: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER),
+    counterScope: 'Per frame: shadow maps + main scene + postprocessing; excludes environment-map generation',
+    timingNote: 'Software SwiftShader rasterization; frame timings do not establish hardware GPU performance.',
+  };
+});
 
 /**
  * Scene census — the shared walk in census.mjs, which propagates visibility through parents
@@ -61,10 +93,11 @@ const wallMs = Date.now() - t0;
 const census = await page.evaluate(sceneCensus, { perExhibit: true, startup: true });
 
 /** Frame time and draw calls in one situation, after letting it settle. */
-async function situation(name, setup, { frames = Number(argOf('--frames') ?? 18) } = {}) {
+async function situation(name, setup, { frames = sampleFrames } = {}) {
+  if (selected && !selected.includes(name)) return null;
   await page.evaluate(setup);
   await page.waitForTimeout(900);
-  const r = await page.evaluate((n) => new Promise((resolve) => {
+  const r = await page.evaluate((n) => new Promise((resolve, reject) => {
     const v = window.__vc;
     const times = [];
     let peakCalls = 0, peakTris = 0;
@@ -73,6 +106,10 @@ async function situation(name, setup, { frames = Number(argOf('--frames') ?? 18)
     const tick = () => {
       const now = performance.now();
       if (left <= n) {
+        if (v.renderer.info.autoReset || v.renderer.info.render.calls <= 1 || v.renderer.info.render.triangles <= 1) {
+          reject(new Error('Invalid frame counters: main-scene costs were reset or not rendered'));
+          return;
+        }
         times.push(now - last);
         peakCalls = Math.max(peakCalls, v.renderer.info.render.calls);
         peakTris = Math.max(peakTris, v.renderer.info.render.triangles);
@@ -122,21 +159,25 @@ await page.evaluate(() => window.__vc.env.setSun(42, 34));
 }
 
 /** Garbage produced per frame, as a proxy for per-frame allocation in the hot path. */
-const gc = await page.evaluate(() => new Promise((resolve) => {
+const gc = await page.evaluate((frames) => new Promise((resolve) => {
   if (!performance.memory) { resolve(null); return; }
   const a = performance.memory.usedJSHeapSize;
-  let n = 120;
+  let n = frames;
   const tick = () => {
     if (--n <= 0) {
-      resolve({ heapDeltaKBPerFrame: +(((performance.memory.usedJSHeapSize - a) / 1024) / 120).toFixed(2) });
+      resolve({ frames, heapDeltaKBPerFrame: +(((performance.memory.usedJSHeapSize - a) / 1024) / frames).toFixed(2) });
       return;
     }
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
-}));
+}), gcFrames);
 
-const out = { wallStartupMs: wallMs, ...census, situations, gc };
+const out = { wallStartupMs: wallMs, ...census, renderer: rendererDetails, sampleFrames, situations: situations.filter(Boolean), gc };
+if (selected && !args.includes('--census-only')) {
+  const unknown = selected.filter(name => !out.situations.some(s => s.name === name));
+  if (unknown.length) throw new Error(`Unknown situation(s): ${unknown.join(', ')}`);
+}
 console.log(JSON.stringify(out, null, 2));
 
 const jsonPath = argOf('--json');
@@ -158,5 +199,7 @@ if (basePath) {
   }
 }
 
-await browser.close();
-server.close();
+} finally {
+  await browser.close();
+  server.close();
+}
