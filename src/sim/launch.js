@@ -253,6 +253,8 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   const ship = ex.model.getObjectByName('ship');
   const shipHome = ship.position.y;
   const parts = complex.userData.parts;
+  const finHinges = [];
+  booster.traverse((o) => { if (o.name === 'grid-fin-hinge') finHinges.push(o); });
 
   // The booster flies its own trajectory after staging — out to 95 km downrange and back to
   // the tower — so it gets its own group beside the ship's rather than a small offset inside
@@ -597,6 +599,15 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     shipPlume.setThrottle(st, alt);
     cloud.setFlame(bt * Math.max(0, 1 - alt / 160));
 
+    // Grid fins stow for ascent and pop for the landing burn. The museum pose is deployed
+    // (reset() puts them back); once the clock is running they follow the vehicle.
+    const stowed = t < EVENTS.boostbackStart
+      ? 1
+      : 1 - THREE.MathUtils.smoothstep(t, EVENTS.landingBurn - 48, EVENTS.landingBurn - 14);
+    for (const h of finHinges) {
+      h.rotation.y = THREE.MathUtils.lerp(0, h.userData.stowY ?? Math.PI / 2, stowed);
+    }
+
     // The atmosphere follows whatever the camera is on: the ship until staging, the booster
     // afterwards, which is what brings the sky back as it comes down.
     env.setAltitude(t < EVENTS.boostbackStart ? alt : bAlt);
@@ -666,6 +677,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     env.setAltitude(0);
     chop.position.y = chopHome.y;
     for (const a of chopHome.arms) a.obj.rotation.y = a.ry;
+    for (const h of finHinges) h.rotation.y = 0;
     boosterFlight.position.set(0, 0, 0);
     boosterFlight.rotation.z = 0;
     detachBooster(false);

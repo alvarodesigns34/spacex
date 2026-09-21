@@ -11,7 +11,7 @@
  * banding and the rib moiré the close views were showing.
  */
 import * as THREE from 'three';
-import { lathe, mergeAll, mat4 } from '../geometry/utils.js';
+import { lathe, mergeAll, mat4, tube } from '../geometry/utils.js';
 
 function bellProfile(points) { return points.map(([r, y]) => ({ r, y })); }
 
@@ -26,21 +26,17 @@ export function raptorGeometry({ exitRadius = 0.62, height = 2.9 } = {}) {
   const inner = lathe(innerP, { segments: 64, flip: true, uvMode: 'normalized' });
 
   const parts = [];
-  // Powerhead block (turbopumps + preburners are enclosed in Raptor 3).
-  parts.push({ geometry: new THREE.CylinderGeometry(0.42, 0.36, 0.55, 40), matrix: mat4([0, 2.45, 0]) });
-  parts.push({ geometry: new THREE.CylinderGeometry(0.30, 0.42, 0.14, 40), matrix: mat4([0, 2.11, 0]) });
-  // Gimbal/thrust mount.
+  // Raptor 3 is a closed, shieldless powerhead: one integrated drum, a gimbal block and
+  // two short inlet stubs. Exposed twin pumps are a Raptor 2, and 33 of those read as
+  // the same grey farm in the trench.
+  parts.push({ geometry: new THREE.CylinderGeometry(0.44, 0.38, 0.62, 40), matrix: mat4([0, 2.48, 0]) });
+  parts.push({ geometry: new THREE.CylinderGeometry(0.32, 0.44, 0.12, 40), matrix: mat4([0, 2.11, 0]) });
   parts.push({ geometry: new THREE.CylinderGeometry(0.22, 0.28, 0.22, 24), matrix: mat4([0, height - 0.11, 0]) });
-  // Twin turbopump housings and a methane inlet elbow.
-  parts.push({ geometry: new THREE.CylinderGeometry(0.16, 0.16, 0.5, 20), matrix: mat4([0.38, 2.35, 0.1], [0, 0, 0]) });
-  parts.push({ geometry: new THREE.CylinderGeometry(0.13, 0.13, 0.45, 20), matrix: mat4([-0.3, 2.3, 0.28]) });
-  parts.push({ geometry: new THREE.TorusGeometry(0.34, 0.045, 10, 40), matrix: mat4([0, 1.78, 0], [Math.PI / 2, 0, 0]) });
-  parts.push({ geometry: new THREE.TorusGeometry(0.33, 0.035, 10, 40), matrix: mat4([0, 2.02, 0], [Math.PI / 2, 0, 0]) });
-  // Feed lines from the head down to the manifold.
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2 + 0.4;
-    parts.push({ geometry: new THREE.CylinderGeometry(0.04, 0.04, 0.5, 8), matrix: mat4([Math.cos(a) * 0.36, 2.05, Math.sin(a) * 0.36]) });
-  }
+  parts.push({ geometry: new THREE.CylinderGeometry(0.09, 0.11, 0.28, 16), matrix: mat4([0.36, 2.62, 0.08], [0, 0, 0.55]) });
+  parts.push({ geometry: new THREE.CylinderGeometry(0.08, 0.10, 0.24, 16), matrix: mat4([-0.32, 2.58, 0.16], [0, 0, -0.45]) });
+  parts.push({ geometry: new THREE.TorusGeometry(0.34, 0.04, 10, 40), matrix: mat4([0, 1.78, 0], [Math.PI / 2, 0, 0]) });
+  parts.push({ geometry: new THREE.BoxGeometry(0.16, 0.12, 0.22), matrix: mat4([0.38, 1.96, 0]) });
+  parts.push({ geometry: new THREE.BoxGeometry(0.16, 0.12, 0.22), matrix: mat4([-0.22, 1.96, 0.32]) });
   const head = mergeAll(parts);
   return { outer, inner, head, height, profile: bell };
 }
@@ -54,15 +50,10 @@ export function raptorVacGeometry({ exitRadius = 1.15, height = 4.4 } = {}) {
   const outer = lathe(bell, { segments: 80, uvMode: 'normalized' });
   const inner = lathe(bell.map(p => ({ r: Math.max(p.r - 0.02, 0.19), y: p.y })), { segments: 80, flip: true, uvMode: 'normalized' });
   const parts = [];
-  parts.push({ geometry: new THREE.CylinderGeometry(0.42, 0.36, 0.45, 40), matrix: mat4([0, 4.12, 0]) });
+  parts.push({ geometry: new THREE.CylinderGeometry(0.44, 0.38, 0.50, 40), matrix: mat4([0, 4.14, 0]) });
   parts.push({ geometry: new THREE.CylinderGeometry(0.22, 0.28, 0.16, 24), matrix: mat4([0, height - 0.08, 0]) });
-  parts.push({ geometry: new THREE.CylinderGeometry(0.15, 0.15, 0.45, 20), matrix: mat4([0.36, 4.05, 0.12]) });
+  parts.push({ geometry: new THREE.CylinderGeometry(0.09, 0.11, 0.26, 16), matrix: mat4([0.34, 4.22, 0.10], [0, 0, 0.5]) });
   parts.push({ geometry: new THREE.TorusGeometry(0.34, 0.045, 10, 40), matrix: mat4([0, 3.66, 0], [Math.PI / 2, 0, 0]) });
-  // Stiffening rings on the radiatively cooled nozzle extension.
-  for (const y of [0.3, 1.0, 1.8]) {
-    const r = bell.find(p => p.y >= y)?.r ?? exitRadius;
-    parts.push({ geometry: new THREE.TorusGeometry(r * 0.99, 0.02, 6, 80), matrix: mat4([0, y, 0], [Math.PI / 2, 0, 0]) });
-  }
   const head = mergeAll(parts);
   return { outer, inner, head, height, profile: bell };
 }
@@ -88,6 +79,11 @@ export function merlinGeometry({ exitRadius = 0.46, height = 2.3 } = {}) {
   parts.push({ geometry: new THREE.CylinderGeometry(0.07, 0.07, 0.3, 12), matrix: mat4([-0.2, 1.9, 0.2]) });   // gas generator
   parts.push({ geometry: new THREE.TorusGeometry(0.22, 0.03, 8, 32), matrix: mat4([0, 1.68, 0], [Math.PI / 2, 0, 0]) });
   parts.push({ geometry: new THREE.CylinderGeometry(0.04, 0.04, 0.9, 8), matrix: mat4([0.32, 1.35, -0.1], [0.25, 0, 0]) }); // turbine exhaust duct
+  // Curved turbine dump into the nozzle skirt — the F1 Merlin's most readable bit, cheap
+  // enough to instance 27 times.
+  parts.push({
+    geometry: tube([[0.32, 1.55, -0.08], [0.38, 1.15, -0.04], [0.42, 0.72, 0], [0.40, 0.38, 0]], 0.032, { tubular: 16, radial: 8 }),
+  });
   // Propellant inlets and the braided runs down to the injector manifold.
   for (const [ang, rad, len] of [[0.9, 0.05, 0.75], [2.5, 0.042, 0.68], [4.3, 0.038, 0.6], [5.6, 0.032, 0.52]]) {
     parts.push({

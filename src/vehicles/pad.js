@@ -20,7 +20,7 @@
  */
 import * as THREE from 'three';
 import { mesh, mergeAll, mat4, boxUV, tube, radial } from '../geometry/utils.js';
-import { RAPTOR_ENVELOPE_R, BOOSTER_R } from './starship.js';
+import { RAPTOR_ENVELOPE_R, RAPTOR_SEAT_R, BOOSTER_R } from './starship.js';
 
 // ---- Dimensions -------------------------------------------------------------------------
 export const PAD = {
@@ -43,11 +43,11 @@ export const PAD = {
   // of air, in close-ups of the one piece of hardware whose whole job is to hold the vehicle
   // down. CLAMP_DEPTH is the shoe's radial thickness, below.
   clampR: BOOSTER_R + 0.36,
-  // The hole the exhaust leaves through, derived rather than declared: whatever the outermost
-  // Raptor bells reach, plus a working gap. Hard-coding it at 4.05 m put the steel lip 43 cm
-  // inside twenty of them — the seat is meant to be smaller than the 9 m vehicle, not smaller
-  // than its engines. Moving a ring now moves the throat with it.
-  throatR: RAPTOR_ENVELOPE_R + 0.25,
+  // Two radii, not one. The old derivation used the EXIT envelope plus a gap and cut a hole
+  // larger than the 9 m skirt, so the vehicle hovered in the opening. The skirt sits on an
+  // annulus that starts inboard of the hull; the exhaust hole below is sized for the bells.
+  seatR: RAPTOR_SEAT_R,
+  throatR: RAPTOR_ENVELOPE_R + 0.12,
   pierHalf: 2.0,          // 4 m square corner piers
   pierAt: 12.0,
   // Tower (OLIT)
@@ -217,23 +217,24 @@ function buildMountTable(M) {
   }
   g.add(mesh(boxUV(mergeAll(risers)), M.pipeBlue || M.conduit, { name: 'mount-risers' }));
 
-  // Water-cooled table seat: an annular steel plate cantilevered inboard of the deck opening
-  // for the booster skirt to sit on. Its inner edge is what actually sets the size of the
-  // hole the exhaust leaves through — smaller than the 9 m vehicle, as it has to be.
-  const { throatR } = PAD;
+  // Water-cooled table seat: an annular steel plate the booster skirt sits on. Its inner
+  // edge is inboard of the 9 m hull. The exhaust hole below is a separate, wider throat
+  // so the bells can hang through without the vehicle hovering in a hole larger than itself.
+  const { throatR, seatR } = PAD;
   const seat = new THREE.Shape();
   seat.absarc(0, 0, tableR + 1.0, 0, Math.PI * 2, false);
   const seatHole = new THREE.Path();
-  seatHole.absarc(0, 0, throatR, 0, Math.PI * 2, true);
+  seatHole.absarc(0, 0, seatR, 0, Math.PI * 2, true);
   seat.holes.push(seatHole);
   const seatGeo = new THREE.ExtrudeGeometry(seat, { depth: 0.55, bevelEnabled: false, curveSegments: 48 });
   seatGeo.rotateX(-Math.PI / 2);
   seatGeo.translate(0, deckTop - 0.55, 0);
   const inner = new THREE.CylinderGeometry(openingR, openingR, deckThick, 64, 1, true);
   inner.translate(0, deckTop - deckThick / 2, 0);
-  const throat = new THREE.CylinderGeometry(throatR, throatR, 1.9, 48, 1, true);
-  throat.translate(0, deckTop - 1.5, 0);
-  g.add(mesh(boxUV(mergeAll([{ geometry: seatGeo }, { geometry: inner }, { geometry: throat }])), M.darkMetal, { name: 'table-seat' }));
+  g.add(mesh(boxUV(mergeAll([{ geometry: seatGeo }, { geometry: inner }])), M.darkMetal, { name: 'table-seat' }));
+  const throat = new THREE.CylinderGeometry(throatR, throatR, 1.6, 48, 1, true);
+  throat.translate(0, deckTop - 0.55 - 0.85, 0);
+  g.add(mesh(boxUV(mergeAll([{ geometry: throat }])), M.darkMetal, { name: 'table-throat' }));
   const manifold = new THREE.TorusGeometry(openingR + 0.9, 0.32, 8, 64);
   manifold.rotateX(Math.PI / 2);
   manifold.translate(0, deckBottom - 0.4, 0);
@@ -673,7 +674,7 @@ export function buildLaunchComplex(M) {
   const FINE = {
     'mount-catwalk': 0.05, 'mount-catwalk-rail': 0.05, 'mount-risers': 0.12,
     'deck-manifold': 0.2, 'deck-nozzles': 0.06, 'mount-trim': 0.09,
-    'mount-rail': 0.1, 'trench-ramps': 0.3, 'qd-lines': 0.08,
+    'mount-rail': 0.1, 'qd-lines': 0.08,
     'mount-baseplates': 0.14,
   };
   g.traverse((o) => { const f = FINE[o.name]; if (f) o.userData.lodFeature = f; });

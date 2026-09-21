@@ -98,6 +98,7 @@ export const VEHICLES = [
     presets: [
       { id: 'overview', label: 'Overview', pos: [150, 70, 190], target: [0, 58, 0] },
       { id: 'engines', label: '33 Raptors', pos: [1.6, -7.6, 2.0], target: [0, 2.4, 0] },
+      { id: 'ship-engines', label: 'Ship Raptor / RVac', pos: [10.5, 69.2, 6.5], target: [0, 73.4, 0] },
       // Framed on the TILE LINE, not on the tiles. At [6, 100, 24] the camera sat 14° off the
       // belly and 25 m out, so the frame was hull from edge to edge and the one thing worth
       // looking at — where the mosaic stops and the bare steel starts — was round the side.

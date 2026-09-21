@@ -152,7 +152,7 @@ export function buildDragon(M) {
     const fin = plate([[0, 0.4], [0.82, 0.85], [0.82, 2.75], [0, 3.3]], 0.06, 0.015);
     const e1 = new THREE.Vector3(Math.sin(a), 0, Math.cos(a));
     const e3 = new THREE.Vector3().crossVectors(e1, new THREE.Vector3(0, 1, 0));
-    const f = mesh(fin, M.white);
+    const f = mesh(boxUV(fin), M.white);
     f.applyMatrix4(new THREE.Matrix4()
       .makeTranslation(e1.x * (TRUNK_R - 0.01), 0, e1.z * (TRUNK_R - 0.01))
       .multiply(new THREE.Matrix4().makeBasis(e1, new THREE.Vector3(0, 1, 0), e3)));

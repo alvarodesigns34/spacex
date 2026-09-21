@@ -172,8 +172,16 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       b.setAttribute('aria-selected', on ? 'true' : 'false');
     });
     const v = vehicles.find(x => x.id === id);
-    if (v) { renderSheet(v); sheet.classList.remove('hidden'); el('#presets').classList.remove('hidden'); }
+    if (v) {
+      if (sheet.dataset.vehicle !== id) {
+        renderSheet(v);
+        sheet.dataset.vehicle = id;
+      }
+      sheet.classList.remove('hidden');
+      el('#presets').classList.remove('hidden');
+    }
     else {
+      sheet.dataset.vehicle = '';
       el('#hud-title').textContent = 'Overview';
       el('#hud-subtitle').textContent = `${vehicles.length} exhibits at 1:1 scale`;
       sheet.classList.add('hidden');

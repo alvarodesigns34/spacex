@@ -179,6 +179,9 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
     const g = clamp(base * 255);
     return [g, g, g];
   });
+  // Four plates around a 9 m barrel: 2πR/4, not ring×4. The square-plate value 7.32 m
+  // wrapped 3.86 times and the vertical weld jumped on the back of Super Heavy.
+  const wrapU = (2 * Math.PI * 4.5) / 4;
   if (!_steelNormal) {
     const height = canvas(size, size);
     shade(height, (x, y, u, v) => {
@@ -188,9 +191,9 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
       const g = clamp(h * 255);
       return [g, g, g];
     });
-    _steelNormal = toTexture(heightToNormal(height, 1.8), { tileSize: ring, tileSizeU: ring * 4 });
+    _steelNormal = toTexture(heightToNormal(height, 1.8), { tileSize: ring, tileSizeU: wrapU });
   }
-  const U = ring * 4;
+  const U = wrapU;
   return {
     map: toTexture(map, { srgb: true, tileSize: ring, tileSizeU: U }),
     roughnessMap: toTexture(rough, { tileSize: ring, tileSizeU: U }),

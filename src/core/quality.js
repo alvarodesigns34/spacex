@@ -16,8 +16,9 @@
  * The tier changes cost, never correctness: every vehicle is still built at 1:1 from the same
  * figures, every published dimension still measures the same, and the verification gate does
  * not know which tier it ran under. What moves is pixel ratio, shadow resolution, whether
- * bloom runs, how eagerly the level-of-detail system drops to its far state, and how many
- * particles the ground cloud carries.
+ * bloom runs, how eagerly the level-of-detail system drops to its far state, how many
+ * particles the ground cloud carries, and the pixel size of the procedural maps (UVs stay
+ * metric; only texel density changes).
  */
 
 import { setAnisotropyLimit } from '../materials/textures.js';
@@ -63,6 +64,9 @@ const TIERS = {
     lodPixels: 3.5,
     cloudParticles: 860,
     anisotropy: 16,
+    mapSize: 768,
+    bodyW: 1024,
+    bodyH: 2048,
   },
   medium: {
     name: 'medium',
@@ -74,6 +78,9 @@ const TIERS = {
     lodPixels: 5,
     cloudParticles: 520,
     anisotropy: 8,
+    mapSize: 512,
+    bodyW: 768,
+    bodyH: 1536,
   },
   low: {
     name: 'low',
@@ -85,6 +92,9 @@ const TIERS = {
     lodPixels: 9,
     cloudParticles: 240,
     anisotropy: 4,
+    mapSize: 384,
+    bodyW: 512,
+    bodyH: 1024,
   },
 };
 

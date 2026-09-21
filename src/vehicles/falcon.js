@@ -106,18 +106,38 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
 
   // Octaweb thrust structure and base heat shield. This is the view the "Octaweb · 9 Merlins"
   // preset looks straight up into, and it was a dark cylinder with eight plates in it.
-  g.add(mesh(lathe([{ r: R - 0.03, y: ENGINE_DROP + 0.05 }, { r: R - 0.03, y: ENGINE_DROP + 2.6 }], { segments: 64, flip: true }), M.darkMetal, { castShadow: false, name: 'octaweb-wall' }));
-  g.add(mesh(new THREE.CylinderGeometry(R - 0.03, R - 0.03, 0.25, 64), M.blackMatte, { position: [0, ENGINE_DROP + 2.6, 0] }));
+  g.add(mesh(lathe([{ r: R - 0.03, y: ENGINE_DROP + 0.05 }, { r: R - 0.03, y: ENGINE_DROP + 1.55 }], { segments: 64, flip: true }), M.darkMetal, { castShadow: false, name: 'octaweb-wall' }));
+  g.add(mesh(new THREE.CylinderGeometry(R - 0.03, R - 0.03, 0.18, 64), M.blackMatte, { position: [0, ENGINE_DROP + 1.58, 0] }));
   const octaweb = [];
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
     // Radial web between each pair of outer engines, with a flange top and bottom: the real
     // structure is a welded aluminium spider, and the flanges are what give it depth when the
     // camera is underneath looking up at it.
-    octaweb.push({ geometry: new THREE.BoxGeometry(0.09, 2.4, 0.95), matrix: mat4([Math.sin(a) * 0.86, ENGINE_DROP + 1.3, Math.cos(a) * 0.86], [0, a, 0]) });
-    for (const dy of [-1.15, 1.15]) {
-      octaweb.push({ geometry: new THREE.BoxGeometry(0.2, 0.08, 0.95), matrix: mat4([Math.sin(a) * 0.86, ENGINE_DROP + 1.3 + dy, Math.cos(a) * 0.86], [0, a, 0]) });
+    octaweb.push({ geometry: new THREE.BoxGeometry(0.09, 1.45, 0.95), matrix: mat4([Math.sin(a) * 0.86, ENGINE_DROP + 0.85, Math.cos(a) * 0.86], [0, a, 0]) });
+    for (const dy of [-0.68, 0.68]) {
+      octaweb.push({ geometry: new THREE.BoxGeometry(0.2, 0.08, 0.95), matrix: mat4([Math.sin(a) * 0.86, ENGINE_DROP + 0.85 + dy, Math.cos(a) * 0.86], [0, a, 0]) });
     }
+  }
+  // Aft heat shield: a shallow plate the nine bells pass through, not a dark well with a
+  // ceiling a metre above the pumps.
+  {
+    const shield = new THREE.Shape();
+    shield.absarc(0, 0, R - 0.08, 0, Math.PI * 2, false);
+    const punch = (x, z, rad) => {
+      const p = new THREE.Path();
+      p.absarc(x, z, rad, 0, Math.PI * 2, true);
+      shield.holes.push(p);
+    };
+    punch(0, 0, 0.50);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+      punch(Math.sin(a) * 1.27, Math.cos(a) * 1.27, 0.50);
+    }
+    const plateGeo = new THREE.ExtrudeGeometry(shield, { depth: 0.055, bevelEnabled: false, curveSegments: 28 });
+    plateGeo.rotateX(-Math.PI / 2);
+    plateGeo.translate(0, ENGINE_DROP + 0.12, 0);
+    octaweb.push({ geometry: plateGeo });
   }
   // Base heat shield: the segmented apron between the engines and the tank, and the cutouts
   // the nine bells come through.
@@ -155,7 +175,10 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
     g.add(leg);
   }
   // Raceway up the tank section.
-  g.add(mesh(new THREE.BoxGeometry(0.44, TANK_TOP - ENGINE_DROP - 2.6, 0.2), M.blackMatte, { position: [0, (TANK_TOP + ENGINE_DROP) / 2 + 1.0, R + 0.09], name: 'raceway' }));
+  // Raceway up the tank section: a rounded tray, not a black slab.
+  g.add(mesh(new THREE.CapsuleGeometry(0.17, TANK_TOP - ENGINE_DROP - 3.0, 4, 12), M.blackMatte, {
+    position: [0, (TANK_TOP + ENGINE_DROP) / 2 + 0.7, R + 0.14], name: 'raceway',
+  }));
   // Stage separation flange.
   g.add(mesh(new THREE.TorusGeometry(R + 0.015, 0.05, 6, 96), M.darkMetal, { position: [0, TANK_TOP, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false, name: 'sep-flange' }));
 
@@ -199,6 +222,11 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
     // Lap joint at the bottom of the interstage and the ring at the top.
     trim.push({ geometry: new THREE.TorusGeometry(R + 0.03, 0.045, 8, 96), matrix: mat4([0, TANK_TOP + 0.12, 0], [Math.PI / 2, 0, 0]) });
     trim.push({ geometry: new THREE.TorusGeometry(R + 0.025, 0.035, 8, 96), matrix: mat4([0, S1_H - 0.1, 0], [Math.PI / 2, 0, 0]) });
+    // Composite panel bands — the interstage is not a smooth carbon tube.
+    for (let i = 1; i <= 4; i++) {
+      const y = TANK_TOP + (INTERSTAGE_H * i) / 5;
+      trim.push({ geometry: new THREE.TorusGeometry(R + 0.012, 0.016, 6, 72), matrix: mat4([0, y, 0], [Math.PI / 2, 0, 0]) });
+    }
     g.add(mesh(boxUV(mergeAll(trim)), M.alumDark, { name: 'interstage-trim' }));
   }
   // User's Guide §2.4: three latch points and four stage pushers, including one
@@ -267,7 +295,7 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
 function markFalconDetail(g) {
   const FINE = {
     'octaweb-wall': 0.12, 'octaweb-structure': 0.06, 'base-bottles': 0.22,
-    'leg-latches': 0.04, 'interstage-trim': 0.05, 'sep-flange': 0.1,
+    'leg-latches': 0.04, 'interstage-trim': 0.22, 'sep-flange': 0.1,
     'stage-separation-pushers': 0.16, 'stage-separation-latches': 0.18,
     'fh-pusher-detail': 0.08,
   };
@@ -333,7 +361,7 @@ export function buildFalconHeavy(M) {
       const y = station === 'forward' ? TANK_TOP - 0.45 : 2.6;
       const a = [s * skinX, y, z];
       const b = [s * (spacing - skinX), y, z];
-      cylinder(struts, a, b, 0.12);
+      cylinder(struts, a, b, 0.18);
       interfaces.push({ station, side: s, center: a, booster: b });
       // Short sleeve, clevis blocks and hinge pins show how the pneumatic load path
       // meets the skin. Fine fittings can disappear; the connecting rods cannot.
@@ -350,6 +378,21 @@ export function buildFalconHeavy(M) {
   // stretched over a four-metre strut. Planar metric UVs put it back on its own scale.
   g.add(mesh(boxUV(mergeAll(struts)), M.darkMetal, { name: 'fh-attach-struts' }));
   g.add(mesh(boxUV(mergeAll(detail)), M.alumDark, { name: 'fh-pusher-detail' }));
+
+  // Shared aft thrust beam. Three independent octawebs with four rods between them still
+  // read as three Falcons parked next to each other; a continuous bar at octaweb height is
+  // the one silhouette change that says this is one vehicle. Stations and section sizes
+  // are a reconstruction — SpaceX publishes the 12.2 m width and the attach-point count,
+  // not the beam.
+  const beamY = ENGINE_DROP + 1.05;
+  const beam = [];
+  beam.push({ geometry: new THREE.BoxGeometry(spacing * 2 + 0.9, 0.42, 1.15), matrix: mat4([0, beamY, 0]) });
+  beam.push({ geometry: new THREE.BoxGeometry(spacing * 2 + 0.6, 0.22, 0.38), matrix: mat4([0, beamY + 0.38, 0]) });
+  for (const s of [-1, 1]) {
+    beam.push({ geometry: new THREE.BoxGeometry(0.55, 1.35, 1.35), matrix: mat4([s * spacing * 0.5, beamY + 0.15, 0]) });
+    beam.push({ geometry: new THREE.BoxGeometry(0.28, 0.28, 2.4), matrix: mat4([s * spacing * 0.5, beamY + 0.55, 0]) });
+  }
+  g.add(mesh(boxUV(mergeAll(beam)), M.darkMetal, { name: 'fh-octaweb-beam' }));
   g.userData.attachments = { reconstructedGeometry: true, interfaces };
   markFalconDetail(g);
 
