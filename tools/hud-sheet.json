@@ -1,0 +1,4 @@
+[
+  { "name": "tablet-sheet.jpg", "viewport": [768, 1024], "jump": ["falcon9", "overview"], "sheet": "open", "wait": 500 },
+  { "name": "phone-sheet.jpg", "viewport": [390, 844], "jump": ["dragon", "overview"], "sheet": "open", "wait": 500 }
+]

@@ -506,7 +506,10 @@ async function main() {
         const sc = o.userData.scope ?? 'all';
         o.visible = sc === 'all' || (sc === 'near' && near) || (sc === 'orbital' && orbital);
       }
-      if (ex.padLabels) ex.padLabels.visible = on && toggles.labels && site;
+      // The engine-bay camera sits inside the mount. Pad callouts (tower, arms)
+      // project onto the bells from there, so that one preset keeps the vehicle
+      // labels off and the pad labels off.
+      if (ex.padLabels) ex.padLabels.visible = on && toggles.labels && site && view.preset !== 'engines';
       ex.ruler.visible = on && toggles.ruler && !site && !(id === 'roadster' && orbital);
     }
     humans.visible = toggles.humans && view.furniture;

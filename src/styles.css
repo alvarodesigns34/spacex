@@ -173,10 +173,12 @@ body:has(.mission:not(.hidden)) #dock { display: none !important; }
   .sheet { right: 12px; top: max(12px, env(safe-area-inset-top)); width: min(320px, calc(100vw - 24px)); max-height: 50dvh; }
   .sheet.collapsed { width: 132px; padding: 8px 10px; max-height: 64px; }
   .sheet:not(.collapsed) {
-    left: 8px; right: 8px; top: auto; width: auto; z-index: 5;
-    bottom: calc(60px + env(safe-area-inset-bottom));
-    max-height: min(70dvh, 560px);
+    left: 8px; right: 8px; top: auto; width: auto; z-index: 6;
+    bottom: calc(72px + env(safe-area-inset-bottom));
+    max-height: calc(100dvh - 168px);
+    scrollbar-width: none;
   }
+  .sheet:not(.collapsed)::-webkit-scrollbar { display: none; }
   .icon-btn { width: 44px; height: 44px; }
   .scale { display: none; }
 }
