@@ -177,14 +177,13 @@ export function buildFalcon1(M) {
   interior.userData.reconstruction = 'Educational upper-stage tank, feed and thrust structure reconstruction.';
   // Retain the rear half of the stage in the cutaway so the tanks and thrust structure remain
   // visibly installed in an airframe rather than reading as an exploded diagram.
-  const cutawayShell = own(A.upper, 'cutaway-shell');
-  cutawayShell.transparent = true; cutawayShell.opacity = .42; cutawayShell.depthWrite = false;
-  cutawayShell.side = THREE.DoubleSide;
+  // The retained half is real skin, not a glass tube. The cut face is open so the
+  // tanks, feeds and frames read as hardware installed in the airframe.
   interior.add(mesh(lathe([{ r: R - .018, y: S1_TOP + .08 }, { r: R - .018, y: S2_BASE }],
-    { segments: 64, phiStart: Math.PI * .75, phiLength: Math.PI }), cutawayShell,
+    { segments: 64, phiStart: Math.PI * .75, phiLength: Math.PI }), A.upper,
   { name: 'falcon1-cutaway-interstage-shell' }));
   interior.add(mesh(lathe([{ r: R - .02, y: S2_BASE }, { r: R - .02, y: FAIRING_BASE - .30 }],
-    { segments: 64, phiStart: Math.PI * .75, phiLength: Math.PI }), cutawayShell,
+    { segments: 64, phiStart: Math.PI * .75, phiLength: Math.PI }), A.upper,
   { name: 'falcon1-cutaway-rear-shell' }));
   for (const y of [S1_TOP + .10, S2_BASE, S2_BASE + 1.04]) {
     const frame = mesh(new THREE.TorusGeometry(R - .045, .018, 6, 48, Math.PI), A.metal,
