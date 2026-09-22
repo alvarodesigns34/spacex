@@ -35,14 +35,26 @@ const TOP = TRUNK_H + CAP_H;   // 8.1 m (spacex.com)
 const SHOULDER = TRUNK_H + 0.30;   // top of the constant-diameter shoulder band
 const NOSE_BASE = TRUNK_H + 3.05;  // base of the hinged nose cone
 const NOSE_R = 1.30;
-const WALL_ANGLE = Math.atan((CAP_R - NOSE_R) / (NOSE_BASE - SHOULDER));   // ≈14°
-const wallR = (y) => CAP_R - (y - SHOULDER) * Math.tan(WALL_ANGLE);
+const SPAN = NOSE_BASE - SHOULDER;
+const WALL_ANGLE = Math.atan((CAP_R - NOSE_R) / SPAN);   // mean slope, ≈14°
+// Truncated-capsule loft: widest at the shoulder, a little fuller through the
+// crew cabin, then tightening into the nose. Stays inside the published 4 m.
+const wallR = (y) => {
+  const u = THREE.MathUtils.clamp((y - SHOULDER) / SPAN, 0, 1);
+  const cone = CAP_R + (NOSE_R - CAP_R) * u;
+  const belly = Math.sin(u * Math.PI) * 0.055 * (1 - u * 0.35);
+  return Math.min(CAP_R, cone + belly);
+};
+const wallAngle = (y) => {
+  const e = 0.03;
+  return Math.atan2(wallR(y - e) - wallR(y + e), e * 2);
+};
 
 /** Places something flat against the sloping capsule wall at (phi, y), standing `out` proud. */
 function onWall(phi, y, out = 0) {
   const r = wallR(y) + out;
   const m = new THREE.Matrix4().makeRotationY(phi)
-    .multiply(new THREE.Matrix4().makeRotationX(-WALL_ANGLE));
+    .multiply(new THREE.Matrix4().makeRotationX(-wallAngle(y)));
   m.setPosition(Math.sin(phi) * r, y, Math.cos(phi) * r);
   return m;
 }
@@ -191,11 +203,13 @@ export function buildDragon(M) {
   g.add(mesh(new THREE.TorusGeometry(CAP_R - 0.02, 0.05, 8, 112), M.darkMetal,
     { position: [0, TRUNK_H - 0.06, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false }));
 
-  // Sidewall: shoulder band, then the conical pressure vessel.
-  g.add(mesh(lathe([
-    { r: CAP_R, y: TRUNK_H }, { r: CAP_R, y: SHOULDER, sharp: true },
-    { r: NOSE_R, y: NOSE_BASE, sharp: true },
-  ], { segments: 128 }), M.whitePanel, { name: 'capsule-wall' }));
+  // Sidewall follows wallR, the same loft the windows and hatch are placed on.
+  const wall = [{ r: CAP_R, y: TRUNK_H }, { r: CAP_R, y: SHOULDER, sharp: true }];
+  for (let i = 1; i <= 6; i++) {
+    const y = SHOULDER + (SPAN * i) / 6;
+    wall.push({ r: wallR(y), y, sharp: i === 6 });
+  }
+  g.add(mesh(lathe(wall, { segments: 128 }), M.whitePanel, { name: 'capsule-wall' }));
   g.add(mesh(new THREE.TorusGeometry(CAP_R, 0.035, 8, 128), M.darkMetal, { position: [0, TRUNK_H + 0.02, 0], rotation: [Math.PI / 2, 0, 0] }));
 
   // Longitudinal panel seams up the back shell. The shell is built in gores; the joints

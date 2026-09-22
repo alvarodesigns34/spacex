@@ -168,8 +168,8 @@ function sectionCurve(z) {
     [0.962, ys + drop * 0.11],         // tuck-under
     [1.000, yb - drop * 0.56],         // maximum half-width
     [0.955, yb - drop * 0.26],         // flank
-    [0.780, yb - drop * 0.02],         // shoulder / character line
-    [0.430, yc + (yb - yc) * 0.70],    // crown shoulder
+    [0.780, yb - drop * 0.12],         // shoulder / character line
+    [0.430, yc + (yb - yc) * 0.48],    // crown shoulder
   ];
   const pts = [];
   for (const [fx, y] of half) pts.push(new THREE.Vector3(-fx * W, y, z));

@@ -775,14 +775,16 @@ async function main() {
     const items = [];
     for (const el of root.querySelectorAll('.label')) {
       const text = el.querySelector('.label-text');
+      const leader = el.querySelector('.label-leader');
       if (text) text.style.transform = '';
+      if (leader) leader.style.transform = '';
       el.classList.remove('is-culled');
       if (el.classList.contains('is-occluded')) continue;
       const r = el.getBoundingClientRect();
       if (r.width < 2 || r.height < 2) continue;
       const cx = r.x + r.width / 2 - window.innerWidth / 2;
       const cy = r.y + r.height / 2 - window.innerHeight / 2;
-      items.push({ el, text, r, d: cx * cx + cy * cy });
+      items.push({ el, text, leader: el.querySelector('.label-leader'), r, d: cx * cx + cy * cy });
     }
     items.sort((a, b) => a.d - b.d);
     for (let i = cap; i < items.length; i++) items[i].el.classList.add('is-culled');
@@ -798,7 +800,11 @@ async function main() {
         if (!hit) break;
         shift += (hit.bottom - b.top) + 4;
       }
-      if (it.text && shift) it.text.style.transform = `translateY(${shift.toFixed(1)}px)`;
+      const dy = `translateY(${shift.toFixed(1)}px)`;
+      if (shift) {
+        if (it.text) it.text.style.transform = dy;
+        if (it.leader) it.leader.style.transform = dy;
+      }
       placed.push(box());
     }
   }

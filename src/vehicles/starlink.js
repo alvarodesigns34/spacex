@@ -10,7 +10,7 @@ import { mesh, mergeAll, mat4 } from '../geometry/utils.js';
 
 const BUS_W = 2.7;   // along X (approx, derived)
 const BUS_L = 4.1;   // along Z (press)
-const BUS_T = 0.22;  // thickness (approx)
+const BUS_T = 0.48;  // structural depth, approximate; the published figure is the 30 m span
 // Sized so the deployed span is exactly the published 30 m: (30 − 2.7)/2 − 0.55 yoke.
 const WING_L = 13.1;
 const WING_W = 4.1;
