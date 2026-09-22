@@ -38,7 +38,7 @@ y abrir la URL que indique. Requiere WebGL 2.
 - **1–8** selecciona expositor, **0** vista general, **L** etiquetas, **R** regla de altura, **T** pliega la ficha, **H** ayuda.
 - **P** (o el botón *Tour*) recorre el centro parada por parada; cualquier arrastre, rueda o clic lo termina y devuelve la cámara.
 - **G** (o el botón *Lanzamiento*) arranca la secuencia de Starship. Durante la cuenta atrás y el ascenso la cámara sigue un plan de planos, pero **arrastrar o girar la rueda devuelve el control al instante** sin detener la secuencia. El panel de misión lleva reloj, fase, altitud, velocidad, distancia y empuje, un selector de velocidad ×1 / ×2 / ×5 / ×10 que multiplica el reloj (no salta hitos) y un botón para terminar.
-- Deslizador **Sol** recorre el día entero, de −10° a 75° de elevación (se recalculan luz, sombras, niebla y mapa de entorno). **Por debajo del horizonte el centro pasa a modo noche**: el cielo pierde su dispersión y aparecen las estrellas, y cada estación enciende un foco cálido sobre su expositor. Esa iluminación es escenografía del centro y está marcada como tal en la ficha. El azimut está fijado para iluminar los vehículos desde el lado desde el que miran las vistas por defecto.
+- Deslizador **Sol** recorre el día entero, de −10° a 75° de elevación (se recalibran luz, sombras, niebla y mapa de entorno). La inspección visual de referencia es **18°**: a esa elevación el sol es rasante, la exposición ACES se queda en 0,7 y el relleno hemisférico es bajo para que el acero satinado, la pintura blanca, el aluminio y el hormigón no se confundan ni se quemen. **Por debajo del horizonte el centro pasa a modo noche**: el cielo pierde su dispersión y aparecen las estrellas, y cada estación enciende un foco cálido sobre su expositor. Esa iluminación es escenografía del centro y está marcada como tal en la ficha. El azimut está fijado para iluminar los vehículos desde el lado desde el que miran las vistas por defecto.
 
 ## Precisión y fuentes
 
@@ -182,12 +182,13 @@ Medido con `npm run profile`, que informa del reparto del arranque, triángulos,
 
 | | |
 |---|---|
-| Triángulos construidos | ≈1 205 000 |
-| Triángulos dibujados en la vista general | ≈763 000 |
-| Mallas | 866, de las cuales 705 se dibujan en la vista general |
-| Materiales / texturas | 87 / 73 · ≈101 MB estimados |
-| Generación de materiales | ≈2,7 s en el arranque |
+| Triángulos construidos | 1 251 013 |
+| Triángulos dibujados en la vista general | 697 545 |
+| Mallas | 1 045, de las cuales 648 se dibujan en la vista general |
+| Materiales / texturas | 112 / 79 |
 | Losetas instanciadas | 13 274 en 1 draw call |
+
+Medido con `npm run check` en `f71bb82` más el campus, la luz recalibrada y el HUD de esta revisión. El README anterior (≈1 205 000 / 763 000 / 866 mallas) no coincidía ya con ese HEAD: la puerta midió 1 282 055 triángulos construidos y 729 243 dibujados antes de estos cambios. Las figuras de escala pasaron de cápsulas a un cuerpo con menos triángulos, y el total construido bajó aun después de añadir el campus.
 
 Las losetas usan un prisma hexagonal de 28 triángulos sin cara trasera (nunca visible, siempre apoyada en el casco) y un chaflán superior que da el brillo del borde.
 

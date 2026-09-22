@@ -1,0 +1,5 @@
+[
+  { "name": "overview-sun18.jpg", "jump": [null], "sun": 18, "labels": false, "ruler": false, "humans": true, "hud": false, "wait": 800 },
+  { "name": "starship-engines-sun18.jpg", "jump": ["starship", "engines"], "sun": 18, "labels": false, "ruler": false, "hud": false, "wait": 800 },
+  { "name": "starship-tiles-sun18.jpg", "jump": ["starship", "tiles"], "sun": 18, "labels": false, "ruler": false, "hud": false, "wait": 800 }
+]

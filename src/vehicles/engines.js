@@ -41,6 +41,19 @@ export function raptorGeometry({ exitRadius = 0.62, height = 2.9 } = {}) {
     const a = (i / 4) * Math.PI * 2 + 0.4;
     parts.push({ geometry: new THREE.CylinderGeometry(0.04, 0.04, 0.5, 8), matrix: mat4([Math.cos(a) * 0.36, 2.05, Math.sin(a) * 0.36]) });
   }
+  // Gimbal actuators. Raptor 3 steers the inner engines; the hardware is enclosed,
+  // so these are the two rods and clevises that photographs actually show, not a
+  // guessed turbopump cutaway.
+  for (const ang of [0.5, 2.6]) {
+    parts.push({
+      geometry: new THREE.CylinderGeometry(0.03, 0.03, 0.48, 8),
+      matrix: mat4([Math.cos(ang) * 0.34, 2.28, Math.sin(ang) * 0.34], [0.4, -ang, 0]),
+    });
+    parts.push({
+      geometry: new THREE.BoxGeometry(0.08, 0.08, 0.06),
+      matrix: mat4([Math.cos(ang) * 0.4, 2.08, Math.sin(ang) * 0.4], [0, -ang, 0]),
+    });
+  }
   const head = mergeAll(parts);
   return { outer, inner, head, height, profile: bell };
 }

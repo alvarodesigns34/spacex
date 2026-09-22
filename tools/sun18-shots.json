@@ -1,0 +1,16 @@
+[
+  { "name": "overview-sun18.jpg", "jump": [null], "sun": 18, "labels": false, "ruler": false, "humans": true, "hud": false, "wait": 900 },
+  { "name": "starship-sun18.jpg", "jump": ["starship", "overview"], "sun": 18, "labels": true, "ruler": true, "sheet": "open", "hud": true, "wait": 900 },
+  { "name": "starship-engines-sun18.jpg", "jump": ["starship", "engines"], "sun": 18, "labels": false, "ruler": false, "hud": false, "wait": 900 },
+  { "name": "starship-tiles-sun18.jpg", "jump": ["starship", "tiles"], "sun": 18, "labels": false, "ruler": false, "hud": false, "wait": 900 },
+  { "name": "falcon9-sun18.jpg", "jump": ["falcon9", "overview"], "sun": 18, "labels": false, "ruler": false, "hud": false, "wait": 800 },
+  { "name": "falconheavy-sun18.jpg", "jump": ["falconheavy", "overview"], "sun": 18, "labels": false, "ruler": false, "hud": false, "wait": 800 },
+  { "name": "dragon-sun18.jpg", "jump": ["dragon", "overview"], "sun": 18, "labels": false, "ruler": false, "hud": false, "wait": 800 },
+  { "name": "starlink-sun18.jpg", "jump": ["starlink", "overview"], "sun": 18, "labels": false, "ruler": false, "hud": false, "wait": 800 },
+  { "name": "roadster-sun18.jpg", "jump": ["roadster", "overview"], "sun": 18, "labels": false, "ruler": false, "hud": false, "wait": 800 },
+  { "name": "engines-sun18.jpg", "jump": ["engines", "overview"], "sun": 18, "labels": false, "ruler": false, "hud": false, "wait": 800 },
+  { "name": "falcon1-sun18.jpg", "jump": ["falcon1", "overview"], "sun": 18, "labels": false, "ruler": false, "hud": false, "wait": 800 },
+  { "name": "launch-ignition-sun18.jpg", "seek": -1, "sun": 18, "labels": false, "ruler": false, "hud": false, "wait": 1200 },
+  { "name": "launch-staging-sun18.jpg", "seek": 162, "sun": 18, "labels": false, "ruler": false, "hud": false, "wait": 1200 },
+  { "name": "launch-catch-sun18.jpg", "seek": 405, "sun": 18, "labels": false, "ruler": false, "hud": false, "wait": 1200 }
+]

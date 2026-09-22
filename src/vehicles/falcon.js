@@ -337,11 +337,11 @@ export function buildFalconHeavy(M) {
       interfaces.push({ station, side: s, center: a, booster: b });
       // Short sleeve, clevis blocks and hinge pins show how the pneumatic load path
       // meets the skin. Fine fittings can disappear; the connecting rods cannot.
-      const sleeveEnd = a.map((v, i) => v + (b[i] - v) * 0.58);
-      cylinder(detail, a, sleeveEnd, 0.21);
+      const sleeveEnd = a.map((v, i) => v + (b[i] - v) * 0.42);
+      cylinder(detail, a, sleeveEnd, 0.145);
       for (const p of [a, b]) {
-        detail.push({ geometry: new THREE.BoxGeometry(0.24, 0.52, 0.46), matrix: mat4(p) });
-        cylinder(detail, [p[0], p[1], p[2] - 0.28], [p[0], p[1], p[2] + 0.28], 0.065);
+        detail.push({ geometry: new THREE.BoxGeometry(0.16, 0.26, 0.2), matrix: mat4(p) });
+        cylinder(detail, [p[0], p[1], p[2] - 0.18], [p[0], p[1], p[2] + 0.18], 0.04);
       }
     }
   }

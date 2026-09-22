@@ -54,7 +54,9 @@ await new Promise(r => server.listen(PORT, '127.0.0.1', r));
 const browser = await chromium.launch({
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox'],
 });
-const page = await (await browser.newContext({ viewport: { width: 1600, height: 900 } })).newPage();
+const VW = Number(process.env.VC_SHOT_W ?? 1600);
+const VH = Number(process.env.VC_SHOT_H ?? 900);
+const page = await (await browser.newContext({ viewport: { width: VW, height: VH } })).newPage();
 page.on('pageerror', e => console.log('PAGEERROR', e.message));
 page.on('console', m => {
   if (m.type() !== 'error') return;
@@ -77,6 +79,9 @@ for (const s of shots) {
     v.setToggle('labels', s.labels ?? true);
     v.setToggle('ruler', s.ruler ?? true);
     v.setToggle('humans', s.humans ?? true);
+    const sheet = document.getElementById('sheet');
+    if (s.sheet === 'open' && sheet.classList.contains('collapsed')) document.getElementById('sheet-toggle').click();
+    else if (s.sheet === 'closed' && !sheet.classList.contains('collapsed')) document.getElementById('sheet-toggle').click();
 
     if (s.seek !== undefined) { v.launch.setSpeed(s.speed ?? 1); v.launch.seek(s.seek); }
     else if (s.ortho) v.ortho(s.ortho);

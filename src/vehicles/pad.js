@@ -20,6 +20,7 @@
  */
 import * as THREE from 'three';
 import { mesh, mergeAll, mat4, boxUV, tube, radial } from '../geometry/utils.js';
+import { dressPad } from './padDressing.js';
 import { RAPTOR_ENVELOPE_R, BOOSTER_R } from './starship.js';
 
 // ---- Dimensions -------------------------------------------------------------------------
@@ -643,6 +644,7 @@ export function buildLaunchComplex(M) {
   g.add(qd);
   g.add(buildField(M));
   g.add(buildPadInfrastructure(M));
+  dressPad(g, M, PAD.padY);
 
   g.userData.stations = {
     padY: PAD.padY,
@@ -674,7 +676,7 @@ export function buildLaunchComplex(M) {
     'mount-catwalk': 0.05, 'mount-catwalk-rail': 0.05, 'mount-risers': 0.12,
     'deck-manifold': 0.2, 'deck-nozzles': 0.06, 'mount-trim': 0.09,
     'mount-rail': 0.1, 'trench-ramps': 0.3, 'qd-lines': 0.08,
-    'mount-baseplates': 0.14,
+    'mount-baseplates': 0.14, 'pad-cable-tray': 0.12, 'pad-valves': 0.18,
   };
   g.traverse((o) => { const f = FINE[o.name]; if (f) o.userData.lodFeature = f; });
 
