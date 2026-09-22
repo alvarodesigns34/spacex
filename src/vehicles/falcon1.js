@@ -196,6 +196,13 @@ export function buildFalcon1(M) {
   interior.add(mesh(new THREE.CircleGeometry(R - .09, 40), A.tank,
     { name: 'falcon1-upper-bulkhead-web', position: [0, S2_BASE + 1.04, 0], rotation: [Math.PI / 2, 0, 0] }));
   const longerons = [];
+  // Lips along the two cut edges, so the opening reads as a wall with thickness.
+  for (const a of [Math.PI * 0.75, Math.PI * 1.75]) {
+    longerons.push({
+      geometry: new THREE.BoxGeometry(0.045, FAIRING_BASE - S2_BASE - 0.2, 0.06),
+      matrix: mat4([Math.sin(a) * (R - 0.03), (S2_BASE + FAIRING_BASE) / 2, Math.cos(a) * (R - 0.03)], [0, a, 0]),
+    });
+  }
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
     longerons.push({

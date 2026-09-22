@@ -125,8 +125,14 @@ export function dressCampus(scene, M) {
   g.add(dunes);
 
   // Salt-flat scrub. One cone, instanced, outside the terrace and the pad.
-  const scrubGeo = new THREE.ConeGeometry(0.55, 0.85, 5);
-  scrubGeo.translate(0, 0.42, 0);
+  const blades = [];
+  for (const yaw of [0, 1.05, 2.1]) {
+    const blade = new THREE.PlaneGeometry(0.42, 0.72);
+    blade.translate(0, 0.36, 0);
+    blade.rotateY(yaw);
+    blades.push(blade);
+  }
+  const scrubGeo = mergeGeometries(blades, false);
   const spots = [];
   const scrubCount = 28;
   let seed = 17;
