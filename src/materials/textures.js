@@ -526,11 +526,14 @@ export function makeGroundTerrain({ size = 768, tile = 96.0 } = {}) {
     const salt = Math.max(0, dune - 0.42);
     const damp = Math.max(0, 0.48 - clay);
     const scrub = Math.max(0, period(u, v, 256, 80, 15) - 0.58);
-    // A few pans per tile. Integer cycles, so the 96 m repeat meets itself
-    // and the plain is not one flat colour with a hidden grid.
-    const pan = 0.5 + 0.5 * Math.sin((u * 2 + 0.2) * Math.PI * 2) * Math.cos((v * 3 + 0.35) * Math.PI * 2);
-    let r = 0.56, g = 0.52, b = 0.40;
-    r = lerp(r, 0.84, pan * 0.7); g = lerp(g, 0.78, pan * 0.7); b = lerp(b, 0.60, pan * 0.55);
+    // No large-scale term in the tile. There was one — sin(2u)·cos(3v), integer cycles so the
+    // 96 m repeat met itself — and it was the loudest artefact in the project: a regular grid
+    // of light and dark bands, 32 to 48 m apart, across every wide shot, reading as corrugated
+    // sheet rather than as a salt flat. Anything periodic at landscape scale does that, however
+    // it is dressed. Landscape-scale variation now comes from world-space noise in the terrain
+    // material's shader (library.js), which has no period at all; the tile carries only the
+    // grain, which is too fine to be seen repeating.
+    let r = 0.66, g = 0.61, b = 0.47;
     r = lerp(r, 0.78, salt); g = lerp(g, 0.72, salt); b = lerp(b, 0.54, salt);
     r = lerp(r, 0.36, damp * 0.85); g = lerp(g, 0.40, damp * 0.85); b = lerp(b, 0.28, damp * 0.85);
     r = lerp(r, 0.34, scrub * 1.3); g = lerp(g, 0.42, scrub * 1.3); b = lerp(b, 0.24, scrub * 1.3);

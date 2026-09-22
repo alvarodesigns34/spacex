@@ -99,9 +99,14 @@ export function dressCampus(scene, M) {
     name: 'campus-apron', castShadow: false,
   }));
 
-  // Low dunes, not crates. One flattened sphere, instanced, off the row and the pad.
-  const duneGeo = new THREE.SphereGeometry(1, 14, 10);
-  duneGeo.scale(1, 0.28, 1);
+  // Low dunes. They were flattened spheres standing on their bottom pole: the widest part of
+  // each sat a third of a metre ABOVE the ground with a dark lip under it, in a flat khaki of
+  // its own, so every dune read as a coin laid on the plain. A dune rises out of the ground
+  // it is made of. These are raised-cosine mounds whose edge is tangent to the plain and sunk
+  // a few centimetres into it, built in world space with metric UVs and drawn with the
+  // terrain's own material — same grain, same landscape noise — so the only thing that marks
+  // one is its shape in the light, plus a slight sandy lift on the crest carried in vertex
+  // colour and fading to exactly the plain's value at the rim. Ten mounds, one draw.
   const duneSpec = [
     [-210, 70, 18, 1.3],
     [40, 95, 14, 0.9],
@@ -114,19 +119,54 @@ export function dressCampus(scene, M) {
     [80, 160, 19, 0.85],
     [-40, -140, 12, 1.4],
   ].filter(([x, z]) => Math.hypot(x, z + 185) >= 140);
-  const dunes = new THREE.InstancedMesh(duneGeo, M.berm, duneSpec.length);
-  dunes.name = 'campus-berms';
-  dunes.castShadow = false;
-  dunes.receiveShadow = true;
-  const dune = new THREE.Object3D();
-  duneSpec.forEach(([x, z, radius, h], i) => {
-    dune.position.set(x, 0.28 * h, z);
-    dune.scale.set(radius, h, radius * 0.72);
-    dune.updateMatrix();
-    dunes.setMatrixAt(i, dune.matrix);
+  const RINGS = 9, SEGS = 28, SINK = 0.04;
+  const duneParts = [];
+  duneSpec.forEach(([cx, cz, radius, h], d) => {
+    const n = 1 + RINGS * SEGS;
+    const pos = new Float32Array(n * 3), uv = new Float32Array(n * 2), col = new Float32Array(n * 3);
+    const idx = [];
+    // A slightly irregular rim, so ten mounds are not ten copies of one ellipse.
+    const wob = (a) => 1 + 0.12 * Math.sin(a * 3 + d * 1.7) + 0.06 * Math.sin(a * 5 - d);
+    const put = (k, x, z, t) => {
+      // Raised cosine: flat on top, tangent to the plain at the rim, then sunk a little so
+      // the rim cannot z-fight the ground it grows out of.
+      const y = h * 0.62 * (0.5 + 0.5 * Math.cos(Math.PI * t)) - SINK;
+      pos[k * 3] = x; pos[k * 3 + 1] = y; pos[k * 3 + 2] = z;
+      uv[k * 2] = x; uv[k * 2 + 1] = -z;
+      const lift = 1 + 0.07 * (1 - t) * (1 - t);
+      col[k * 3] = lift; col[k * 3 + 1] = lift * 0.99; col[k * 3 + 2] = lift * 0.95;
+    };
+    put(0, cx, cz, 0);
+    for (let j = 1; j <= RINGS; j++) {
+      const t = j / RINGS;
+      for (let i = 0; i < SEGS; i++) {
+        const a = (i / SEGS) * Math.PI * 2;
+        const w = wob(a);
+        put(1 + (j - 1) * SEGS + i, cx + Math.cos(a) * radius * t * w, cz + Math.sin(a) * radius * 0.72 * t * w, t);
+      }
+    }
+    for (let i = 0; i < SEGS; i++) idx.push(0, 1 + ((i + 1) % SEGS), 1 + i);
+    for (let j = 1; j < RINGS; j++) {
+      const a0 = 1 + (j - 1) * SEGS, b0 = 1 + j * SEGS;
+      for (let i = 0; i < SEGS; i++) {
+        const i1 = (i + 1) % SEGS;
+        idx.push(a0 + i, a0 + i1, b0 + i, a0 + i1, b0 + i1, b0 + i);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.setIndex(idx);
+    // Normals while still indexed, so the mound shades smoothly; after de-indexing each
+    // triangle would get its own normal and the dune would come out faceted.
+    geo.computeVertexNormals();
+    duneParts.push(geo.toNonIndexed());
   });
-  dunes.instanceMatrix.needsUpdate = true;
-  g.add(dunes);
+  if (duneParts.length) {
+    const duneGeo = mergeGeometries(duneParts, false);
+    g.add(mesh(duneGeo, M.terrain, { name: 'campus-berms', castShadow: false }));
+  }
 
   // Salt-flat scrub. One cone, instanced, outside the terrace and the pad.
   const blades = [];

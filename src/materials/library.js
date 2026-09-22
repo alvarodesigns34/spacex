@@ -133,6 +133,55 @@ export function createMaterials(onProgress = () => {}) {
     normalScale: new THREE.Vector2(0.9, 0.9), metalness: 0.0, roughness: 0.96, envMapIntensity: 0.55,
     vertexColors: true,
   });
+  // Landscape-scale variation, in world space and without a period.
+  //
+  // One tiled map cannot describe five kilometres of coastal plain: whatever it carries at a
+  // scale the eye can see repeats every 96 m, and a repeat that regular reads as a pattern
+  // before it reads as ground. So the map carries grain only, and this does the rest:
+  //
+  //  · three octaves of value noise on world X/Z (190 m, 63 m, 21 m) split the plain into
+  //    pale, warm salt crust and darker, slightly green damp hollows, the way a tidal flat
+  //    actually varies;
+  //  · the same map is sampled a second time, rotated 37° and scaled by the golden ratio, and
+  //    blended in by a further noise field, so no two 96 m tiles look alike. Rotation and an
+  //    irrational scale make the two lookups incommensurate: they never line up again.
+  //
+  // Cheap: five noise evaluations and one extra texture fetch per ground fragment.
+  M.terrain.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vVcWorld;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvVcWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    const NOISE = `
+varying vec3 vVcWorld;
+float vcHash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float vcNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(vcHash(i), vcHash(i + vec2(1.0, 0.0)), u.x),
+             mix(vcHash(i + vec2(0.0, 1.0)), vcHash(i + vec2(1.0, 1.0)), u.x), u.y);
+}`;
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>\n${NOISE}`)
+      .replace('#include <map_fragment>', `
+#ifdef USE_MAP
+  vec4 sampledDiffuseColor = texture2D( map, vMapUv );
+  vec2 vcUv2 = mat2(0.8, -0.6, 0.6, 0.8) * vMapUv * 0.618 + vec2(0.31, 0.17);
+  vec4 vcAlt = texture2D( map, vcUv2 );
+  float vcMix = smoothstep(0.3, 0.7, vcNoise(vVcWorld.xz / 57.0 + vec2(3.7, -1.9)));
+  sampledDiffuseColor = mix( sampledDiffuseColor, vcAlt, vcMix );
+  diffuseColor *= sampledDiffuseColor;
+#endif`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+  {
+    vec2 wp = vVcWorld.xz;
+    float macro = vcNoise(wp / 190.0) * 0.55 + vcNoise(wp / 63.0 + 17.3) * 0.30 + vcNoise(wp / 21.0 - 5.1) * 0.15;
+    float salt = smoothstep(0.55, 0.80, macro);
+    float damp = smoothstep(0.42, 0.18, macro);
+    diffuseColor.rgb *= mix(1.0, 1.16, salt) * mix(1.0, 0.78, damp);
+    diffuseColor.rgb *= mix(vec3(1.0), vec3(0.93, 1.0, 0.86), damp * 0.7);
+  }`);
+  };
+  M.terrain.customProgramCacheKey = () => 'vc-terrain-macro-1';
   M.trenchArmor = new THREE.MeshStandardMaterial({
     map: T.trenchArmor.map, roughnessMap: T.trenchArmor.roughnessMap, normalMap: T.trenchArmor.normalMap,
     normalScale: new THREE.Vector2(0.9, 0.9), metalness: 0.82, roughness: 0.48, envMapIntensity: 0.72,
