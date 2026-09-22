@@ -41,6 +41,8 @@ const args = process.argv.slice(2);
 const argOf = (f) => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : null; };
 const outdir = args.find((a, i) => !a.startsWith('--') && args[i - 1] !== '--steps' && args[i - 1] !== '--quality');
 const STEPS = Number(argOf('--steps') ?? 60);
+// Frames are the slow part on a software rasteriser; skip them for a flicker-only pass.
+const SHOTS = !args.includes('--no-shots');
 const TIER = argOf('--quality') ?? 'high';
 if (!outdir) { console.error('uso: node tools/lod-sweep.mjs <outdir> [--steps N]'); process.exit(2); }
 await mkdir(outdir, { recursive: true });
@@ -134,10 +136,46 @@ for (const t of TARGETS) {
     const changed = inLeg[i].snap.filter((r, j) => r.detailed !== inLeg[i - 1].snap[j]?.detailed).map(r => r.name);
     if (changed.length) trans.push({ d: inLeg[i].d, prev: inLeg[i - 1].d, changed });
   }
+  // ---- the case hysteresis exists for ------------------------------------------------------
+  // The walk above is monotonic, and a monotonic walk crosses any single threshold exactly
+  // once — so it cannot tell a manager with hysteresis from one without. Proved by sabotage:
+  // setting hysteresis to 0 left every target reporting "no flicker".
+  //
+  // What it misses is the situation that actually produces flicker on screen: a camera PARKED
+  // at a threshold, which is never still. OrbitControls' damping alone moves it by centimetres
+  // every frame for seconds after a drag, and with one threshold that is enough to make the
+  // detail blink several times a second.
+  //
+  // So each threshold is revisited and the camera jittered around it by ±2 % of its distance —
+  // far inside the band hysteresis provides (0.3 in pixels is 43 % in distance) and far outside
+  // the precision a single threshold would need. Any entry changing state more than once here
+  // is flickering.
+  const jitters = [];
+  for (const tr of trans.slice(0, 6)) {
+    const series = new Map();
+    for (let k = 0; k < 16; k++) {
+      const wobble = 1 + ((k % 2 === 0) ? 0.02 : -0.02) * (0.6 + 0.4 * Math.sin(k));
+      const snap = await place(tr.d * wobble);
+      for (const r of snap) {
+        if (!t.match.test(r.name)) continue;
+        if (!series.has(r.name)) series.set(r.name, []);
+        series.get(r.name).push(r.detailed);
+      }
+    }
+    for (const [name, xs] of series) {
+      let flips = 0;
+      for (let i = 1; i < xs.length; i++) if (xs[i] !== xs[i - 1]) flips++;
+      if (flips > 1) jitters.push(`${name}@${tr.d.toFixed(0)}m×${flips}`);
+    }
+  }
+  say(jitters.length === 0,
+    `${t.name}: estable con la cámara temblando sobre ${Math.min(trans.length, 6)} umbrales`
+    + (jitters.length ? ` — ${jitters.slice(0, 6).join(', ')}${jitters.length > 6 ? ` (+${jitters.length - 6})` : ''}` : ''));
+
   // Only a handful of frames per target: these are for the eye, and every one costs two
   // software-rasterised renders. Take the transitions that move the most entries at once,
   // which are also the ones most likely to be visible.
-  const pick = [...trans.entries()].sort((a, b) => b[1].changed.length - a[1].changed.length).slice(0, 4);
+  const pick = SHOTS ? [...trans.entries()].sort((a, b) => b[1].changed.length - a[1].changed.length).slice(0, 4) : [];
   for (const [i, tr] of pick) {
     for (const [tag, dd] of [['before', tr.prev], ['after', tr.d]]) {
       await place(dd);

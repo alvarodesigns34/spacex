@@ -53,6 +53,7 @@ export class LODManager {
     this.pixels = pixels;
     this.hysteresis = hysteresis;
     this.entries = [];
+    this._names = new Map();
     this._c = new THREE.Vector3();
     this._box = new THREE.Box3();
     this._p = new THREE.Vector3();
@@ -97,6 +98,19 @@ export class LODManager {
       const inv = new THREE.Matrix4().copy(e.bounds.matrixWorld).invert();
       const b = new THREE.Box3().setFromObject(e.bounds);
       if (!b.isEmpty()) { e.local = b.applyMatrix4(inv); e.holder = e.bounds; }
+    }
+    // Names have to be unique, because they are how an entry is addressed: `pin` looks one up
+    // and `snapshot` is read back by name. They were not — a Falcon Heavy carries twelve leg
+    // latches and the Roadster two headlight bowls, each registered separately and all sharing
+    // the mesh's name. Twelve series under one label read as one entry changing state twelve
+    // times, which is indistinguishable from flicker, and the continuous sweep duly reported
+    // flicker on every part that is repeated.
+    if (this._names.has(e.name)) {
+      const n = this._names.get(e.name) + 1;
+      this._names.set(e.name, n);
+      e.name = `${e.name}#${n}`;
+    } else {
+      this._names.set(e.name, 1);
     }
     this.entries.push(e);
     return e;

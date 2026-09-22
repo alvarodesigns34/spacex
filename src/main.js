@@ -26,7 +26,7 @@ import { buildStarlink } from './vehicles/starlink.js';
 import { buildRoadster } from './vehicles/roadster.js';
 import { buildEngineHall } from './vehicles/enginehall.js';
 import { buildOrbitalBackdrop } from './core/backdrop.js';
-import { buildMount, buildPedestal, buildHuman } from './vehicles/common.js';
+import { buildMount, buildPedestal, buildHumanCrowd } from './vehicles/common.js';
 import { seeded } from './geometry/utils.js';
 import { buildLaunchComplex, PAD } from './vehicles/pad.js';
 import { verifyExhibits, verifyScene, verifyPad, verifyInterfaces } from './data/verify.js';
@@ -207,6 +207,8 @@ async function main() {
   const exhibits = {};
   const labels = new THREE.Group(); labels.name = 'labels'; scene.add(labels);
   const humans = new THREE.Group(); humans.name = 'humans'; scene.add(humans);
+  // Where every scale figure stands, filled by the exhibit loop and built in one go after it.
+  const crowd = [];
   const rulers = new THREE.Group(); rulers.name = 'rulers'; scene.add(rulers);
 
   const builders = {
@@ -366,20 +368,20 @@ async function main() {
         o.userData.lodFeature, o.userData.lodBias ?? 1, o);
     }
 
-    // scale figures
+    // Scale figures. Collected rather than built here: every figure in the centre is merged
+    // into one mesh per material once the loop is done, which turns 99 draw calls into five.
     const baseY = 0;
     for (const [px, py, pz, ry] of lay.people ?? []) {
-      const h = buildHuman(M, { suit: humanSuit() > 0.5 ? 'white' : 'dark' });
-      h.position.set(lay.x + px, baseY + py, lay.z + pz);
-      h.rotation.y = ry;
-      humans.add(h);
+      crowd.push({
+        x: lay.x + px, y: baseY + py, z: lay.z + pz, ry,
+        suit: humanSuit() > 0.5 ? 'white' : 'dark',
+      });
     }
     // person on the mount deck for the big vehicles
     if (lay.mountRadius) {
-      const h = buildHuman(M, { suit: 'white' });
-      h.position.set(lay.x + lay.mountRadius - 1.2, lay.mount, lay.z + 1.5);
-      h.rotation.y = 2.4;
-      humans.add(h);
+      crowd.push({
+        x: lay.x + lay.mountRadius - 1.2, y: lay.mount, z: lay.z + 1.5, ry: 2.4, suit: 'white',
+      });
     }
 
     // height ruler
@@ -396,6 +398,10 @@ async function main() {
     rulers.add(ruler);
     exhibits[v.id].ruler = ruler;
   }
+
+  // Every figure in the centre, as one mesh per material. Built here rather than inside the
+  // loop because merging only pays once all the placements are known.
+  humans.add(buildHumanCrowd(M, crowd));
 
   // The launch complex is not an exhibit, so the loop above never reached it — and it is the
   // largest single object in the scene, drawn in most Starship views from a hundred metres or

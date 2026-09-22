@@ -67,9 +67,14 @@ export function buildPedestal(M, { radius = 1.2, height = 1.2, post = 0 } = {}) 
  * not a scanned actor: boxes and cylinders, with a head, neck, elbows and knees
  * so the silhouette is a person rather than two capsules.
  */
-export function buildHuman(M, { suit = 'white' } = {}) {
-  const g = new THREE.Group();
-  g.name = 'human';
+/**
+ * The parts of one figure, in its own frame, grouped by the material each takes.
+ *
+ * Split out of `buildHuman` so a whole crowd can be merged per material instead of per
+ * figure — see `buildHumanCrowd`. The geometry is identical either way; only the number of
+ * draw calls differs.
+ */
+function humanParts(M, suit) {
   const cloth = suit === 'white' ? M.visitor : M.coverall;
   const body = [];
   const legs = [];
@@ -90,14 +95,65 @@ export function buildHuman(M, { suit = 'white' } = {}) {
   const head = [];
   head.push({ geometry: new THREE.CylinderGeometry(0.04, 0.046, 0.08, 8), matrix: mat4([0, 1.56, 0]) });
   head.push({ geometry: new THREE.SphereGeometry(0.09, 12, 10), matrix: mat4([0, 1.71, 0]) });
-  g.add(mesh(mergeAll(body), cloth, { castShadow: false }));
-  g.add(mesh(mergeAll(legs), cloth, { castShadow: false }));
-  g.add(mesh(mergeAll(boots), M.boot, { castShadow: false }));
-  g.add(mesh(mergeAll(head), M.skin, { castShadow: false }));
+  const out = [
+    [cloth, [...body, ...legs]],
+    [M.boot, boots],
+    [M.skin, head],
+  ];
   if (suit !== 'white') {
     const hat = new THREE.SphereGeometry(0.105, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2);
-    hat.translate(0, 1.76, 0);
-    g.add(mesh(hat, M.hardhat, { castShadow: false }));
+    out.push([M.hardhat, [{ geometry: hat, matrix: mat4([0, 1.76, 0]) }]]);
+  }
+  return out;
+}
+
+/** One figure on its own, kept for callers that place a single person. */
+export function buildHuman(M, { suit = 'white' } = {}) {
+  const g = new THREE.Group();
+  g.name = 'human';
+  for (const [material, parts] of humanParts(M, suit)) {
+    g.add(mesh(mergeAll(parts), material, { castShadow: false }));
+  }
+  return g;
+}
+
+/**
+ * Every scale figure in the centre, as one mesh per material instead of five per person.
+ *
+ * The figures were the worst cost-per-look in the scene: twenty-two people, four or five
+ * meshes each, 99 draw calls in the overview for 13,286 triangles — more calls than the
+ * Starship, the pad and the Roadster together, for a row of 1.80 m boxes. They are also the
+ * easiest thing in the scene to merge: they never move, they never change material, and they
+ * already cast no shadow, so nothing about how they look depends on their being separate.
+ *
+ * Each person's placement is baked into the geometry, so the result is the same picture from
+ * the same place — verified by pixel diff, not by argument. The group keeps its name and its
+ * visibility flag, so the "1.80 m figures" toggle is untouched.
+ *
+ * @param placements [{ x, y, z, ry, suit }]
+ */
+export function buildHumanCrowd(M, placements) {
+  const g = new THREE.Group();
+  g.name = 'human-crowd';
+  // Keyed by material identity: two suits, boots, skin and hard hats come out as at most five
+  // meshes however many people there are.
+  const byMaterial = new Map();
+  for (const p of placements) {
+    const place = mat4([p.x, p.y, p.z], [0, p.ry ?? 0, 0]);
+    for (const [material, parts] of humanParts(M, p.suit ?? 'white')) {
+      if (!byMaterial.has(material)) byMaterial.set(material, []);
+      const into = byMaterial.get(material);
+      for (const part of parts) {
+        into.push({
+          geometry: part.geometry,
+          // Compose in world order: the part's own matrix first, then where the person stands.
+          matrix: new THREE.Matrix4().multiplyMatrices(place, part.matrix),
+        });
+      }
+    }
+  }
+  for (const [material, parts] of byMaterial) {
+    if (parts.length) g.add(mesh(mergeAll(parts), material, { castShadow: false, name: 'human-batch' }));
   }
   return g;
 }

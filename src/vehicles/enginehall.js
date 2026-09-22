@@ -188,6 +188,22 @@ export function buildEngineHall(M) {
     o.castShadow = !String(o.name).endsWith('-bell-inner');
   });
 
+  // ---- Level of detail --------------------------------------------------------------------
+  // Engine Row was the one exhibit the manager had no entries for at all. Three engines on
+  // plinths, 4.4 m at the tallest: from the museum row they are three bells, and the propellant
+  // runs, their clamps and the stiffening hoops are centimetres of hardware that cannot resolve
+  // at that range — the clamps are 6 mm.
+  //
+  // The bells, their inner surfaces, the powerheads and the stands stay at every distance:
+  // those are what the exhibit is for, and the silhouette of a Merlin against a Raptor is the
+  // whole reason the row exists.
+  for (const st of STANDS) {
+    const plumbing = root.getObjectByName(`${st.id}-plumbing`);
+    if (plumbing) plumbing.userData.lodFeature = 0.028;      // the thinnest propellant run
+    const hoops = root.getObjectByName(`${st.id}-hoops`);
+    if (hoops) hoops.userData.lodFeature = 0.036;            // hoop section
+  }
+
   root.userData.height = raptorVacGeometry().height + CRADLE_Y;
   root.userData.annotations = [
     { label: 'Merlin 1D · 0.92 m nozzle · 845 kN at sea level', position: [-4.15, 2.85, 0.7] },

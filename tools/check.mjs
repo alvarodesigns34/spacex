@@ -670,7 +670,15 @@ try {
     // the software rasteriser CI runs on that loop ticks once or twice a second — a fixed
     // 2.2 s wait passed on one machine and failed on the next for reasons that had nothing
     // to do with the resize.
-    await page.waitForFunction(() => !window.__vc.rig.transition, null, { timeout: 30000 });
+    // Two conditions, not one. Waiting only for the sweep raced the resize: `setViewportSize`
+    // resolves before the page's `resize` event is dispatched, so when the sweep had already
+    // finished the first poll passed and the aspect was read from the OLD viewport — 1.452,
+    // the 900×620 it had been resized to a moment earlier. The wait now includes the thing
+    // being asserted, which also makes the assertion stronger: the app must actually update
+    // the camera on resize, rather than happening to have done so before we looked.
+    await page.waitForFunction(() => !window.__vc.rig.transition
+      && Math.abs(window.__vc.camera.aspect - window.innerWidth / window.innerHeight) < 1e-6,
+    null, { timeout: 30000 });
     const afterResize = await page.evaluate(() => ({
       finite: window.__vc.camera.position.toArray().every(Number.isFinite),
       aspect: +window.__vc.camera.aspect.toFixed(3),
@@ -743,6 +751,32 @@ try {
       + `en la vista general · ${budget.meshes} mallas (${budget.visible} dibujadas) · `
       + `${budget.materials} materiales · ${budget.textures} texturas`
       + (over.length ? ` — POR ENCIMA: ${over.map(([k]) => k).join(', ')}` : ''));
+  }
+
+  // ---- The scale figures stay merged ------------------------------------------------------
+  // Twenty-two people at four or five meshes each were 99 draw calls in the overview for
+  // 13,286 triangles — more calls than the Starship, the pad and the Roadster together, for a
+  // row of 1.80 m boxes. They are merged into one mesh per material, which is only safe
+  // because they never move, never change material and cast no shadow. Any of those three
+  // assumptions breaking would show up as this count climbing back, so it is asserted rather
+  // than left as a comment: the figures are the easiest thing in the scene to regress by
+  // adding one more person inside the exhibit loop.
+  {
+    const crowd = await page.evaluate(() => {
+      const g = window.__vc.scene.getObjectByName('humans');
+      let meshes = 0, casters = 0, tris = 0;
+      g?.traverse((o) => {
+        if (!o.isMesh) return;
+        meshes++;
+        if (o.castShadow) casters++;
+        const a = o.geometry?.index ? o.geometry.index.count : (o.geometry?.attributes?.position?.count ?? 0);
+        tris += a / 3;
+      });
+      return { meshes, casters, tris: Math.round(tris) };
+    });
+    report(crowd.meshes > 0 && crowd.meshes <= 6 && crowd.casters === 0,
+      'las figuras de escala siguen fusionadas',
+      `${crowd.meshes} malla(s) para ${crowd.tris.toLocaleString('es-ES')} triángulos, ${crowd.casters} proyectan sombra`);
   }
 
   report(consoleErrors.length === 0, 'consola limpia', consoleErrors.slice(0, 5).join(' | '));
