@@ -168,8 +168,9 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
       const sm = soot * (0.35 + 0.65 * fbm(u * 5 + 11, v * 8, 4));
       r *= (1 - sm * 0.72); g *= (1 - sm * 0.72); b *= (1 - sm * 0.70);
     }
+    const panel = (colStreak[x] - 0.5) * 0.05;
     const dark = bead[y] * 0.28 + vseam[x] * 0.22;
-    return [clamp(r * (1 - dark) * 255), clamp(g * (1 - dark) * 255), clamp(b * (1 - dark) * 255)];
+    return [clamp((r + panel) * (1 - dark) * 255), clamp((g + panel) * (1 - dark) * 255), clamp((b + panel) * (1 - dark) * 255)];
   });
   shade(rough, (x, y, u, v) => {
     // Bright mill finish: low roughness on the panels, rough at the weld and where it is

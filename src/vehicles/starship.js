@@ -275,9 +275,13 @@ export function buildSuperHeavy(M) {
   g.add(mesh(mergeAll(bays), M.darkMetal));
 
   // 33 Raptor 3: 3 + 10 gimballing on the thrust puck, 20 fixed on the outer ring.
-  const raptor = raptorGeometry({ exitRadius: RAPTOR_EXIT_R });
-  g.add(instanceEngines(raptor, M,
-    BOOSTER_RINGS.flatMap(([n, r, y, phase]) => ringLayout(n, r, y, { phase }))));
+  // Inner 13 gimbal. The outer 20 are fixed: no actuator rods, so the cluster
+  // does not read as thirty-three copies of one gimballed engine.
+  const gimbal = raptorGeometry({ exitRadius: RAPTOR_EXIT_R, gimbal: true });
+  const fixed = raptorGeometry({ exitRadius: RAPTOR_EXIT_R, gimbal: false });
+  const [inner3, inner10, outer20] = BOOSTER_RINGS;
+  g.add(instanceEngines(gimbal, M, [inner3, inner10].flatMap(([n, r, y, phase]) => ringLayout(n, r, y, { phase }))));
+  g.add(instanceEngines(fixed, M, ringLayout(outer20[0], outer20[1], outer20[2], { phase: outer20[3] })));
 
   // Four chines low on the tank section. Block 3 spacing: the pair either side of the
   // raceway sits closer together and runs taller than the pair opposite it.
@@ -348,7 +352,9 @@ export function buildShip(M) {
   const commonDome = skirtTop + (payloadBase - skirtTop) * 0.57;
   const noseLen = SHIP_H - barrelTop;   // 13.57 m (fineness ratio ≈1.5 D)
 
-  const nose = ogiveProfile(R, noseLen, barrelTop, 34, 0.75);
+  // More stations and a smaller spherical cap: the old 0.75 m blunting read as a
+  // generic cone with a ball on top. The tip still ends on the published stack height.
+  const nose = ogiveProfile(R, noseLen, barrelTop, 48, 0.42);
   const profile = [
     { r: R, y: 0 },
     { r: R, y: skirtTop },

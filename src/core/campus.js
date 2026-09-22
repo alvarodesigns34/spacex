@@ -112,7 +112,7 @@ export function dressCampus(scene, M) {
   ].filter(([x, z]) => Math.hypot(x, z + 185) >= 140);
   const dunes = new THREE.InstancedMesh(duneGeo, M.berm, duneSpec.length);
   dunes.name = 'campus-berms';
-  dunes.castShadow = true;
+  dunes.castShadow = false;
   dunes.receiveShadow = true;
   const dune = new THREE.Object3D();
   duneSpec.forEach(([x, z, radius, h], i) => {

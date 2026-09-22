@@ -126,7 +126,7 @@ export class Plume {
 
     // Bright shock core, then the wide envelope of afterburning around it.
     this.core = coneLayer({ hot: 0xfffaea, warm: 0xffa442, cool: 0x5b7bd6, alpha: 0.98, falloff: 0.55 });
-    this.shroud = coneLayer({ hot: 0xffdcb0, warm: 0xd68038, cool: 0x2b3a70, alpha: 0.42, falloff: 0.95 });
+    this.shroud = coneLayer({ hot: 0xffe0b0, warm: 0xa86830, cool: 0x3d4038, alpha: 0.36, falloff: 1.05 });
     // Outer density: soot and cooled exhaust. Wide, dim, and gone once the flow is
     // a vacuum bell. It does not write depth, so the vehicle stays visible through it.
     this.veil = coneLayer({ hot: 0xffe2c0, warm: 0x8a5a32, cool: 0x5c564e, alpha: 0.18, falloff: 1.2 });
@@ -164,7 +164,7 @@ export class Plume {
     for (const layer of [this.core, this.shroud, this.veil]) layer.material.uniforms.uTime.value = this.time;
     this.core.material.uniforms.uSpread.value = 1 + 2.4 * (1 - p);
     this.shroud.material.uniforms.uSpread.value = 1 + 5.2 * (1 - p);
-    this.core.material.uniforms.uDiamond.value = 1.15 * p;
+    this.core.material.uniforms.uDiamond.value = 1.65 * p;
     // Node spacing follows the expansion: tight, repeated cells while the flow is squeezed
     // back by sea-level pressure, stretching out and dying as the atmosphere thins.
     this.core.material.uniforms.uDiamondN.value = 6.0 + 14.0 * p;

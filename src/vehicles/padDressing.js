@@ -19,6 +19,12 @@ export function dressPad(parent, M, padY) {
   for (let x = 36; x <= 56; x += 5) {
     steel.push({ geometry: box(0.08, 1.45, 0.08), matrix: mat4([x, padY + 0.72, 18]) });
   }
+  // Stair from grade up the east berm face. Treads and a handrail, reconstructed.
+  for (let i = 0; i < 12; i++) {
+    const y = 0.4 + i * 0.72;
+    steel.push({ geometry: box(1.1, 0.08, 0.32), matrix: mat4([68, y, 8 + i * 0.28]) });
+    steel.push({ geometry: box(0.05, 0.9, 0.05), matrix: mat4([68.5, y + 0.45, 8 + i * 0.28]) });
+  }
 
   for (const z of [-22, 22]) {
     valves.push({

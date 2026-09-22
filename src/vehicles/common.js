@@ -90,14 +90,14 @@ export function buildHuman(M, { suit = 'white' } = {}) {
   const head = [];
   head.push({ geometry: new THREE.CylinderGeometry(0.04, 0.046, 0.08, 8), matrix: mat4([0, 1.56, 0]) });
   head.push({ geometry: new THREE.SphereGeometry(0.09, 12, 10), matrix: mat4([0, 1.71, 0]) });
-  g.add(mesh(mergeAll(body), cloth, { castShadow: true }));
-  g.add(mesh(mergeAll(legs), cloth, { castShadow: true }));
-  g.add(mesh(mergeAll(boots), M.boot, { castShadow: true }));
-  g.add(mesh(mergeAll(head), M.skin, { castShadow: true }));
+  g.add(mesh(mergeAll(body), cloth, { castShadow: false }));
+  g.add(mesh(mergeAll(legs), cloth, { castShadow: false }));
+  g.add(mesh(mergeAll(boots), M.boot, { castShadow: false }));
+  g.add(mesh(mergeAll(head), M.skin, { castShadow: false }));
   if (suit !== 'white') {
     const hat = new THREE.SphereGeometry(0.105, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2);
     hat.translate(0, 1.76, 0);
-    g.add(mesh(hat, M.hardhat, { castShadow: true }));
+    g.add(mesh(hat, M.hardhat, { castShadow: false }));
   }
   return g;
 }

@@ -16,7 +16,7 @@ import { lathe, mergeAll, mat4 } from '../geometry/utils.js';
 function bellProfile(points) { return points.map(([r, y]) => ({ r, y })); }
 
 /** Raptor 3 (sea level): 1.3 m diameter, 2.9 m tall (spacex.com). Internal layout approximate. */
-export function raptorGeometry({ exitRadius = 0.62, height = 2.9 } = {}) {
+export function raptorGeometry({ exitRadius = 0.62, height = 2.9, gimbal = true } = {}) {
   const bell = bellProfile([
     [exitRadius, 0], [exitRadius * 0.97, 0.12], [exitRadius * 0.86, 0.45], [exitRadius * 0.7, 0.85],
     [exitRadius * 0.52, 1.2], [exitRadius * 0.38, 1.45], [0.215, 1.62], [0.235, 1.75], [0.3, 1.95], [0.3, 2.2],
@@ -44,7 +44,7 @@ export function raptorGeometry({ exitRadius = 0.62, height = 2.9 } = {}) {
   // Gimbal actuators. Raptor 3 steers the inner engines; the hardware is enclosed,
   // so these are the two rods and clevises that photographs actually show, not a
   // guessed turbopump cutaway.
-  for (const ang of [0.5, 2.6]) {
+  if (gimbal) for (const ang of [0.5, 2.6]) {
     parts.push({
       geometry: new THREE.CylinderGeometry(0.03, 0.03, 0.48, 8),
       matrix: mat4([Math.cos(ang) * 0.34, 2.28, Math.sin(ang) * 0.34], [0.4, -ang, 0]),
@@ -143,7 +143,10 @@ export function merlinVacGeometry({ exitRadius = 1.65, height = 4.0 } = {}) {
   const head = mergeAll([
     { geometry: new THREE.CylinderGeometry(0.27, 0.24, 0.4, 32), matrix: mat4([0, 3.7, 0]) },
     { geometry: new THREE.CylinderGeometry(0.14, 0.18, 0.15, 20), matrix: mat4([0, height - 0.07, 0]) },
+    { geometry: new THREE.CylinderGeometry(0.11, 0.11, 0.36, 16), matrix: mat4([0.24, 3.62, 0.06]) },
+    { geometry: new THREE.CylinderGeometry(0.06, 0.06, 0.28, 10), matrix: mat4([-0.18, 3.55, 0.16]) },
     { geometry: new THREE.TorusGeometry(0.22, 0.03, 8, 32), matrix: mat4([0, 3.38, 0], [Math.PI / 2, 0, 0]) },
+    { geometry: new THREE.TorusGeometry(0.55, 0.02, 6, 48), matrix: mat4([0, 2.4, 0], [Math.PI / 2, 0, 0]) },
   ]);
   return { outer, inner, head, height };
 }

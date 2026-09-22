@@ -242,7 +242,7 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
   const fProf = [
     { r: R * 0.97, y: FAIRING_BASE }, { r: R * 0.97, y: FAIRING_BASE + 0.1, sharp: true },
     { r: FAIRING_R, y: FAIRING_BASE + 1.55, sharp: true }, { r: FAIRING_R, y: ogiveStart },
-    ...ogiveProfile(FAIRING_R, TOTAL_H - ogiveStart, ogiveStart, 34, 0.34).slice(1),
+    ...ogiveProfile(FAIRING_R, TOTAL_H - ogiveStart, ogiveStart, 48, 0.55).slice(1),
   ];
   g.add(mesh(lathe(fProf, { segments: 160 }), M.whiteFresh, { name: 'fairing' }));
   // Split line between the halves.
