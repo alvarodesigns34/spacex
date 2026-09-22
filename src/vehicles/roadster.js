@@ -1072,39 +1072,43 @@ function buildBodyShell(mats, M) {
     name: 'rear-subframe-crossmember',
   }));
 
-  // Front cooling mouth. The old splitter and grille were authored against the previous nose
-  // and, once the bumper stopped tapering to a point, hung in front of it as a black frame.
-  // Rebuilt as a real opening in the fascia: a dark plenum behind a body-colour lip, with the
-  // radiator matrix visible through it.
-  // The cooling mouth, and the black lower fascia it is cut into.
+  // Front cooling intake.
   //
-  // Three attempts to cut it out of the painted panel failed for the same reason: a section
-  // sweep carries one surface point per (z, t) and its sections run sill to sill over the top,
-  // so a wide horizontal slot is not a constant-z path on it and the hole always came out
-  // narrower than its own rim. The answer is to stop working in (z, t). The lower fascia is
-  // authored in the FRONT ELEVATION — a grid in (x, y), each vertex dropped onto the bodywork
-  // with fasciaZ() and lifted 4 mm proud of the paint — and the slot is simply the cells of
-  // that grid which fall inside the outline. In elevation a horizontal slot is a rectangle,
-  // which is the whole point.
+  // What the 2008 car has there, from the front three-quarter photograph on Wikimedia Commons
+  // ("2008 Tesla Roadster front.jpg"): a wide, low intake of black mesh across the bottom of
+  // the nose, in body-coloured bumper, with no separate black moulding round it. The model had
+  // a black band with a slot cut out of it, and both halves of that were visible defects:
+  //
+  //  · the slot was cut by DROPPING GRID CELLS whose centre fell inside a superellipse, so its
+  //    edge was a staircase of 20 mm steps however fine the grid, in every front view;
+  //  · the painted body was cut away only under the band, not under the slot's plenum, so
+  //    the nose's own end cap showed through the opening as a wavy red strip.
+  //
+  // The band IS the intake now. It is authored in the front elevation as before — a grid in
+  // (x, y) dropped onto the bodywork with fasciaZ() and lifted 4 mm proud of it — but nothing is
+  // removed from it, so its outline is the band's own smooth taper, and the paint underneath is
+  // already cut away (underFascia), so nothing can show through. A body-colour lip runs round
+  // the whole outline, following the band's real edge rather than a constant height.
   {
-    const yM = MOUTH.y, wM = MOUTH.w, hM = MOUTH.h;
-    const X = FASCIA.x;
-    const NX = 60, NY = 12;
-    // The panel is not a rectangle: it narrows toward the corners, following the fascia, so it
-    // reads as a moulding rather than a sticker. Shared with the cut above so the two agree.
-    const band = (u) => fasciaBand(FASCIA, u);
-    const inMouth = (x, y) => Math.pow(Math.abs(x) / wM, 1 / 0.46) + Math.pow(Math.abs(y - yM) / hM, 1 / 0.55) < 1;
+    // The panel OVERLAPS the cut in the paint, the way a moulding covers the edge of the hole
+    // it is fitted into. The paint is cut away under the band cell by cell (underFascia), so
+    // the edge of that cut is a staircase; a panel exactly the size of the band left the steps
+    // showing as dark notches along its top edge where the cut ran past it. Grown by 1.5–2 cm
+    // all round, it sits 4 mm proud over the ragged edge and hides it.
+    const X = FASCIA.x * 1.025;
+    const NX = 72, NY = 12;
+    const band = (u) => {
+      const [ya, yb] = fasciaBand(FASCIA, u);
+      return [ya - 0.014, yb + 0.018];
+    };
+    const zOn = (x, y) => fasciaZ(x, y, { from: 1.972, to: FASCIA.zMin, step: -0.002 });
 
-    // Elevation grid, projected onto the nose.
     const zAt = [];
     for (let i = 0; i <= NX; i++) {
       zAt[i] = [];
       const u = (i / NX) * 2 - 1, x = u * X;
       const [ya, yb] = band(u);
-      for (let j = 0; j <= NY; j++) {
-        const y = ya + (yb - ya) * (j / NY);
-        zAt[i][j] = fasciaZ(x, y, { from: 1.972, to: MOUTH.zMin, step: -0.002 });
-      }
+      for (let j = 0; j <= NY; j++) zAt[i][j] = zOn(x, ya + (yb - ya) * (j / NY));
     }
     // Fill any gap from its neighbours so the panel never tears.
     for (let i = 0; i <= NX; i++) {
@@ -1115,83 +1119,44 @@ function buildBodyShell(mats, M) {
           const v = zAt[i + di]?.[j + dj];
           if (v != null) { sum += v; n++; }
         }
-        zAt[i][j] = n ? sum / n : MOUTH.zMin;
+        zAt[i][j] = n ? sum / n : FASCIA.zMin;
       }
     }
-
     const pos = [], idx = [];
     for (let i = 0; i <= NX; i++) {
       const u = (i / NX) * 2 - 1, x = u * X;
       const [ya, yb] = band(u);
-      for (let j = 0; j <= NY; j++) {
-        pos.push(x, ya + (yb - ya) * (j / NY), zAt[i][j] + 0.004);
-      }
+      for (let j = 0; j <= NY; j++) pos.push(x, ya + (yb - ya) * (j / NY), zAt[i][j] + 0.004);
     }
     for (let i = 0; i < NX; i++) {
-      const uc = ((i + 0.5) / NX) * 2 - 1;
-      const [ya, yb] = band(uc);
       for (let j = 0; j < NY; j++) {
-        const xc = uc * X;
-        const yc = ya + (yb - ya) * ((j + 0.5) / NY);
-        if (inMouth(xc, yc)) continue;
         const a = i * (NY + 1) + j, b = (i + 1) * (NY + 1) + j;
         const c = (i + 1) * (NY + 1) + j + 1, d = i * (NY + 1) + j + 1;
         idx.push(a, b, d, b, c, d);
       }
     }
-    const valance = new THREE.BufferGeometry();
-    valance.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    valance.setIndex(idx);
-    valance.computeVertexNormals();
-    boxUV(valance);
-    g.add(mesh(valance, mats.lowerFascia, { name: 'front-lower-fascia' }));
+    const intake = new THREE.BufferGeometry();
+    intake.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    intake.setIndex(idx);
+    intake.computeVertexNormals();
+    boxUV(intake);
+    g.add(mesh(intake, mats.grilleMesh, { name: 'front-lower-fascia', castShadow: false }));
 
-    // The plenum behind the slot, and what is in it.
-    const N = 56, outline = [], inner = [];
-    for (let i = 0; i < N; i++) {
-      const ang = (i / N) * Math.PI * 2, c = Math.cos(ang), sn = Math.sin(ang);
-      const x = Math.sign(c) * Math.pow(Math.abs(c), 0.46) * wM;
-      const y = yM + Math.sign(sn) * Math.pow(Math.abs(sn), 0.55) * hM;
-      const z = (fasciaZ(x, y, { from: 1.972, to: MOUTH.zMin, step: -0.002 }) ?? 1.90) + 0.004;
-      outline.push([x, y, z]);
-      inner.push([x * 0.90, yM + (y - yM) * 0.80, z - 0.085]);
-    }
-    const wpos = [], widx = [];
-    for (const p of outline) wpos.push(...p);
-    for (const p of inner) wpos.push(...p);
-    for (let i = 0; i < N; i++) {
-      const j = (i + 1) % N;
-      widx.push(i, N + i, j, N + i, N + j, j, j, N + i, i, j, N + j, N + i);
-    }
-    // Back plate. Without it the slot looks straight back at the painted fascia behind.
-    const back = wpos.length / 3;
-    wpos.push(0, yM, inner.reduce((m, o) => Math.min(m, o[2]), Infinity) - 0.004);
-    for (let i = 0; i < N; i++) widx.push(N + i, N + (i + 1) % N, back);
-    const wall = new THREE.BufferGeometry();
-    wall.setAttribute('position', new THREE.Float32BufferAttribute(wpos, 3));
-    wall.setIndex(widx);
-    wall.computeVertexNormals();
-    boxUV(wall);
-    g.add(mesh(wall, mats.lampHousing, { name: 'front-mouth-plenum' }));
-
-    // Radiator mesh, set well back in the plenum. Kept small and dark: anything bright at the
-    // back of the slot reads as a gap in the bodywork rather than as a radiator in shadow.
-    const zc = inner.reduce((m, o) => Math.min(m, o[2]), Infinity);
-    g.add(mesh(new THREE.BoxGeometry(wM * 1.30, hM * 1.10, 0.008), mats.grilleMesh, {
-      position: [0, yM, zc + 0.012], name: 'front-grille',
-    }));
-
-    // The crease that runs across the nose above the mouth. Without it the fascia is one
-    // smooth bulge and the front reads as a snout.
-    const brow = [];
-    for (let i = 0; i <= 30; i++) {
-      const x = ((i / 30) * 2 - 1) * 0.430;
-      const z = fasciaZ(x, 0.470, { from: 1.972, to: MOUTH.zMin, step: -0.002 });
-      if (z !== null) brow.push([x, 0.470, z - 0.001]);
-    }
-    if (brow.length > 4) {
-      g.add(mesh(tube(brow, 0.0070, { tubular: brow.length + 2, radial: 8 }), mats.cherryRed, { name: 'nose-crease' }));
-    }
+    // The lip: one closed loop round the band's actual outline, top edge, right end, bottom
+    // edge, left end — the rim that makes a dark panel read as an opening in the bumper.
+    const loop = [];
+    const edgePt = (u, top) => {
+      const x = u * X;
+      const [ya, yb] = band(u);
+      const y = top ? yb : ya;
+      const z = zOn(x, y) ?? zAt[Math.round((u + 1) / 2 * NX)][top ? NY : 0];
+      return [x, y, z + 0.006];
+    };
+    const K = 44;
+    for (let k = 0; k <= K; k++) loop.push(edgePt(-0.985 + (k / K) * 1.97, true));
+    for (let k = 0; k <= K; k++) loop.push(edgePt(0.985 - (k / K) * 1.97, false));
+    g.add(mesh(tube(loop, 0.0065, { tubular: loop.length * 2, radial: 8, closed: true }), mats.cherryRed,
+      { name: 'nose-crease', castShadow: false }));
   }
 
   // Nose emblem. Replaces the chrome cylinder that stood in for it: a thin disc bedded into
@@ -1289,28 +1254,40 @@ function buildBodyShell(mats, M) {
     // once the flank moved. Overall width with mirrors is the declared 1,873 m.
     const mt = side < 0 ? T_SHOULDER_L - 0.024 : T_SHOULDER_R + 0.024;
     const root = bodyPoint(0.325, mt);
-    const armX = side * (ROADSTER_SPECS.widthMirrors / 2 - 0.048);
+    // Housing: a rounded pod about 15 cm across, 8 cm tall and 9 cm deep, as the front
+    // three-quarter photograph shows it at the foot of the A-pillar — not the 6 cm ball it was,
+    // which read as a red bead on a wire. Its outer face stops at the declared 1.873 m across
+    // the mirrors, so it stands only a centimetre past the bodywork, as on the car.
+    const POD_W = 0.150, POD_R = 0.042;
+    const cx = side * (ROADSTER_SPECS.widthMirrors / 2 - POD_W / 2);
+    const cy = root.y + 0.058, cz = root.z - 0.012;
+    const inboard = cx - side * (POD_W / 2 - 0.012);
     const mirrorStem = tube([
       [root.x, root.y, root.z],
-      [root.x + (armX - root.x) * 0.55, root.y + 0.016, root.z + 0.006],
-      [armX, root.y + 0.022, root.z + 0.010],
-    ], 0.012, { tubular: 16, radial: 8 });
+      [root.x + (inboard - root.x) * 0.5, root.y + 0.030, root.z - 0.004],
+      [inboard, cy - 0.010, cz],
+    ], 0.011, { tubular: 16, radial: 8 });
     g.add(mesh(mirrorStem, mats.satinBlack));
 
     const mirrorHousing = new THREE.Group();
     mirrorHousing.name = `mirror-${side < 0 ? 'left' : 'right'}`;
-    mirrorHousing.position.set(armX, root.y + 0.024, root.z + 0.010);
-    mirrorHousing.rotation.set(-0.10, side * 0.20, -0.05);
+    mirrorHousing.position.set(cx, cy, cz);
+    // Toed in a few degrees, so the glass looks back along the flank at the driver.
+    mirrorHousing.rotation.set(0, side * 0.14, 0);
 
-    const mBody = new THREE.SphereGeometry(0.052, 20, 14);
-    mBody.scale(1.18, 0.72, 0.82);
+    const mBody = new THREE.CapsuleGeometry(POD_R, POD_W - 2 * POD_R, 6, 18);
+    mBody.rotateZ(Math.PI / 2);                    // long axis across the car
+    mBody.scale(1, 0.92, 1.05);
     mirrorHousing.add(mesh(mBody, mats.cherryRed));
-    mirrorHousing.add(mesh(new THREE.TorusGeometry(0.043, 0.0045, 8, 22), mats.satinBlack, {
-      position: [side * -0.026, 0, 0], rotation: [0, Math.PI / 2, 0],
-    }));
-    const mGlass = new THREE.PlaneGeometry(0.086, 0.058);
-    mGlass.rotateY(side > 0 ? -Math.PI / 2 : Math.PI / 2);
-    mirrorHousing.add(mesh(mGlass, mats.chromeTrim, { position: [side * -0.028, 0, 0] }));
+    // The glass faces REARWARD. It was rotated to face sideways into the cockpit — a mirror
+    // looking at the passenger — which is the one orientation a door mirror never has.
+    const mGlass = new THREE.CircleGeometry(1, 28);
+    mGlass.scale((POD_W - 0.022) / 2, POD_R * 0.80, 1);
+    mGlass.rotateY(Math.PI);
+    mirrorHousing.add(mesh(mGlass, mats.chromeTrim, { position: [0, 0, -POD_R * 1.05 - 0.001] }));
+    const bezel = new THREE.TorusGeometry(1, 0.06, 6, 28);
+    bezel.scale((POD_W - 0.018) / 2, POD_R * 0.86, 1);
+    mirrorHousing.add(mesh(bezel, mats.satinBlack, { position: [0, 0, -POD_R * 1.04] }));
     g.add(mirrorHousing);
 
     const ph = bodyPoint(-0.10, side < 0 ? T_SHOULDER_L + 0.055 : T_SHOULDER_R - 0.055);
