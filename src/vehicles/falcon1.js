@@ -211,6 +211,45 @@ export function buildFalcon1(M) {
     });
   }
   interior.add(mesh(mergeAll(longerons), A.metal, { name: 'falcon1-upper-longerons' }));
+  // Frames, straps and a manifold so the tanks are built into the retained
+  // half. The cut face stays open; the hardware crosses from skin to tank.
+  {
+    const installed = [];
+    for (let k = 0; k < 5; k++) {
+      const y = S2_BASE + 0.28 + k * ((FAIRING_BASE - S2_BASE - 0.7) / 4);
+      installed.push({
+        geometry: new THREE.TorusGeometry(R - 0.05, 0.016, 5, 28, Math.PI),
+        matrix: mat4([0, y, 0], [Math.PI / 2, 0, Math.PI * 0.75]),
+      });
+    }
+    const up = new THREE.Vector3(0, 1, 0);
+    for (const y of [S2_BASE + 0.55, S2_BASE + 2.15]) {
+      for (let i = 0; i < 5; i++) {
+        const a = Math.PI * 0.9 + (i / 4) * Math.PI * 0.7;
+        const tankR = R - 0.16;
+        const skinR = R - 0.05;
+        const radial = new THREE.Vector3(Math.sin(a), 0, Math.cos(a));
+        const q = new THREE.Quaternion().setFromUnitVectors(up, radial);
+        installed.push({
+          geometry: new THREE.CylinderGeometry(0.012, 0.012, skinR - tankR, 6),
+          matrix: new THREE.Matrix4().compose(
+            new THREE.Vector3(Math.sin(a) * (tankR + skinR) / 2, y, Math.cos(a) * (tankR + skinR) / 2),
+            q, new THREE.Vector3(1, 1, 1),
+          ),
+        });
+      }
+    }
+    // Valve on the common bulkhead and a cable tray down the retained wall.
+    installed.push({
+      geometry: new THREE.CylinderGeometry(0.055, 0.055, 0.12, 12),
+      matrix: mat4([0.12, S2_BASE + 1.12, 0.08]),
+    });
+    installed.push({
+      geometry: new THREE.BoxGeometry(0.035, FAIRING_BASE - S2_BASE - 1.1, 0.028),
+      matrix: mat4([0, (S2_BASE + FAIRING_BASE) / 2 - 0.15, -(R - 0.07)]),
+    });
+    interior.add(mesh(mergeAll(installed), A.darkMetal, { name: 'falcon1-cutaway-install' }));
+  }
   for (let i = 0; i < 6; i++) {
     const a = Math.PI / 6 + i * Math.PI / 3;
     interior.add(strut([Math.sin(a) * .18, S1_TOP + 1.55, Math.cos(a) * .18],

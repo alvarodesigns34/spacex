@@ -5,6 +5,55 @@ import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { starShell } from './backdrop.js';
 import { mesh, mergeAll, mat4 } from '../geometry/utils.js';
+import { noise2 } from '../materials/textures.js';
+
+/** Disc in the XY plane (rotated flat later) with a large-scale coastal tint. */
+function coastalDisc(radius, rings, segs) {
+  const count = 1 + rings * (segs + 1);
+  const pos = new Float32Array(count * 3);
+  const uv = new Float32Array(count * 2);
+  const col = new Float32Array(count * 3);
+  const idx = [];
+  let k = 0;
+  const push = (x, y) => {
+    pos[k * 3] = x;
+    pos[k * 3 + 1] = y;
+    const broad = noise2(x / 110, y / 110);
+    const patch = noise2(x / 42 + 19, y / 42 - 7);
+    const salt = Math.max(0, broad - 0.46);
+    const damp = Math.max(0, 0.4 - patch);
+    const m = 1 + salt * 0.26 - damp * 0.2 + (noise2(x / 16 + 4, y / 16) - 0.5) * 0.05;
+    col[k * 3] = m * (1 + salt * 0.04);
+    col[k * 3 + 1] = m;
+    col[k * 3 + 2] = m * (1 - salt * 0.05);
+    uv[k * 2] = x;
+    uv[k * 2 + 1] = y;
+    return k++;
+  };
+  const center = push(0, 0);
+  let prev = null;
+  for (let j = 1; j <= rings; j++) {
+    const rad = radius * (j / rings) ** 1.4;
+    const row = [];
+    for (let i = 0; i <= segs; i++) {
+      const a = (i / segs) * Math.PI * 2;
+      row.push(push(Math.cos(a) * rad, Math.sin(a) * rad));
+    }
+    if (j === 1) {
+      for (let i = 0; i < segs; i++) idx.push(center, row[i], row[i + 1]);
+    } else {
+      for (let i = 0; i < segs; i++) idx.push(prev[i], row[i], row[i + 1], prev[i], row[i + 1], prev[i + 1]);
+    }
+    prev = row;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
 
 /** Radius of the apron disc at ground level, before the ascent stretches it. */
 const GROUND_R = 2500;
@@ -73,12 +122,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   // read as featureless grey in every wide shot. Rewriting the UVs in metres puts the texture
   // back on its intended scale; the disc is rotated flat afterwards, so x/y of the flat
   // geometry are the ground plane.
-  const groundGeo = new THREE.CircleGeometry(GROUND_R, 128);
-  {
-    const gp = groundGeo.attributes.position, guv = groundGeo.attributes.uv;
-    for (let i = 0; i < gp.count; i++) guv.setXY(i, gp.getX(i), gp.getY(i));
-    guv.needsUpdate = true;
-  }
+  const groundGeo = coastalDisc(GROUND_R, 28, 72);
   const ground = new THREE.Mesh(groundGeo, M.terrain || M.concrete);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;

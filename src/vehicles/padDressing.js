@@ -24,8 +24,19 @@ export function dressPad(parent, M, padY) {
     const y = 0.4 + i * 0.72;
     steel.push({ geometry: box(1.1, 0.08, 0.32), matrix: mat4([68, y, 8 + i * 0.28]) });
     steel.push({ geometry: box(0.05, 0.9, 0.05), matrix: mat4([68.5, y + 0.45, 8 + i * 0.28]) });
+    steel.push({ geometry: box(0.04, 0.04, 0.36), matrix: mat4([68.5, y + 0.92, 8 + i * 0.28]) });
   }
+  // Bollards and a drain slot along the east deck edge. Same steel mesh.
+  for (let i = 0; i < 7; i++) {
+    steel.push({ geometry: new THREE.CylinderGeometry(0.07, 0.08, 0.72, 8), matrix: mat4([24 + i * 5.2, padY + 0.36, 38]) });
+  }
+  steel.push({ geometry: box(9.5, 0.06, 0.18), matrix: mat4([42, padY + 0.04, -30]) });
 
+  // Header the two valve sets tie into. Reconstructed routing, not a surveyed line.
+  valves.push({
+    geometry: new THREE.CylinderGeometry(0.1, 0.1, 44, 12),
+    matrix: mat4([34, padY + 1.15, 0], [Math.PI / 2, 0, 0]),
+  });
   for (const z of [-22, 22]) {
     valves.push({
       geometry: new THREE.CylinderGeometry(0.16, 0.16, 0.26, 14),

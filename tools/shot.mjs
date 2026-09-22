@@ -130,7 +130,7 @@ for (const s of shots) {
       const mission = document.getElementById('mission');
       if (mission && !mission.classList.contains('hidden')) {
         const clock = (document.getElementById('mission-clock')?.textContent || '').trim();
-        if (!/^T[−-]?\d/.test(clock)) throw new Error(`mission clock incomplete: ${clock}`);
+        if (!/^T[+\u2212-]?\d/.test(clock)) throw new Error(`mission clock incomplete: ${clock}`);
       }
     }
   });

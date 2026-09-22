@@ -2525,6 +2525,29 @@ function limbChain(joints, radii, material, name) {
   return mesh(mergeAll(parts), material, { name });
 }
 
+function gloveFingers(origin, dir, material, name) {
+  const o = new THREE.Vector3(...origin);
+  const d = new THREE.Vector3(...dir);
+  if (d.lengthSq() < 1e-8) d.set(0, 0, 1);
+  d.normalize();
+  const side = Math.abs(d.y) > 0.9
+    ? new THREE.Vector3(1, 0, 0)
+    : new THREE.Vector3(-d.z, 0, d.x).normalize();
+  const up = new THREE.Vector3().crossVectors(side, d).normalize();
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d);
+  const parts = [];
+  for (let i = 0; i < 4; i++) {
+    const spread = (i - 1.5) * 0.014;
+    const len = i === 0 ? 0.042 : 0.055;
+    const root = o.clone().addScaledVector(side, spread).addScaledVector(up, i === 3 ? -0.01 : 0.004);
+    parts.push({
+      geometry: new THREE.CylinderGeometry(0.007, 0.009, len, 6),
+      matrix: new THREE.Matrix4().compose(root.clone().addScaledVector(d, len * 0.5), q, new THREE.Vector3(1, 1, 1)),
+    });
+  }
+  return mesh(mergeAll(parts), material, { name });
+}
+
 function buildStarman(mats) {
   const g = new THREE.Group();
   g.name = 'starman';
@@ -2575,6 +2598,7 @@ function buildStarman(mats) {
     [[armX, 0.745, sillFwd.z - 0.10], [armX + 0.006, 0.727, sillFwd.z + 0.02]],
     [0.043, 0.038], starmanSuitGraphite, 'left-glove',
   ));
+  g.add(gloveFingers([armX + 0.006, 0.727, sillFwd.z + 0.02], [0.01, -0.15, 1], starmanSuitGraphite, 'left-fingers'));
 
   g.add(limbChain(
     [[X + 0.155, 0.735, -0.395], [X + 0.155, 0.585, -0.185], [X + 0.028, 0.700, 0.100]],
@@ -2584,6 +2608,14 @@ function buildStarman(mats) {
     [[X + 0.028, 0.700, 0.100], [X - 0.010, 0.716, 0.146]],
     [0.042, 0.036], starmanSuitGraphite, 'right-glove',
   ));
+  g.add(gloveFingers([X - 0.010, 0.716, 0.146], [-0.15, 0.05, 0.85], starmanSuitGraphite, 'right-fingers'));
+  // Shoulder and lap belts. They leave the yoke and meet the seat, so the
+  // torso is buckled in rather than posed above it.
+  g.add(mesh(mergeAll([
+    { geometry: tube([[X - 0.10, 0.78, -0.34], [X - 0.04, 0.58, -0.22], [X + 0.02, 0.44, -0.26]], 0.011, { tubular: 10, radial: 5 }) },
+    { geometry: tube([[X + 0.10, 0.78, -0.36], [X + 0.02, 0.56, -0.24], [X - 0.02, 0.43, -0.28]], 0.011, { tubular: 10, radial: 5 }) },
+    { geometry: tube([[X - 0.12, 0.46, -0.22], [X, 0.42, -0.16], [X + 0.12, 0.46, -0.22]], 0.012, { tubular: 8, radial: 5 }) },
+  ]), blackTrim, { name: 'seat-belts' }));
 
   // Legs, folded into the footwell toward the pedals.
   for (const s of [-1, 1]) {

@@ -109,6 +109,10 @@ export function dressCampus(scene, M) {
     [-90, 120, 20, 1.0],
     [130, -90, 15, 1.2],
     [-170, -80, 13, 0.8],
+    [250, -40, 22, 0.7],
+    [-240, 20, 17, 1.1],
+    [80, 160, 19, 0.85],
+    [-40, -140, 12, 1.4],
   ].filter(([x, z]) => Math.hypot(x, z + 185) >= 140);
   const dunes = new THREE.InstancedMesh(duneGeo, M.berm, duneSpec.length);
   dunes.name = 'campus-berms';
@@ -134,7 +138,7 @@ export function dressCampus(scene, M) {
   }
   const scrubGeo = mergeGeometries(blades, false);
   const spots = [];
-  const scrubCount = 28;
+  const scrubCount = 72;
   let seed = 17;
   let guard = 0;
   const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed & 0x7fffffff) / 2147483647; };
@@ -153,9 +157,9 @@ export function dressCampus(scene, M) {
   scrub.receiveShadow = true;
   const dummy = new THREE.Object3D();
   for (let i = 0; i < spots.length; i += 3) {
-    const s = 0.7 + spots[i + 2] * 0.8;
+    const s = 0.4 + spots[i + 2] * 1.8;
     dummy.position.set(spots[i], 0, spots[i + 1]);
-    dummy.scale.set(s, 0.6 + spots[i + 2] * 0.7, s);
+    dummy.scale.set(s * (0.7 + spots[i + 2] * 0.6), 0.45 + spots[i + 2] * 1.35, s);
     dummy.rotation.y = spots[i + 2] * 6;
     dummy.updateMatrix();
     scrub.setMatrixAt(i / 3, dummy.matrix);

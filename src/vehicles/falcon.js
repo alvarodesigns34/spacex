@@ -245,6 +245,12 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
     ...ogiveProfile(FAIRING_R, TOTAL_H - ogiveStart, ogiveStart, 48, 0.55).slice(1),
   ];
   g.add(mesh(lathe(fProf, { segments: 160 }), M.whiteFresh, { name: 'fairing' }));
+  // Two frame stations on the cylindrical skirt, so the fairing is a shell with
+  // structure rather than one unbroken ogive. Approximate, from imagery.
+  g.add(mesh(mergeAll([
+    { geometry: new THREE.TorusGeometry(FAIRING_R + 0.008, 0.014, 5, 64), matrix: mat4([0, FAIRING_BASE + 2.2, 0], [Math.PI / 2, 0, 0]) },
+    { geometry: new THREE.TorusGeometry(FAIRING_R + 0.008, 0.014, 5, 64), matrix: mat4([0, ogiveStart - 0.35, 0], [Math.PI / 2, 0, 0]) },
+  ]), M.alumDark, { name: 'fairing-frames', castShadow: false }));
   // Split line between the halves.
   for (const phi of [Math.PI / 2, -Math.PI / 2]) {
     g.add(mesh(lathe(fProf.map(p => ({ r: p.r + 0.014, y: p.y })), { segments: 2, phiStart: phi - 0.005, phiLength: 0.01 }), M.blackMatte, { castShadow: false }));
@@ -269,7 +275,7 @@ function markFalconDetail(g) {
     'octaweb-wall': 0.12, 'octaweb-structure': 0.06, 'base-bottles': 0.22,
     'leg-latches': 0.04, 'interstage-trim': 0.05, 'sep-flange': 0.1,
     'stage-separation-pushers': 0.16, 'stage-separation-latches': 0.18,
-    'fh-pusher-detail': 0.08,
+    'fh-pusher-detail': 0.08, 'fairing-frames': 0.03,
   };
   g.traverse((o) => { const f = FINE[o.name]; if (f) o.userData.lodFeature = f; });
 }
@@ -345,11 +351,23 @@ export function buildFalconHeavy(M) {
       }
     }
   }
+  // Housings across the gap, kept off the rod mesh so the eight pneumatic
+  // paths stay eight components. Reconstructed; the count of rods is published.
+  const saddles = [];
+  for (const s of [-1, 1]) {
+    for (const y of [TANK_TOP - 0.45, 2.6]) {
+      saddles.push({
+        geometry: new THREE.BoxGeometry(0.9, 0.36, 1.35),
+        matrix: mat4([s * spacing / 2, y, 0]),
+      });
+    }
+  }
   // boxUV, like every other merged structural run in the project: merging keeps each
   // cylinder's own 0..1 UVs, so the grey-metal map — authored for a one-metre tile — was being
   // stretched over a four-metre strut. Planar metric UVs put it back on its own scale.
   g.add(mesh(boxUV(mergeAll(struts)), M.darkMetal, { name: 'fh-attach-struts' }));
   g.add(mesh(boxUV(mergeAll(detail)), M.alumDark, { name: 'fh-pusher-detail' }));
+  g.add(mesh(boxUV(mergeAll(saddles)), M.darkMetal, { name: 'fh-attach-housings', castShadow: false }));
   g.userData.attachments = { reconstructedGeometry: true, interfaces };
   markFalconDetail(g);
 

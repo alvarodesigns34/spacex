@@ -147,6 +147,11 @@ export function buildStarlink(M) {
     // an accordion array is that you can see it is an accordion.
     const GAP = 0.13;
     const hinges = [], backs = [];
+    // Root pin where the accordion leaves the bus. Reconstructed mechanism.
+    hinges.push({
+      geometry: new THREE.CylinderGeometry(0.07, 0.07, 0.62, 10),
+      matrix: mat4([s * 0.48, 0, 0], [Math.PI / 2, 0, 0]),
+    });
     for (let i = 0; i < panels; i++) {
       const x = s * (0.55 + segL * (i + 0.5));
       wing.add(mesh(new THREE.BoxGeometry(segL - GAP, 0.028, WING_W - 0.06), M.solarStarlink, { position: [x, 0, 0], name: 'wing-panel' }));

@@ -131,6 +131,7 @@ export function createMaterials(onProgress = () => {}) {
   M.terrain = new THREE.MeshStandardMaterial({
     map: T.terrain.map, roughnessMap: T.terrain.roughnessMap, normalMap: T.terrain.normalMap,
     normalScale: new THREE.Vector2(0.9, 0.9), metalness: 0.0, roughness: 0.96, envMapIntensity: 0.55,
+    vertexColors: true,
   });
   M.trenchArmor = new THREE.MeshStandardMaterial({
     map: T.trenchArmor.map, roughnessMap: T.trenchArmor.roughnessMap, normalMap: T.trenchArmor.normalMap,

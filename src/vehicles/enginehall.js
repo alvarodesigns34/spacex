@@ -182,7 +182,11 @@ export function buildEngineHall(M) {
     root.add(g);
   }
 
-  root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    o.receiveShadow = true;
+    o.castShadow = !String(o.name).endsWith('-bell-inner');
+  });
 
   root.userData.height = raptorVacGeometry().height + CRADLE_Y;
   root.userData.annotations = [

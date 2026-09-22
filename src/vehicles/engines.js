@@ -26,21 +26,17 @@ export function raptorGeometry({ exitRadius = 0.62, height = 2.9, gimbal = true 
   const inner = lathe(innerP, { segments: 64, flip: true, uvMode: 'normalized' });
 
   const parts = [];
-  // Powerhead block (turbopumps + preburners are enclosed in Raptor 3).
-  parts.push({ geometry: new THREE.CylinderGeometry(0.42, 0.36, 0.55, 40), matrix: mat4([0, 2.45, 0]) });
-  parts.push({ geometry: new THREE.CylinderGeometry(0.30, 0.42, 0.14, 40), matrix: mat4([0, 2.11, 0]) });
-  // Gimbal/thrust mount.
-  parts.push({ geometry: new THREE.CylinderGeometry(0.22, 0.28, 0.22, 24), matrix: mat4([0, height - 0.11, 0]) });
-  // Twin turbopump housings and a methane inlet elbow.
-  parts.push({ geometry: new THREE.CylinderGeometry(0.16, 0.16, 0.5, 20), matrix: mat4([0.38, 2.35, 0.1], [0, 0, 0]) });
-  parts.push({ geometry: new THREE.CylinderGeometry(0.13, 0.13, 0.45, 20), matrix: mat4([-0.3, 2.3, 0.28]) });
-  parts.push({ geometry: new THREE.TorusGeometry(0.34, 0.045, 10, 40), matrix: mat4([0, 1.78, 0], [Math.PI / 2, 0, 0]) });
-  parts.push({ geometry: new THREE.TorusGeometry(0.33, 0.035, 10, 40), matrix: mat4([0, 2.02, 0], [Math.PI / 2, 0, 0]) });
-  // Feed lines from the head down to the manifold.
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2 + 0.4;
-    parts.push({ geometry: new THREE.CylinderGeometry(0.04, 0.04, 0.5, 8), matrix: mat4([Math.cos(a) * 0.36, 2.05, Math.sin(a) * 0.36]) });
-  }
+  // Raptor 3 encloses the pumps. The readable shape is a faceted powerpack with
+  // two preburner domes on the shoulders and a methane inlet, not a Merlin's
+  // exposed gas generator. Housing layout is reconstructed from photographs.
+  parts.push({ geometry: new THREE.CylinderGeometry(0.46, 0.40, 0.62, 8), matrix: mat4([0, 2.42, 0]) });
+  parts.push({ geometry: new THREE.CylinderGeometry(0.34, 0.46, 0.12, 8), matrix: mat4([0, 2.08, 0]) });
+  parts.push({ geometry: new THREE.CylinderGeometry(0.22, 0.28, 0.22, 16), matrix: mat4([0, height - 0.11, 0]) });
+  parts.push({ geometry: new THREE.SphereGeometry(0.16, 12, 10), matrix: mat4([0.30, 2.70, 0.10]) });
+  parts.push({ geometry: new THREE.SphereGeometry(0.13, 12, 8), matrix: mat4([-0.28, 2.66, -0.12]) });
+  parts.push({ geometry: new THREE.CylinderGeometry(0.07, 0.07, 0.26, 10), matrix: mat4([0.06, 2.64, 0.34], [0.95, 0, 0.15]) });
+  parts.push({ geometry: new THREE.TorusGeometry(0.36, 0.04, 8, 28), matrix: mat4([0, 1.82, 0], [Math.PI / 2, 0, 0]) });
+  parts.push({ geometry: new THREE.CylinderGeometry(0.50, 0.36, 0.07, 16), matrix: mat4([0, 2.16, 0]) });
   // Gimbal actuators. Raptor 3 steers the inner engines; the hardware is enclosed,
   // so these are the two rods and clevises that photographs actually show, not a
   // guessed turbopump cutaway.
@@ -54,12 +50,6 @@ export function raptorGeometry({ exitRadius = 0.62, height = 2.9, gimbal = true 
       matrix: mat4([Math.cos(ang) * 0.4, 2.08, Math.sin(ang) * 0.4], [0, -ang, 0]),
     });
   }
-  // Boot heat shield at the top of the regen bell, and the two preburner cans
-  // tucked against the powerpack. Raptor 3 encloses the pumps; these are the
-  // lumps photographs show, not an open Merlin-style gas generator.
-  parts.push({ geometry: new THREE.CylinderGeometry(0.48, 0.34, 0.08, 28), matrix: mat4([0, 2.18, 0]) });
-  parts.push({ geometry: new THREE.CylinderGeometry(0.09, 0.09, 0.22, 12), matrix: mat4([0.22, 2.55, 0.18], [0.4, 0, 0.2]) });
-  parts.push({ geometry: new THREE.CylinderGeometry(0.08, 0.08, 0.2, 12), matrix: mat4([-0.18, 2.52, -0.16], [0.3, 0, -0.4]) });
   const head = mergeAll(parts);
   return { outer, inner, head, height, profile: bell };
 }
@@ -73,10 +63,13 @@ export function raptorVacGeometry({ exitRadius = 1.15, height = 4.4 } = {}) {
   const outer = lathe(bell, { segments: 80, uvMode: 'normalized' });
   const inner = lathe(bell.map(p => ({ r: Math.max(p.r - 0.02, 0.19), y: p.y })), { segments: 80, flip: true, uvMode: 'normalized' });
   const parts = [];
-  parts.push({ geometry: new THREE.CylinderGeometry(0.42, 0.36, 0.45, 40), matrix: mat4([0, 4.12, 0]) });
-  parts.push({ geometry: new THREE.CylinderGeometry(0.22, 0.28, 0.16, 24), matrix: mat4([0, height - 0.08, 0]) });
-  parts.push({ geometry: new THREE.CylinderGeometry(0.15, 0.15, 0.45, 20), matrix: mat4([0.36, 4.05, 0.12]) });
-  parts.push({ geometry: new THREE.TorusGeometry(0.34, 0.045, 10, 40), matrix: mat4([0, 3.66, 0], [Math.PI / 2, 0, 0]) });
+  // Same enclosed full-flow pack as the sea-level engine, sat on a much longer bell.
+  parts.push({ geometry: new THREE.CylinderGeometry(0.44, 0.38, 0.48, 8), matrix: mat4([0, 4.14, 0]) });
+  parts.push({ geometry: new THREE.CylinderGeometry(0.22, 0.28, 0.16, 16), matrix: mat4([0, height - 0.08, 0]) });
+  // Domes stay inside the published 4.4 m height. The previous station stuck out.
+  parts.push({ geometry: new THREE.SphereGeometry(0.12, 12, 10), matrix: mat4([0.26, 4.18, 0.08]) });
+  parts.push({ geometry: new THREE.SphereGeometry(0.10, 10, 8), matrix: mat4([-0.22, 4.16, -0.10]) });
+  parts.push({ geometry: new THREE.TorusGeometry(0.34, 0.045, 8, 32), matrix: mat4([0, 3.66, 0], [Math.PI / 2, 0, 0]) });
   // Joint between the regen chamber and the radiatively cooled extension.
   parts.push({ geometry: new THREE.TorusGeometry(0.36, 0.03, 8, 48), matrix: mat4([0, 3.52, 0], [Math.PI / 2, 0, 0]) });
   // Stiffening rings on the radiatively cooled nozzle extension.
@@ -102,13 +95,16 @@ export function merlinGeometry({ exitRadius = 0.46, height = 2.3 } = {}) {
   // strapped together with braided lines. Nine of these sit in a bay the "Octaweb" preset
   // looks straight into from two metres, where a plain cylinder is obvious.
   const parts = [];
-  parts.push({ geometry: new THREE.CylinderGeometry(0.27, 0.24, 0.4, 32), matrix: mat4([0, 2.0, 0]) });
-  parts.push({ geometry: new THREE.CylinderGeometry(0.14, 0.18, 0.15, 20), matrix: mat4([0, height - 0.07, 0]) });
-  parts.push({ geometry: new THREE.CylinderGeometry(0.11, 0.11, 0.42, 16), matrix: mat4([0.26, 1.95, 0.05]) }); // turbopump
-  parts.push({ geometry: new THREE.CylinderGeometry(0.13, 0.10, 0.16, 16), matrix: mat4([0.26, 2.2, 0.05]) });  // pump volute
-  parts.push({ geometry: new THREE.CylinderGeometry(0.07, 0.07, 0.3, 12), matrix: mat4([-0.2, 1.9, 0.2]) });   // gas generator
-  parts.push({ geometry: new THREE.TorusGeometry(0.22, 0.03, 8, 32), matrix: mat4([0, 1.68, 0], [Math.PI / 2, 0, 0]) });
-  parts.push({ geometry: new THREE.CylinderGeometry(0.04, 0.04, 0.9, 8), matrix: mat4([0.32, 1.35, -0.1], [0.25, 0, 0]) }); // turbine exhaust duct
+  parts.push({ geometry: new THREE.CylinderGeometry(0.24, 0.22, 0.36, 20), matrix: mat4([0, 2.0, 0]) });
+  parts.push({ geometry: new THREE.CylinderGeometry(0.14, 0.18, 0.15, 16), matrix: mat4([0, height - 0.07, 0]) });
+  // Open gas-generator cycle: the turbopump hangs off one side and the gas
+  // generator off the other, with the turbine exhaust duct outside the bell.
+  // That lopsided silhouette is the Merlin, against Raptor's enclosed pack.
+  parts.push({ geometry: new THREE.CylinderGeometry(0.13, 0.13, 0.48, 14), matrix: mat4([0.36, 1.88, 0.02]) });
+  parts.push({ geometry: new THREE.SphereGeometry(0.16, 12, 10), matrix: mat4([0.40, 2.16, 0.02]) });
+  parts.push({ geometry: new THREE.BoxGeometry(0.18, 0.32, 0.16), matrix: mat4([-0.30, 1.96, 0.14], [0.15, 0.3, 0.25]) });
+  parts.push({ geometry: new THREE.TorusGeometry(0.22, 0.03, 8, 24), matrix: mat4([0, 1.68, 0], [Math.PI / 2, 0, 0]) });
+  parts.push({ geometry: new THREE.CylinderGeometry(0.045, 0.05, 1.05, 8), matrix: mat4([0.42, 1.22, -0.08], [0.4, 0.2, 0.15]) });
   // Propellant inlets and the braided runs down to the injector manifold.
   for (const [ang, rad, len] of [[0.9, 0.05, 0.75], [2.5, 0.042, 0.68], [4.3, 0.038, 0.6], [5.6, 0.032, 0.52]]) {
     parts.push({
@@ -141,12 +137,13 @@ export function merlinVacGeometry({ exitRadius = 1.65, height = 4.0 } = {}) {
   const outer = lathe(bell, { segments: 64, uvMode: 'normalized' });
   const inner = lathe(bell.map(p => ({ r: Math.max(p.r - 0.015, 0.12), y: p.y })), { segments: 64, flip: true, uvMode: 'normalized' });
   const head = mergeAll([
-    { geometry: new THREE.CylinderGeometry(0.27, 0.24, 0.4, 32), matrix: mat4([0, 3.7, 0]) },
-    { geometry: new THREE.CylinderGeometry(0.14, 0.18, 0.15, 20), matrix: mat4([0, height - 0.07, 0]) },
-    { geometry: new THREE.CylinderGeometry(0.11, 0.11, 0.36, 16), matrix: mat4([0.24, 3.62, 0.06]) },
-    { geometry: new THREE.CylinderGeometry(0.06, 0.06, 0.28, 10), matrix: mat4([-0.18, 3.55, 0.16]) },
-    { geometry: new THREE.TorusGeometry(0.22, 0.03, 8, 32), matrix: mat4([0, 3.38, 0], [Math.PI / 2, 0, 0]) },
-    { geometry: new THREE.TorusGeometry(0.55, 0.02, 6, 48), matrix: mat4([0, 2.4, 0], [Math.PI / 2, 0, 0]) },
+    { geometry: new THREE.CylinderGeometry(0.24, 0.22, 0.36, 20), matrix: mat4([0, 3.7, 0]) },
+    { geometry: new THREE.CylinderGeometry(0.14, 0.18, 0.15, 16), matrix: mat4([0, height - 0.07, 0]) },
+    { geometry: new THREE.SphereGeometry(0.15, 12, 10), matrix: mat4([0.32, 3.78, 0.06]) },
+    { geometry: new THREE.BoxGeometry(0.14, 0.26, 0.14), matrix: mat4([-0.26, 3.62, 0.14], [0.2, 0, -0.3]) },
+    { geometry: new THREE.CylinderGeometry(0.04, 0.045, 0.7, 8), matrix: mat4([0.36, 3.15, -0.05], [0.5, 0, 0.2]) },
+    { geometry: new THREE.TorusGeometry(0.22, 0.03, 8, 24), matrix: mat4([0, 3.38, 0], [Math.PI / 2, 0, 0]) },
+    { geometry: new THREE.TorusGeometry(0.86, 0.028, 6, 40), matrix: mat4([0, 2.35, 0], [Math.PI / 2, 0, 0]) },
   ]);
   return { outer, inner, head, height };
 }
@@ -175,7 +172,12 @@ export function instanceEngines(geo, materials, transforms, { bellMaterial, head
     inner.setMatrixAt(i, dummy.matrix);
     head.setMatrixAt(i, dummy.matrix);
   });
-  for (const m of [outer, inner, head]) { m.castShadow = true; m.receiveShadow = true; m.instanceMatrix.needsUpdate = true; }
+  for (const m of [outer, inner, head]) { m.receiveShadow = true; m.instanceMatrix.needsUpdate = true; }
+  // The inner bell sits inside the outer one. Casting a shadow from it only
+  // adds a draw in the shadow map.
+  outer.castShadow = true;
+  inner.castShadow = false;
+  head.castShadow = true;
   group.add(outer, inner, head);
   return group;
 }

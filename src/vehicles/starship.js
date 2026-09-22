@@ -14,7 +14,7 @@
  */
 import * as THREE from 'three';
 import {
-  lathe, ogiveProfile, mesh, mergeAll, mat4, hexPrism, tileSurfaceOfRevolution, tilePolygon,
+  lathe, ogiveProfile, mesh, mergeAll, mat4, boxUV, hexPrism, tileSurfaceOfRevolution, tilePolygon,
   profileAt, seeded, plate, aeroPlate, spanTaper,
 } from '../geometry/utils.js';
 import { raptorGeometry, raptorVacGeometry, instanceEngines, ringLayout } from './engines.js';
@@ -313,6 +313,16 @@ export function buildSuperHeavy(M) {
     g.add(a);
   });
 
+  // Circumferential ring welds. The 1.83 m ring height is published; each joint is
+  // the line that stops a 72 m tank reading as one spun tube. One merged mesh.
+  {
+    const welds = [];
+    const band = new THREE.TorusGeometry(R + 0.01, 0.018, 5, 64);
+    for (let y = skirtTop; y <= ringTop + 1e-3; y += RING) {
+      welds.push({ geometry: band, matrix: mat4([0, y, 0], [Math.PI / 2, 0, 0]) });
+    }
+    g.add(mesh(boxUV(mergeAll(welds)), M.steelWarm, { name: 'booster-ring-welds', castShadow: false }));
+  }
   // Common-dome stiffener band (the visible weld band between the two tanks).
   g.add(mesh(new THREE.TorusGeometry(R + 0.025, 0.055, 6, 160), M.steelWarm, { position: [0, commonDome, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false }));
   // Hold-down / lift points at the base.
@@ -364,6 +374,11 @@ export function buildShip(M) {
 
   g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: skirtTop }], { segments: 160 }), M.steelSkirt, { name: 'skirt' }));
   g.add(mesh(lathe(profile.slice(1), { segments: 160 }), M.steel, { name: 'hull' }));
+  // Aft termination of the tile field: skirt steel, ablator edge, then the engine bay.
+  // The step is what separates those three at the distance of the engine preset.
+  g.add(mesh(new THREE.TorusGeometry(R + 0.018, 0.032, 6, 80), M.darkMetal, {
+    position: [0, skirtTop, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false, name: 'tps-termination',
+  }));
   g.add(mesh(lathe([{ r: R - 0.03, y: 0.1 }, { r: R - 0.03, y: 3.9 }], { segments: 96, flip: true }), M.steelInner, { castShadow: false }));
   g.add(mesh(new THREE.CylinderGeometry(R - 0.03, R - 0.03, 0.4, 96), M.darkMetal, { position: [0, 3.95, 0] }));
 
@@ -476,6 +491,21 @@ export function buildShip(M) {
     const hinge = mesh(new THREE.CapsuleGeometry(hr, Math.max(0.1, y1 - y0 - hr * 1.2), 6, 20), M.steelFlap);
     hinge.position.set(e1.x * (rootOffset - 0.12), yBase + (y0 + y1) / 2, e1.z * (rootOffset - 0.12));
     g.add(hinge);
+    // Clevis ears at the hinge ends. A bare capsule reads as a pipe laid on the hull;
+    // the plates are what say the flap is pinned to the barrel. Reconstructed.
+    const mid = (y0 + y1) / 2;
+    const ears = [];
+    for (const end of [y0 - mid + hr * 0.35, y1 - mid - hr * 0.35]) {
+      for (const s of [-1, 1]) {
+        ears.push({
+          geometry: new THREE.BoxGeometry(hr * 1.35, 0.07, hr * 0.42),
+          matrix: mat4([0, end, s * hr * 0.72]),
+        });
+      }
+    }
+    const earMesh = mesh(mergeAll(ears), M.darkMetal, { name: 'flap-hinge', castShadow: false });
+    earMesh.position.copy(hinge.position);
+    g.add(earMesh);
     return flap;
   };
 

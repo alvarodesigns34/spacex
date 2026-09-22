@@ -526,7 +526,11 @@ export function makeGroundTerrain({ size = 768, tile = 96.0 } = {}) {
     const salt = Math.max(0, dune - 0.42);
     const damp = Math.max(0, 0.48 - clay);
     const scrub = Math.max(0, period(u, v, 256, 80, 15) - 0.58);
-    let r = 0.62, g = 0.56, b = 0.42;
+    // A few pans per tile. Integer cycles, so the 96 m repeat meets itself
+    // and the plain is not one flat colour with a hidden grid.
+    const pan = 0.5 + 0.5 * Math.sin((u * 2 + 0.2) * Math.PI * 2) * Math.cos((v * 3 + 0.35) * Math.PI * 2);
+    let r = 0.56, g = 0.52, b = 0.40;
+    r = lerp(r, 0.84, pan * 0.7); g = lerp(g, 0.78, pan * 0.7); b = lerp(b, 0.60, pan * 0.55);
     r = lerp(r, 0.78, salt); g = lerp(g, 0.72, salt); b = lerp(b, 0.54, salt);
     r = lerp(r, 0.36, damp * 0.85); g = lerp(g, 0.40, damp * 0.85); b = lerp(b, 0.28, damp * 0.85);
     r = lerp(r, 0.34, scrub * 1.3); g = lerp(g, 0.42, scrub * 1.3); b = lerp(b, 0.24, scrub * 1.3);

@@ -64,14 +64,20 @@ const PLUME_FRAG = /* glsl */`
     vec3 c = v < 0.35 ? mix(uHot, uWarm, v / 0.35) : mix(uWarm, uCool, (v - 0.35) / 0.65);
     // Shock diamonds sit on the axis. A sine along v alone paints stripes down the
     // cone; gating it by radius turns each node into a disc that fades outward.
-    float node = pow(max(abs(sin(v * uDiamondN)), 1e-4), 10.0);
-    node *= smoothstep(0.72, 0.08, vRad);
-    float shock = 1.0 + uDiamond * node * (1.0 - v * 0.4);
-    float turb = 0.92 + 0.08 * sin(v * 22.0 + vRad * 14.0 + uTime * 3.0);
+    float node = pow(max(abs(sin(v * uDiamondN)), 1e-4), 16.0);
+    node *= smoothstep(0.48, 0.02, vRad);
+    float shock = 1.0 + uDiamond * node * (1.0 - v * 0.5);
+    // Shear-layer billow, stronger off the axis so the column is not a stack of stripes.
+    float shear = smoothstep(0.12, 0.9, vRad);
+    float turb = 1.0
+      + shear * 0.18 * sin(v * 15.0 + vRad * 8.0 + uTime * 2.2)
+      + shear * 0.10 * sin(v * 37.0 - vRad * 21.0 + uTime * 4.7);
     c *= turb;
+    float core = exp(-vRad * vRad * 3.6) * exp(-v * 1.45);
+    c = mix(c, uHot, clamp(core * 0.75, 0.0, 1.0));
     // The throat itself is the brightest thing in the scene: a short, near-white region right
     // at the exit plane that the rest of the column falls away from.
-    float throat = 1.0 + 1.9 * exp(-v * 26.0);
+    float throat = 1.0 + 2.6 * exp(-v * 16.0) * exp(-vRad * vRad * 5.5);
     float safeFace = max(vFace, 1e-4);
     float safeAxis = max(1.0 - v, 1e-4);
     // A gentle falloff. At 1.2 the column was down to nothing within a fifth of its length and
@@ -164,7 +170,7 @@ export class Plume {
     for (const layer of [this.core, this.shroud, this.veil]) layer.material.uniforms.uTime.value = this.time;
     this.core.material.uniforms.uSpread.value = 1 + 2.4 * (1 - p);
     this.shroud.material.uniforms.uSpread.value = 1 + 5.2 * (1 - p);
-    this.core.material.uniforms.uDiamond.value = 1.65 * p;
+    this.core.material.uniforms.uDiamond.value = 2.15 * p;
     // Node spacing follows the expansion: tight, repeated cells while the flow is squeezed
     // back by sea-level pressure, stretching out and dying as the atmosphere thins.
     this.core.material.uniforms.uDiamondN.value = 6.0 + 14.0 * p;
@@ -394,8 +400,8 @@ export class GroundCloud {
     const mat = new THREE.ShaderMaterial({
       uniforms: {
         uMap: { value: this.map },
-        uSunColor: { value: new THREE.Color(0xffffff) },
-        uShadowColor: { value: new THREE.Color(0x8294a6) },
+        uSunColor: { value: new THREE.Color(0xd8d2c6) },
+        uShadowColor: { value: new THREE.Color(0x8a8176) },
         uFireColor: { value: new THREE.Color(0xff9922) },
         uSunDir: { value: new THREE.Vector3(0.4, 0.7, 0.5).normalize() },
         uFlame: { value: 0.0 },
@@ -510,7 +516,7 @@ export class GroundCloud {
       // High volumetric density with smooth atmospheric decay
       const fadeIn = Math.min(1.0, u * 8.0);
       const fadeOut = Math.pow(Math.max(0.0, 1.0 - u), 1.3);
-      alpha[i] = 0.92 * fadeIn * fadeOut;
+      alpha[i] = 0.62 * fadeIn * fadeOut;
     }
     this.live = hi + 1;
     this.flush();
