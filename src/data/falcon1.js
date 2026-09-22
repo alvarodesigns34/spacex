@@ -35,7 +35,7 @@ export const FALCON1 = {
     { id: 'overview', label: 'Overview', pos: [18, 12.5, 29], target: [0, 10.6, 0] },
     { id: 'merlin1c', label: 'Merlin 1C', pos: [2.85, 2.30, 3.45], target: [0, 0.88, 0] },
     { id: 'interstage', label: 'Stage separation', pos: [3.1, 14.2, 4.0], target: [0, 13.75, 0] },
-    { id: 'cutaway', label: 'Upper stage · educational cutaway', pos: [5.4, 15.2, 7.7], target: [0, 15.45, 0] },
+    { id: 'cutaway', label: 'Upper stage · educational cutaway', pos: [-4.8, 16.2, 5.6], target: [0, 15.5, 0] },
     { id: 'fairing', label: 'Biconic fairing', pos: [3.3, 19.75, 4.4], target: [0, 19.55, 0] },
   ],
 };
