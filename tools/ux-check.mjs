@@ -3,6 +3,7 @@
  * Run: node tools/ux-check.mjs
  */
 import { createServer } from 'node:http';
+import { staticHandler } from './static.mjs';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,14 +13,7 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const OUT = join(ROOT, '..', 'ux-after');
 const PORT = 8807;
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png', '.woff2': 'font/woff2' };
-const server = createServer(async (req, res) => {
-  try {
-    const rel = normalize(decodeURIComponent(req.url.split('?')[0])).replace(/^(\.\.[/\\])+/, '');
-    const path = join(ROOT, ['/', '\\', ''].includes(rel) ? 'index.html' : rel);
-    res.writeHead(200, { 'Content-Type': TYPES[extname(path)] ?? 'application/octet-stream' });
-    res.end(await readFile(path));
-  } catch { res.writeHead(404).end('not found'); }
-});
+const server = createServer(staticHandler(ROOT, TYPES));
 await mkdir(OUT, { recursive: true });
 await new Promise(r => server.listen(PORT, '127.0.0.1', r));
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox'] });
@@ -75,6 +69,29 @@ try {
     report(!r.outside.length && !r.overlap.length, `${width}x${height} launch controls`, r);
     if ([390, 844].includes(width)) await page.screenshot({ path: join(OUT, `launch-${width}x${height}.jpg`), type: 'jpeg', quality: 82 });
   }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => { window.__vc.launch.reset(false); window.__vc.jump('falcon1', 'overview'); });
+  await page.click('#dock-vehicles');
+  const panel = await page.evaluate(() => {
+    const rail = document.querySelector('.rail');
+    const box = rail.getBoundingClientRect();
+    const kids = [...rail.querySelectorAll('*')].filter((el) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 1 && r.height > 1 && (r.right > box.right + 1 || r.left < box.left - 1);
+    }).map((el) => el.className);
+    return {
+      scrollWidth: rail.scrollWidth, clientWidth: rail.clientWidth, scrollLeft: rail.scrollLeft, kids,
+    };
+  });
+  report(panel.scrollWidth <= panel.clientWidth + 1 && panel.scrollLeft === 0 && panel.kids.length === 0,
+    '390 vehicle panel content does not overflow horizontally', panel);
+  await page.click('.rail-item');
+  report(await page.evaluate(() => !document.querySelector('.rail').classList.contains('is-open')),
+    'Selecting a vehicle closes the mobile dock');
+  await page.click('#dock-views');
+  await page.click('.preset');
+  report(await page.evaluate(() => !document.querySelector('#presets').classList.contains('is-open')),
+    'Selecting a view closes the mobile dock');
   await page.evaluate(() => { window.__vc.launch.reset(false); window.__vc.jump('falcon1', 'overview'); });
   const cutaway = await page.evaluate(() => {
     const v = window.__vc, model = v.exhibits.falcon1.model;
@@ -91,6 +108,8 @@ try {
   report(cutaway.initial && cutaway.open && cutaway.restored, 'Falcon 1 cutaway shell group hides and restores across exhibits', cutaway);
 
   // Fly mode makes W a real movement key; help must block the camera controller too.
+  // The dock checks above leave a phone viewport, where Help lives inside a closed panel.
+  await page.setViewportSize({ width: 1920, height: 1080 });
   await page.evaluate(() => { window.__vc.jump('falcon1', 'overview'); window.__vc.rig.setMode('fly'); });
   await page.click('#help-btn');
   const modalSnapshot = () => page.evaluate(() => ({

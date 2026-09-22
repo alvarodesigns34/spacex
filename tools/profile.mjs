@@ -13,6 +13,7 @@
  * Short diagnostic: --frames 3 --gcframes 3 --only overview,starship-tps-near
  */
 import { createServer } from 'node:http';
+import { staticHandler } from './static.mjs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,15 +38,7 @@ const sampleFrames = positiveInt('--frames', 18);
 const gcFrames = positiveInt('--gcframes', 120);
 const selected = argOf('--only')?.split(',');
 
-const server = createServer(async (req, res) => {
-  try {
-    const rel = normalize(decodeURIComponent(req.url.split('?')[0])).replace(/^(\.\.[/\\])+/, '');
-    const path = join(ROOT, (rel === '/' || rel === '\\' || rel === '') ? 'index.html' : rel);
-    const body = await readFile(path);
-    res.writeHead(200, { 'Content-Type': TYPES[extname(path)] ?? 'application/octet-stream' });
-    res.end(body);
-  } catch { res.writeHead(404).end('not found'); }
-});
+const server = createServer(staticHandler(ROOT, TYPES));
 await new Promise(r => server.listen(PORT, '127.0.0.1', r));
 
 const browser = await chromium.launch({

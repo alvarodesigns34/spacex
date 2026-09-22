@@ -22,6 +22,7 @@
  *   outline   share of pixels where one state drew the vehicle and the other drew sky
  */
 import { createServer } from 'node:http';
+import { staticHandler } from './static.mjs';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -42,14 +43,7 @@ const CASES = [
   { entry: 'starship-tps', exhibit: 'starship', at: [0, 95, 0], dir: [0.36, 0.11, 0.93] },
 ];
 
-const server = createServer(async (req, res) => {
-  try {
-    const rel = normalize(decodeURIComponent(req.url.split('?')[0])).replace(/^(\.\.[/\\])+/, '');
-    const p = join(ROOT, (rel === '/' || rel === '') ? 'index.html' : rel);
-    res.writeHead(200, { 'Content-Type': TYPES[extname(p)] ?? 'application/octet-stream' });
-    res.end(await readFile(p));
-  } catch { res.writeHead(404).end('nf'); }
-});
+const server = createServer(staticHandler(ROOT, TYPES));
 await new Promise(r => server.listen(PORT, '127.0.0.1', r));
 
 const browser = await chromium.launch({

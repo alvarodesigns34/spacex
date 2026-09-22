@@ -17,6 +17,7 @@
  *     sun, labels, ruler, humans, launch, wait }
  */
 import { createServer } from 'node:http';
+import { staticHandler } from './static.mjs';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -46,15 +47,7 @@ if (!outdir || !manifest) {
   process.exit(2);
 }
 
-const server = createServer(async (req, res) => {
-  try {
-    const rel = normalize(decodeURIComponent(req.url.split('?')[0])).replace(/^(\.\.[/\\])+/, '');
-    const p = join(ROOT, (rel === '/' || rel === '\\' || rel === '') ? 'index.html' : rel);
-    const b = await readFile(p);
-    res.writeHead(200, { 'Content-Type': TYPES[extname(p)] ?? 'application/octet-stream' });
-    res.end(b);
-  } catch { res.writeHead(404).end('nf'); }
-});
+const server = createServer(staticHandler(ROOT, TYPES));
 await new Promise(r => server.listen(PORT, '127.0.0.1', r));
 
 const browser = await chromium.launch({
@@ -99,7 +92,33 @@ for (const s of shots) {
     else v.rig.jumpTo(s.pos, s.target);
   }, { s, sun: SUN });
   for (const sel of s.clicks ?? []) await page.click(sel);
-  await page.waitForTimeout(s.wait ?? 700);
+  // SwiftShader can take seconds per frame. A fixed delay captures half-drawn
+  // type and a HUD that has not finished layout. Wait for fonts, two presented
+  // frames, then a stable HUD rectangle.
+  await page.evaluate(async () => {
+    if (document.fonts?.ready) await document.fonts.ready;
+    const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+    await frame();
+    await frame();
+    await frame();
+    const sig = () => {
+      const root = document.getElementById('hud');
+      if (!root || root.style.display === 'none') return 'off';
+      return [...root.children].map((el) => {
+        const r = el.getBoundingClientRect();
+        if (getComputedStyle(el).display === 'none') return '';
+        return `${r.x.toFixed(0)},${r.y.toFixed(0)},${r.width.toFixed(0)},${r.height.toFixed(0)}`;
+      }).join(';');
+    };
+    let prev = sig();
+    for (let i = 0; i < 4; i++) {
+      await frame();
+      await frame();
+      const now = sig();
+      if (now === prev) return;
+      prev = now;
+    }
+  });
   const jpg = s.name.endsWith('.jpg');
   await page.screenshot({
     path: `${outdir}/${jpg ? s.name : `${s.name}.png`}`,

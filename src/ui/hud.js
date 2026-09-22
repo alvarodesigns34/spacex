@@ -107,7 +107,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     b.setAttribute('role', 'tab');
     b.setAttribute('aria-selected', 'false');
     b.innerHTML = `<span class="rail-index">${i + 1}</span><span class="rail-name">${v.name}</span><span class="rail-h">${fmtHeight(v.id === 'starlink' ? 30 : v.height)}${v.id === 'starlink' ? ' <small>span</small>' : ''}</span>`;
-    b.addEventListener('click', () => onSelect(v.id));
+    b.addEventListener('click', () => { closeDock(); onSelect(v.id); });
     rail.appendChild(b);
   });
   const overview = document.createElement('button');
@@ -115,7 +115,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
   overview.setAttribute('role', 'tab');
   overview.setAttribute('aria-selected', 'true');
   overview.innerHTML = `<span class="rail-index">0</span><span class="rail-name">Overview</span><span class="rail-h">all</span>`;
-  overview.addEventListener('click', () => onReset());
+  overview.addEventListener('click', () => { closeDock(); onReset(); });
   rail.appendChild(overview);
 
   // ---- sheet ----
@@ -157,12 +157,13 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       b.dataset.preset = pr.id;
       b.setAttribute('role', 'tab');
       b.setAttribute('aria-selected', String(i === 0));
-      b.addEventListener('click', () => onPreset(v.id, pr.id));
+      b.addEventListener('click', () => { closeDock(); onPreset(v.id, pr.id); });
       p.appendChild(b);
     });
   }
 
   function setPreset(id) {
+    closeDock();
     root.querySelectorAll('.preset').forEach(b => {
       const active = b.dataset.preset === id;
       b.classList.toggle('active', active);
@@ -171,6 +172,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
   }
 
   function setActive(id) {
+    closeDock();
     rail.querySelectorAll('.rail-item').forEach(b => {
       // `on` already accounts for the overview item, which has no dataset.id; toggling on the
       // raw comparison instead meant aria-selected said "selected" while nothing was painted,

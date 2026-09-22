@@ -23,6 +23,7 @@
  *   node tools/lod-sweep.mjs <outdir> [--steps 60] [--quality high]
  */
 import { createServer } from 'node:http';
+import { staticHandler } from './static.mjs';
 import { readFile, mkdir } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,15 +62,7 @@ const TARGETS = [
   { name: 'pad', exhibit: 'starship', at: [0, 24, 30], from: 420, to: 26, match: /^pad-/ },
 ];
 
-const server = createServer(async (req, res) => {
-  try {
-    const rel = normalize(decodeURIComponent(req.url.split('?')[0])).replace(/^(\.\.[/\\])+/, '');
-    const p = join(ROOT, (rel === '/' || rel === '\\' || rel === '') ? 'index.html' : rel);
-    const body = await readFile(p);
-    res.writeHead(200, { 'Content-Type': TYPES[extname(p)] ?? 'application/octet-stream' });
-    res.end(body);
-  } catch { res.writeHead(404).end('nf'); }
-});
+const server = createServer(staticHandler(ROOT, TYPES));
 await new Promise(r => server.listen(PORT, '127.0.0.1', r));
 
 const browser = await chromium.launch({
