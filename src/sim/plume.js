@@ -31,9 +31,11 @@ const PLUME_VERT = /* glsl */`
   uniform float uSpread;
   varying float vAxis;
   varying float vFace;
+  varying float vRad;
   void main() {
     float v = 1.0 - uv.y;                      // 0 at the nozzle plane, 1 at the tail
     vAxis = v;
+    vRad = length(position.xz);
     // The plume leaves the nozzle at the nozzle's own radius and only then blooms, so the
     // bloom is a profile along the axis rather than a fixed cone angle. A fixed cone would
     // put a wide disc right at the engines, which is what a stock cone gets wrong.
@@ -56,14 +58,17 @@ const PLUME_FRAG = /* glsl */`
   uniform float uAlpha, uFalloff, uDiamond, uOpacity, uDiamondN, uTime;
   varying float vAxis;
   varying float vFace;
+  varying float vRad;
   void main() {
     float v = clamp(vAxis, 0.0, 1.0);
     vec3 c = v < 0.35 ? mix(uHot, uWarm, v / 0.35) : mix(uWarm, uCool, (v - 0.35) / 0.65);
-    // Shock train. Only meaningful while the flow is over-expanded, so both the strength and
-    // the node spacing are driven by ambient pressure at run time: at sea level the diamonds
-    // are tight and bright, and by 20 km there is nothing left to reflect off.
-    float node = pow(max(abs(sin(v * uDiamondN)), 1e-4), 5.0);
-    float shock = 1.0 + uDiamond * node * (1.0 - v * 0.55);
+    // Shock diamonds sit on the axis. A sine along v alone paints stripes down the
+    // cone; gating it by radius turns each node into a disc that fades outward.
+    float node = pow(max(abs(sin(v * uDiamondN)), 1e-4), 10.0);
+    node *= smoothstep(0.72, 0.08, vRad);
+    float shock = 1.0 + uDiamond * node * (1.0 - v * 0.4);
+    float turb = 0.92 + 0.08 * sin(v * 22.0 + vRad * 14.0 + uTime * 3.0);
+    c *= turb;
     // The throat itself is the brightest thing in the scene: a short, near-white region right
     // at the exit plane that the rest of the column falls away from.
     float throat = 1.0 + 1.9 * exp(-v * 26.0);

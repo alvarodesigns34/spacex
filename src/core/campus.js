@@ -17,6 +17,7 @@
  * Pad 2, at world (0, −185), on its own deck.
  */
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mesh, mergeAll, mat4, boxUV } from '../geometry/utils.js';
 
 function quad(x0, z0, x1, z1, y) {
@@ -24,6 +25,21 @@ function quad(x0, z0, x1, z1, y) {
   g.rotateX(-Math.PI / 2);
   g.translate((x0 + x1) / 2, y, (z0 + z1) / 2);
   return g;
+}
+
+/** One material for the whole apron. Colour is per vertex so the terrace, road,
+ *  dashes and swale are a single draw instead of four. */
+function painted(geo, hex) {
+  const c = new THREE.Color(hex);
+  const n = geo.attributes.position.count;
+  const col = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    col[i * 3] = c.r;
+    col[i * 3 + 1] = c.g;
+    col[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return geo;
 }
 
 /**
@@ -64,35 +80,23 @@ export function dressCampus(scene, M) {
   g.name = 'campus';
   g.userData.provenance = 'environmental-reconstruction';
 
-  for (const mat of [M.asphalt, M.gravel, M.swale, M.roadPaint]) {
-    mat.polygonOffset = true;
-    mat.polygonOffsetFactor = -2;
-    mat.polygonOffsetUnits = -2;
-  }
+  M.campusGround.polygonOffset = true;
+  M.campusGround.polygonOffsetFactor = -2;
+  M.campusGround.polygonOffsetUnits = -2;
 
-  // Worked terrace under the museum row, clear of mount radii (largest ring is 16 m).
-  g.add(mesh(quad(-178, -18, 188, 20, 0.012), M.gravel, {
-    name: 'campus-terrace', castShadow: false,
-  }));
-
-  // Visitor road in front of the row, toward the overview camera at +Z.
-  g.add(mesh(quad(-186, 24, 196, 31.2, 0.02), M.asphalt, {
-    name: 'campus-road-row', castShadow: false,
-  }));
-  const dashes = [];
+  const apron = [
+    painted(quad(-178, -18, 188, 20, 0.012), 0x8d8474),
+    painted(quad(-186, 24, 196, 31.2, 0.02), 0x4a4e54),
+    painted(quad(46, -150, 53, 31.2, 0.02), 0x4a4e54),
+    painted(quad(-186, 31.2, 196, 32.4, 0.016), 0x3a332c),
+  ];
   for (let x = -180; x < 190; x += 8) {
-    dashes.push({ geometry: new THREE.BoxGeometry(2.2, 0.008, 0.12), matrix: mat4([x, 0.03, 27.6]) });
+    const dash = new THREE.BoxGeometry(2.2, 0.008, 0.12);
+    dash.applyMatrix4(mat4([x, 0.03, 27.6]));
+    apron.push(painted(dash, 0xd7c36a));
   }
-  g.add(mesh(mergeAll(dashes), M.roadPaint, { name: 'campus-road-dashes', castShadow: false, receiveShadow: false }));
-
-  // Spur toward Pad 2. Stops on the coastal plain, short of the pad mound at z = −185.
-  g.add(mesh(quad(46, -150, 53, 31.2, 0.02), M.asphalt, {
-    name: 'campus-road-spur', castShadow: false,
-  }));
-
-  // Drainage swale on the outer shoulder. A dark strip, not a modelled culvert.
-  g.add(mesh(quad(-186, 31.2, 196, 32.4, 0.016), M.swale, {
-    name: 'campus-swale', castShadow: false,
+  g.add(mesh(mergeGeometries(apron, false), M.campusGround, {
+    name: 'campus-apron', castShadow: false,
   }));
 
   // Low dunes, not crates. One flattened sphere, instanced, off the row and the pad.
@@ -124,7 +128,7 @@ export function dressCampus(scene, M) {
   const scrubGeo = new THREE.ConeGeometry(0.55, 0.85, 5);
   scrubGeo.translate(0, 0.42, 0);
   const spots = [];
-  const scrubCount = 64;
+  const scrubCount = 28;
   let seed = 17;
   let guard = 0;
   const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed & 0x7fffffff) / 2147483647; };

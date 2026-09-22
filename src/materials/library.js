@@ -183,6 +183,7 @@ export function createMaterials(onProgress = () => {}) {
   M.coverall = M.humanDark;
   M.boot = new THREE.MeshStandardMaterial({ color: 0x1a1c1f, roughness: 0.62, metalness: 0.04 });
   M.hardhat = new THREE.MeshStandardMaterial({ color: 0xd7a24a, roughness: 0.48, metalness: 0.04 });
+  M.campusGround = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.94, metalness: 0 });
   M.asphalt = new THREE.MeshStandardMaterial({ color: 0x4a4e54, roughness: 0.92, metalness: 0 });
   M.gravel = new THREE.MeshStandardMaterial({ color: 0x8d8474, roughness: 0.96, metalness: 0 });
   M.swale = new THREE.MeshStandardMaterial({ color: 0x3a332c, roughness: 0.98, metalness: 0 });
