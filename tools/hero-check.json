@@ -1,0 +1,8 @@
+[
+  { "name": "engines-bay.jpg", "jump": ["starship", "engines"], "hud": false, "labels": false, "ruler": false, "wait": 900 },
+  { "name": "roadster.jpg", "jump": ["roadster", "starman"], "hud": false, "labels": false, "ruler": false, "wait": 800 },
+  { "name": "dragon.jpg", "jump": ["dragon", "trunk"], "hud": false, "labels": false, "ruler": false, "wait": 700 },
+  { "name": "falcon1-cut.jpg", "jump": ["falcon1", "cutaway"], "hud": false, "labels": false, "ruler": false, "wait": 700 },
+  { "name": "starlink.jpg", "jump": ["starlink", "bus"], "hud": false, "labels": false, "ruler": false, "wait": 700 },
+  { "name": "ignition.jpg", "seek": -1, "hud": false, "labels": false, "ruler": false, "wait": 900 }
+]

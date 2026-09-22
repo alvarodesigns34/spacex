@@ -618,20 +618,38 @@ export function makePica({ size = 512 } = {}) {
     const a = Math.atan2(dy, dx) / (Math.PI * 2) + 0.5;
     return [r, a];
   };
-  // Charred phenolic, not a pie of brown tiles. A faint cell grain is all the
-  // honeycomb that reads at this distance; sector gaps made it look segmented.
+  // PICA-X: a phenolic-impregnated carbon ablator. The surface is a field of
+  // small tiles with open pores and a char gradient (hotter toward the centre of
+  // the shield), not a pie of twelve sectors and not a generic carbon weave.
+  const cells = 18;
   shade(map, (x, y, u, v) => {
-    const [r] = polar(u, v);
-    const char = fbm(u * 6, v * 6, 4);
-    const pore = fbm(u * 22, v * 22, 2);
-    const rim = r > 0.9 ? (r - 0.9) / 0.1 : 0;
-    let c = 0.2 + (char - 0.45) * 0.08 + (pore - 0.5) * 0.035;
-    c *= 1 - rim * 0.2;
-    return [clamp(c * 255), clamp(c * 0.93 * 255), clamp(c * 0.88 * 255)];
+    const [rad] = polar(u, v);
+    const cu = (u * cells) % 1, cv = (v * cells) % 1;
+    const seam = Math.min(cu, 1 - cu, cv, 1 - cv);
+    const gap = Math.max(0, 1 - seam / 0.06);
+    const pore = Math.max(0, fbm(u * 40, v * 40, 3) - 0.62);
+    const tile = 0.16 + ((Math.floor(u * cells) * 5 + Math.floor(v * cells) * 3) % 7) * 0.012;
+    const char = fbm(u * 3.5, v * 3.5, 3);
+    // Centre of the cap chars darker; the rim, which sees less flux, stays browner.
+    const heat = Math.max(0, 1 - rad * 1.15);
+    let c = tile + (char - 0.5) * 0.05 - pore * 0.08 - gap * 0.07;
+    c = lerp(c, c * 0.72, heat * 0.85);
+    const warm = (1 - heat) * 0.18;
+    return [clamp((c + warm) * 255), clamp((c + warm * 0.35) * 255), clamp(c * 0.86 * 255)];
   });
-  shade(rough, (x, y, u, v) => { const g = clamp((0.92 + (fbm(u * 8, v * 8, 3) - 0.5) * 0.06) * 255); return [g, g, g]; });
+  shade(rough, (x, y, u, v) => {
+    const cu = (u * cells) % 1, cv = (v * cells) % 1;
+    const seam = Math.min(cu, 1 - cu, cv, 1 - cv);
+    const gap = Math.max(0, 1 - seam / 0.06);
+    const g = clamp((0.9 - gap * 0.08 + (fbm(u * 20, v * 20, 2) - 0.5) * 0.06) * 255);
+    return [g, g, g];
+  });
   shade(height, (x, y, u, v) => {
-    const g = clamp((0.5 + (fbm(u * 18, v * 18, 3) - 0.5) * 0.16) * 255);
+    const cu = (u * cells) % 1, cv = (v * cells) % 1;
+    const seam = Math.min(cu, 1 - cu, cv, 1 - cv);
+    const gap = Math.max(0, 1 - seam / 0.07);
+    const pore = fbm(u * 36, v * 36, 2);
+    const g = clamp((0.62 - gap * 0.28 + (pore - 0.5) * 0.1) * 255);
     return [g, g, g];
   });
   return {
@@ -669,13 +687,14 @@ export function makeEngineBell({ size = 384, copper = 0.5 } = {}) {
     // instead of a painted stripe. One wrap of the bell, matching the colour map.
     const rib = Math.sin(u * Math.PI * 2 * 64) * 0.5 + 0.5;
     const lip = Math.max(0, 1 - v * 10);
-    const g = clamp((0.42 + rib * 0.38 * (1 - v * 0.35) + lip * 0.18) * 255);
+    // A few tenths of a millimetre of tube relief, not a corrugated sheet.
+    const g = clamp((0.48 + rib * 0.14 * (1 - v * 0.45) + lip * 0.1) * 255);
     return [g, g, g];
   });
   return {
     map: toTexture(map, { srgb: true, wrap: THREE.RepeatWrapping }),
     roughnessMap: toTexture(rough),
-    normalMap: toTexture(heightToNormal(height, 2.4), { wrap: THREE.RepeatWrapping }),
+    normalMap: toTexture(heightToNormal(height, 0.85), { wrap: THREE.RepeatWrapping }),
   };
 }
 

@@ -116,6 +116,19 @@ export function buildDragon(M) {
         matrix: mat4([Math.sin(a) * (TRUNK_R + 0.032), TRUNK_H / 2, Math.cos(a) * (TRUNK_R + 0.032)]),
       });
     }
+    // Harness and radiator panel gaps on the white half, so the trunk is a bay
+    // of hardware rather than a painted drum. Layout is reconstructed.
+    for (let i = 0; i < 6; i++) {
+      const a = Math.PI / 2 + 0.25 + (i / 5) * (Math.PI - 0.5);
+      pipes.push({
+        geometry: new THREE.BoxGeometry(0.02, TRUNK_H - 0.8, 0.012),
+        matrix: mat4([Math.sin(a) * (TRUNK_R + 0.012), TRUNK_H / 2, Math.cos(a) * (TRUNK_R + 0.012)], [0, a, 0]),
+      });
+    }
+    pipes.push({
+      geometry: new THREE.TorusGeometry(TRUNK_R + 0.02, 0.012, 6, 40, Math.PI * 0.9),
+      matrix: mat4([0, TRUNK_H * 0.45, 0], [Math.PI / 2, 0, Math.PI * 0.55]),
+    });
     fine.metal.push(...pipes);
   }
   // External stringers under the skin, every 30°: shallow ridges that catch the light and

@@ -237,11 +237,11 @@ async function main() {
     timings[v.id] = performance.now() - t0;
     if (v.id === 'starlink') {
       // Starlink is presented on a slim post with the bus centred at the mount height.
-      const ped = buildPedestal(M, { radius: 1.6, height: 0.6, post: lay.mount - 0.6 - 0.11 });
+      const ped = buildPedestal(M, { radius: 0.62, height: 0.35, post: lay.mount - 0.35 - 0.08 });
       group.add(ped);
       model.position.y = lay.mount;
       model.rotation.y = 0;
-      env.addStation(lay.x, lay.z, 16);
+      env.addStation(lay.x, lay.z, 6);
       env.addDisplayLight(lay.x, lay.z, 16, 8);
     } else if (v.id === 'dragon') {
       const ped = buildPedestal(M, { radius: 2.3, height: lay.mount });

@@ -155,13 +155,13 @@ export function createMaterials(onProgress = () => {}) {
   });
   M.bell = new THREE.MeshStandardMaterial({
     map: T.bell.map, roughnessMap: T.bell.roughnessMap, normalMap: T.bell.normalMap,
-    normalScale: new THREE.Vector2(0.7, 0.7), metalness: 0.85, roughness: 1.0,
+    normalScale: new THREE.Vector2(0.45, 0.45), metalness: 0.85, roughness: 1.0, envMapIntensity: 1.15,
   });
   M.bellCool = new THREE.MeshStandardMaterial({
     map: T.bellCool.map, roughnessMap: T.bellCool.roughnessMap, normalMap: T.bellCool.normalMap,
-    normalScale: new THREE.Vector2(0.55, 0.55), metalness: 0.8, roughness: 1.0,
+    normalScale: new THREE.Vector2(0.28, 0.28), metalness: 0.82, roughness: 1.0, envMapIntensity: 1.2,
   });
-  M.bellInner = new THREE.MeshStandardMaterial({ color: 0x241f1d, metalness: 0.7, roughness: 0.55 });
+  M.bellInner = new THREE.MeshStandardMaterial({ color: 0x3a342e, metalness: 0.72, roughness: 0.48, envMapIntensity: 0.85 });
   // Polymer cable jacket: it cannot inherit the ring welds of a Starship tank.
   M.conduit = new THREE.MeshStandardMaterial({ color: 0x555a61, metalness: 0, roughness: 0.76, envMapIntensity: 0.5 });
   M.darkMetal = new THREE.MeshStandardMaterial({ map: T.greyDark.map, roughnessMap: T.greyDark.roughnessMap, metalness: 0.85, roughness: 1.0 });

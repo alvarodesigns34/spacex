@@ -6,7 +6,7 @@
  * measured reconstructions from late-configuration photographs.
  */
 import * as THREE from 'three';
-import { lathe, mesh, tube } from '../geometry/utils.js';
+import { lathe, mesh, tube, mat4, mergeAll } from '../geometry/utils.js';
 
 const H = 21.336, R = 1.6764 / 2, FR = 1.54 / 2;
 const AFT_BODY = 1.55, S1_TOP = 12.65, S2_BASE = 15.15, FAIRING_BASE = H - 3.50;
@@ -78,6 +78,12 @@ function merlin1C(root, A) {
   exhaust.userData.lodFeature = .10; e.add(exhaust);
   e.add(mesh(new THREE.CylinderGeometry(.09, .055, .22, 18, 1, true), A.pipeDark,
     { name: 'falcon1-merlin1c-exhaust-nozzle', position: [-.50, .44, 0] }));
+  // Thrust structure the chamber bolts to, and the fuel-pump volute opposite the ox pump.
+  // Both are the photographed Merlin 1C arrangement; exact clocking is approximate.
+  e.add(mesh(new THREE.CylinderGeometry(.22, .22, .06, 24), A.metal,
+    { name: 'falcon1-merlin1c-thrust-plate', position: [0, 1.62, 0] }));
+  e.add(mesh(new THREE.SphereGeometry(.11, 16, 12), A.darkMetal,
+    { name: 'falcon1-merlin1c-fuel-pump', position: [-.08, 1.48, .28], scale: [1, .7, .85] }));
   root.add(e);
 }
 
@@ -188,6 +194,17 @@ export function buildFalcon1(M) {
   tank(interior, A.tank, R - .075, S2_BASE + .14, S2_BASE + 1.02, 'falcon1-upper-rp1-tank');
   tank(interior, A.tank, R - .075, S2_BASE + 1.06, FAIRING_BASE - .38, 'falcon1-upper-lox-tank');
   ring(interior, A.metal, R - .068, S2_BASE + 1.04, 'falcon1-upper-common-bulkhead', .018);
+  interior.add(mesh(new THREE.CircleGeometry(R - .09, 40), A.tank,
+    { name: 'falcon1-upper-bulkhead-web', position: [0, S2_BASE + 1.04, 0], rotation: [Math.PI / 2, 0, 0] }));
+  const longerons = [];
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    longerons.push({
+      geometry: new THREE.BoxGeometry(0.02, FAIRING_BASE - S2_BASE - 0.7, 0.04),
+      matrix: mat4([Math.sin(a) * (R - 0.05), (S2_BASE + FAIRING_BASE) / 2 - 0.2, Math.cos(a) * (R - 0.05)], [0, a, 0]),
+    });
+  }
+  interior.add(mesh(mergeAll(longerons), A.metal, { name: 'falcon1-upper-longerons' }));
   for (let i = 0; i < 6; i++) {
     const a = Math.PI / 6 + i * Math.PI / 3;
     interior.add(strut([Math.sin(a) * .18, S1_TOP + 1.55, Math.cos(a) * .18],

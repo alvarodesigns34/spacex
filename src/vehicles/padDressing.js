@@ -39,4 +39,36 @@ export function dressPad(parent, M, padY) {
   shed.push({ geometry: box(7.5, 3.1, 4.6), matrix: mat4([56, padY + 1.55, 34]) });
   shed.push({ geometry: box(8, 0.18, 5.1), matrix: mat4([56, padY + 3.2, 34]) });
   parent.add(mesh(boxUV(mergeAll(shed)), M.concrete, { name: 'pad-service-shed', castShadow: true }));
+  addBayLights(parent, M);
+}
+
+/**
+ * Closeout lamps under the deck, aimed into the engine bay, plus one cool point
+ * standing in for bounce off the pale water-cooled steel. Reconstructed service
+ * lighting: it is not sunlight, and it is not bright enough to light the pad.
+ * The lamps stay on the mount when the vehicle leaves.
+ */
+function addBayLights(parent, M) {
+  const g = new THREE.Group();
+  g.name = 'bay-inspection-lights';
+  g.userData.provenance = 'reconstructed-service-lighting';
+  const heads = [];
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + 0.3;
+    const x = Math.cos(a) * 5.4, z = Math.sin(a) * 5.4;
+    const spot = new THREE.SpotLight(0xfff1d4, 48, 22, 0.7, 0.35, 1.2);
+    spot.position.set(x, 16.4, z);
+    spot.target.position.set(Math.cos(a) * 1.4, 20.2, Math.sin(a) * 1.4);
+    spot.castShadow = false;
+    spot.name = 'bay-closeout-lamp';
+    g.add(spot, spot.target);
+    heads.push({ geometry: box(0.28, 0.12, 0.18), matrix: mat4([x, 16.35, z]) });
+  }
+  const bounce = new THREE.PointLight(0xd5dde8, 14, 20, 2);
+  bounce.position.set(0, 15.4, 0);
+  bounce.castShadow = false;
+  bounce.name = 'deck-bounce';
+  g.add(bounce);
+  g.add(mesh(boxUV(mergeAll(heads)), M.mount, { name: 'bay-lamp-heads', castShadow: false }));
+  parent.add(g);
 }

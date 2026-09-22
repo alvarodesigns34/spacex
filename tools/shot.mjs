@@ -33,10 +33,16 @@ const TYPES = {
 const args = process.argv.slice(2);
 const argOf = (f) => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : null; };
 const TIER = argOf('--quality') ?? 'high';
-const positional = args.filter((a, i) => !a.startsWith('--') && args[i - 1] !== '--quality');
+const sunArg = args.find(a => a.startsWith('--sun='));
+const SUN = Number(sunArg ? sunArg.slice('--sun='.length) : (argOf('--sun') ?? 18));
+if (!Number.isFinite(SUN)) {
+  console.error('--sun debe ser un número (elevación en grados). Por defecto 18.');
+  process.exit(2);
+}
+const positional = args.filter((a, i) => !a.startsWith('--') && args[i - 1] !== '--quality' && args[i - 1] !== '--sun');
 const [outdir, manifest] = positional;
 if (!outdir || !manifest) {
-  console.error('uso: node tools/shot.mjs <outdir> <shots.json> [--quality high|medium|low]');
+  console.error('uso: node tools/shot.mjs <outdir> <shots.json> [--quality high|medium|low] [--sun 18]');
   process.exit(2);
 }
 
@@ -65,20 +71,24 @@ page.on('console', m => {
 });
 
 const q = await bootAtQuality(page, `http://127.0.0.1:${PORT}/`, TIER);
-console.log(`quality ${q.name} (forced)`);
+console.log(`quality ${q.name} (forced) · sun ${SUN}° unless a shot overrides it`);
 
 const shots = JSON.parse(await readFile(manifest, 'utf8'));
 for (const s of shots) {
-  await page.evaluate((s) => {
+  if (s.viewport) await page.setViewportSize({ width: s.viewport[0], height: s.viewport[1] });
+  await page.evaluate(({ s, sun }) => {
     const v = window.__vc;
     document.getElementById('hud').style.display = s.hud === false ? 'none' : '';
     // Reset the state a previous shot may have left, so order cannot change a frame.
     if (s.seek === undefined) v.launch.reset(false);
     v.ortho(null);
-    v.env.setSun(s.sun ?? 42, 34);
+    v.env.setSun(s.sun ?? sun, 34);
     v.setToggle('labels', s.labels ?? true);
     v.setToggle('ruler', s.ruler ?? true);
     v.setToggle('humans', s.humans ?? true);
+    const hudEl = document.getElementById('hud');
+    hudEl.classList.remove('is-clean');
+    hudEl.querySelectorAll('.is-open').forEach(n => n.classList.remove('is-open'));
     const sheet = document.getElementById('sheet');
     if (s.sheet === 'open' && sheet.classList.contains('collapsed')) document.getElementById('sheet-toggle').click();
     else if (s.sheet === 'closed' && !sheet.classList.contains('collapsed')) document.getElementById('sheet-toggle').click();
@@ -87,7 +97,8 @@ for (const s of shots) {
     else if (s.ortho) v.ortho(s.ortho);
     else if (s.jump) v.jump(s.jump[0] ?? null, s.jump[1] ?? undefined);
     else v.rig.jumpTo(s.pos, s.target);
-  }, s);
+  }, { s, sun: SUN });
+  for (const sel of s.clicks ?? []) await page.click(sel);
   await page.waitForTimeout(s.wait ?? 700);
   const jpg = s.name.endsWith('.jpg');
   await page.screenshot({

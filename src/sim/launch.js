@@ -593,6 +593,8 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     }
 
     const bThrottle = t < EVENTS.separation ? bt : returnThrottle(t);
+    boosterPlume.setTime(t);
+    shipPlume.setTime(t);
     boosterPlume.setThrottle(bThrottle, bAlt);
     shipPlume.setThrottle(st, alt);
     cloud.setFlame(bt * Math.max(0, 1 - alt / 160));

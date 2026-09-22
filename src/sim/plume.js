@@ -53,7 +53,7 @@ const PLUME_VERT = /* glsl */`
   }`;
 const PLUME_FRAG = /* glsl */`
   uniform vec3 uHot, uWarm, uCool;
-  uniform float uAlpha, uFalloff, uDiamond, uOpacity, uDiamondN;
+  uniform float uAlpha, uFalloff, uDiamond, uOpacity, uDiamondN, uTime;
   varying float vAxis;
   varying float vFace;
   void main() {
@@ -74,6 +74,8 @@ const PLUME_FRAG = /* glsl */`
     // booster — the single reason the launch did not read as powerful.
     float a = uAlpha * pow(safeAxis, uFalloff) * pow(safeFace, 0.62) * uOpacity;
     a *= 1.0 + 0.45 * node;
+    // Deterministic billow. uTime is mission time, so a seek reproduces the same frame.
+    a *= 1.0 + 0.07 * sin(v * 46.0 + uTime * 6.0) * smoothstep(0.08, 0.35, v);
     if (a < 0.0015 || a != a) discard;
     gl_FragColor = vec4(c * shock * throat, clamp(a, 0.0, 1.0));
   }`;
@@ -92,7 +94,7 @@ function coneLayer({ hot, warm, cool, alpha, falloff }) {
       uHot: { value: lin(hot) }, uWarm: { value: lin(warm) }, uCool: { value: lin(cool) },
       uAlpha: { value: alpha }, uFalloff: { value: falloff },
       uDiamond: { value: 0 }, uDiamondN: { value: 14.14 },
-      uOpacity: { value: 1 }, uSpread: { value: 1 },
+      uOpacity: { value: 1 }, uSpread: { value: 1 }, uTime: { value: 0 },
     },
     vertexShader: PLUME_VERT, fragmentShader: PLUME_FRAG,
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
@@ -120,7 +122,11 @@ export class Plume {
     // Bright shock core, then the wide envelope of afterburning around it.
     this.core = coneLayer({ hot: 0xfffaea, warm: 0xffa442, cool: 0x5b7bd6, alpha: 0.98, falloff: 0.55 });
     this.shroud = coneLayer({ hot: 0xffdcb0, warm: 0xd68038, cool: 0x2b3a70, alpha: 0.42, falloff: 0.95 });
-    this.group.add(this.shroud, this.core);
+    // Outer density: soot and cooled exhaust. Wide, dim, and gone once the flow is
+    // a vacuum bell. It does not write depth, so the vehicle stays visible through it.
+    this.veil = coneLayer({ hot: 0xffe2c0, warm: 0x8a5a32, cool: 0x5c564e, alpha: 0.18, falloff: 1.2 });
+    this.group.add(this.veil, this.shroud, this.core);
+    this.time = 0;
 
     // The plume is by far the brightest thing in the scene; it has to light the pad.
     this.light = new THREE.PointLight(0xffb066, 0, 260, 2);
@@ -146,6 +152,11 @@ export class Plume {
     this.core.scale.set(rc, this.baseLength * stretch * t, rc);
     const rs = this.radius * 1.34;
     this.shroud.scale.set(rs, this.baseLength * stretch * 1.45 * t, rs);
+    const rv = this.radius * (1.7 + 1.4 * (1 - p));
+    this.veil.scale.set(rv, this.baseLength * stretch * 1.7 * t, rv);
+    this.veil.material.uniforms.uSpread.value = 1 + 6.5 * (1 - p);
+    this.veil.material.uniforms.uOpacity.value = 0.15 + 0.85 * p;
+    for (const layer of [this.core, this.shroud, this.veil]) layer.material.uniforms.uTime.value = this.time;
     this.core.material.uniforms.uSpread.value = 1 + 2.4 * (1 - p);
     this.shroud.material.uniforms.uSpread.value = 1 + 5.2 * (1 - p);
     this.core.material.uniforms.uDiamond.value = 1.15 * p;
@@ -163,8 +174,11 @@ export class Plume {
     this.light.position.y = -this.baseLength * 0.22 * (1 + 3.4 * (1 - p)) * t;
   }
 
+  /** Mission clock, in seconds. Turbulence is a function of this, not of wall time. */
+  setTime(t) { this.time = t; }
+
   dispose() {
-    for (const m of [this.core, this.shroud]) { m.geometry.dispose(); m.material.dispose(); }
+    for (const m of [this.core, this.shroud, this.veil]) { m.geometry.dispose(); m.material.dispose(); }
   }
 }
 

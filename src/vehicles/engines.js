@@ -54,6 +54,12 @@ export function raptorGeometry({ exitRadius = 0.62, height = 2.9 } = {}) {
       matrix: mat4([Math.cos(ang) * 0.4, 2.08, Math.sin(ang) * 0.4], [0, -ang, 0]),
     });
   }
+  // Boot heat shield at the top of the regen bell, and the two preburner cans
+  // tucked against the powerpack. Raptor 3 encloses the pumps; these are the
+  // lumps photographs show, not an open Merlin-style gas generator.
+  parts.push({ geometry: new THREE.CylinderGeometry(0.48, 0.34, 0.08, 28), matrix: mat4([0, 2.18, 0]) });
+  parts.push({ geometry: new THREE.CylinderGeometry(0.09, 0.09, 0.22, 12), matrix: mat4([0.22, 2.55, 0.18], [0.4, 0, 0.2]) });
+  parts.push({ geometry: new THREE.CylinderGeometry(0.08, 0.08, 0.2, 12), matrix: mat4([-0.18, 2.52, -0.16], [0.3, 0, -0.4]) });
   const head = mergeAll(parts);
   return { outer, inner, head, height, profile: bell };
 }
@@ -71,6 +77,8 @@ export function raptorVacGeometry({ exitRadius = 1.15, height = 4.4 } = {}) {
   parts.push({ geometry: new THREE.CylinderGeometry(0.22, 0.28, 0.16, 24), matrix: mat4([0, height - 0.08, 0]) });
   parts.push({ geometry: new THREE.CylinderGeometry(0.15, 0.15, 0.45, 20), matrix: mat4([0.36, 4.05, 0.12]) });
   parts.push({ geometry: new THREE.TorusGeometry(0.34, 0.045, 10, 40), matrix: mat4([0, 3.66, 0], [Math.PI / 2, 0, 0]) });
+  // Joint between the regen chamber and the radiatively cooled extension.
+  parts.push({ geometry: new THREE.TorusGeometry(0.36, 0.03, 8, 48), matrix: mat4([0, 3.52, 0], [Math.PI / 2, 0, 0]) });
   // Stiffening rings on the radiatively cooled nozzle extension.
   for (const y of [0.3, 1.0, 1.8]) {
     const r = bell.find(p => p.y >= y)?.r ?? exitRadius;

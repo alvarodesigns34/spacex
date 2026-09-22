@@ -1,0 +1,18 @@
+[
+  { "name": "desk-vehicles.jpg", "viewport": [1440, 900], "jump": ["starship", "overview"], "labels": true, "ruler": true, "sheet": "closed", "wait": 600 },
+  { "name": "desk-sheet.jpg", "viewport": [1440, 900], "jump": ["starship", "overview"], "labels": true, "ruler": true, "sheet": "open", "wait": 500 },
+  { "name": "desk-clean.jpg", "viewport": [1440, 900], "jump": ["starship", "overview"], "clicks": ["#clean-btn"], "wait": 400 },
+  { "name": "desk-mission.jpg", "viewport": [1440, 900], "seek": 6, "labels": false, "wait": 700 },
+  { "name": "tablet-vehicles.jpg", "viewport": [768, 1024], "jump": ["falcon9", "overview"], "clicks": ["#dock-vehicles"], "sheet": "closed", "wait": 500 },
+  { "name": "tablet-views.jpg", "viewport": [768, 1024], "jump": ["falcon9", "overview"], "clicks": ["#dock-views"], "wait": 400 },
+  { "name": "tablet-tools.jpg", "viewport": [768, 1024], "jump": ["falcon9", "overview"], "clicks": ["#dock-tools"], "wait": 400 },
+  { "name": "tablet-sheet.jpg", "viewport": [768, 1024], "jump": ["falcon9", "overview"], "sheet": "open", "wait": 400 },
+  { "name": "tablet-clean.jpg", "viewport": [768, 1024], "jump": ["falcon9", "overview"], "clicks": ["#dock-clean"], "wait": 400 },
+  { "name": "tablet-mission.jpg", "viewport": [768, 1024], "seek": 26, "wait": 600 },
+  { "name": "phone-vehicles.jpg", "viewport": [390, 844], "jump": ["dragon", "overview"], "clicks": ["#dock-vehicles"], "sheet": "closed", "wait": 500 },
+  { "name": "phone-views.jpg", "viewport": [390, 844], "jump": ["dragon", "overview"], "clicks": ["#dock-views"], "wait": 400 },
+  { "name": "phone-tools.jpg", "viewport": [390, 844], "jump": ["dragon", "overview"], "clicks": ["#dock-tools"], "wait": 400 },
+  { "name": "phone-sheet.jpg", "viewport": [390, 844], "jump": ["dragon", "overview"], "sheet": "open", "wait": 400 },
+  { "name": "phone-clean.jpg", "viewport": [390, 844], "jump": ["dragon", "overview"], "clicks": ["#dock-clean"], "wait": 400 },
+  { "name": "phone-mission.jpg", "viewport": [390, 844], "seek": 6, "labels": true, "ruler": true, "wait": 600 }
+]

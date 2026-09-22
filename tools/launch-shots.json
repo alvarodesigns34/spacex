@@ -1,8 +1,13 @@
 [
+  { "name": "launch-countdown.jpg", "seek": -8, "wait": 1400 },
   { "name": "launch-ignition.jpg", "seek": -1, "wait": 1800 },
+  { "name": "launch-liftoff.jpg", "seek": 4, "wait": 1400 },
   { "name": "launch-ascent.jpg", "seek": 26, "wait": 1800 },
+  { "name": "launch-maxq.jpg", "seek": 62, "wait": 1400 },
+  { "name": "launch-meco.jpg", "seek": 152, "wait": 1400 },
   { "name": "launch-staging.jpg", "seek": 162, "wait": 1800 },
   { "name": "launch-boostback.jpg", "seek": 200, "wait": 1800 },
+  { "name": "launch-landing.jpg", "seek": 392, "wait": 1400 },
   { "name": "launch-catch.jpg", "seek": 405, "wait": 1800 },
   { "name": "launch-caught.jpg", "seek": 420, "wait": 1800 },
   { "name": "launch-site.jpg", "jump": ["starship", "site"], "wait": 1400 },

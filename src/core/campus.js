@@ -1,9 +1,20 @@
 /**
- * Coastal campus around the exhibits. Environmental reconstruction only: it is not
- * Starbase infrastructure and it is not measured flight hardware. Roads, a gravel
- * terrace and low berms give the apron a scale and a ground plane that is not one
- * repeating grey disc. Coordinates follow the exhibit row in main.js (z = 0,
- * x = −153…163) and leave Pad 2, at world (0, −185), on its own deck.
+ * Coastal campus around the exhibits. It is not a survey of Starbase and it must
+ * not be read as one. Four kinds of geometry live here:
+ *
+ *  - observed infrastructure: none. SpaceX publishes no plan of the ground between
+ *    the museum row and Pad 2, and none of these meshes claim to be that plan.
+ *  - reconstruction from references: none in this file. The Pad 2 tower, mount,
+ *    trench and tank farm are built in pad.js from cited and photogrammetric figures.
+ *  - plausible environmental context: the salt-flat colour, low dunes and scrub,
+ *    which match the coastal plain at Boca Chica in kind (flat, pale, sparse) and
+ *    not in surveyed position.
+ *  - non-structural dressing: the gravel terrace, the visitor road and its centre
+ *    line, the drainage swale, and the three service trucks. They give scale.
+ *    They are not roads, drains or vehicles that exist at those coordinates.
+ *
+ * Coordinates follow the exhibit row in main.js (z = 0, x = −153…163) and leave
+ * Pad 2, at world (0, −185), on its own deck.
  */
 import * as THREE from 'three';
 import { mesh, mergeAll, mat4, boxUV } from '../geometry/utils.js';

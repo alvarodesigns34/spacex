@@ -175,7 +175,9 @@ function sectionCurve(z) {
   for (const [fx, y] of half) pts.push(new THREE.Vector3(-fx * W, y, z));
   pts.push(new THREE.Vector3(0, yc, z));
   for (let i = half.length - 1; i >= 0; i--) pts.push(new THREE.Vector3(half[i][0] * W, half[i][1], z));
-  const c = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5);
+  // Tension 0.22 keeps the section on the control points. 0.5 bowed the flanks
+  // out between them, which is the bloated plan and the swollen wheel arches.
+  const c = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.22);
   _sectionCache.z = z; _sectionCache.curve = c;
   return c;
 }
@@ -2567,7 +2569,7 @@ function buildStarman(mats) {
   // Arms. Shoulder -> elbow -> wrist, with the gloves as their own smaller chain.
   g.add(limbChain(
     [[X - 0.155, 0.735, -0.395], [armX - 0.010, 0.756, -0.235], [armX, 0.745, sillFwd.z - 0.10]],
-    [0.062, 0.050, 0.043], starmanSuitWhite, 'left-arm-door-sill',
+    [0.048, 0.040, 0.034], starmanSuitWhite, 'left-arm-door-sill',
   ));
   g.add(limbChain(
     [[armX, 0.745, sillFwd.z - 0.10], [armX + 0.006, 0.727, sillFwd.z + 0.02]],
@@ -2576,7 +2578,7 @@ function buildStarman(mats) {
 
   g.add(limbChain(
     [[X + 0.155, 0.735, -0.395], [X + 0.155, 0.585, -0.185], [X + 0.028, 0.700, 0.100]],
-    [0.062, 0.050, 0.042], starmanSuitWhite, 'right-arm-steering',
+    [0.048, 0.040, 0.034], starmanSuitWhite, 'right-arm-steering',
   ));
   g.add(limbChain(
     [[X + 0.028, 0.700, 0.100], [X - 0.010, 0.716, 0.146]],
@@ -2588,7 +2590,7 @@ function buildStarman(mats) {
     const lx = X + s * 0.105;
     g.add(limbChain(
       [[lx, 0.430, -0.300], [lx + s * 0.012, 0.452, 0.075], [lx - s * 0.006, 0.268, 0.290]],
-      [0.082, 0.068, 0.055], starmanSuitWhite, `leg-${s < 0 ? 'left' : 'right'}`,
+      [0.064, 0.052, 0.042], starmanSuitWhite, `leg-${s < 0 ? 'left' : 'right'}`,
     ));
     // Flight boot.
     const boot = new THREE.SphereGeometry(0.062, 14, 10);
@@ -2647,6 +2649,19 @@ function buildStarman(mats) {
   }));
 
   g.add(head);
+
+  // PLSS backpack and the suit umbilical into the seat. The photographed suit
+  // carries both; a torso with neither reads as a mannequin in coveralls.
+  const pack = new THREE.Group();
+  pack.name = 'starman-plss';
+  pack.position.set(X, 0.62, -0.48);
+  pack.rotation.x = -0.30;
+  pack.add(mesh(new THREE.BoxGeometry(0.28, 0.34, 0.12), starmanSuitWhite, { name: 'plss-shell' }));
+  pack.add(mesh(new THREE.BoxGeometry(0.22, 0.08, 0.04), starmanSuitGraphite, { position: [0, 0.08, 0.07], name: 'plss-hatch' }));
+  pack.add(mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.22, 8), blackTrim, {
+    position: [0.1, -0.05, 0.12], rotation: [0.8, 0, 0], name: 'suit-umbilical',
+  }));
+  g.add(pack);
 
   return g;
 }

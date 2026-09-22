@@ -69,6 +69,14 @@ export function buildStarlink(M) {
     patches.push({ geometry: new THREE.BoxGeometry(0.11, 0.01, 0.11), matrix: mat4([x - 0.53 + i * 0.152, -BUS_T / 2 - 0.085, z - 0.53 + j * 0.152]) });
   }
   g.add(mesh(mergeAll(patches), M.alumDark, { castShadow: false, name: 'array-patches' }));
+  // Radiator strips on the long edges of the bus, and the harness that ties the
+  // arrays back to the avionics. Reconstructed from deployment imagery.
+  const rads = [];
+  for (const x of [-BUS_W / 2 + 0.08, BUS_W / 2 - 0.08]) {
+    rads.push({ geometry: new THREE.BoxGeometry(0.06, 0.02, BUS_L - 0.4), matrix: mat4([x, BUS_T / 2 + 0.02, 0]) });
+  }
+  rads.push({ geometry: new THREE.CylinderGeometry(0.012, 0.012, BUS_L - 0.5, 6), matrix: mat4([0.4, -BUS_T / 2 - 0.04, 0], [Math.PI / 2, 0, 0]) });
+  g.add(mesh(mergeAll(rads), M.radiator, { name: 'bus-radiators' }));
 
   // Laser inter-satellite link terminals (3): small gimballed turrets on the zenith side edges
   // Built as a gimbal rather than a ball on a stick: a fixed base, a yoke that rotates in
@@ -180,6 +188,7 @@ export function buildStarlink(M) {
     'bus-frame': 0.03, 'bus-avionics': 0.09, 'bus-tape': 0.025, 'array-patches': 0.11,
     'laser-terminal': 0.045, 'star-tracker': 0.035, 'gnss-patch': 0.03,
     'wing-hinges': 0.03, 'wing-substrate': 0.06, 'wing-beams': 0.05,
+    'bus-radiators': 0.04,
   };
   g.traverse((o) => { const f = FINE[o.name]; if (f) o.userData.lodFeature = f; });
 
