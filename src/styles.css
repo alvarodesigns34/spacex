@@ -263,21 +263,36 @@ body.is-flying .rail { display: none; }
   body:has(.mission:not(.hidden)) .presets { display: none; }
 }
 
-/* A short landscape screen needs side columns, leaving its centre clear for the vehicle. */
+/* A short landscape phone is too wide for the portrait rule and too short for
+   side columns. Use the same dock as 390×844 so names stay on one line. */
 @media (max-height: 600px) and (min-width: 600px) {
-  .hud-header { top: 8px; left: 8px; width: 180px; padding: 8px 10px; }
+  .hud-header { top: 8px; left: 8px; width: min(220px, 42vw); padding: 8px 10px; }
   .hud-header .subtitle { display: none; }
-  .rail { top: 92px; bottom: 66px; left: 8px; right: auto; width: 164px; transform: none; flex-direction: column; flex-wrap: nowrap; overflow-y: auto; }
-  .rail-item { width: 164px; min-height: 36px; padding: 5px 8px; }
+  .dock {
+    display: flex; position: absolute; z-index: 4; gap: 6px;
+    left: 8px; right: 8px; bottom: max(6px, env(safe-area-inset-bottom));
+  }
+  .dock-btn { flex: 1; min-height: 44px; }
+  .rail, .presets, .tools { display: none; }
+  .rail.is-open {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    position: absolute; z-index: 4; left: 8px; right: 8px; width: auto; min-width: 0;
+    top: auto; bottom: calc(56px + env(safe-area-inset-bottom)); transform: none;
+    max-height: min(46dvh, 220px); overflow-x: hidden; overflow-y: auto; scrollbar-width: none;
+  }
+  .rail.is-open .rail-item { min-width: 0; min-height: 44px; grid-template-columns: minmax(0, 1fr); overflow: hidden; }
+  .rail.is-open .rail-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rail-index, .rail-h { display: none; }
   .rail-overview { margin-top: 0; }
-  .sheet { top: 8px; right: 8px; max-height: calc(100dvh - 80px); width: 260px; }
-  .sheet.collapsed { width: 132px; max-height: 48px; padding: 10px 12px; }
-  .presets { left: 184px; right: 156px; bottom: 8px; transform: none; overflow-x: auto; max-width: none; flex-wrap: nowrap; max-height: 52px; scrollbar-width: none; }
-  .tools { left: auto; right: 8px; top: 64px; bottom: 84px; width: 140px; flex-wrap: nowrap; flex-direction: column; overflow-y: auto; }
-  .tool { flex: 0 0 auto; }
+  .presets.is-open, .tools.is-open {
+    display: flex; flex-wrap: wrap; position: absolute; z-index: 4;
+    left: 8px; right: 8px; bottom: calc(56px + env(safe-area-inset-bottom));
+    transform: none; max-width: none; max-height: 40dvh; overflow: auto; scrollbar-width: none;
+  }
+  .preset, .tool { min-height: 44px; white-space: nowrap; }
+  .sheet { top: 8px; right: 8px; width: min(280px, 46vw); max-height: calc(100dvh - 72px); }
+  .sheet.collapsed { width: 120px; max-height: 48px; padding: 8px 10px; }
   .scale { display: none; }
-  body.is-flying .mission { left: 8px; right: auto; bottom: 8px; width: 310px; padding: 8px 10px; gap: 5px; }
-  body.is-flying .tools { top: 64px; bottom: 8px; }
-  body.is-flying .rail { display: none; }
+  body.is-flying .mission { left: 8px; right: 8px; bottom: 8px; width: auto; padding: 8px 10px; }
+  body:has(.mission:not(.hidden)) .dock { display: none; }
 }

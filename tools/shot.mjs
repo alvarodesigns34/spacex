@@ -86,7 +86,12 @@ for (const s of shots) {
     if (s.sheet === 'open' && sheet.classList.contains('collapsed')) document.getElementById('sheet-toggle').click();
     else if (s.sheet === 'closed' && !sheet.classList.contains('collapsed')) document.getElementById('sheet-toggle').click();
 
-    if (s.seek !== undefined) { v.launch.setSpeed(s.speed ?? 1); v.launch.seek(s.seek); }
+    if (s.seek !== undefined) {
+      v.launch.setSpeed(s.speed ?? 1);
+      v.launch.seek(s.seek);
+      v.__shotSpeed = v.launch.state.speed;
+      v.launch.setSpeed(0);
+    }
     else if (s.ortho) v.ortho(s.ortho);
     else if (s.jump) v.jump(s.jump[0] ?? null, s.jump[1] ?? undefined);
     else v.rig.jumpTo(s.pos, s.target);
@@ -115,9 +120,23 @@ for (const s of shots) {
       await frame();
       await frame();
       const now = sig();
-      if (now === prev) return;
+      if (now === prev) break;
       prev = now;
     }
+    const hud = document.getElementById('hud');
+    if (hud && hud.style.display !== 'none') {
+      const title = (document.getElementById('hud-title')?.textContent || '').trim();
+      if (title.length < 2) throw new Error('HUD title empty');
+      const mission = document.getElementById('mission');
+      if (mission && !mission.classList.contains('hidden')) {
+        const clock = (document.getElementById('mission-clock')?.textContent || '').trim();
+        if (!/^T[−-]?\d/.test(clock)) throw new Error(`mission clock incomplete: ${clock}`);
+      }
+    }
+  });
+  await page.evaluate(() => {
+    const v = window.__vc;
+    if (v.__shotSpeed != null) { v.launch.setSpeed(v.__shotSpeed); v.__shotSpeed = null; }
   });
   const jpg = s.name.endsWith('.jpg');
   await page.screenshot({
