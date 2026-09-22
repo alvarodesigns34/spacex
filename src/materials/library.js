@@ -51,7 +51,7 @@ export function createMaterials(onProgress = () => {}) {
   // UVs), which stretches the sun's highlight vertically the way it does on the vehicle.
   const steelBase = {
     metalness: 1.0, roughness: 1.0, color: 0xffffff,
-    anisotropy: 0.4, anisotropyRotation: 0, envMapIntensity: 1.0,
+    anisotropy: 0.62, anisotropyRotation: 0, envMapIntensity: 0.82,
     normalScale: new THREE.Vector2(0.85, 0.85),
   };
   M.steel = new THREE.MeshPhysicalMaterial({ ...steelBase, map: T.steel.map, roughnessMap: T.steel.roughnessMap, normalMap: T.steel.normalMap });
@@ -124,8 +124,9 @@ export function createMaterials(onProgress = () => {}) {
   M.solar = new THREE.MeshPhysicalMaterial(solarBase);
   M.solarStarlink = new THREE.MeshPhysicalMaterial({ ...solarBase, color: 0xc9d2e6, side: THREE.DoubleSide });
   M.concrete = new THREE.MeshStandardMaterial({
+    color: 0xc4beb4,
     map: T.concrete.map, roughnessMap: T.concrete.roughnessMap, normalMap: T.concrete.normalMap,
-    normalScale: new THREE.Vector2(0.6, 0.6), metalness: 0.0, roughness: 1.0, envMapIntensity: 0.75,
+    normalScale: new THREE.Vector2(0.6, 0.6), metalness: 0.0, roughness: 1.0, envMapIntensity: 0.55,
   });
   M.terrain = new THREE.MeshStandardMaterial({
     map: T.terrain.map, roughnessMap: T.terrain.roughnessMap, normalMap: T.terrain.normalMap,
@@ -152,8 +153,14 @@ export function createMaterials(onProgress = () => {}) {
     map: T.pica.map, roughnessMap: T.pica.roughnessMap, normalMap: T.pica.normalMap,
     normalScale: new THREE.Vector2(0.8, 0.8), roughness: 1.0, metalness: 0.0, envMapIntensity: 0.5,
   });
-  M.bell = new THREE.MeshStandardMaterial({ map: T.bell.map, roughnessMap: T.bell.roughnessMap, metalness: 0.85, roughness: 1.0 });
-  M.bellCool = new THREE.MeshStandardMaterial({ map: T.bellCool.map, roughnessMap: T.bellCool.roughnessMap, metalness: 0.8, roughness: 1.0 });
+  M.bell = new THREE.MeshStandardMaterial({
+    map: T.bell.map, roughnessMap: T.bell.roughnessMap, normalMap: T.bell.normalMap,
+    normalScale: new THREE.Vector2(0.7, 0.7), metalness: 0.85, roughness: 1.0,
+  });
+  M.bellCool = new THREE.MeshStandardMaterial({
+    map: T.bellCool.map, roughnessMap: T.bellCool.roughnessMap, normalMap: T.bellCool.normalMap,
+    normalScale: new THREE.Vector2(0.55, 0.55), metalness: 0.8, roughness: 1.0,
+  });
   M.bellInner = new THREE.MeshStandardMaterial({ color: 0x241f1d, metalness: 0.7, roughness: 0.55 });
   // Polymer cable jacket: it cannot inherit the ring welds of a Starship tank.
   M.conduit = new THREE.MeshStandardMaterial({ color: 0x555a61, metalness: 0, roughness: 0.76, envMapIntensity: 0.5 });
@@ -164,13 +171,25 @@ export function createMaterials(onProgress = () => {}) {
   // Opaque dark-backed window approximation (no invented cabin). The front interface is
   // dielectric glass, IOR 1.5; dark backing is not a partially metallic pane.
   M.glass = new THREE.MeshPhysicalMaterial({ color: 0x152330, roughness: 0.09, metalness: 0, ior: 1.5, clearcoat: 0.3, clearcoatRoughness: 0.06, envMapIntensity: 1.2 });
-  M.aluminum = new THREE.MeshPhysicalMaterial({ color: 0xb8bcc2, metalness: 1.0, roughness: 0.4 });
+  M.aluminum = new THREE.MeshPhysicalMaterial({ color: 0xd4d8de, metalness: 1.0, roughness: 0.26, envMapIntensity: 1.2 });
   M.alumDark = new THREE.MeshPhysicalMaterial({ color: 0x5c6066, metalness: 0.9, roughness: 0.5 });
   M.radiator = new THREE.MeshPhysicalMaterial({ color: 0xf2f2ee, metalness: 0.1, roughness: 0.32, clearcoat: 0.4 });
   M.mount = new THREE.MeshStandardMaterial({ color: 0x3b3e42, metalness: 0.6, roughness: 0.62 });
   M.mountYellow = new THREE.MeshStandardMaterial({ color: 0x9d8330, metalness: 0.35, roughness: 0.62 });
-  M.human = new THREE.MeshStandardMaterial({ color: 0xe8e2d6, roughness: 0.8 });
-  M.humanDark = new THREE.MeshStandardMaterial({ color: 0x2e3a4a, roughness: 0.85 });
+  M.human = new THREE.MeshStandardMaterial({ color: 0xd8d2c6, roughness: 0.82 });
+  M.humanDark = new THREE.MeshStandardMaterial({ color: 0x3d4a40, roughness: 0.86 });
+  M.skin = new THREE.MeshStandardMaterial({ color: 0xc4a07a, roughness: 0.68 });
+  M.visitor = M.human;
+  M.coverall = M.humanDark;
+  M.boot = new THREE.MeshStandardMaterial({ color: 0x1a1c1f, roughness: 0.62, metalness: 0.04 });
+  M.hardhat = new THREE.MeshStandardMaterial({ color: 0xd7a24a, roughness: 0.48, metalness: 0.04 });
+  M.asphalt = new THREE.MeshStandardMaterial({ color: 0x4a4e54, roughness: 0.92, metalness: 0 });
+  M.gravel = new THREE.MeshStandardMaterial({ color: 0x8d8474, roughness: 0.96, metalness: 0 });
+  M.swale = new THREE.MeshStandardMaterial({ color: 0x3a332c, roughness: 0.98, metalness: 0 });
+  M.roadPaint = new THREE.MeshStandardMaterial({ color: 0xd7c36a, roughness: 0.72, metalness: 0 });
+  M.berm = new THREE.MeshStandardMaterial({ color: 0x8a7a58, roughness: 0.96, metalness: 0 });
+  M.scrub = new THREE.MeshStandardMaterial({ color: 0x5c6746, roughness: 0.94, metalness: 0 });
+  M.service = new THREE.MeshStandardMaterial({ color: 0x3c4650, roughness: 0.7, metalness: 0.06 });
   M.copper = new THREE.MeshPhysicalMaterial({ color: 0xb87333, metalness: 1.0, roughness: 0.35 });
   // White MLI: the foil colour map is gold, so take only its crinkle normals.
   M.mliWhite = new THREE.MeshPhysicalMaterial({ color: 0xdedbd4, metalness: 0.3, roughness: 0.4, normalMap: T.foil.normalMap, normalScale: new THREE.Vector2(0.85, 0.85), clearcoat: 0.3 });

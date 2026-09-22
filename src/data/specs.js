@@ -92,6 +92,7 @@ export const VEHICLES = [
       'Tiles: the published count (~18,000, Wikipedia) and the published size (≈12 in across vertices) do not agree exactly; the model follows the size and covers about 13,700 tiles over the exposed half, the nose and the flaps.',
       'Internal stations (skirt, common dome, nose base, payload bay) are not public: they are derived from the 1.83 m ring and the published propellant masses.',
       'The night lighting on the Sun control is display lighting for the centre, not a record of how Starbase is actually lit after dark.',
+      'Roads, berms, scrub and service trucks around the centre are campus dressing for scale. They are not a survey of Starbase and they are not part of the Pad 2 reconstruction.',
       'The booster\'s return trajectory is authored, not integrated: no public source gives Super Heavy\'s altitude second by second. It is pinned to the four cited times of the flight 5 return and to an apogee near 96 km; everything between those pins is a reconstruction, as the ascent curve is.',
     ],
     sources: ['spacex_starship', 'spacex_v3', 'wiki_starship', 'wiki_superheavy', 'wiki_raptor', 'space_tiles', 'nsf_sh_block3', 'nsf_flight12', 'wiki_ft5', 'wiki_ft12'],

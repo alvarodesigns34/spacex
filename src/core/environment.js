@@ -18,9 +18,9 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   // shader only uses direction, so the box is re-centred on the camera every frame.
   sky.scale.setScalar(400000);
   const su = sky.material.uniforms;
-  su.turbidity.value = 2.1;
-  su.rayleigh.value = 1.9;
-  su.mieCoefficient.value = 0.0035;
+  su.turbidity.value = 2.8;
+  su.rayleigh.value = 1.15;
+  su.mieCoefficient.value = 0.0016;
   su.mieDirectionalG.value = 0.86;
   // The atmosphere shader applies its own tone curve, so pulling its scattering to zero
   // still leaves a grey-blue field rather than space. Fading the whole sky out over a black
@@ -58,9 +58,9 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   sun.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);
   sun.shadow.camera.near = 5;
   sun.shadow.camera.far = 1200;
-  sun.shadow.bias = -0.00035;
-  sun.shadow.normalBias = 0.06;
-  sun.shadow.radius = 2;
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.032;
+  sun.shadow.radius = 1.25;
   scene.add(sun, sun.target);
 
   const hemi = new THREE.HemisphereLight(0xbfd4ee, 0x6b6660, 0.45);
@@ -170,9 +170,9 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     }
   }
 
-  const fog = new THREE.FogExp2(0xc9d3de, 0.00019);
+  const fog = new THREE.FogExp2(0xc5cdd6, 0.00027);
   scene.fog = fog;
-  const GROUND_FOG = 0.00019;
+  const GROUND_FOG = 0.00027;
   let nightK = 0;
 
   /** Keeps the sky centred on the viewer. Cheap, and the only way it survives an ascent. */
@@ -189,7 +189,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   // Now the three are inputs, and this function is the only writer. It is pure in the sense
   // that matters: called twice with the same inputs it produces the same scene.
   const air = { elev: 42, azim: 34, altitude: 0 };
-  const SKY_GROUND = { turbidity: 2.1, rayleigh: 1.9, mie: 0.0035 };
+  const SKY_GROUND = { turbidity: 2.8, rayleigh: 1.15, mie: 0.0016 };
   const _nightHemi = new THREE.Color(0x2c3d5e), _nightFog = new THREE.Color(0x070a12);
 
   /** @param rebuildProbe regenerate the PMREM. Costly: only when the sun itself moved. */
@@ -211,11 +211,14 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     // Colour temperature vs elevation. Direct sunlight only turns strongly orange within a few
     // degrees of the horizon; an over-saturated sun tints bare metal at working elevations.
     const t = THREE.MathUtils.clamp(elev / 60, 0, 1);
-    const warmth = Math.pow(1 - t, 2.2);
-    sun.color.setHSL(0.085, 0.05 + 0.42 * warmth, THREE.MathUtils.lerp(0.72, 0.99, Math.pow(t, 0.5)));
-    sun.intensity = THREE.MathUtils.lerp(1.6, 3.6, Math.pow(t, 0.65)) * ((1 - n) + 0.012 * n);
-    hemi.color.setHSL(0.58, 0.32 - 0.12 * warmth, 0.62 + 0.08 * t).lerp(_nightHemi, n);
-    hemi.intensity = THREE.MathUtils.lerp(THREE.MathUtils.lerp(0.3, 0.55, t), 0.05, n) * (1 - j * 0.9);
+    // Orange only very near the horizon. At the 18° inspection elevation the key
+    // stays neutral enough that steel, paint and aluminium separate by roughness.
+    const warmth = Math.pow(1 - t, 3.4);
+    sun.color.setHSL(0.09, 0.04 + 0.28 * warmth, THREE.MathUtils.lerp(0.74, 0.98, Math.pow(t, 0.55)));
+    const daylight = THREE.MathUtils.lerp(1.2, 2.5, Math.pow(t, 0.55));
+    sun.intensity = daylight * ((1 - n) + 0.012 * n);
+    hemi.color.setHSL(0.58, 0.22 - 0.08 * warmth, 0.58 + 0.06 * t).lerp(_nightHemi, n);
+    hemi.intensity = THREE.MathUtils.lerp(THREE.MathUtils.lerp(0.22, 0.36, t), 0.04, n) * (1 - j * 0.9);
     fog.color.setHSL(0.58, 0.18 + 0.14 * warmth, THREE.MathUtils.lerp(0.50, 0.70, t)).lerp(_nightFog, n);
 
     // Scattering: the two blends multiply. Everything is computed from the ground constants,
@@ -247,7 +250,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
       for (const t of groundMaps) t.repeat.set(baseRepeat.x * gs, baseRepeat.y * gs);
     }
 
-    scene.environmentIntensity = THREE.MathUtils.lerp(1.0, 1.6, n) * (1 - j * 0.55);
+    scene.environmentIntensity = THREE.MathUtils.lerp(1.05, 1.45, n) * (1 - j * 0.55);
 
     if (rebuildProbe) {
       // The probe is the sky at ground level for this sun, so chrome and clearcoat go dark

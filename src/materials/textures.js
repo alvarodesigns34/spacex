@@ -174,7 +174,7 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
   shade(rough, (x, y, u, v) => {
     // Bright mill finish: low roughness on the panels, rough at the weld and where it is
     // sooted or heat-tinted, which is what makes the ring seams read at a distance.
-    const base = 0.30 + (colStreak[x] - 0.5) * 0.08 + (fbm(u * 7, v * 10, 3) - 0.5) * 0.08
+    const base = 0.48 + (colStreak[x] - 0.5) * 0.08 + (fbm(u * 7, v * 10, 3) - 0.5) * 0.06
       + bead[y] * 0.36 + haz[y] * 0.10 + vseam[x] * 0.32 + vhaz[x] * 0.06 + heat * 0.16 + soot * 0.34;
     const g = clamp(base * 255);
     return [g, g, g];
@@ -511,29 +511,32 @@ export function makeConcrete({ size = 768, tile = 12.0 } = {}) {
 // =====================================================================================
 //  GROUND TERRAIN (Boca Chica / Starbase coastal plain)
 // =====================================================================================
-export function makeGroundTerrain({ size = 768, tile = 48.0 } = {}) {
+export function makeGroundTerrain({ size = 768, tile = 96.0 } = {}) {
   const map = canvas(size, size);
   const rough = canvas(size, size);
   const height = canvas(size, size);
+  // Coastal salt flat. Frequencies are integer multiples of the lattice period
+  // (256) so the tile meets itself: a non-periodic fbm drew a seam every tile,
+  // which read as a grid across the apron.
+  const period = (u, v, cells, ox = 0, oy = 0) => noise2(u * cells + ox, v * cells + oy);
   shade(map, (x, y, u, v) => {
-    const macro = fbm(u * 3 + 1, v * 3 + 4, 4);
-    const meso = fbm(u * 12 + 7, v * 12 + 2, 4);
-    const micro = (noise2(x * 0.8, y * 0.8) - 0.5) * 0.05;
-    const scrub = Math.max(0, fbm(u * 5 + 3, v * 5 + 8, 3) - 0.55) * 1.5;
-    let r = 0.50 + (macro - 0.5) * 0.12 + (meso - 0.5) * 0.06 + micro;
-    let g = 0.47 + (macro - 0.5) * 0.11 + (meso - 0.5) * 0.05 + micro;
-    let b = 0.42 + (macro - 0.5) * 0.10 + (meso - 0.5) * 0.05 + micro;
-    r = lerp(r, 0.41, scrub * 0.35);
-    g = lerp(g, 0.44, scrub * 0.35);
-    b = lerp(b, 0.35, scrub * 0.35);
+    const dune = period(u, v, 256, 4, 9);
+    const clay = period(u, v, 512, 20, 3);
+    const salt = Math.max(0, dune - 0.42);
+    const damp = Math.max(0, 0.48 - clay);
+    const scrub = Math.max(0, period(u, v, 256, 80, 15) - 0.58);
+    let r = 0.62, g = 0.56, b = 0.42;
+    r = lerp(r, 0.78, salt); g = lerp(g, 0.72, salt); b = lerp(b, 0.54, salt);
+    r = lerp(r, 0.36, damp * 0.85); g = lerp(g, 0.40, damp * 0.85); b = lerp(b, 0.28, damp * 0.85);
+    r = lerp(r, 0.34, scrub * 1.3); g = lerp(g, 0.42, scrub * 1.3); b = lerp(b, 0.24, scrub * 1.3);
     return [clamp(r * 255), clamp(g * 255), clamp(b * 255)];
   });
   shade(rough, (x, y, u, v) => {
-    const g = clamp((0.88 + (fbm(u * 10, v * 10, 3) - 0.5) * 0.14) * 255);
+    const g = clamp((0.9 + (period(u, v, 512) - 0.5) * 0.08) * 255);
     return [g, g, g];
   });
   shade(height, (x, y, u, v) => {
-    const g = clamp((0.5 + (fbm(u * 16, v * 16, 3) - 0.5) * 0.28) * 255);
+    const g = clamp((0.5 + (period(u, v, 256, 2, 6) - 0.5) * 0.2) * 255);
     return [g, g, g];
   });
   return {
@@ -615,24 +618,20 @@ export function makePica({ size = 512 } = {}) {
     const a = Math.atan2(dy, dx) / (Math.PI * 2) + 0.5;
     return [r, a];
   };
+  // Charred phenolic, not a pie of brown tiles. A faint cell grain is all the
+  // honeycomb that reads at this distance; sector gaps made it look segmented.
   shade(map, (x, y, u, v) => {
-    const [r, a] = polar(u, v);
-    const ring = Math.floor(r * 4), sec = Math.floor(a * 12 + ring * 0.5);
-    const fr = (r * 4) % 1, fa = (a * 12 + ring * 0.5) % 1;
-    const gap = (fr < 0.03 || fa < 0.02) ? 1 : 0;
-    const tileTone = 0.30 + ((sec * 7 + ring * 3) % 5) * 0.02;
-    const char = fbm(u * 10, v * 10, 4) * 0.08;
-    let c = tileTone + char;
-    if (gap) c *= 0.5;
-    return [clamp(c * 255), clamp(c * 0.86 * 255), clamp(c * 0.72 * 255)];
+    const [r] = polar(u, v);
+    const char = fbm(u * 6, v * 6, 4);
+    const pore = fbm(u * 22, v * 22, 2);
+    const rim = r > 0.9 ? (r - 0.9) / 0.1 : 0;
+    let c = 0.2 + (char - 0.45) * 0.08 + (pore - 0.5) * 0.035;
+    c *= 1 - rim * 0.2;
+    return [clamp(c * 255), clamp(c * 0.93 * 255), clamp(c * 0.88 * 255)];
   });
-  shade(rough, (x, y, u, v) => { const g = clamp((0.88 + (fbm(u * 16, v * 16, 3) - 0.5) * 0.1) * 255); return [g, g, g]; });
+  shade(rough, (x, y, u, v) => { const g = clamp((0.92 + (fbm(u * 8, v * 8, 3) - 0.5) * 0.06) * 255); return [g, g, g]; });
   shade(height, (x, y, u, v) => {
-    const [r, a] = polar(u, v);
-    const ring = Math.floor(r * 4);
-    const fr = (r * 4) % 1, fa = (a * 12 + ring * 0.5) % 1;
-    const gap = (fr < 0.03 || fa < 0.02) ? 1 : 0;
-    const g = clamp((0.55 - gap * 0.35 + (fbm(u * 40, v * 40, 3) - 0.5) * 0.1) * 255);
+    const g = clamp((0.5 + (fbm(u * 18, v * 18, 3) - 0.5) * 0.16) * 255);
     return [g, g, g];
   });
   return {
@@ -648,6 +647,7 @@ export function makePica({ size = 512 } = {}) {
 export function makeEngineBell({ size = 384, copper = 0.5 } = {}) {
   const map = canvas(size, size);
   const rough = canvas(size, size);
+  const height = canvas(size, size);
   shade(map, (x, y, u, v) => {
     // v = 0 at the exit plane, 1 at the throat/chamber
     const streak = (fbm(u * 40, v * 3, 3) - 0.5) * 0.08;
@@ -664,7 +664,19 @@ export function makeEngineBell({ size = 384, copper = 0.5 } = {}) {
     return [clamp(r * 255), clamp(g * 255), clamp(b * 255)];
   });
   shade(rough, (x, y, u, v) => { const g = clamp((0.42 + (fbm(u * 12, v * 12, 3) - 0.5) * 0.2 + (1 - v) * 0.1) * 255); return [g, g, g]; });
-  return { map: toTexture(map, { srgb: true, wrap: THREE.RepeatWrapping }), roughnessMap: toTexture(rough) };
+  shade(height, (x, y, u, v) => {
+    // Regenerative channels as relief, so a raking sun picks them out of the metal
+    // instead of a painted stripe. One wrap of the bell, matching the colour map.
+    const rib = Math.sin(u * Math.PI * 2 * 64) * 0.5 + 0.5;
+    const lip = Math.max(0, 1 - v * 10);
+    const g = clamp((0.42 + rib * 0.38 * (1 - v * 0.35) + lip * 0.18) * 255);
+    return [g, g, g];
+  });
+  return {
+    map: toTexture(map, { srgb: true, wrap: THREE.RepeatWrapping }),
+    roughnessMap: toTexture(rough),
+    normalMap: toTexture(heightToNormal(height, 2.4), { wrap: THREE.RepeatWrapping }),
+  };
 }
 
 // =====================================================================================

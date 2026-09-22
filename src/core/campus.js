@@ -1,0 +1,158 @@
+/**
+ * Coastal campus around the exhibits. Environmental reconstruction only: it is not
+ * Starbase infrastructure and it is not measured flight hardware. Roads, a gravel
+ * terrace and low berms give the apron a scale and a ground plane that is not one
+ * repeating grey disc. Coordinates follow the exhibit row in main.js (z = 0,
+ * x = −153…163) and leave Pad 2, at world (0, −185), on its own deck.
+ */
+import * as THREE from 'three';
+import { mesh, mergeAll, mat4, boxUV } from '../geometry/utils.js';
+
+function quad(x0, z0, x1, z1, y) {
+  const g = new THREE.PlaneGeometry(Math.abs(x1 - x0), Math.abs(z1 - z0));
+  g.rotateX(-Math.PI / 2);
+  g.translate((x0 + x1) / 2, y, (z0 + z1) / 2);
+  return g;
+}
+
+/**
+ * Parked service truck, axis along Z, wheels rolled about X. Museum furniture:
+ * not a specific vehicle, and not flight hardware.
+ */
+function truckParts(x, z, yaw) {
+  const body = [];
+  const wheels = [];
+  const yawQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+  const rollQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
+  const wheelQ = yawQ.clone().multiply(rollQ);
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  const place = (list, geometry, lx, ly, lz, quat) => {
+    const m = new THREE.Matrix4();
+    m.compose(
+      new THREE.Vector3(x + lx * c + lz * s, ly, z - lx * s + lz * c),
+      quat,
+      new THREE.Vector3(1, 1, 1),
+    );
+    list.push({ geometry, matrix: m });
+  };
+  place(body, new THREE.BoxGeometry(2.05, 0.7, 4.7), 0, 0.64, 0, yawQ);
+  place(body, new THREE.BoxGeometry(1.85, 0.62, 1.55), 0, 1.22, -1.15, yawQ);
+  place(body, new THREE.BoxGeometry(1.95, 0.22, 1.3), 0, 1.02, 1.25, yawQ);
+  for (const [wx, wz] of [[1.02, 1.5], [-1.02, 1.5], [1.02, -1.5], [-1.02, -1.5]]) {
+    place(wheels, new THREE.CylinderGeometry(0.34, 0.34, 0.22, 12), wx, 0.34, wz, wheelQ);
+  }
+  return { body, wheels };
+}
+
+/**
+ * @param {import('three').Scene} scene
+ * @param {Record<string, import('three').Material>} M
+ */
+export function dressCampus(scene, M) {
+  const g = new THREE.Group();
+  g.name = 'campus';
+  g.userData.provenance = 'environmental-reconstruction';
+
+  for (const mat of [M.asphalt, M.gravel, M.swale, M.roadPaint]) {
+    mat.polygonOffset = true;
+    mat.polygonOffsetFactor = -2;
+    mat.polygonOffsetUnits = -2;
+  }
+
+  // Worked terrace under the museum row, clear of mount radii (largest ring is 16 m).
+  g.add(mesh(quad(-178, -18, 188, 20, 0.012), M.gravel, {
+    name: 'campus-terrace', castShadow: false,
+  }));
+
+  // Visitor road in front of the row, toward the overview camera at +Z.
+  g.add(mesh(quad(-186, 24, 196, 31.2, 0.02), M.asphalt, {
+    name: 'campus-road-row', castShadow: false,
+  }));
+  const dashes = [];
+  for (let x = -180; x < 190; x += 8) {
+    dashes.push({ geometry: new THREE.BoxGeometry(2.2, 0.008, 0.12), matrix: mat4([x, 0.03, 27.6]) });
+  }
+  g.add(mesh(mergeAll(dashes), M.roadPaint, { name: 'campus-road-dashes', castShadow: false, receiveShadow: false }));
+
+  // Spur toward Pad 2. Stops on the coastal plain, short of the pad mound at z = −185.
+  g.add(mesh(quad(46, -150, 53, 31.2, 0.02), M.asphalt, {
+    name: 'campus-road-spur', castShadow: false,
+  }));
+
+  // Drainage swale on the outer shoulder. A dark strip, not a modelled culvert.
+  g.add(mesh(quad(-186, 31.2, 196, 32.4, 0.016), M.swale, {
+    name: 'campus-swale', castShadow: false,
+  }));
+
+  // Low dunes, not crates. One flattened sphere, instanced, off the row and the pad.
+  const duneGeo = new THREE.SphereGeometry(1, 14, 10);
+  duneGeo.scale(1, 0.28, 1);
+  const duneSpec = [
+    [-210, 70, 18, 1.3],
+    [40, 95, 14, 0.9],
+    [210, 48, 16, 1.5],
+    [-90, 120, 20, 1.0],
+    [130, -90, 15, 1.2],
+    [-170, -80, 13, 0.8],
+  ].filter(([x, z]) => Math.hypot(x, z + 185) >= 140);
+  const dunes = new THREE.InstancedMesh(duneGeo, M.berm, duneSpec.length);
+  dunes.name = 'campus-berms';
+  dunes.castShadow = true;
+  dunes.receiveShadow = true;
+  const dune = new THREE.Object3D();
+  duneSpec.forEach(([x, z, radius, h], i) => {
+    dune.position.set(x, 0.28 * h, z);
+    dune.scale.set(radius, h, radius * 0.72);
+    dune.updateMatrix();
+    dunes.setMatrixAt(i, dune.matrix);
+  });
+  dunes.instanceMatrix.needsUpdate = true;
+  g.add(dunes);
+
+  // Salt-flat scrub. One cone, instanced, outside the terrace and the pad.
+  const scrubGeo = new THREE.ConeGeometry(0.55, 0.85, 5);
+  scrubGeo.translate(0, 0.42, 0);
+  const spots = [];
+  const scrubCount = 64;
+  let seed = 17;
+  let guard = 0;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed & 0x7fffffff) / 2147483647; };
+  while (spots.length < scrubCount * 3 && guard < 4000) {
+    guard++;
+    const x = -240 + rnd() * 500;
+    const z = -80 + rnd() * 220;
+    const onRow = z > -22 && z < 36 && x > -190 && x < 200;
+    const onPad = Math.hypot(x, z + 185) < 150;
+    if (onRow || onPad) continue;
+    spots.push(x, z, rnd());
+  }
+  const scrub = new THREE.InstancedMesh(scrubGeo, M.scrub, spots.length / 3);
+  scrub.name = 'campus-scrub';
+  scrub.castShadow = false;
+  scrub.receiveShadow = true;
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < spots.length; i += 3) {
+    const s = 0.7 + spots[i + 2] * 0.8;
+    dummy.position.set(spots[i], 0, spots[i + 1]);
+    dummy.scale.set(s, 0.6 + spots[i + 2] * 0.7, s);
+    dummy.rotation.y = spots[i + 2] * 6;
+    dummy.updateMatrix();
+    scrub.setMatrixAt(i / 3, dummy.matrix);
+  }
+  scrub.instanceMatrix.needsUpdate = true;
+  g.add(scrub);
+
+  // Three service trucks on the road shoulder. They are scale furniture.
+  const bodies = [];
+  const wheels = [];
+  for (const [x, z, yaw] of [[-168, 34.4, 0], [172, 34.8, Math.PI], [62, 36.8, Math.PI / 2]]) {
+    const t = truckParts(x, z, yaw);
+    bodies.push(...t.body);
+    wheels.push(...t.wheels);
+  }
+  g.add(mesh(boxUV(mergeAll(bodies)), M.service, { name: 'campus-trucks', castShadow: true }));
+  g.add(mesh(boxUV(mergeAll(wheels)), M.boot, { name: 'campus-truck-wheels', castShadow: true }));
+
+  scene.add(g);
+  return g;
+}

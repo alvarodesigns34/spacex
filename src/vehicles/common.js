@@ -61,23 +61,43 @@ export function buildPedestal(M, { radius = 1.2, height = 1.2, post = 0 } = {}) 
   return g;
 }
 
-/** 1.80 m person: proportions from standard anthropometric figures. */
+/**
+ * 1.80 m person from standard anthropometric proportions.
+ * A visitor in light coveralls, or a technician in a hard hat. Scale furniture,
+ * not a scanned actor: boxes and cylinders, with a head, neck, elbows and knees
+ * so the silhouette is a person rather than two capsules.
+ */
 export function buildHuman(M, { suit = 'white' } = {}) {
   const g = new THREE.Group();
   g.name = 'human';
-  const body = suit === 'white' ? M.human : M.humanDark;
-  const parts = [];
-  parts.push({ geometry: new THREE.SphereGeometry(0.105, 16, 12), matrix: mat4([0, 1.69, 0]) });
-  parts.push({ geometry: new THREE.CylinderGeometry(0.05, 0.06, 0.08, 10), matrix: mat4([0, 1.55, 0]) });
-  parts.push({ geometry: new THREE.CapsuleGeometry(0.17, 0.42, 4, 12), matrix: mat4([0, 1.22, 0]) });
-  parts.push({ geometry: new THREE.CapsuleGeometry(0.055, 0.55, 4, 10), matrix: mat4([0.24, 1.15, 0], [0, 0, 0.08]) });
-  parts.push({ geometry: new THREE.CapsuleGeometry(0.055, 0.55, 4, 10), matrix: mat4([-0.24, 1.15, 0], [0, 0, -0.08]) });
+  const cloth = suit === 'white' ? M.visitor : M.coverall;
+  const body = [];
   const legs = [];
-  legs.push({ geometry: new THREE.CapsuleGeometry(0.075, 0.72, 4, 10), matrix: mat4([0.1, 0.46, 0]) });
-  legs.push({ geometry: new THREE.CapsuleGeometry(0.075, 0.72, 4, 10), matrix: mat4([-0.1, 0.46, 0]) });
-  legs.push({ geometry: new THREE.BoxGeometry(0.11, 0.06, 0.26), matrix: mat4([0.1, 0.03, 0.04]) });
-  legs.push({ geometry: new THREE.BoxGeometry(0.11, 0.06, 0.26), matrix: mat4([-0.1, 0.03, 0.04]) });
-  g.add(mesh(mergeAll(parts), body));
-  g.add(mesh(mergeAll(legs), M.humanDark));
+  body.push({ geometry: new THREE.BoxGeometry(0.36, 0.42, 0.18), matrix: mat4([0, 1.22, 0]) });
+  body.push({ geometry: new THREE.BoxGeometry(0.3, 0.14, 0.17), matrix: mat4([0, 0.92, 0]) });
+  body.push({ geometry: new THREE.BoxGeometry(0.44, 0.08, 0.14), matrix: mat4([0, 1.42, 0]) });
+  body.push({ geometry: new THREE.CylinderGeometry(0.042, 0.038, 0.26, 7), matrix: mat4([0.22, 1.26, 0], [0, 0, 0.18]) });
+  body.push({ geometry: new THREE.CylinderGeometry(0.036, 0.032, 0.24, 7), matrix: mat4([0.28, 1.02, 0.03], [0.55, 0, 0.08]) });
+  body.push({ geometry: new THREE.CylinderGeometry(0.042, 0.038, 0.26, 7), matrix: mat4([-0.22, 1.26, 0], [0, 0, -0.18]) });
+  body.push({ geometry: new THREE.CylinderGeometry(0.036, 0.032, 0.24, 7), matrix: mat4([-0.28, 1.02, 0.03], [0.55, 0, -0.08]) });
+  legs.push({ geometry: new THREE.CylinderGeometry(0.065, 0.05, 0.4, 7), matrix: mat4([0.08, 0.68, 0]) });
+  legs.push({ geometry: new THREE.CylinderGeometry(0.048, 0.042, 0.38, 7), matrix: mat4([0.09, 0.3, 0.02]) });
+  legs.push({ geometry: new THREE.CylinderGeometry(0.065, 0.05, 0.4, 7), matrix: mat4([-0.08, 0.68, 0]) });
+  legs.push({ geometry: new THREE.CylinderGeometry(0.048, 0.042, 0.38, 7), matrix: mat4([-0.09, 0.3, 0.02]) });
+  const boots = [];
+  boots.push({ geometry: new THREE.BoxGeometry(0.1, 0.08, 0.22), matrix: mat4([0.09, 0.04, 0.03]) });
+  boots.push({ geometry: new THREE.BoxGeometry(0.1, 0.08, 0.22), matrix: mat4([-0.09, 0.04, 0.03]) });
+  const head = [];
+  head.push({ geometry: new THREE.CylinderGeometry(0.04, 0.046, 0.08, 8), matrix: mat4([0, 1.56, 0]) });
+  head.push({ geometry: new THREE.SphereGeometry(0.09, 12, 10), matrix: mat4([0, 1.71, 0]) });
+  g.add(mesh(mergeAll(body), cloth, { castShadow: true }));
+  g.add(mesh(mergeAll(legs), cloth, { castShadow: true }));
+  g.add(mesh(mergeAll(boots), M.boot, { castShadow: true }));
+  g.add(mesh(mergeAll(head), M.skin, { castShadow: true }));
+  if (suit !== 'white') {
+    const hat = new THREE.SphereGeometry(0.105, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+    hat.translate(0, 1.76, 0);
+    g.add(mesh(hat, M.hardhat, { castShadow: true }));
+  }
   return g;
 }
