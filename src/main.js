@@ -11,6 +11,7 @@ import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer
 
 import { createMaterials } from './materials/library.js';
 import { createEnvironment } from './core/environment.js';
+import { dressCampus } from './core/campus.js';
 import { CameraRig } from './core/cameraRig.js';
 import { ViewState } from './core/viewState.js';
 import { pickQuality, applyQuality } from './core/quality.js';
@@ -125,7 +126,7 @@ async function main() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.72;
+  renderer.toneMappingExposure = 0.7;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const labelRenderer = new CSS2DRenderer({ element: document.getElementById('labels') });
@@ -181,6 +182,7 @@ async function main() {
   hud.setProgress('Lighting and environment…', 0.25);
   await nextFrame();
   const env = createEnvironment(renderer, scene, M, quality);
+  dressCampus(scene, M);
 
   // ---- Post-processing (MSAA render target + subtle bloom) ----
   const rt = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { samples: quality.msaa, type: THREE.HalfFloatType });
@@ -304,7 +306,7 @@ async function main() {
     for (const a of model.userData.annotations ?? []) {
       const div = document.createElement('div');
       div.className = 'label';
-      div.innerHTML = `<span class="label-dot"></span><span class="label-text">${a.label}</span>`;
+      div.innerHTML = `<span class="label-dot"></span><span class="label-leader"></span><span class="label-text">${a.label}</span>`;
       const obj = new CSS2DObject(div);
       obj.userData.scope = a.scope ?? 'all';
       const [ax, ay, az] = a.position;
@@ -321,7 +323,7 @@ async function main() {
       for (const a of complex.userData.annotations) {
         const div = document.createElement('div');
         div.className = 'label';
-        div.innerHTML = `<span class="label-dot"></span><span class="label-text">${a.label}</span>`;
+        div.innerHTML = `<span class="label-dot"></span><span class="label-leader"></span><span class="label-text">${a.label}</span>`;
         const obj = new CSS2DObject(div);
         obj.position.set(lay.x + a.position[0], a.position[1], lay.z + a.position[2]);
         pg.add(obj);
@@ -758,6 +760,46 @@ async function main() {
 
   const _fwd = new THREE.Vector3();
 
+  /**
+   * Screen-space label budget and a vertical nudge when two callouts overlap.
+   * The dot stays on the anchor; only the text moves. Occluded callouts stay
+   * faint and do not take a slot.
+   */
+  function settleLabels() {
+    const root = document.getElementById('labels');
+    if (!root) return;
+    const cap = window.innerWidth < 520 ? 4 : window.innerWidth < 900 ? 6 : 8;
+    const items = [];
+    for (const el of root.querySelectorAll('.label')) {
+      const text = el.querySelector('.label-text');
+      if (text) text.style.transform = '';
+      el.classList.remove('is-culled');
+      if (el.classList.contains('is-occluded')) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) continue;
+      const cx = r.x + r.width / 2 - window.innerWidth / 2;
+      const cy = r.y + r.height / 2 - window.innerHeight / 2;
+      items.push({ el, text, r, d: cx * cx + cy * cy });
+    }
+    items.sort((a, b) => a.d - b.d);
+    for (let i = cap; i < items.length; i++) items[i].el.classList.add('is-culled');
+    const live = items.filter(it => !it.el.classList.contains('is-culled'));
+    live.sort((a, b) => a.r.top - b.r.top);
+    const placed = [];
+    for (const it of live) {
+      let shift = 0;
+      const box = () => ({ left: it.r.left, right: it.r.right, top: it.r.top + shift, bottom: it.r.bottom + shift });
+      for (let guard = 0; guard < 6; guard++) {
+        const b = box();
+        const hit = placed.find(p => b.left < p.right - 2 && b.right > p.left + 2 && b.top < p.bottom - 2 && b.bottom > p.top + 2);
+        if (!hit) break;
+        shift += (hit.bottom - b.top) + 4;
+      }
+      if (it.text && shift) it.text.style.transform = `translateY(${shift.toFixed(1)}px)`;
+      placed.push(box());
+    }
+  }
+
   function frame() {
     const dt = Math.min(clock.getDelta(), 0.05);
     rig.update(dt);
@@ -775,6 +817,7 @@ async function main() {
     lod.update();
     composer.render();
     labelRenderer.render(scene, camera);
+    settleLabels();
     requestAnimationFrame(frame);
   }
   frame();

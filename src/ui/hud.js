@@ -44,7 +44,15 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       <button class="tool tool-btn tool-launch" id="launch-btn" title="Starship launch sequence from Pad 2 (G)">Starship · Launch <kbd>G</kbd></button>
       <button class="tool tool-btn" id="tour-btn" title="Guided tour of the centre (P)">Tour <kbd>P</kbd></button>
       <button class="tool tool-btn" id="mode-btn" title="Switch camera mode (F)">Orbit <kbd>F</kbd></button>
+      <button class="tool tool-btn" id="clean-btn" type="button" aria-pressed="false" title="Hide the interface">Clean scene</button>
       <button class="tool tool-btn" id="help-btn" title="Help (H)">Help <kbd>H</kbd></button>
+    </div>
+
+    <div class="dock" id="dock">
+      <button type="button" class="dock-btn" id="dock-vehicles" aria-expanded="false" aria-controls="rail">Vehicles</button>
+      <button type="button" class="dock-btn" id="dock-views" aria-expanded="false" aria-controls="presets">Views</button>
+      <button type="button" class="dock-btn" id="dock-tools" aria-expanded="false">Tools</button>
+      <button type="button" class="dock-btn" id="dock-clean" aria-pressed="false">Clean</button>
     </div>
 
     <div class="mission hidden" id="mission">
@@ -233,10 +241,43 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
   helpBtn.addEventListener('click', () => showHelp(help.classList.contains('hidden')));
   el('#help-close').addEventListener('click', () => showHelp(false));
 
-  // On compact screens the sheet opens on demand instead of covering the selected model.
+  // The sheet is a drawer. It starts closed on every viewport so it does not cover
+  // the vehicle; T or the header button opens it. Narrow screens keep it closed.
   const compact = window.matchMedia('(max-width: 820px), (max-height: 600px)');
-  toggleSheet(compact.matches);
+  toggleSheet(true);
   compact.addEventListener('change', e => { if (e.matches) toggleSheet(true); });
+
+  const dockMap = {
+    vehicles: [root.querySelector('#dock-vehicles'), rail],
+    views: [root.querySelector('#dock-views'), root.querySelector('#presets')],
+    tools: [root.querySelector('#dock-tools'), root.querySelector('.tools')],
+  };
+  function closeDock() {
+    for (const [btn, panel] of Object.values(dockMap)) {
+      panel.classList.remove('is-open');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  }
+  for (const [btn, panel] of Object.values(dockMap)) {
+    btn.addEventListener('click', () => {
+      const open = !panel.classList.contains('is-open');
+      closeDock();
+      if (open) {
+        panel.classList.add('is-open');
+        btn.setAttribute('aria-expanded', 'true');
+      }
+    });
+  }
+  const cleanBtn = root.querySelector('#clean-btn');
+  const dockClean = root.querySelector('#dock-clean');
+  function setClean(on) {
+    root.classList.toggle('is-clean', on);
+    cleanBtn.setAttribute('aria-pressed', String(on));
+    dockClean.setAttribute('aria-pressed', String(on));
+    if (on) closeDock();
+  }
+  cleanBtn.addEventListener('click', () => setClean(!root.classList.contains('is-clean')));
+  dockClean.addEventListener('click', () => setClean(!root.classList.contains('is-clean')));
 
   // ---- Mission panel ----
   const mission = el('#mission');
