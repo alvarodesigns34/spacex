@@ -13,7 +13,7 @@ Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones
 | Engine Row | Raptor 3, Raptor Vacuum y Merlin 1D sobre cunas, a 1:1 | 4,4 m (RVac) |
 | Falcon 1 | Configuración tardía de 2008: Merlin 1C, Kestrel y cofia bicónica; corte educativo de la segunda etapa | 21,336 m · 1,6764 m de diámetro |
 
-Starship no está sobre un soporte de museo sino sobre su plataforma: una reconstrucción a escala del **Pad 2 de Starbase** — la explanada, la zanja de llamas bidireccional revestida de inoxidable con su deflector central, la mesa de lanzamiento cuadrada de cubierta refrigerada por agua con sus veinte pinzas de sujeción, las conexiones separadas de metano y oxígeno del propulsor con su búnker dividido, la torre de integración de 144,5 m, los brazos de captura de 36 m, el brazo de desconexión rápida de la nave, los pararrayos y la granja criogénica. Desde ahí **despega**: con **G** o el botón *Launch* corre la secuencia completa, de la cuenta atrás a la separación en caliente — y después **el propulsor vuelve y la torre lo atrapa**, con el ciclo de boostback, el descenso, el encendido de aterrizaje y los brazos cerrándose sobre él.
+Starship no está sobre un soporte de museo sino sobre su plataforma: una reconstrucción a escala del **Pad 2 de Starbase** — la explanada, la zanja de llamas bidireccional revestida de inoxidable con su deflector central, la mesa de lanzamiento cuadrada de cubierta refrigerada por agua con sus veinte pinzas de sujeción, las conexiones separadas de metano y oxígeno del propulsor con su búnker dividido, la torre de integración de 144,5 m, los brazos de captura de 36 m, el brazo de desconexión rápida de la nave, el pararrayos y la estación meteorológica en lo alto de la torre, el depósito de agua del deluge en tanques horizontales y la granja criogénica con sus tanques horizontales de oxígeno y metano y los subenfriadores. Desde ahí **despega**: con **G** o el botón *Launch* corre la secuencia completa, de la cuenta atrás a la separación en caliente — y después **el propulsor vuelve y la torre lo atrapa**, con el ciclo de boostback, el descenso, el encendido de aterrizaje y los brazos cerrándose sobre él.
 
 Todo el modelo es procedural (sin binarios): las geometrías se generan a partir de perfiles de revolución con normales analíticas y UV métricas, los materiales PBR usan texturas generadas en Canvas (acero laminado con soldadura de anillo cada 1,83 m y costura vertical de placa cada 7,3 m, hollín de propulsor reutilizado, composite de carbono, células solares, PICA, hormigón en losas de 6 m, oleaje) y el escudo térmico de Starship son ~13 200 losetas hexagonales instanciadas de 0,26 m entre caras sobre la mitad expuesta del casco, el morro y las aletas.
 
@@ -86,8 +86,10 @@ SpaceX **no publica ninguna dimensión** de su infraestructura de tierra, así q
 
 | | |
 |---|---|
-| Citado | torre de 144,5 m (474 ft) · brazos de 36 m · 20 pinzas de sujeción · mesa cuadrada con cubierta refrigerada por agua · zanja de llamas bidireccional de hormigón revestida de inoxidable, con el propulsor varios metros más bajo que en el Pad A |
-| Reconstruido (**≈**) | toda dimensión en planta, las cotas de la explanada y de la cubierta, la sección de la celosía, la distancia de la torre al eje, la granja de tanques y los pararrayos |
+| Citado | torre de 144,5 m (474 ft) · brazos de 36 m · 20 pinzas de sujeción · mesa cuadrada con cubierta refrigerada por agua · zanja de llamas bidireccional de hormigón revestida de inoxidable, con el propulsor varios metros más bajo que en el Pad A · pararrayos y pequeña estación meteorológica en lo alto de la torre · agua del deluge en tanques horizontales impulsada por gas a presión · tanque horizontal de LOX de 95 000 galones, tanque de metano de 80 000 galones y subenfriadores de nitrógeno líquido (Wikipedia, *SpaceX Starbase*) |
+| Reconstruido (**≈**) | toda dimensión en planta, las cotas de la explanada y de la cubierta, los perfiles de la celosía, el hueco del ascensor y la escalera, la distancia de la torre al eje, el número y tamaño de los tanques del deluge, la fila de tanques verticales, los subenfriadores y todas las posiciones. Los dos tanques horizontales de propelente toman su longitud del volumen citado con un diámetro supuesto de 3,8 m |
+
+Lo que **no** está: no hay mástiles pararrayos exentos ni torres de focos. Durante un tiempo el complejo tuvo dos mástiles de 150 m y cuatro postes de 28 m con foco que ninguna fuente sitúa en el Pad 2; en la vista general se leían como antenas y farolas plantadas alrededor de la plataforma, y se retiraron. La torre, que antes llevaba un núcleo macizo de 5,2 m que la convertía en una losa oscura desde lejos, es ahora una celosía abierta: cuatro pilares, un anillo cada medio tramo, dos recuadros en X por cara y tramo, y dentro el hueco del ascensor y la escalera, por lo que se ve el cielo a través. Los brazos de captura son vigas de celosía en la misma envolvente que medía la verificación.
 
 La escala de lo reconstruido sale de la única referencia dura que hay en cualquier fotografía del pad: los **9 m de diámetro del propulsor**.
 
@@ -216,6 +218,10 @@ Cada entrada declara `lodFeature`: el tamaño real, en metros, de la pieza más 
 - **Filigrana de la Dragon.** Juntas de panel, marcos, bisagras y tornillería, separadas en dos lotes porque un marco de ventana de 26 cm se lee mucho más lejos que un tornillo de 1,4 cm.
 
 Medido en la vista general contra la misma escena con todo forzado a su estado detallado: **526 mallas y 825 655 triángulos, frente a 821 y 1 341 923**. Son 182 grupos, y todos se retiran en la vista general.
+
+### Estabilidad de la imagen
+
+La cámara usaba un plano cercano fijo de 0,15 m con el lejano a 9 km. La resolución del búfer de profundidad cae con el cuadrado de la distancia, así que en la vista general, a 400 m, solo distinguía superficies separadas más de ~0,6 m: losas, marcas viales, blindaje de la zanja y la línea de agua parpadeaban contra lo que tienen debajo al mover la cámara. Ahora el plano cercano sigue a la distancia de órbita (el 0,6 % de ella, entre 0,1 y 2 m), unas trece veces más precisión en la vista general sin perder nada de cerca. La secuencia de lanzamiento fija sus propios planos y, al terminar, devuelve los que tenía la cámara cuando empezó.
 
 ### Niveles de calidad
 

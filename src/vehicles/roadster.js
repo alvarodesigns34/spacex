@@ -1220,13 +1220,16 @@ function buildBodyShell(mats, M) {
   for (const s of [-1, 1]) {
     const xOut = s * 0.78;
     const xIn = s * 0.44;
-    const linerCurv = lathe([
-      { r: 0.36, y: xOut },
-      { r: 0.36, y: xIn },
-      { r: 0.0, y: xIn },
-    ], { segments: 32, phiStart: 0, phiLength: Math.PI });
-    linerCurv.rotateZ(s > 0 ? -Math.PI / 2 : Math.PI / 2);
-    linerCurv.rotateY(Math.PI / 2);
+    // Profile runs outboard-to-inboard on the right and the other way on the left, so the
+    // faces point at the tyre on both sides: the liner is only ever seen from underneath.
+    const linerProfile = [{ r: 0.36, y: xOut }, { r: 0.36, y: xIn }, { r: 0.0, y: xIn }];
+    const linerCurv = lathe(s > 0 ? linerProfile : linerProfile.reverse(),
+      { segments: 32, phiStart: 0, phiLength: Math.PI });
+    // Lathe axis (y) onto the axle (x), and the half the lathe sweeps (x >= 0) onto +y, so
+    // the liner is an arch over the tyre. The old Z-then-Y turn laid the axis along the car
+    // and hung the half-shell below the axle: at the rear it stuck 7 cm out through the tail.
+    linerCurv.rotateZ(-Math.PI / 2);
+    linerCurv.rotateX(Math.PI);
     wheelLinerParts.push({
       geometry: linerCurv,
       matrix: mat4([0, 0.30, 1.176]),
@@ -1251,13 +1254,16 @@ function buildBodyShell(mats, M) {
   for (const s of [-1, 1]) {
     const xOut = s * 0.86;
     const xIn = s * 0.44;
-    const linerCurv = lathe([
-      { r: 0.38, y: xOut },
-      { r: 0.38, y: xIn },
-      { r: 0.0, y: xIn },
-    ], { segments: 32, phiStart: 0, phiLength: Math.PI });
-    linerCurv.rotateZ(s > 0 ? -Math.PI / 2 : Math.PI / 2);
-    linerCurv.rotateY(Math.PI / 2);
+    // Profile runs outboard-to-inboard on the right and the other way on the left, so the
+    // faces point at the tyre on both sides: the liner is only ever seen from underneath.
+    const linerProfile = [{ r: 0.38, y: xOut }, { r: 0.38, y: xIn }, { r: 0.0, y: xIn }];
+    const linerCurv = lathe(s > 0 ? linerProfile : linerProfile.reverse(),
+      { segments: 32, phiStart: 0, phiLength: Math.PI });
+    // Lathe axis (y) onto the axle (x), and the half the lathe sweeps (x >= 0) onto +y, so
+    // the liner is an arch over the tyre. The old Z-then-Y turn laid the axis along the car
+    // and hung the half-shell below the axle: at the rear it stuck 7 cm out through the tail.
+    linerCurv.rotateZ(-Math.PI / 2);
+    linerCurv.rotateX(Math.PI);
     wheelLinerParts.push({
       geometry: linerCurv,
       matrix: mat4([0, 0.317, -1.176]),

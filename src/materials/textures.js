@@ -517,7 +517,10 @@ export function makeConcrete({ size = 768, tile = 12.0 } = {}) {
     const jointDist = Math.min(du, dv);
     const joint = Math.max(0, 1 - jointDist / 0.008);
     const sealant = Math.max(0, 1 - jointDist / 0.0035);
-    let c = 0.48 + (n - 0.5) * 0.06 + fine - stain * 0.5 + slab;
+    // 0.60 in sRGB is about 0.32 linear: weathered light-grey concrete. At 0.48 (0.2 linear),
+    // times the material tint, the pad and the apron rendered as dark slate — darker than the
+    // asphalt reads in photographs of Starbase, where the pads are pale.
+    let c = 0.60 + (n - 0.5) * 0.06 + fine - stain * 0.5 + slab;
     c -= joint * 0.06 + sealant * 0.12;
     return [clamp(c * 1.025 * 255), clamp(c * 255), clamp(c * 0.95 * 255)];
   });

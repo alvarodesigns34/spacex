@@ -12,8 +12,11 @@
  *   cited    square launch mount with a water-cooled deck; integrated bidirectional flame
  *            trench, a concrete "bathtub" clad in stainless; booster sits several metres
  *            lower than Pad A's stilted OLM
- *   approx   every plan dimension, the deck and trench levels, the truss section, the
- *            distance from the tower to the mount, the tank farm and the lightning masts
+ *   cited    lightning rod and small weather station on the tower top; deluge water in
+ *            horizontal tanks driven by compressed gas; a 95,000 gal horizontal LOX tank and
+ *            an 80,000 gal methane tank in the farm, with LN2 subcoolers
+ *   approx   every plan dimension, the deck and trench levels, the truss members, the
+ *            distance from the tower to the mount, tank positions, counts and diameters
  *
  * Frame: origin at the centre of the launch mount, on grade. +Y up, tower at −X, and the
  * flame trench runs along Z with a mouth at each end.
@@ -62,7 +65,6 @@ export const PAD = {
   qdY: 96.0,              // ship quick-disconnect arm
   qdLen: 18.5,
   // Field
-  mastH: 150.0,
   farmX: 150.0,
 };
 PAD.towerH = PAD.section * PAD.sections + PAD.mast;   // 144,5 m
@@ -393,8 +395,18 @@ function buildMountTable(M) {
 }
 
 // =========================================================================================
-//  Tower: 122 m of square truss on a concrete foundation, with a lightning mast on top
+//  Tower: 122 m of open square truss on a concrete foundation, lightning rod on top
 // =========================================================================================
+/** A straight member from a to b with a square (n = 4) or round section, for mergeAll. */
+function rod(a, b, r, n = 4) {
+  const A = new THREE.Vector3(...a), Bv = new THREE.Vector3(...b);
+  const len = A.distanceTo(Bv);
+  const geometry = n === 4 ? B(r * 2, len, r * 2) : new THREE.CylinderGeometry(r, r, len, n);
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), Bv.clone().sub(A).normalize());
+  const m = new THREE.Matrix4().compose(A.clone().add(Bv).multiplyScalar(0.5), q, new THREE.Vector3(1, 1, 1));
+  return { geometry, matrix: m };
+}
+
 function buildTower(M) {
   const g = new THREE.Group();
   g.name = 'olit';
@@ -404,40 +416,83 @@ function buildTower(M) {
 
   g.add(mesh(boxUV(mergeAll([block(-9, 9, PAD.bermY, padY + 1.2, -9, 9)])), M.concrete));
 
-  const steel = [];
-  // Four corner columns.
+  // The tower is a lattice you can see the sky through. It used to carry a solid 5.2 m box
+  // up its middle as the "service core", which turned the whole 122 m into a dark slab at
+  // every distance past a few hundred metres. Now: four corner columns, a horizontal ring
+  // every half-section, two X-braced bays per face per section, and an open lift shaft and
+  // stair inside. Member sizes are reconstructed from photographs; the height is cited.
+  const steel = [], light = [];
+  const c = h - 0.7;                       // corner-column centreline
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    const x = sx * (h - 0.7), z = sz * (h - 0.7);
+    const x = sx * c, z = sz * c;
     steel.push(block(x - 0.7, x + 0.7, base, top, z - 0.7, z + 0.7));
   }
-  // Horizontal ties every half-section, all four faces.
   const half = section / 2;
   for (let y = base; y <= top + 0.01; y += half) {
     for (const s of [-1, 1]) {
-      steel.push(block(-h + 0.7, h - 0.7, y - 0.28, y + 0.28, s * (h - 0.7) - 0.28, s * (h - 0.7) + 0.28));
-      steel.push(block(s * (h - 0.7) - 0.28, s * (h - 0.7) + 0.28, y - 0.28, y + 0.28, -h + 0.7, h - 0.7));
+      steel.push(block(-c, c, y - 0.3, y + 0.3, s * c - 0.3, s * c + 0.3));
+      steel.push(block(s * c - 0.3, s * c + 0.3, y - 0.3, y + 0.3, -c, c));
+    }
+    // Plan bracing across the ring, every other level: keeps the square square.
+    if (Math.round((y - base) / half) % 2 === 0) {
+      light.push(rod([-c, y, -c], [c, y, c], 0.14));
+      light.push(rod([-c, y, c], [c, y, -c], 0.14));
     }
   }
-  // One X-brace per face per section.
-  const span = (h - 0.7) * 2;
-  const dLen = Math.hypot(span, section);
-  const tilt = Math.atan2(span, section);
-  for (let i = 0; i < sections; i++) {
-    const yc = base + section * (i + 0.5);
-    for (const s of [-1, 1]) for (const d of [-1, 1]) {
-      steel.push({ geometry: B(0.34, dLen, 0.34), matrix: mat4([0, yc, s * (h - 0.7)], [0, 0, tilt * d]) });
-      steel.push({ geometry: B(0.34, dLen, 0.34), matrix: mat4([s * (h - 0.7), yc, 0], [tilt * d, 0, 0]) });
+  for (let i = 0; i < sections * 2; i++) {
+    const y0 = base + half * i, y1 = y0 + half;
+    for (const s of [-1, 1]) {
+      // Faces at z = ±c and x = ±c, one X per bay.
+      steel.push(rod([-c, y0, s * c], [c, y1, s * c], 0.2));
+      steel.push(rod([c, y0, s * c], [-c, y1, s * c], 0.2));
+      steel.push(rod([s * c, y0, -c], [s * c, y1, c], 0.2));
+      steel.push(rod([s * c, y0, c], [s * c, y1, -c], 0.2));
     }
   }
-  // Service core inside the truss (lifts and stairs) and the carriage rails on the pad face.
-  steel.push(block(-2.6, 2.6, base, top, -2.6, 2.6));
+  // Lift shaft: four light columns and a frame every 3 m, open on all sides.
+  const L = 1.5;
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    light.push(block(sx * L - 0.14, sx * L + 0.14, base, top, sz * L - 0.14, sz * L + 0.14));
+  }
+  for (let y = base + 3; y < top; y += 3.05) {
+    for (const s of [-1, 1]) {
+      light.push(block(-L, L, y - 0.08, y + 0.08, s * L - 0.08, s * L + 0.08));
+      light.push(block(s * L - 0.08, s * L + 0.08, y - 0.08, y + 0.08, -L, L));
+    }
+  }
+  // Switchback stair on the landward side of the shaft: a landing every half-section and
+  // a flight between each pair, alternating direction.
+  for (let i = 0; i < sections * 2; i++) {
+    const y0 = base + half * i, y1 = y0 + half;
+    light.push(block(-c + 0.7, -L - 0.3, y1 - 0.12, y1, -3.6, -1.0));        // landing
+    const dir = i % 2 === 0 ? 1 : -1;
+    light.push(rod([-3.3, y0, -2.3 - dir * 1.2], [-3.3, y1, -2.3 + dir * 1.2], 0.12));
+    light.push(rod([-2.2, y0, -2.3 - dir * 1.2], [-2.2, y1, -2.3 + dir * 1.2], 0.12));
+  }
+  // Grated work decks where the tower does its work: at the QD arm and at the crown.
+  const decks = [];
+  for (const y of [PAD.qdY - 1.6, top - 0.2]) decks.push(block(-c, c, y - 0.1, y + 0.1, -c, c));
+  // Carriage rails on the pad face.
   for (const s of [-1, 1]) steel.push(block(h - 0.35, h + 0.45, base, top, s * 3.4 - 0.45, s * 3.4 + 0.45));
-  g.add(mesh(boxUV(mergeAll(steel)), M.mount));
+  g.add(mesh(boxUV(mergeAll(steel)), M.mount, { name: 'tower-truss' }));
+  g.add(mesh(boxUV(mergeAll(light)), M.steelGrating, { name: 'tower-core', castShadow: true }));
+  g.add(mesh(boxUV(mergeAll(decks)), M.steelGrating, { name: 'tower-decks' }));
 
-  // Lightning mast: a tapered spire that takes the tower to its published 144,5 m.
+  // Crown: a lightning rod that takes the tower to its published 144,5 m, and the small
+  // weather station beside it (both cited: Wikipedia, SpaceX Starbase). The station's mast
+  // is well under the rod's tip, so the measured height stays the rod's.
+  const crown = [];
   const spire = new THREE.CylinderGeometry(0.16, 0.75, mast, 12);
   spire.translate(0, top + mast / 2, 0);
-  g.add(mesh(boxUV(mergeAll([{ geometry: spire }])), M.alumDark, { name: 'mast' }));
+  crown.push({ geometry: spire });
+  const wx = c - 1.2, wz = -c + 1.2;
+  crown.push(rod([wx, top, wz], [wx, top + 6, wz], 0.07, 8));
+  crown.push(rod([wx - 0.9, top + 5.6, wz], [wx + 0.9, top + 5.6, wz], 0.035, 6));
+  crown.push({ geometry: B(0.45, 0.6, 0.3), matrix: mat4([wx, top + 1.6, wz + 0.25]) });
+  for (const d of [-0.9, 0.9]) {
+    crown.push({ geometry: new THREE.CylinderGeometry(0.06, 0.06, 0.25, 8), matrix: mat4([wx + d, top + 5.8, wz]) });
+  }
+  g.add(mesh(boxUV(mergeAll(crown)), M.alumDark, { name: 'mast' }));
   return g;
 }
 
@@ -460,10 +515,29 @@ function buildChopsticks(M) {
     arm.name = `arm-${s < 0 ? 'north' : 'south'}`;
     arm.position.set(face + 1.2, 0, s * 2.2);
     arm.rotation.y = -s * open;
-    const parts = [
-      block(0, PAD.armLen, -1.7, 1.7, -1.35, 1.35),                 // main beam
-      block(2, PAD.armLen - 2, 1.7, 2.3, -1.0, 1.0),                // top rail
-    ];
+    // A box truss in the envelope the solid beam had (36 m × 3.4 m × 2.7 m, so the catch
+    // geometry the gate measures is unchanged): four chords, a post every 3 m, a diagonal
+    // per bay on the two vertical faces and on the bottom, and a closed deck on top that
+    // carries the rail the booster's pins land on. Member sizes are reconstructed.
+    const A = PAD.armLen, hy = 1.7, hz = 1.35, k = 0.24;
+    const parts = [];
+    for (const y of [-hy + k, hy - k]) for (const z of [-hz + k, hz - k]) {
+      parts.push(block(0, A, y - k, y + k, z - k, z + k));
+    }
+    const bays = 12, bay = A / bays;
+    for (let i = 0; i <= bays; i++) {
+      const x = Math.min(A - k, Math.max(k, i * bay));
+      for (const z of [-hz + k, hz - k]) parts.push(block(x - 0.16, x + 0.16, -hy, hy, z - 0.16, z + 0.16));
+      parts.push(block(x - 0.16, x + 0.16, -hy + 0.1, -hy + 0.4, -hz, hz));
+      if (i === bays) break;
+      const x0 = i * bay, x1 = x0 + bay, up = i % 2 === 0 ? 1 : -1;
+      for (const z of [-hz + k, hz - k]) parts.push(rod([x0, -up * (hy - k), z], [x1, up * (hy - k), z], 0.13));
+      parts.push(rod([x0, -hy + k, -up * (hz - k)], [x1, -hy + k, up * (hz - k)], 0.1));
+    }
+    parts.push(block(0.6, A - 0.6, hy - 0.2, hy, -hz, hz));                 // top deck
+    parts.push(block(2, A - 2, hy, 2.3, -1.0, 1.0));                          // catch rail
+    // Root: a solid plated section where the arm meets its hinge on the carriage.
+    parts.push(block(0, 3.2, -hy, hy, -hz, hz));
     // Load-bearing pads the booster hangs from, on the inboard face.
     for (let i = 0; i < 4; i++) {
       const x = 8 + i * 7;
@@ -497,47 +571,109 @@ function buildQdArm(M) {
   return pivot;
 }
 
-/** Lightning masts and the cryogenic farm that make the site read at its true size. */
+/**
+ * Cryogenic tank farm, set back from the pad on the landward side.
+ *
+ * Cited (Wikipedia, SpaceX Starbase): the farm holds methane, liquid oxygen, water, nitrogen,
+ * helium and hydraulic fluid; it includes a 95,000 US gal horizontal LOX tank and an 80,000
+ * US gal methane tank; subcoolers beside it chill the propellant with liquid nitrogen.
+ * Reconstructed: the row of tall vertical storage tanks, every position and diameter. The two
+ * horizontal tanks take their LENGTH from the cited volume at an assumed 3.8 m diameter, so
+ * their proportions follow the published capacity rather than a guess.
+ *
+ * The two free-standing 150 m lightning masts that used to stand here are gone: no source
+ * places any at Pad 2, and the one cited lightning rod is on top of the tower.
+ */
+const GAL = 0.003785411784;   // m³ per US gallon
+/** Length of a cylinder with hemispherical heads that holds `m3` at radius r. */
+const capsuleLength = (m3, r) => (m3 - (4 / 3) * Math.PI * r ** 3) / (Math.PI * r * r);
+
 function buildField(M) {
   const g = new THREE.Group();
   g.name = 'pad-field';
-  const masts = [];
-  // Both on the far side of the complex from the museum row, not one either side of it.
-  // Straddling the pad put one of them 107 m directly behind the Falcon Heavy as seen from
-  // the row, so a 150 m spike ran up through the middle of that exhibit's overview. Their
-  // position is reconstructed, not cited, so it can serve the composition.
-  for (const z of [-58, -132]) {
-    const x = -96;
-    masts.push({ geometry: new THREE.CylinderGeometry(0.35, 1.5, PAD.mastH, 12), matrix: mat4([x, PAD.mastH / 2, z]) });
-    masts.push({ geometry: new THREE.CylinderGeometry(0.08, 0.2, 9, 8), matrix: mat4([x, PAD.mastH + 4.5, z]) });
-  }
-  g.add(mesh(boxUV(mergeAll(masts)), M.alumDark));
 
-  // Set well back from the mount, and off the axis the launch cameras work along, so the
-  // tanks read as part of the site rather than as furniture in front of the lens.
   const farm = new THREE.Group();
   farm.name = 'pad-farm';
   farm.position.z = -70;
-  const slab = [block(PAD.farmX - 16, PAD.farmX + 20, -0.4, 1.2, -42, 42)];
+  const fx = PAD.farmX;
+  const slab = [block(fx - 18, fx + 34, -0.4, 1.2, -44, 44)];
   farm.add(mesh(boxUV(mergeAll(slab)), M.concrete));
 
-  const tanks = [];
+  // Tall vertical storage: a shell with stiffening rings, a domed head, a railed roof
+  // platform and a caged ladder. Six in a row, as the old block-out had them.
+  const shells = [], rings = [], rails = [], pipes = [];
+  const R = 4.5, H = 21, y0 = 1.2;
   for (let i = 0; i < 6; i++) {
     const z = -32 + i * 13;
-    tanks.push({ geometry: new THREE.CylinderGeometry(4.5, 4.5, 21, 32), matrix: mat4([PAD.farmX, 1.2 + 10.5, z]) });
-    tanks.push({ geometry: new THREE.SphereGeometry(4.5, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2), matrix: mat4([PAD.farmX, 1.2 + 21, z]) });
+    shells.push({ geometry: new THREE.CylinderGeometry(R, R, H, 40, 1, true), matrix: mat4([fx, y0 + H / 2, z]) });
+    shells.push({ geometry: new THREE.SphereGeometry(R, 40, 10, 0, Math.PI * 2, 0, Math.PI * 0.32), matrix: mat4([fx, y0 + H - R * Math.cos(Math.PI * 0.32) + 0.02, z]) });
+    for (let y = y0 + 2.5; y < y0 + H; y += 3.1) {
+      rings.push({ geometry: new THREE.TorusGeometry(R + 0.06, 0.09, 6, 48), matrix: mat4([fx, y, z], [Math.PI / 2, 0, 0]) });
+    }
+    rings.push({ geometry: new THREE.CylinderGeometry(R + 0.25, R + 0.4, 0.8, 40), matrix: mat4([fx, y0 + 0.4, z]) });   // skirt
+    // Roof rail round the head, and a caged ladder up the landward side.
+    const topY = y0 + H + 1.2;
+    rails.push({ geometry: new THREE.TorusGeometry(R * 0.72, 0.04, 4, 40), matrix: mat4([fx, topY + 1.0, z], [Math.PI / 2, 0, 0]) });
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2;
+      rails.push(rod([fx + Math.cos(a) * R * 0.72, topY - 0.6, z + Math.sin(a) * R * 0.72], [fx + Math.cos(a) * R * 0.72, topY + 1.0, z + Math.sin(a) * R * 0.72], 0.03));
+    }
+    rails.push(rod([fx + R + 0.35, y0, z - 0.3], [fx + R + 0.35, topY, z - 0.3], 0.035));
+    rails.push(rod([fx + R + 0.35, y0, z + 0.3], [fx + R + 0.35, topY, z + 0.3], 0.035));
+    for (let y = y0 + 2.4; y < topY; y += 1.2) {
+      rails.push({ geometry: new THREE.TorusGeometry(0.45, 0.025, 4, 12, Math.PI), matrix: mat4([fx + R + 0.55, y, z], [Math.PI / 2, 0, -Math.PI / 2]) });
+    }
+    // Fill and draw line from the base into the header.
+    pipes.push(rod([fx - R - 0.2, y0 + 1.4, z], [fx - R - 3.2, y0 + 1.4, z], 0.22, 10));
   }
-  for (const z of [-24, 8]) {
-    tanks.push({ geometry: new THREE.CylinderGeometry(6.0, 6.0, 14, 32), matrix: mat4([PAD.farmX + 15, 1.2 + 7, z]) });
+  pipes.push(rod([fx - R - 3.2, y0 + 1.4, -42], [fx - R - 3.2, y0 + 1.4, 42], 0.32, 12));   // header
+
+  // The two cited horizontal tanks on saddles, alongside the row: LOX and methane.
+  const r = 1.9;
+  const horiz = [];
+  const saddles = [];
+  // [volume, start z, z of the gap in the vertical row that its line runs through]
+  for (const [gal, z, lineZ] of [[95000, -30, -25.5], [80000, 6, 13.5]]) {
+    const len = capsuleLength(gal * GAL, r);
+    const x = fx + 19;
+    horiz.push({ geometry: new THREE.CylinderGeometry(r, r, len, 36), matrix: mat4([x, y0 + 2.6, z + len / 2], [Math.PI / 2, 0, 0]) });
+    for (const e of [0, len]) {
+      horiz.push({ geometry: new THREE.SphereGeometry(r, 36, 12), matrix: mat4([x, y0 + 2.6, z + e]) });
+    }
+    for (let k = 0; k < 4; k++) {
+      const sz = z + len * (0.12 + 0.76 * (k / 3));
+      saddles.push(block(x - 1.6, x + 1.6, y0, y0 + 1.4, sz - 0.4, sz + 0.4));
+    }
+    pipes.push(rod([x - r, y0 + 2.6, lineZ], [fx - R - 3.2, y0 + 1.4, lineZ], 0.18, 8));
   }
-  farm.add(mesh(boxUV(mergeAll(tanks)), M.aluminum));
+
+  // Subcooler skids: a nitrogen tank and a boxed heat-exchanger/pump unit each. The
+  // arrangement is reconstructed; that the subcoolers exist and use LN2 is cited.
+  const units = [];
+  for (const [z, lineZ] of [[-38, -40], [38, 39]]) {
+    const x = fx + 29;
+    units.push(block(x - 3.5, x + 3.5, y0, y0 + 3.6, z - 5, z + 1.5));
+    units.push(block(x - 2.6, x + 2.6, y0 + 3.6, y0 + 4.2, z - 4.2, z + 0.7));
+    horiz.push({ geometry: new THREE.CylinderGeometry(1.6, 1.6, 13, 28), matrix: mat4([x, y0 + 6.5, z + 4.2]) });
+    horiz.push({ geometry: new THREE.SphereGeometry(1.6, 28, 8, 0, Math.PI * 2, 0, Math.PI / 2), matrix: mat4([x, y0 + 13, z + 4.2]) });
+    pipes.push(rod([x - 3.5, y0 + 2.2, lineZ], [fx - R - 3.2, y0 + 2.2, lineZ], 0.16, 8));
+  }
+
+  farm.add(mesh(boxUV(mergeAll(shells)), M.pipePaint, { name: 'farm-tanks' }));
+  farm.add(mesh(boxUV(mergeAll(horiz)), M.pipeCryo, { name: 'farm-horizontal-tanks' }));
+  farm.add(mesh(boxUV(mergeAll(rings)), M.alumDark, { name: 'farm-tank-rings' }));
+  farm.add(mesh(boxUV(mergeAll(rails)), M.safetyYellow, { name: 'farm-rails', castShadow: false }));
+  farm.add(mesh(boxUV(mergeAll(pipes)), M.pipeCryo, { name: 'farm-pipes' }));
+  farm.add(mesh(boxUV(mergeAll(saddles)), M.concrete, { name: 'farm-saddles' }));
+  farm.add(mesh(boxUV(mergeAll(units)), M.darkMetal, { name: 'farm-subcoolers' }));
   g.add(farm);
   return g;
 }
 
 // =========================================================================================
-//  Pad infrastructure: trench coping parapets, safety handrails, deluge water pipelines,
-//  cryogenic pipe bridge, equipment housekeeping skids, and industrial floodlight towers.
+//  Pad infrastructure: trench coping parapets, safety handrails, deluge water storage and
+//  mains, cryogenic pipe bridge and equipment skids. No floodlight towers: nothing cites any,
+//  and the four 28 m poles that stood here read as street lamps round the pad.
 // =========================================================================================
 function buildPadInfrastructure(M) {
   const g = new THREE.Group();
@@ -585,46 +721,46 @@ function buildPadInfrastructure(M) {
   }
   g.add(mesh(boxUV(mergeAll(stairs)), M.steelGrating || M.mount));
 
-  // 4. Vertical High-Pressure Deluge Tanks (Water Battery next to the pad)
-  const delugeTankGroup = [];
-  const delugeTankPipes = [];
-  const tankX = 72;
-  delugeTankGroup.push(block(tankX - 6, tankX + 6, -0.4, 1.2, -26, 26));
+  // 4. Deluge water storage. Cited (Wikipedia, SpaceX Starbase; NASASpaceflight): the water
+  // is held in a tank farm of HORIZONTAL tanks and driven out by compressed gas. Count and
+  // size are reconstructed. They stand on grade past the toe of the berm — the old vertical
+  // "water battery" stood on a slab buried inside the berm, with its mains floating 7 m in
+  // the air where the pad deck ended.
+  const tankX = 96, tankR = 1.8, tankLen = 11;
+  const delugeSlab = [block(tankX - 8, tankX + 8, -0.4, 0.6, -24, 24)];
+  const delugeTanks = [], delugeSaddles = [], delugePipes = [];
   for (let i = 0; i < 7; i++) {
-    const tz = -21 + i * 7;
-    delugeTankPipes.push({
-      geometry: new THREE.CylinderGeometry(2.1, 2.1, 17, 24),
-      matrix: mat4([tankX, 1.2 + 8.5, tz]),
-    });
-    delugeTankPipes.push({
-      geometry: new THREE.SphereGeometry(2.1, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-      matrix: mat4([tankX, 1.2 + 17, tz]),
-    });
-  }
-  delugeTankPipes.push({
-    geometry: new THREE.CylinderGeometry(0.3, 0.3, 44, 16),
-    matrix: mat4([tankX, 1.2 + 18.5, 0], [Math.PI / 2, 0, 0]),
-  });
-  g.add(mesh(boxUV(mergeAll(delugeTankGroup)), M.concrete));
-  g.add(mesh(boxUV(mergeAll(delugeTankPipes)), M.pipePaint));
-
-  // 5. Massive 48-Inch (1.2 m diameter) Deluge Water Supply Mains
-  const bigPipes = [];
-  const saddles = [];
-  for (const pz of [-26, 26]) {
-    bigPipes.push({
-      geometry: new THREE.CylinderGeometry(0.6, 0.6, 58, 24),
-      matrix: mat4([(tankX + 14) / 2, padY + 1.2, pz], [0, 0, Math.PI / 2]),
-    });
-    bigPipes.push({
-      geometry: new THREE.CylinderGeometry(0.6, 0.6, 6.5, 24),
-      matrix: mat4([14, padY - 2.0, pz]),
-    });
-    for (let px = 20; px <= tankX - 4; px += 10) {
-      saddles.push(block(px - 0.8, px + 0.8, padY, padY + 0.6, pz - 1.0, pz + 1.0));
+    const tz = -18 + i * 6;
+    delugeTanks.push({ geometry: new THREE.CylinderGeometry(tankR, tankR, tankLen, 32), matrix: mat4([tankX, 0.6 + tankR + 0.9, tz], [0, 0, Math.PI / 2]) });
+    for (const e of [-1, 1]) {
+      delugeTanks.push({ geometry: new THREE.SphereGeometry(tankR, 32, 10, 0, Math.PI * 2, 0, Math.PI / 2), matrix: mat4([tankX + e * tankLen / 2, 0.6 + tankR + 0.9, tz], [0, 0, -e * Math.PI / 2]) });
+      delugeSaddles.push(block(tankX + e * 3.4 - 0.4, tankX + e * 3.4 + 0.4, 0.6, 0.6 + 1.6, tz - 1.3, tz + 1.3));
     }
+    delugePipes.push(rod([tankX - tankLen / 2 - tankR + 0.2, 0.6 + tankR + 0.9, tz], [tankX - 9, 1.1, tz], 0.2, 10));
   }
-  g.add(mesh(boxUV(mergeAll(bigPipes)), M.pipePaint));
+  delugePipes.push(rod([tankX - 9, 1.1, -20], [tankX - 9, 1.1, 20], 0.45, 16));   // manifold
+  g.add(mesh(boxUV(mergeAll(delugeSlab)), M.concrete, { name: 'deluge-slab' }));
+  g.add(mesh(boxUV(mergeAll(delugeTanks)), M.pipePaint, { name: 'deluge-tanks' }));
+  g.add(mesh(boxUV(mergeAll(delugeSaddles)), M.concrete, { name: 'deluge-saddles' }));
+
+  // 5. Deluge mains, 1.2 m, from the manifold to the mount: along grade, up the berm slope,
+  // across the berm, up the pad's retaining face and along the deck. Concrete saddles carry
+  // them wherever they run on a surface.
+  const saddles = [];
+  const { bermY } = PAD;
+  for (const pz of [-20, 20]) {
+    const path = [
+      [tankX - 9, 1.1, pz], [83.5, 1.1, pz],               // grade
+      [74, bermY + 0.7, pz], [65, bermY + 0.7, pz],          // up the fill, across the berm
+      [65, padY + 0.7, pz], [14, padY + 0.7, pz],            // up the face, along the deck
+      [14, padY - 2.0, pz],                                   // down into the mount's feed
+    ];
+    for (let k = 0; k < path.length - 1; k++) delugePipes.push(rod(path[k], path[k + 1], 0.6, 20));
+    for (let px = 20; px <= 60; px += 10) saddles.push(block(px - 0.8, px + 0.8, padY, padY + 0.3, pz - 1.0, pz + 1.0));
+    saddles.push(block(66, 67.6, bermY, bermY + 0.3, pz - 1.0, pz + 1.0));
+    saddles.push(block(86, 87.6, 0, 0.6, pz - 1.0, pz + 1.0));
+  }
+  g.add(mesh(boxUV(mergeAll(delugePipes)), M.pipePaint, { name: 'deluge-mains' }));
   g.add(mesh(boxUV(mergeAll(saddles)), M.concrete));
 
   // 6. Cryogenic Pipe Bridge & Racks (connecting Tank Farm to the Pad)
@@ -667,17 +803,6 @@ function buildPadInfrastructure(M) {
   }
   g.add(mesh(boxUV(mergeAll(skids)), M.concrete));
   g.add(mesh(boxUV(mergeAll(cabinets)), M.darkMetal));
-
-  // 8. Perimeter High-Mast Industrial Floodlight Towers
-  const floodlights = [];
-  for (const fx of [-54, 54]) for (const fz of [-44, 44]) {
-    floodlights.push({
-      geometry: new THREE.CylinderGeometry(0.25, 0.8, 28, 8),
-      matrix: mat4([fx, padY + 14, fz]),
-    });
-    floodlights.push(block(fx - 2.2, fx + 2.2, padY + 27.5, padY + 28.5, fz - 0.6, fz + 0.6));
-  }
-  g.add(mesh(boxUV(mergeAll(floodlights)), M.alumDark));
 
   return g;
 }

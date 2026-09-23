@@ -818,6 +818,15 @@ async function main() {
     env.followCamera(camera);
     const target = rig.mode === 'fly' ? tmp.copy(camera.position).addScaledVector(camera.getWorldDirection(_fwd), 25) : rig.target;
     const dist = rig.mode === 'fly' ? 25 : rig.distance;
+    // Depth precision goes as near/d², and a fixed 0.15 m near plane left ~0.6 m of depth
+    // resolution at the 400 m overview: slabs, road paint, trench armour and the waterline
+    // shimmered against what they sit on. The near plane now follows the orbit distance —
+    // 0.6 % of it, 0.1 m to 2 m — which is ~13× the precision in the overview and nothing
+    // lost close up. The launch sequence sets its own planes, so it is left alone.
+    if (!launch.state.running && camera.far < 20000) {
+      const near = THREE.MathUtils.clamp(dist * 0.006, 0.1, 2.0);
+      if (Math.abs(near - camera.near) > 1e-3) { camera.near = near; camera.updateProjectionMatrix(); }
+    }
     env.updateShadow(target, dist);
     // scale bar: metres per pixel at the target distance
     const fovH = THREE.MathUtils.degToRad(camera.fov);

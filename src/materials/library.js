@@ -131,7 +131,7 @@ export function createMaterials(onProgress = () => {}) {
     side: THREE.DoubleSide,
   });
   M.concrete = new THREE.MeshStandardMaterial({
-    color: 0xc4beb4,
+    color: 0xd6d2ca,
     map: T.concrete.map, roughnessMap: T.concrete.roughnessMap, normalMap: T.concrete.normalMap,
     normalScale: new THREE.Vector2(0.6, 0.6), metalness: 0.0, roughness: 1.0, envMapIntensity: 0.55,
   });

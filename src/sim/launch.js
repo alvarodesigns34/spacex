@@ -325,6 +325,12 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   cloud.points.position.set(ex.lay.x, 0, ex.lay.z);
   scene.add(cloud.points);
 
+  // The viewer's near plane follows the orbit distance (main.js), so the value to put back is
+  // whatever it was when the sequence took the camera, not what it was at construction. On the
+  // pad the sequence uses a fixed near plane of its own: its cameras work metres from the hull.
+  const PAD_NEAR = 0.15;
+  function saveCameraPlanes() { home.near = camera.near; home.far = camera.far; }
+
   // ---- Saved state, so reset() puts everything back exactly ----------------------------
   const home = {
     near: camera.near, far: camera.far,
@@ -608,7 +614,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     // pad comes back into shadow range as the booster returns to it.
     const camAlt = t < EVENTS.boostbackStart ? alt : bAlt;
     env.sun.castShadow = home.shadows && camAlt < 1800;
-    camera.near = camAlt > 900 ? 0.8 : home.near;
+    camera.near = camAlt > 900 ? 0.8 : PAD_NEAR;
     camera.far = camAlt > 900 ? 260000 : home.far;
     camera.updateProjectionMatrix();
 
@@ -631,6 +637,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   // ---- Public API -------------------------------------------------------------------
   function start() {
     if (state.running) return;
+    saveCameraPlanes();
     // Whoever else was driving the camera has to be told, and it has to happen here rather
     // than at the button: start() is also reachable from the API and from the check.
     onStart();
@@ -689,7 +696,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
    * there, which is the only way a frame-by-frame check means anything.
    */
   function seek(t) {
-    if (!state.running) { onStart(); state.running = true; state.armed = true; visibilityHook?.(true); rig.external = true; }
+    if (!state.running) { saveCameraPlanes(); onStart(); state.running = true; state.armed = true; visibilityHook?.(true); rig.external = true; }
     resetCloud();
     advanceCloud(t);
     apply(t);
