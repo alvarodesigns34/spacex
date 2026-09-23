@@ -84,16 +84,23 @@ export function dressCampus(scene, M) {
   M.campusGround.polygonOffsetFactor = -2;
   M.campusGround.polygonOffsetUnits = -2;
 
+  // Tints over the concrete map (whose mean is a mid grey): slab, asphalt, swale, paint.
   const apron = [
-    painted(quad(-178, -18, 188, 20, 0.012), 0x8d8474),
-    painted(quad(-186, 24, 196, 31.2, 0.02), 0x4a4e54),
-    painted(quad(46, -150, 53, 31.2, 0.02), 0x4a4e54),
-    painted(quad(-186, 31.2, 196, 32.4, 0.016), 0x3a332c),
+    painted(quad(-178, -18, 188, 20, 0.012), 0xe2dccf),
+    painted(quad(-186, 24, 196, 31.2, 0.02), 0x6c7076),
+    painted(quad(46, -150, 53, 31.2, 0.02), 0x6c7076),
+    painted(quad(-186, 31.2, 196, 32.4, 0.016), 0x5a5046),
   ];
   for (let x = -180; x < 190; x += 8) {
-    const dash = new THREE.BoxGeometry(2.2, 0.008, 0.12);
-    dash.applyMatrix4(mat4([x, 0.03, 27.6]));
-    apron.push(painted(dash, 0xd7c36a));
+    // Flat paint, not an 8 mm box: the box's sides carried no area in a ground-plane mapping.
+    const dash = quad(x - 1.1, 27.54, x + 1.1, 27.66, 0.03);
+    apron.push(painted(dash, 0xfff0a0));
+  }
+  // Metric UVs in the ground plane, as every map in the project expects.
+  for (const geo of apron) {
+    const p = geo.attributes.position, uv = new Float32Array(p.count * 2);
+    for (let i = 0; i < p.count; i++) { uv[i * 2] = p.getX(i); uv[i * 2 + 1] = -p.getZ(i); }
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   }
   g.add(mesh(mergeGeometries(apron, false), M.campusGround, {
     name: 'campus-apron', castShadow: false,

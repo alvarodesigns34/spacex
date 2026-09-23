@@ -36,6 +36,7 @@ export function createMaterials(onProgress = () => {}) {
     ['bell', () => TX.makeEngineBell({ copper: 0.6 })],
     ['bellCool', () => TX.makeEngineBell({ copper: 0.12 })],
     ['greyDark', () => TX.makeGreyMetal({ tone: 0.28 })],
+    ['water', () => TX.makeWater()],
   ];
   for (let i = 0; i < steps.length; i++) {
     const [key, fn] = steps[i];
@@ -182,6 +183,13 @@ float vcNoise(vec2 p) {
   }`);
   };
   M.terrain.customProgramCacheKey = () => 'vc-terrain-macro-2';
+  // The Gulf beyond the beach. Water is a dielectric with a smooth surface: almost all of what
+  // it shows is the sky it reflects, so the colour here is only the body tint of shallow,
+  // silty coastal water, and the wave normals do the rest.
+  M.water = new THREE.MeshStandardMaterial({
+    color: 0x2c4a55, roughness: 0.12, metalness: 0.0, envMapIntensity: 1.2,
+    normalMap: T.water.normalMap, normalScale: new THREE.Vector2(0.55, 0.55),
+  });
   M.trenchArmor = new THREE.MeshStandardMaterial({
     map: T.trenchArmor.map, roughnessMap: T.trenchArmor.roughnessMap, normalMap: T.trenchArmor.normalMap,
     normalScale: new THREE.Vector2(0.9, 0.9), metalness: 0.82, roughness: 0.48, envMapIntensity: 0.72,
@@ -238,7 +246,15 @@ float vcNoise(vec2 p) {
   M.coverall = M.humanDark;
   M.boot = new THREE.MeshStandardMaterial({ color: 0x1a1c1f, roughness: 0.62, metalness: 0.04 });
   M.hardhat = new THREE.MeshStandardMaterial({ color: 0xd7a24a, roughness: 0.48, metalness: 0.04 });
-  M.campusGround = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.94, metalness: 0 });
+  // The apron the exhibits stand on: poured concrete in 6 m slabs with sealed joints, the same
+  // maps as the pad. It was an untextured vertex-coloured plane, a flat blue-grey card under
+  // every vehicle. Vertex colour now TINTS the concrete: near-white for the slab, dark for the
+  // asphalt road, darker still for the swale, and the dashes stay paint-bright.
+  M.campusGround = new THREE.MeshStandardMaterial({
+    vertexColors: true, map: T.concrete.map, roughnessMap: T.concrete.roughnessMap,
+    normalMap: T.concrete.normalMap, normalScale: new THREE.Vector2(0.5, 0.5),
+    roughness: 1.0, metalness: 0, envMapIntensity: 0.5,
+  });
   M.asphalt = new THREE.MeshStandardMaterial({ color: 0x4a4e54, roughness: 0.92, metalness: 0 });
   M.gravel = new THREE.MeshStandardMaterial({ color: 0x8d8474, roughness: 0.96, metalness: 0 });
   M.swale = new THREE.MeshStandardMaterial({ color: 0x3a332c, roughness: 0.98, metalness: 0 });

@@ -6,6 +6,18 @@ import { Sky } from 'three/addons/objects/Sky.js';
 import { starShell } from './backdrop.js';
 import { mesh, mergeAll, mat4 } from '../geometry/utils.js';
 import { noise2 } from '../materials/textures.js';
+import { createClouds } from './clouds.js';
+
+/**
+ * The Gulf shore. Starbase stands on the coast at Boca Chica, and the plain runs out into a
+ * beach and the sea; every wide view here ended instead in the same flat khaki to the horizon.
+ * This is a PLAUSIBLE shore, not a survey: a gently wandering line about 1.1 km beyond the pad
+ * (world z), a dry beach, a wet margin, and the ground sloping away under the water surface.
+ * @returns the shore's world z at world x
+ */
+export function shoreZ(x) {
+  return -1150 + 0.22 * x + 46 * (noise2(x / 280 + 3.1, 7.7) - 0.5) + 18 * (noise2(x / 90, 1.3) - 0.5);
+}
 
 /** Disc in the XY plane (rotated flat later) with a large-scale coastal tint. */
 function coastalDisc(radius, rings, segs) {
@@ -18,14 +30,21 @@ function coastalDisc(radius, rings, segs) {
   const push = (x, y) => {
     pos[k * 3] = x;
     pos[k * 3 + 1] = y;
+    // Local y is world −z once the disc is laid flat; local z becomes height.
+    const past = shoreZ(x) - -y;                 // metres seaward of the shoreline
+    pos[k * 3 + 2] = past > 0 ? -9 * THREE.MathUtils.smoothstep(past, 0, 180) : 0.35 * THREE.MathUtils.smoothstep(-past, 0, 60) * (1 - THREE.MathUtils.smoothstep(-past, 60, 160));
     const broad = noise2(x / 110, y / 110);
     const patch = noise2(x / 42 + 19, y / 42 - 7);
     const salt = Math.max(0, broad - 0.46);
     const damp = Math.max(0, 0.4 - patch);
-    const m = 1 + salt * 0.26 - damp * 0.2 + (noise2(x / 16 + 4, y / 16) - 0.5) * 0.05;
-    col[k * 3] = m * (1 + salt * 0.04);
+    let m = 1 + salt * 0.26 - damp * 0.2 + (noise2(x / 16 + 4, y / 16) - 0.5) * 0.05;
+    // Beach: a pale dry band above the waterline, dark wet sand at it.
+    const dry = THREE.MathUtils.smoothstep(past, -110, -40) * (1 - THREE.MathUtils.smoothstep(past, -12, 0));
+    const wet = THREE.MathUtils.smoothstep(past, -14, 0);
+    m = m * (1 + 0.34 * dry) * (1 - 0.32 * wet);
+    col[k * 3] = m * (1 + salt * 0.04 + 0.03 * dry);
     col[k * 3 + 1] = m;
-    col[k * 3 + 2] = m * (1 - salt * 0.05);
+    col[k * 3 + 2] = m * (1 - salt * 0.05 - 0.04 * dry);
     uv[k * 2] = x;
     uv[k * 2 + 1] = y;
     return k++;
@@ -83,7 +102,9 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
       .replace('gl_FragColor = vec4( retColor, 1.0 );', 'gl_FragColor = vec4( retColor, uFade );');
   };
   scene.background = new THREE.Color(0x03050b);
+  sky.renderOrder = -2;          // drawn first; the cloud layer goes over it
   scene.add(sky);
+  const clouds = createClouds(scene);
 
   // --- Environment map for reflections: a private scene with the same sky + a ground disc ---
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -122,12 +143,40 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   // read as featureless grey in every wide shot. Rewriting the UVs in metres puts the texture
   // back on its intended scale; the disc is rotated flat afterwards, so x/y of the flat
   // geometry are the ground plane.
-  const groundGeo = coastalDisc(GROUND_R, 28, 72);
+  // Denser than the old 28 × 72: the beach is tens of metres wide, and 100 m cells a kilometre
+  // out would smear it into a blur or miss it.
+  const groundGeo = coastalDisc(GROUND_R, 64, 180);
   const ground = new THREE.Mesh(groundGeo, M.terrain || M.concrete);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   ground.name = 'ground';
   scene.add(ground);
+
+  // The sea: a water surface over the seaward part of the disc, just below the beach. Laid in
+  // the ground's own frame so it stretches with it on the ascent. The land under it falls to
+  // nine metres down within 180 m of the waterline, which keeps the two surfaces far enough
+  // apart for the depth buffer a couple of kilometres out.
+  {
+    const shape = new THREE.Shape();
+    const xs = [];
+    for (let x = -GROUND_R; x <= GROUND_R; x += 25) xs.push(x);
+    // Seaward boundary: the arc of the disc; landward: 30 m inside the waterline.
+    const pts = xs.map((x) => [x, -(shoreZ(x) - 30)]).filter(([x, y]) => Math.hypot(x, y) < GROUND_R);
+    shape.moveTo(pts[0][0], pts[0][1]);
+    for (const [x, y] of pts.slice(1)) shape.lineTo(x, y);
+    const a1 = Math.atan2(pts[pts.length - 1][1], pts[pts.length - 1][0]), a0 = Math.atan2(pts[0][1], pts[0][0]);
+    shape.absarc(0, 0, GROUND_R, a1, a0 < a1 ? a0 + Math.PI * 2 : a0, false);
+    const waterGeo = new THREE.ShapeGeometry(shape, 64);
+    // Metric UVs for the wave normals.
+    const wp = waterGeo.attributes.position, wuv = new Float32Array(wp.count * 2);
+    for (let i = 0; i < wp.count; i++) { wuv[i * 2] = wp.getX(i); wuv[i * 2 + 1] = wp.getY(i); }
+    waterGeo.setAttribute('uv', new THREE.BufferAttribute(wuv, 2));
+    waterGeo.translate(0, 0, -0.9);
+    const water = new THREE.Mesh(waterGeo, M.water ?? new THREE.MeshStandardMaterial({ color: 0x2f5160, roughness: 0.15 }));
+    water.name = 'sea';
+    water.receiveShadow = false;
+    ground.add(water);
+  }
   // The terrain material is the ground's alone, so its repeat can be driven from here.
   const groundMaps = [ground.material.map, ground.material.roughnessMap, ground.material.normalMap].filter(Boolean);
   const baseRepeat = groundMaps[0] ? groundMaps[0].repeat.clone() : new THREE.Vector2(1, 1);
@@ -225,7 +274,9 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   let nightK = 0;
 
   /** Keeps the sky centred on the viewer. Cheap, and the only way it survives an ascent. */
-  function followCamera(camera) { sky.position.copy(camera.position); stars.position.copy(camera.position); }
+  function followCamera(camera) {
+    sky.position.copy(camera.position); stars.position.copy(camera.position); clouds.follow(camera);
+  }
 
   // ---- One place composes the atmosphere ------------------------------------------------
   // Three things thin, darken or colour the air: the sun's elevation (day to night), the
@@ -284,6 +335,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     skyFade.value = (1 - n * 0.86) * (1 - j * 0.94);
 
     stars.material.opacity = Math.pow(n, 1.6);
+    clouds.update(sunDir, n, h, !inSpace);
     night.visible = !inSpace && n > 0.02;
     lightMasts.visible = !inSpace;
     for (const d of displayLights) d.spot.intensity = d.peak * Math.pow(n, 1.3);
