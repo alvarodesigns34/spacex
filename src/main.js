@@ -486,7 +486,7 @@ async function main() {
   // plinth or payload adapter, ground or Earth. Entering the view swaps the presentation and
   // leaving it swaps back — env.setAltitude(0) restores sky, fog, ambient and ground exactly,
   // which is what the check asserts after walking every preset.
-  let orbitalMounted = false, backdrop = null;
+  let orbitalMounted = false, backdrop = null, orbitHidden = [];
   function setOrbital(on) {
     if (on === orbitalMounted) return;
     orbitalMounted = on;
@@ -504,6 +504,18 @@ async function main() {
       scene.add(backdrop);
     }
     if (backdrop) backdrop.visible = on;
+    // In orbit the car is alone. env.setSpace takes away the ground, the road markings and the
+    // sky, but the museum apron, its scrub, the service trucks and the other seven exhibits
+    // are separate groups, and they stayed: the "In orbit" view showed the Roadster parked on
+    // a concrete floor with bushes, 30 km up, with Earth behind it.
+    if (on) {
+      orbitHidden = scene.children.filter(o => o.visible
+        && (o.name === 'campus' || (o.name.startsWith('exhibit-') && o.name !== 'exhibit-roadster')));
+      for (const o of orbitHidden) o.visible = false;
+    } else {
+      for (const o of orbitHidden) o.visible = true;
+      orbitHidden = [];
+    }
     env.setAltitude(on ? 30000 : 0);
     env.setSpace(on);
   }
@@ -518,6 +530,8 @@ async function main() {
     // standing on its mount, not on one that has left it.
     const { site, orbital, near, flying, toggles } = { ...view.snapshot(), toggles: view.toggles, near: view.near };
     setOrbital(orbital);
+    // The site map means nothing 30 km up.
+    document.body.classList.toggle('is-orbital', !!orbital);
     for (const [id, ex] of Object.entries(exhibits)) {
       const on = id === view.exhibit && !flying;
       const cut = ex.model.userData.cutaway;

@@ -98,7 +98,7 @@ a:hover { border-bottom-color: var(--accent); }
 .map-stop.active circle { fill: var(--accent); stroke: var(--accent); }
 .map-stop.active text { fill: #16130d; }
 .map-camera { fill: color-mix(in srgb, var(--accent) 38%, transparent); stroke: var(--accent); stroke-width: 1; pointer-events: none; }
-body.is-flying .minimap { display: none; }
+body.is-flying .minimap, body.is-orbital .minimap { display: none; }
 @media (max-width: 1100px), (max-height: 600px) { .minimap { display: none; } }
 .presets { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-width: min(720px, 46vw); padding: 6px; background: var(--surface-solid); border: 1px solid var(--surface-line); border-radius: var(--radius-panel); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); box-shadow: var(--shadow-panel); scrollbar-width: none; }
 .presets::-webkit-scrollbar { display: none; }
@@ -231,9 +231,11 @@ body:has(.mission:not(.hidden)) #dock { display: none !important; }
   border-radius: 6px;
 }
 
-/* Annotations whose line of sight passes through the vehicle: kept in the layout but faded
-   right back, so the callout order stays stable while the far side reads as hidden. */
-.label.is-occluded { opacity: 0.14; filter: saturate(0.2); }
+/* Annotations whose line of sight passes through the vehicle: kept in the layout (so the
+   callout order stays stable) but not drawn. At 14 % they printed as ghost text across the
+   hull in front of them — "Trunk · radiator" over the Dragon's solar cells — which reads as a
+   rendering fault, not as "this is on the far side". They fade back as the camera comes round. */
+.label.is-occluded { opacity: 0; pointer-events: none; }
 .label { transition: opacity var(--dur-fast) linear; }
 
 /* ---- Launch sequence ---------------------------------------------------------------- */
