@@ -15,9 +15,11 @@ Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones
 
 Starship no está sobre un soporte de museo sino sobre su plataforma: una reconstrucción a escala del **Pad 2 de Starbase** — la explanada, la zanja de llamas bidireccional revestida de inoxidable con su deflector central, la mesa de lanzamiento cuadrada de cubierta refrigerada por agua con sus veinte pinzas de sujeción, las conexiones separadas de metano y oxígeno del propulsor con su búnker dividido, la torre de integración de 144,5 m, los brazos de captura de 36 m, el brazo de desconexión rápida de la nave, los pararrayos y la granja criogénica. Desde ahí **despega**: con **G** o el botón *Launch* corre la secuencia completa, de la cuenta atrás a la separación en caliente — y después **el propulsor vuelve y la torre lo atrapa**, con el ciclo de boostback, el descenso, el encendido de aterrizaje y los brazos cerrándose sobre él.
 
-Todo el modelo es procedural (sin binarios): las geometrías se generan a partir de perfiles de revolución con normales analíticas y UV métricas, los materiales PBR usan texturas generadas en Canvas (acero laminado con soldadura de anillo cada 1,83 m y costura vertical de placa cada 7,3 m, hollín, composite de carbono, células solares, PICA, hormigón) y el escudo térmico de Starship son ~13 300 losetas hexagonales instanciadas de 0,26 m entre caras sobre la mitad expuesta del casco, el morro y las aletas.
+Todo el modelo es procedural (sin binarios): las geometrías se generan a partir de perfiles de revolución con normales analíticas y UV métricas, los materiales PBR usan texturas generadas en Canvas (acero laminado con soldadura de anillo cada 1,83 m y costura vertical de placa cada 7,3 m, hollín de propulsor reutilizado, composite de carbono, células solares, PICA, hormigón en losas de 6 m, oleaje) y el escudo térmico de Starship son ~13 300 losetas hexagonales instanciadas de 0,26 m entre caras sobre la mitad expuesta del casco, el morro y las aletas.
 
 Los acabados están calibrados contra fotografías del vehículo real: el acero inoxidable es **mate**, no espejo, y muestra las dos direcciones de soldadura; las losetas forman un **mosaico de gris carbón con variación en manchas** — no ruido por loseta, que se lee como escamas de pez — y no proyectan sombra sobre sí mismas; y las aletas son **oscuras por ambas caras**, con la de barlovento texturada.
+
+El entorno es contexto verosímil, no un levantamiento: la llanura costera de Boca Chica con matorral bajo, dunas y una playa que da al Golfo de México a ~1,1 km de la plataforma, un cielo con cúmulos de buen tiempo a 1,4 km (que se desvanecen con la altitud y de noche), la explanada del museo en losas de hormigón y el terraplén de la plataforma en talud 1:3 hacia el terreno.
 
 ![Vista general del centro](docs/screenshots/overview.jpg)
 
@@ -59,6 +61,12 @@ Donde SpaceX no publica una cota, el modelo la deriva de algo que sí está publ
 - **Sección de tanques del Falcon 9**: 34,5 m = los 41,2 m de primera etapa menos la interetapa. Los 41,2 m publicados **incluyen** la interetapa; apilarla encima alargaría el propulsor un 16 %.
 - **Separación entre núcleos del Falcon Heavy**: 4,25 m, de los 12,2 m de anchura y los 3,7 m de diámetro.
 - **Reparto de la Dragon**: 3,7 m de trunk + 4,4 m de cápsula = los 8,1 m declarados; la cápsula se ensancha a 4 m en el hombro del escudo, que es de donde sale el diámetro publicado.
+
+### Comparación con fotografías
+
+Donde no hay cota publicada, la forma se mide contra fotografías en lugar de estimarse de memoria. El caso más claro es el Roadster: un render ortográfico lateral se superpone a una foto de perfil del coche a la misma escala (los centros de rueda como puntos de registro y los 1,128 m publicados como comprobación). De ahí salen la línea superior en cuña — ~0,88 m en la cadera trasera, ~0,72 m en las puertas, ~0,66–0,70 m en la aleta delantera —, la posición de la cabina y del parabrisas, la toma lateral en media luna tras la puerta, las tres lamas escalonadas del capó, el arco antivuelco único de carbono y el tamaño de faros y pilotos. Estas cotas son estimaciones fotográficas y la ficha las marca como aproximadas.
+
+Del mismo modo, el hollín del Falcon 9 reproduce el de un propulsor ya volado (gris en vetas, más denso arriba, con la silueta limpia de las patas plegadas), y el trunk de la Dragon muestra en su vista principal la mitad de células solares junto a la de radiadores.
 
 ### Discrepancias entre fuentes
 
@@ -144,11 +152,12 @@ También **recorre la secuencia de lanzamiento**. `launch.seek(t)` reproduce el 
 | ![La torre atrapa el propulsor](docs/screenshots/launch-catch.jpg) | ![Propulsor en los brazos](docs/screenshots/launch-caught.jpg) |
 | ![El centro de noche](docs/screenshots/night-centre.jpg) | ![Vista general](docs/screenshots/overview.jpg) |
 | ![Tesla Roadster](docs/screenshots/roadster-overview.jpg) | ![Starman](docs/screenshots/roadster-starman.jpg) |
+| ![Falcon 9 reutilizado](docs/screenshots/falcon9.jpg) | ![Pantalla «Don't Panic»](docs/screenshots/roadster-dontpanic.jpg) |
 | ![Faros y morro](docs/screenshots/roadster-detail.jpg) | ![Tierra al fondo](docs/screenshots/roadster-earth.jpg) |
 | ![Rueda y paso](docs/screenshots/roadster-underbody.jpg) | ![Fila de motores](docs/screenshots/engines-row.jpg) |
 | ![Raptor Vacuum](docs/screenshots/engines-rvac.jpg) | ![Starship completo](docs/screenshots/starship-full.jpg) |
 
-Regenerables con `npm run shots`, que recorre los encuadres declarados en `tools/docs-shots.json` y `tools/launch-shots.json`.
+Regenerables con `npm run shots`, que recorre los encuadres declarados en `tools/docs-shots.json`, `tools/launch-shots.json` y `tools/roadster-shots.json`, siempre con el sol a 18° y en calidad alta forzada.
 
 ## Estructura
 
