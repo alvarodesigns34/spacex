@@ -198,13 +198,13 @@ Medido con `npm run profile`, que informa del reparto del arranque, triángulos,
 
 | | |
 |---|---|
-| Triángulos construidos | 1 394 547 |
-| Triángulos dibujados en la vista general | 825 655 |
-| Mallas | 943, de las cuales 526 se dibujan en la vista general |
-| Materiales / texturas | 110 / 87 |
+| Triángulos construidos | 1 446 827 |
+| Triángulos dibujados en la vista general | 877 935 |
+| Mallas | 950, de las cuales 533 se dibujan en la vista general |
+| Materiales / texturas | 111 / 87 |
 | Losetas instanciadas | 13 216 en 1 draw call |
 
-Medido en `1e72486`, con calidad alta forzada, en la vista general recién cargada y contando igual que la puerta de CI (un grupo oculto oculta a sus hijos). La tabla anterior (1 251 013 / 697 545 / 1 045 mallas) era previa a la trasera nueva del Roadster, a la oclusión ambiental y a las figuras de escala redondeadas. La subida viene sobre todo de la trasera del Roadster (campo de alturas, carcasas, doce ópticas y difusor) y de las figuras torneadas, que tienen más triángulos pero siguen fusionadas en una malla por material. La puerta, que mide después de recorrer el resto de estados, imprime en esa misma revisión 1 413 411 triángulos construidos, 945 mallas, 112 materiales y 88 texturas. Coincide en lo dibujado: 825 655 triángulos y 526 mallas.
+Medido en `25ecf59`, con calidad alta forzada, en la vista general recién cargada y contando igual que la puerta de CI (un grupo oculto oculta a sus hijos). Frente a `1e72486` (1 394 547 / 825 655 / 943 mallas), la subida es sobre todo la torre en celosía abierta, los brazos de captura en viga de celosía, la granja de tanques con anillos, barandillas y escaleras, y el depósito del deluge; a cambio desaparecen los dos mástiles de 150 m, las cuatro torres de focos y el núcleo macizo de la torre. La puerta, que mide después de recorrer el resto de estados, imprime en esa misma revisión 1 465 691 triángulos construidos, 952 mallas, 113 materiales y 88 texturas, y coincide en lo dibujado: 877 935 triángulos y 533 mallas.
 
 Las losetas usan un prisma hexagonal de 28 triángulos sin cara trasera (nunca visible, siempre apoyada en el casco) y un chaflán superior que da el brillo del borde.
 
@@ -218,7 +218,7 @@ Cada entrada declara `lodFeature`: el tamaño real, en metros, de la pieza más 
 - **Interior del Roadster y Starman.** 86 mallas sobre un coche de 3,9 m que en la vista general mide ocho píxeles. Los asientos cosidos, el Hot Wheels del salpicadero y la placa de circuito dejan de dibujarse; la carrocería, las ruedas y el cristal no, porque son la silueta.
 - **Filigrana de la Dragon.** Juntas de panel, marcos, bisagras y tornillería, separadas en dos lotes porque un marco de ventana de 26 cm se lee mucho más lejos que un tornillo de 1,4 cm.
 
-Medido en la vista general contra la misma escena con todo forzado a su estado detallado: **526 mallas y 825 655 triángulos, frente a 821 y 1 341 923**. Son 182 grupos, y todos se retiran en la vista general.
+Medido en la vista general contra la misma escena con todo forzado a su estado detallado: **533 mallas y 877 935 triángulos, frente a 828 y 1 394 203**. Son 182 grupos, y todos se retiran en la vista general.
 
 ### Estabilidad de la imagen
 
