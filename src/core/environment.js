@@ -173,8 +173,13 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
    */
   function addDisplayLight(x, z, radius, height, { tiers = 1 } = {}) {
     const H = THREE.MathUtils.clamp(height * 0.55 + 3.2, 4.2, 26);
-    // Behind and to one side, so it never stands between the default views and the exhibit.
-    const px = x + radius * 0.92, pz = z + radius * 0.92;
+    // To the side of the exhibit, a little behind it. Every overview camera stands in the
+    // +x/+z quadrant, about 40° off the row, and so did the mast, at 45°: the comment promised
+    // it would never come between a view and its exhibit, and at Dragon it stood square in
+    // front of the capsule's flank. Moved round to +x it sits well clear of the line of sight
+    // and still throws its light on the faces those cameras see, where a mast mirrored behind
+    // the exhibit would only have backlit it.
+    const px = x + radius * 1.2, pz = z - radius * 0.25;
 
     const g = new THREE.Group();
     g.position.set(px, 0, pz);
