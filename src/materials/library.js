@@ -129,7 +129,7 @@ export function createMaterials(onProgress = () => {}) {
   // cell map lifted ×0.8 and a mirror clearcoat the wings read, from the raised viewpoints the
   // exhibit is seen from, as a pale sky-blue sheet reflecting the sky — a toy's colours.
   M.solarStarlink = new THREE.MeshPhysicalMaterial({
-    ...solarBase, color: 0x747c90, metalness: 0.04, clearcoat: 0.3, clearcoatRoughness: 0.18, envMapIntensity: 0.34,
+    ...solarBase, color: 0x5c6476, metalness: 0.04, clearcoat: 0.3, clearcoatRoughness: 0.18, envMapIntensity: 0.34,
     side: THREE.DoubleSide,
   });
   M.concrete = new THREE.MeshStandardMaterial({

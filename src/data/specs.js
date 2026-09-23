@@ -345,7 +345,7 @@ export const VEHICLES = [
       { id: 'rvac', label: 'Raptor Vacuum', pos: [4.6, 2.4, 4.6], target: [1.55, 2.1, 0] },
       { id: 'raptor', label: 'Raptor 3', pos: [0.9, 1.9, 3.4], target: [-1.75, 1.5, 0] },
       { id: 'merlin', label: 'Merlin 1D', pos: [-2.3, 1.5, 2.6], target: [-4.15, 1.2, 0] },
-      { id: 'bells', label: 'Inside the bells', pos: [-1.75, 0.30, 4.4], target: [-1.75, 0.38, 0] },
+      { id: 'bells', label: 'Bells from the floor', pos: [-1.75, 0.30, 4.4], target: [-1.75, 0.38, 0] },
     ],
   },
   FALCON1,

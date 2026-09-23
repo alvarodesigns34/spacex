@@ -413,7 +413,13 @@ async function main() {
   // ---- Launch sequence ----
   const launch = createLaunch({
     scene, exhibits, complex, env, rig, camera, quality,
-    onStart: () => enforce(view.claim('launch')),
+    // However the sequence is started — the button, G, the API or a seek — the centre is
+    // showing Starship while it runs. Only the button path used to select it, so a launch
+    // started any other way flew under an "Overview" header with the overview's rail lit.
+    onStart: () => {
+      if (view.exhibit !== 'starship') { enforce(view.select('starship', 'launch')); syncHud(); }
+      enforce(view.claim('launch'));
+    },
     onState: (st) => hud.setMission(st.running ? st : null),
     onFinish: () => goPreset('starship', 'site'),
   });
