@@ -16,6 +16,8 @@ const lattice = new Float32Array(LAT * LAT);
 for (let i = 0; i < lattice.length; i++) lattice[i] = rng();
 function lat(ix, iy) { return lattice[((iy & (LAT - 1)) * LAT) + (ix & (LAT - 1))]; }
 function smooth(t) { return t * t * (3 - 2 * t); }
+const smoothstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
 export function noise2(x, y) {
   const ix = Math.floor(x), iy = Math.floor(y);
   const fx = smooth(x - ix), fy = smooth(y - iy);
@@ -210,15 +212,43 @@ export function makeFalconBody({ w = 1024, h = 2048, height = 41.2, name = 'FALC
   const circumference = Math.PI * 3.7;
   // Panel (barrel section) lines every ~2.4 m in height, plus 4 longitudinal welds (approximation).
   const panelPitch = 2.4 / height;
-  const sootBand = (v) => flown ? Math.max(0, 1 - v * 1.9) : 0;     // darker near the base (v=0)
+  // Soot on a flight-proven booster, as photographed after landing (Commons, B1019 at LZ-1, and
+  // any reused core on the pad): the whole stage is greyed by the entry and landing burns, in
+  // streaks that run down the airflow, heaviest over the LOX tank near the top of the stage and
+  // on the side that faced the plume, and lightest at the base. Where the stowed legs covered
+  // the skin there is a clean white shadow of each leg. The old pattern put the soot at the
+  // BASE and nowhere else, which is the one place photographs show the stage cleanest, and
+  // left the exhibit reading as a new, unflown white tube.
+  const legU = [0.125, 0.375, 0.625, 0.875];            // leg azimuths π/4 + kπ/2, as u
+  const legTop = 9.6 / height, circ = Math.PI * 3.7;
+  const legShadow = (u, vv) => {
+    if (vv > legTop + 0.01) return 0;
+    const t = Math.min(1, vv / legTop);
+    const half = (0.56 - 0.47 * t) / circ;                // the leg fairing's own taper
+    let m = 0;
+    for (const lu of legU) {
+      const d = Math.abs(((u - lu + 1.5) % 1) - 0.5);
+      m = Math.max(m, 1 - smoothstep(half * 0.85, half * 1.25, d));
+    }
+    return m * (1 - smoothstep(legTop - 0.01, legTop + 0.01, vv));
+  };
+  const sootAt = (u, vv) => {
+    if (!flown) return 0;
+    const streak = fbm(u * 70 + 5, vv * 2.4, 4);                    // long vertical streaks
+    const patch = fbm(u * 9 + 2, vv * 5 + 7, 3);
+    const amount = 0.46 + 0.50 * smoothstep(0.22, 0.88, vv);        // heavier towards the top
+    const windward = 0.78 + 0.30 * Math.cos(Math.PI * 2 * (u - 0.62));
+    const s = amount * windward * (0.35 + 0.65 * streak) * (0.8 + 0.4 * patch);
+    return Math.min(0.9, s) * (1 - 0.9 * legShadow(u, vv));
+  };
   shade(map, (x, y, u, v) => {
     const vv = 1 - v; // canvas y=0 is the top of the stage
     let base = 0.93 + (fbm(u * 24, vv * 60, 3) - 0.5) * 0.05;
-    // soot: streaks following the airflow (vertical), stronger at the base and on one side
-    const streak = fbm(u * 60 + 5, vv * 3, 4);
-    const sBand = sootBand(vv);
-    const s = flown ? (sBand * (0.35 + 0.65 * streak) * 0.55 + Math.max(0, fbm(u * 8, vv * 6 + 2, 3) - 0.55) * 0.35) : 0;
-    let r = base * (1 - s * 0.85), g = base * (1 - s * 0.85), b = base * (1 - s * 0.8);
+    const s = sootAt(u, vv);
+    // Soot is a warm grey-brown, not neutral black.
+    // Strong enough to survive the exposure: the stage is lit near white, and at 0.74 the
+    // streaks came out as a faint tint. Photographs show a mid grey over most of the stage.
+    let r = base * (1 - s * 0.86), g = base * (1 - s * 0.88), b = base * (1 - s * 0.84);
     // panel lines
     const pl = Math.abs(((vv / panelPitch) % 1) - 0.5) < 0.004 ? 0.08 : 0;
     const ll = Math.abs(((u * 4) % 1) - 0.5) < 0.0015 ? 0.06 : 0;
@@ -227,8 +257,8 @@ export function makeFalconBody({ w = 1024, h = 2048, height = 41.2, name = 'FALC
   });
   shade(rough, (x, y, u, v) => {
     const vv = 1 - v;
-    const s = sootBand(vv) * fbm(u * 60 + 5, vv * 3, 4);
-    const g = clamp((0.38 + (fbm(u * 30, vv * 80, 3) - 0.5) * 0.15 + s * 0.4) * 255);
+    const s = sootAt(u, vv);
+    const g = clamp((0.38 + (fbm(u * 30, vv * 80, 3) - 0.5) * 0.15 + s * 0.45) * 255);
     return [g, g, g];
   });
   // Markings: vehicle name reads top-to-bottom along the stage.
@@ -725,4 +755,19 @@ export function makeGreyMetal({ size = 256, tile = 1.0, tone = 0.5 } = {}) {
   });
   shade(rough, (x, y, u, v) => { const g = clamp((0.55 + (fbm(u * 10, v * 10, 3) - 0.5) * 0.25) * 255); return [g, g, g]; });
   return { map: toTexture(map, { srgb: true, tileSize: tile }), roughnessMap: toTexture(rough, { tileSize: tile }), tileSize: tile };
+}
+
+/**
+ * Wave normals for the sea beyond the beach. Tiles on the noise lattice's 256-cell period, so
+ * the only scale available is the tile's: 256 cells over 420 m gives swell of a metre or two,
+ * with a finer chop on top — what a gentle Gulf surface looks like from a kilometre away.
+ */
+export function makeWater({ size = 512, tile = 420 } = {}) {
+  const height = canvas(size, size);
+  shade(height, (x, y, u, v) => {
+    const swell = noise2(u * 256 + 3, v * 256 * 0.5 + 9) * 0.6 + noise2(u * 512 + 11, v * 512 + 2) * 0.4;
+    const g = Math.max(0, Math.min(255, swell * 255));
+    return [g, g, g];
+  });
+  return { normalMap: toTexture(heightToNormal(height, 1.4), { tileSize: tile, anisotropy: 8 }), tileSize: tile };
 }
