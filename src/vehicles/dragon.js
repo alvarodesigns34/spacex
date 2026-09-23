@@ -374,8 +374,21 @@ export function buildDragon(M) {
     // and only its top arc came out — a stray black bow hanging over the nearest window. The
     // blister's own silhouette against the shell is the join.
     // Dark chin and the shield between the nozzles.
-    pod.add(mesh(new THREE.BoxGeometry(0.76, 0.30, 0.34), M.blackGloss, { position: [0, -0.60, 0.06] }));
-    pod.add(mesh(new THREE.BoxGeometry(0.86, 0.10, 0.40), M.blackMatte, { position: [0, -0.74, 0.04] }));
+    // Rounded rather than a sharp box, and matte: the gloss black mirrored the sky and the
+    // chin read as a grey block bolted under the fairing.
+    const roundedBlock = (w, h, d, r) => {
+      const sh = new THREE.Shape();
+      const x = w / 2 - r, y = h / 2 - r;
+      sh.moveTo(-x, -h / 2); sh.lineTo(x, -h / 2); sh.absarc(x, -y, r, -Math.PI / 2, 0, false);
+      sh.lineTo(w / 2, y); sh.absarc(x, y, r, 0, Math.PI / 2, false);
+      sh.lineTo(-x, h / 2); sh.absarc(-x, y, r, Math.PI / 2, Math.PI, false);
+      sh.lineTo(-w / 2, -y); sh.absarc(-x, -y, r, Math.PI, Math.PI * 1.5, false);
+      const geo = new THREE.ExtrudeGeometry(sh, { depth: d - 0.04, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 3, curveSegments: 6 });
+      geo.translate(0, 0, -(d - 0.04) / 2);
+      return geo;
+    };
+    pod.add(mesh(roundedBlock(0.76, 0.30, 0.34, 0.1), M.blackMatte, { position: [0, -0.60, 0.06] }));
+    pod.add(mesh(roundedBlock(0.86, 0.10, 0.40, 0.04), M.blackMatte, { position: [0, -0.74, 0.04] }));
     for (const dx of [-0.19, 0.19]) {
       // Bell, throat collar and the mounting boss behind it.
       pod.add(mesh(new THREE.CylinderGeometry(0.125, 0.082, 0.28, 20), M.bellCool, { position: [dx, -0.80, 0.05], rotation: [0.42, 0, 0] }));
