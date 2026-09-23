@@ -290,7 +290,10 @@ float vcNoise(vec2 p) {
   M.service = new THREE.MeshStandardMaterial({ color: 0x3c4650, roughness: 0.7, metalness: 0.06 });
   M.copper = new THREE.MeshPhysicalMaterial({ color: 0xb87333, metalness: 1.0, roughness: 0.35 });
   // White MLI: the foil colour map is gold, so take only its crinkle normals.
-  M.mliWhite = new THREE.MeshPhysicalMaterial({ color: 0xdedbd4, metalness: 0.3, roughness: 0.4, normalMap: T.foil.normalMap, normalScale: new THREE.Vector2(0.85, 0.85), clearcoat: 0.3 });
+  // The crinkle is real but soft. At 0.85 of a normal map already built at strength 3, with a
+  // clearcoat on top, the sky's reflection broke into bright flecks across the whole bus top
+  // and the blanket read as a dusting of snow.
+  M.mliWhite = new THREE.MeshPhysicalMaterial({ color: 0xdedbd4, metalness: 0.2, roughness: 0.55, normalMap: T.foil.normalMap, normalScale: new THREE.Vector2(0.3, 0.3), clearcoat: 0.12, clearcoatRoughness: 0.4 });
   M.goldKapton = new THREE.MeshPhysicalMaterial({ color: 0xc89a3c, metalness: 0.85, roughness: 0.4, map: T.foil.map, normalMap: T.foil.normalMap, normalScale: new THREE.Vector2(0.6, 0.6) });
   M.lens = new THREE.MeshPhysicalMaterial({ color: 0x10131a, roughness: 0.05, metalness: 0, ior: 1.5, clearcoat: 0.3 });
 
