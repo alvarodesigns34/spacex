@@ -94,6 +94,56 @@ function buildGround(M) {
   concrete.push(block(-tw, tw, trenchFloorY - 0.6, trenchFloorY, -52, 52));
   g.add(mesh(boxUV(mergeAll(concrete)), M.concrete));
 
+  // Earth embankment round the outer berm. The berm was a 3.5 m concrete plinth with vertical
+  // sides standing on the plain — a box set down on a table — where a graded pad site runs out
+  // into the surrounding ground on a slope. The slope is fill, drawn with the terrain's own
+  // material so it shares the plain's grain and landscape noise; it runs out 1 in 3 from the
+  // berm's top edge, with rounded corners, and stops either side of the trench mouths so the
+  // flame trench still opens at both ends. The concrete face stays inside it, unseen.
+  if (M.terrain) {
+    const HX = 74, HZ = 52, RUN = bermY * 3, SINK = 0.25, MOUTH = tw + 1.2, ARC = 8;
+    const pts = [];      // [x, z, nx, nz] round the rectangle, counter-clockwise from +x,+z
+    const side = (x0, z0, x1, z1, nx, nz, n) => {
+      for (let i = 0; i < n; i++) { const t = i / n; pts.push([x0 + (x1 - x0) * t, z0 + (z1 - z0) * t, nx, nz]); }
+    };
+    const corner = (cx, cz, a0) => {
+      for (let i = 0; i < ARC; i++) { const a = a0 + (i / ARC) * Math.PI / 2; pts.push([cx, cz, Math.cos(a), Math.sin(a)]); }
+    };
+    side(HX, -HZ, HX, HZ, 1, 0, 26); corner(HX, HZ, 0);
+    side(HX, HZ, -HX, HZ, 0, 1, 48); corner(-HX, HZ, Math.PI / 2);
+    side(-HX, HZ, -HX, -HZ, -1, 0, 26); corner(-HX, -HZ, Math.PI);
+    side(-HX, -HZ, HX, -HZ, 0, -1, 48); corner(HX, -HZ, Math.PI * 1.5);
+    const pos = [], uv = [], col = [], idx = [];
+    const ROWS = 4;
+    for (const [x, z, nx, nz] of pts) {
+      for (let r = 0; r <= ROWS; r++) {
+        const t = r / ROWS;
+        // A slightly convex fill profile: rounded at the crest, easing into the plain.
+        const y = bermY - (bermY + SINK) * (t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t));
+        const px = x + nx * RUN * t, pz = z + nz * RUN * t;
+        pos.push(px, y, pz); uv.push(px, -pz); col.push(1, 1, 1);
+      }
+    }
+    const n = pts.length, row = ROWS + 1;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const [xi, zi, , nzi] = pts[i], [xj, , , nzj] = pts[j];
+      // Leave the trench mouths open on the two z faces.
+      if (nzi !== 0 && nzj !== 0 && Math.abs(nzi) > 0.99 && (Math.abs(xi) < MOUTH || Math.abs(xj) < MOUTH)) continue;
+      for (let r = 0; r < ROWS; r++) {
+        const a0 = i * row + r, b0 = j * row + r;
+        idx.push(a0, b0, a0 + 1, b0, b0 + 1, a0 + 1);   // faces up and out
+      }
+    }
+    const slope = new THREE.BufferGeometry();
+    slope.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    slope.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    slope.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    slope.setIndex(idx);
+    slope.computeVertexNormals();
+    g.add(mesh(slope, M.terrain, { name: 'pad-berm-slope', castShadow: false }));
+  }
+
   // Refractory stainless steel armor cladding on the trench walls and floor.
   const clad = [];
   for (const s of [-1, 1]) {
