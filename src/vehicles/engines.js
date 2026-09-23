@@ -152,7 +152,7 @@ export function merlinVacGeometry({ exitRadius = 1.65, height = 4.0 } = {}) {
  * Creates instanced meshes for an engine geometry set.
  * transforms: array of { position:[x,y,z], tilt?:[rx,rz], spin?:number }
  */
-export function instanceEngines(geo, materials, transforms, { bellMaterial, headMaterial } = {}) {
+export function instanceEngines(geo, materials, transforms, { bellMaterial, headMaterial, innerMaterial } = {}) {
   const group = new THREE.Group();
   group.name = 'engines';
   const n = transforms.length;
@@ -161,7 +161,7 @@ export function instanceEngines(geo, materials, transforms, { bellMaterial, head
   // Recording it here lets verify.js sum the whole vehicle and compare against the sheet.
   group.userData.engineCount = n;
   const outer = new THREE.InstancedMesh(geo.outer, bellMaterial ?? materials.bell, n);
-  const inner = new THREE.InstancedMesh(geo.inner, materials.bellInner, n);
+  const inner = new THREE.InstancedMesh(geo.inner, innerMaterial ?? materials.bellInner, n);
   const head = new THREE.InstancedMesh(geo.head, headMaterial ?? materials.darkMetal, n);
   const dummy = new THREE.Object3D();
   transforms.forEach((t, i) => {

@@ -358,8 +358,11 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
    * covers the same patch of ground while the size holds.
    */
   function updateShadow(target, distance) {
-    const raw = THREE.MathUtils.clamp(distance * 1.25 + 8, 18, 340);
-    const size = Math.min(340, 18 * Math.pow(1.2, Math.ceil(Math.log(raw / 18) / Math.log(1.2))));
+    // Down to a 12 m square for close-ups. The floor was a 36 m square, which at 4096² is a
+    // 9 mm texel: from a metre and a half, the roll bar's and the seat's shadows stepped across
+    // Starman's suit in visible stairs.
+    const raw = THREE.MathUtils.clamp(distance * 1.25 + 4, 6, 340);
+    const size = Math.min(340, 6 * Math.pow(1.2, Math.ceil(Math.log(raw / 6) / Math.log(1.2))));
     const cam = sun.shadow.camera;
     if (cam.right !== size) {
       cam.left = -size; cam.right = size; cam.top = size; cam.bottom = -size;

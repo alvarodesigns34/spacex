@@ -67,20 +67,47 @@ function titaniumGridFin(M, { span = 1.55, chord = 1.25, depth = 0.2 } = {}) {
  * sampling one corner of the map: four khaki slabs where the legs should be. boxUV puts the
  * whole solid on metric coordinates.
  */
-function landingLeg(M, { length = 9.6 } = {}) {
+function landingLeg(M, { length = 9.6, wrapR = R + 0.12 } = {}) {
   const outline = [
     [-0.56, 0], [0.56, 0], [0.52, 1.1], [0.34, length * 0.55], [0.2, length - 0.5], [0.09, length],
     [-0.09, length], [-0.2, length - 0.5], [-0.34, length * 0.55], [-0.52, 1.1],
   ];
+  // Half-width of the planform at height y, for the crown below.
+  const halfW = (y) => {
+    for (let i = 1; i < 6; i++) {
+      const [x0, y0] = outline[i - 1], [x1, y1] = outline[i];
+      if (y <= y1) return x0 + (x1 - x0) * ((y - y0) / Math.max(1e-6, y1 - y0));
+    }
+    return 0.09;
+  };
+  // The fairing wraps the tank and is crowned outboard. It was a flat extrusion: a 1.12 m
+  // chord laid on a 1.95 m radius stands 8 cm off the tank at its edges, and a slab with a
+  // square section reads as a plank bolted to the stage rather than as a moulded leg. Here the
+  // same planform is bent round the stage axis (local z = −wrapR) and its outer face bulges by
+  // up to 9 cm at the centreline, the rounded-triangle section the stowed legs photograph as.
+  const geo = boxUV(plate(outline, 0.24, 0.05));
+  const p = geo.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const w = Math.max(0.09, halfW(Math.min(length, Math.max(0, y))));
+    const t = Math.min(1, Math.abs(x) / w);
+    if (z > 0) z += 0.09 * (1 - t * t) * (z / 0.17);
+    const th = x / wrapR, rr = wrapR + z;
+    p.setXYZ(i, Math.sin(th) * rr, y, Math.cos(th) * rr - wrapR);
+  }
+  p.needsUpdate = true;
+  geo.computeVertexNormals();
   const g = new THREE.Group();
-  g.add(mesh(boxUV(plate(outline, 0.3, 0.06)), M.carbon, { name: 'leg-fairing' }));
-  // Hinge block at the Octaweb. The telescoping pusher that deploys the leg lives BEHIND the
-  // fairing, between it and the stage; it was built in front of it (local +z is outboard), so
-  // a dark 0.38 m cylinder and a bright aluminium rod stood proud of every leg — a pole
-  // strapped to the outside of a slab. Stowed, it cannot be seen, so it is not built.
-  g.add(mesh(boxUV(new THREE.BoxGeometry(1.34, 0.62, 0.46).translate(0, 0.34, 0)), M.darkMetal, { name: 'leg-hinge' }));
+  g.add(mesh(geo, M.carbon, { name: 'leg-fairing' }));
+  // Foot at the Octaweb: the rounded pad the leg stands on once deployed, seen end-on from
+  // underneath while stowed. It was a 1.34 m box, which from below read as a brick. The
+  // telescoping pusher lives behind the fairing and is not visible stowed, so it is not built.
+  const foot = new THREE.CylinderGeometry(0.5, 0.56, 0.5, 28);
+  foot.scale(1, 1, 0.48);
+  foot.translate(0, 0.25, 0.02);
+  g.add(mesh(boxUV(foot), M.darkMetal, { name: 'leg-hinge' }));
   // Hold-down latches along the fairing, and the crush core at the foot. A stowed leg that is
-  // one smooth slab reads as a moulding; what says "this unfolds" is the hardware holding it.
+  // one smooth moulding says nothing; what says "this unfolds" is the hardware holding it.
   const latches = [];
   for (const y of [1.9, 4.6, 7.3]) {
     latches.push({ geometry: new THREE.BoxGeometry(0.5, 0.16, 0.2), matrix: mat4([0, y, -0.2]) });
@@ -146,7 +173,7 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
   g.add(instanceEngines(merlinGeometry(), M, [
     { position: [0, 0, 0], tilt: [0, 0], spin: 0 },
     ...ringLayout(8, OUTER_RING, 0, { phase: OUTER_PHASE }),
-  ]));
+  ], { innerMaterial: M.bellInnerSoot }));
 
   // Four landing legs, stowed.
   for (let i = 0; i < 4; i++) {

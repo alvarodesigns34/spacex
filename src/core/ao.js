@@ -21,10 +21,13 @@ import * as THREE from 'three';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 
 class SceneAOPass extends GTAOPass {
-  // Half resolution: the G-buffer render and both screen passes cost a quarter as much, and
-  // occlusion is a low-frequency term that the denoiser and the bilinear blend carry well.
+  // Full resolution. It ran at half, on the grounds that occlusion is low-frequency; it is not
+  // at a silhouette. The half-resolution term, blended up bilinearly, bled across every depth
+  // edge, and on a bright surface in front of a dark one — Starman's white suit against the
+  // seat, from a metre and a half — that bleed printed as a ragged, sawtoothed grey fringe
+  // round the helmet and the arms. This pass only runs on the high tier.
   setSize(width, height) {
-    super.setSize(Math.max(1, Math.round(width / 2)), Math.max(1, Math.round(height / 2)));
+    super.setSize(Math.max(1, Math.round(width)), Math.max(1, Math.round(height)));
   }
 
   overrideVisibility() {
@@ -41,7 +44,7 @@ class SceneAOPass extends GTAOPass {
 }
 
 export function createAO(scene, camera, width, height) {
-  const pass = new SceneAOPass(scene, camera, Math.round(width / 2), Math.round(height / 2), undefined, {
+  const pass = new SceneAOPass(scene, camera, width, height, undefined, {
     radius: 1,
     distanceExponent: 1,
     thickness: 1,
@@ -60,8 +63,10 @@ export function createAO(scene, camera, width, height) {
       pass.enabled = on;
       if (!on) return;
       const r = THREE.MathUtils.clamp(distance * 0.09, 0.35, 9);
+      // Thickness well under the radius: with the two equal, a surface metres behind a thin
+      // object counted as occluding it, and the object's outline wore a grainy dark halo.
       if (Math.abs(r - lastRadius) > lastRadius * 0.02) {
-        pass.updateGtaoMaterial({ radius: r, thickness: r });
+        pass.updateGtaoMaterial({ radius: r, thickness: r * 0.3 });
         lastRadius = r;
       }
     },

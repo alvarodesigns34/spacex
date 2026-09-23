@@ -122,7 +122,9 @@ export function createMaterials(onProgress = () => {}) {
     normalScale: new THREE.Vector2(0.35, 0.35), metalness: 0.25, roughness: 1.0,
     clearcoat: 0.85, clearcoatRoughness: 0.08, envMapIntensity: 1.2,
   };
-  M.solar = new THREE.MeshPhysicalMaterial(solarBase);
+  // Dragon's trunk cells photograph near-black with a faint blue cast and thin silver lines.
+  // The bare cell map (a navy base, pale 7 mm borders) read as a saturated royal-blue grid.
+  M.solar = new THREE.MeshPhysicalMaterial({ ...solarBase, color: 0x6b7282, clearcoat: 0.6, clearcoatRoughness: 0.14, envMapIntensity: 0.7 });
   // Starlink's arrays photograph near-black with a faint blue cast and a silver grid. With the
   // cell map lifted ×0.8 and a mirror clearcoat the wings read, from the raised viewpoints the
   // exhibit is seen from, as a pale sky-blue sheet reflecting the sky — a toy's colours.
@@ -236,10 +238,17 @@ float vcNoise(vec2 p) {
     normalScale: new THREE.Vector2(0.28, 0.28), metalness: 0.82, roughness: 1.0, envMapIntensity: 1.2,
   });
   M.bellInner = new THREE.MeshStandardMaterial({ color: 0x3a342e, metalness: 0.72, roughness: 0.48, envMapIntensity: 0.85 });
+  // Inside a nozzle that has fired on a kerosene engine: a matte coat of soot, not bare metal.
+  // With the clean-metal interior a flown Falcon's nine bells, seen from underneath, mirrored
+  // the sky and read blue-grey; photographs of a recovered booster show them near-black.
+  M.bellInnerSoot = new THREE.MeshStandardMaterial({ color: 0x24211e, metalness: 0.25, roughness: 0.82, envMapIntensity: 0.45 });
   // Polymer cable jacket: it cannot inherit the ring welds of a Starship tank.
   M.conduit = new THREE.MeshStandardMaterial({ color: 0x555a61, metalness: 0, roughness: 0.76, envMapIntensity: 0.5 });
   M.darkMetal = new THREE.MeshStandardMaterial({ map: T.greyDark.map, roughnessMap: T.greyDark.roughnessMap, metalness: 0.85, roughness: 1.0 });
-  M.titanium = new THREE.MeshPhysicalMaterial({ color: 0x9b9994, metalness: 1.0, roughness: 0.49, anisotropy: 0.3 });
+  // Flown titanium grid fins photograph dark: charcoal grey with a heat tint, the machined
+  // faces dulled by re-entry. A bright, fairly smooth metal reflected the sky and read as a
+  // white plastic lattice against the black interstage.
+  M.titanium = new THREE.MeshPhysicalMaterial({ color: 0x5f5d59, metalness: 0.9, roughness: 0.6, anisotropy: 0.3 });
   M.blackMatte = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.78, metalness: 0.1 });
   M.blackGloss = new THREE.MeshPhysicalMaterial({ color: 0x0c0d10, roughness: 0.25, metalness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.15 });
   // Opaque dark-backed window approximation (no invented cabin). The front interface is
