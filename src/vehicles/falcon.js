@@ -74,12 +74,11 @@ function landingLeg(M, { length = 9.6 } = {}) {
   ];
   const g = new THREE.Group();
   g.add(mesh(boxUV(plate(outline, 0.3, 0.06)), M.carbon, { name: 'leg-fairing' }));
-  // Hinge block at the octaweb and the telescoping pusher behind the fairing.
-  g.add(mesh(boxUV(mergeAll([
-    { geometry: new THREE.BoxGeometry(1.34, 0.62, 0.46), matrix: mat4([0, 0.34, 0.0]) },
-    { geometry: new THREE.CylinderGeometry(0.15, 0.19, 2.4, 14), matrix: mat4([0, 1.7, 0.24]) },
-  ])), M.darkMetal));
-  g.add(mesh(new THREE.CylinderGeometry(0.1, 0.1, 3.2, 12), M.aluminum, { position: [0, 3.6, 0.2] }));
+  // Hinge block at the Octaweb. The telescoping pusher that deploys the leg lives BEHIND the
+  // fairing, between it and the stage; it was built in front of it (local +z is outboard), so
+  // a dark 0.38 m cylinder and a bright aluminium rod stood proud of every leg — a pole
+  // strapped to the outside of a slab. Stowed, it cannot be seen, so it is not built.
+  g.add(mesh(boxUV(new THREE.BoxGeometry(1.34, 0.62, 0.46).translate(0, 0.34, 0)), M.darkMetal, { name: 'leg-hinge' }));
   // Hold-down latches along the fairing, and the crush core at the foot. A stowed leg that is
   // one smooth slab reads as a moulding; what says "this unfolds" is the hardware holding it.
   const latches = [];
@@ -104,46 +103,49 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
   // Tank section: RP-1 below, LOX above, one unwrapped texture over the whole barrel.
   g.add(mesh(lathe([{ r: R, y: ENGINE_DROP }, { r: R, y: TANK_TOP }], { segments: 128, uvMode: 'normalized' }), body, { name: 'stage1' }));
 
-  // Octaweb thrust structure and base heat shield. This is the view the "Octaweb · 9 Merlins"
-  // preset looks straight up into, and it was a dark cylinder with eight plates in it.
-  g.add(mesh(lathe([{ r: R - 0.03, y: ENGINE_DROP + 0.05 }, { r: R - 0.03, y: ENGINE_DROP + 2.6 }], { segments: 64, flip: true }), M.darkMetal, { castShadow: false, name: 'octaweb-wall' }));
-  g.add(mesh(new THREE.CylinderGeometry(R - 0.03, R - 0.03, 0.25, 64), M.blackMatte, { position: [0, ENGINE_DROP + 2.6, 0] }));
-  const octaweb = [];
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
-    // Radial web between each pair of outer engines, with a flange top and bottom: the real
-    // structure is a welded aluminium spider, and the flanges are what give it depth when the
-    // camera is underneath looking up at it.
-    octaweb.push({ geometry: new THREE.BoxGeometry(0.09, 2.4, 0.95), matrix: mat4([Math.sin(a) * 0.86, ENGINE_DROP + 1.3, Math.cos(a) * 0.86], [0, a, 0]) });
-    for (const dy of [-1.15, 1.15]) {
-      octaweb.push({ geometry: new THREE.BoxGeometry(0.2, 0.08, 0.95), matrix: mat4([Math.sin(a) * 0.86, ENGINE_DROP + 1.3 + dy, Math.cos(a) * 0.86], [0, a, 0]) });
-    }
-  }
-  // Base heat shield: the segmented apron between the engines and the tank, and the cutouts
-  // the nine bells come through.
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    octaweb.push({
-      geometry: new THREE.BoxGeometry(0.06, 0.5, 1.5),
-      matrix: mat4([Math.sin(a) * (R - 0.42), ENGINE_DROP + 0.3, Math.cos(a) * (R - 0.42)], [0, a, 0]),
-    });
-  }
-  g.add(mesh(boxUV(mergeAll(octaweb)), M.darkMetal, { name: 'octaweb-structure' }));
-  // Helium COPVs and the hydraulic accumulators clustered round the thrust structure — the
-  // spheres and bottles that are the most recognisable thing in a photograph of a Falcon base.
+  // Base of the stage, as it is seen from underneath: a flat heat shield closing the bottom of
+  // the Octaweb, with a cutout and a boot for each of the nine bells. What was here before was
+  // an open drum looking up into the thrust structure, and none of what was inside it held
+  // together once measured against the engines it shared the space with:
+  //  - the eight radial webs sat on the outer engines' own azimuths, so each ran through the
+  //    middle of a Merlin, powerhead and throat;
+  //  - the eight "apron" plates were 1.5 m long on a 1.43 m radius, so every one stood 33 cm
+  //    out through the side of the stage — a ring of black tabs round the base in the views of
+  //    the legs and the Falcon Heavy aft interfaces;
+  //  - the "helium bottles" were buried in the powerheads, and Falcon 9's helium COPVs are
+  //    submerged in the LOX tank in any case, not hung round the engines.
+  // The shield is what a visitor under the rocket actually sees, and it hides the thrust
+  // structure the way the vehicle does. Cutout clearance is approximate.
+  const OUTER_PHASE = Math.PI / 8;          // the 8-engine ring below
+  const OUTER_RING = 1.27;
   {
-    const bottles = [];
-    for (let i = 0; i < 4; i++) {
-      const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-      bottles.push({ geometry: new THREE.SphereGeometry(0.28, 16, 12), matrix: mat4([Math.sin(a) * (R - 0.52), ENGINE_DROP + 1.9, Math.cos(a) * (R - 0.52)]) });
-      bottles.push({ geometry: new THREE.CylinderGeometry(0.11, 0.11, 0.9, 12), matrix: mat4([Math.sin(a + 0.34) * (R - 0.4), ENGINE_DROP + 1.5, Math.cos(a + 0.34) * (R - 0.4)]) });
+    const SHIELD_Y = ENGINE_DROP + 0.004, HOLE_R = 0.30;
+    const holes = [[0, 0], ...Array.from({ length: 8 }, (_, i) => {
+      const a = OUTER_PHASE + (i / 8) * Math.PI * 2;
+      return [Math.sin(a) * OUTER_RING, Math.cos(a) * OUTER_RING];
+    })];
+    const disc = new THREE.Shape();
+    disc.absarc(0, 0, R - 0.001, 0, Math.PI * 2, false);
+    for (const [x, z] of holes) {
+      const h = new THREE.Path();
+      h.absarc(x, z, HOLE_R, 0, Math.PI * 2, true);
+      disc.holes.push(h);
     }
-    g.add(mesh(boxUV(mergeAll(bottles)), M.aluminum, { name: 'base-bottles' }));
+    const shield = new THREE.ShapeGeometry(disc, 48);
+    shield.rotateX(Math.PI / 2);            // shape (x, y) → world (x, +z); the face looks down
+    shield.translate(0, SHIELD_Y, 0);
+    g.add(mesh(shield, M.blackMatte, { name: 'base-heat-shield', castShadow: false }));
+    // Flexible boots closing the gap between each cutout and its bell.
+    const boots = holes.map(([x, z]) => ({
+      geometry: new THREE.TorusGeometry(HOLE_R - 0.014, 0.026, 6, 36),
+      matrix: mat4([x, SHIELD_Y - 0.01, z], [Math.PI / 2, 0, 0]),
+    }));
+    g.add(mesh(boxUV(mergeAll(boots)), M.darkMetal, { name: 'heat-shield-boots', castShadow: false }));
   }
   // 9 Merlin 1D: eight almost touching on a 1.27 m ring plus one on the axis.
   g.add(instanceEngines(merlinGeometry(), M, [
     { position: [0, 0, 0], tilt: [0, 0], spin: 0 },
-    ...ringLayout(8, 1.27, 0, { phase: Math.PI / 8 }),
+    ...ringLayout(8, OUTER_RING, 0, { phase: OUTER_PHASE }),
   ]));
 
   // Four landing legs, stowed.
@@ -263,16 +265,15 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
 
 /**
  * What stops being worth drawing on a 70 m booster, by the size of the smallest thing it
- * carries. Almost all of it lives in the two and a half metres above the ground, inside the
- * Octaweb, where the "9 Merlins" preset looks straight up into it — and where nothing at all
- * can be seen of it from the museum row, because it is under the rocket.
+ * carries: the boots round the engine cutouts in the base heat shield, the leg latches, the
+ * trim rings and the separation hardware — none of which can be seen from the museum row.
  *
  * The grid fins, the legs and the raceway stay: they break the cylinder's outline, and a
  * Falcon without them reads as a white tube.
  */
 function markFalconDetail(g) {
   const FINE = {
-    'octaweb-wall': 0.12, 'octaweb-structure': 0.06, 'base-bottles': 0.22,
+    'heat-shield-boots': 0.05,
     'leg-latches': 0.04, 'interstage-trim': 0.05, 'sep-flange': 0.1,
     'stage-separation-pushers': 0.16, 'stage-separation-latches': 0.18,
     'fh-pusher-detail': 0.08, 'fairing-frames': 0.03,
@@ -301,6 +302,42 @@ export function buildFalcon9(M) {
     ...commonAnnotations(),
   ];
   return g;
+}
+
+/**
+ * A doubler plate bonded to a core's skin: a patch of the R cylinder centred on azimuth
+ * `phi0` (lathe convention, x = sin φ · r), `halfW` radians either side, between y0 and y1.
+ * It stands `t` proud in the middle and ramps down to the skin over `ramp` metres on every
+ * edge, so it has no open side and no step for the light to catch as a slot.
+ */
+function skinDoubler(phi0, halfW, y0, y1, { t = 0.022, ramp = 0.07, cols = 18, rows = 8 } = {}) {
+  const pos = [], uv = [], idx = [];
+  const arcHalf = halfW * R;
+  const lift = (d) => THREE.MathUtils.smoothstep(d, 0, ramp);
+  for (let j = 0; j <= rows; j++) {
+    const y = y0 + (y1 - y0) * (j / rows);
+    for (let i = 0; i <= cols; i++) {
+      const u = (i / cols) * 2 - 1;
+      const phi = phi0 + u * halfW;
+      const edge = Math.min(arcHalf - Math.abs(u) * arcHalf, y - y0, y1 - y);
+      const r = R + 0.002 + t * lift(edge);
+      pos.push(Math.sin(phi) * r, y, Math.cos(phi) * r);
+      uv.push(u * arcHalf, y);
+    }
+  }
+  const row = cols + 1;
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const a = j * row + i, b = a + 1, c = a + row, d = c + 1;
+      idx.push(a, b, c, b, d, c);         // outward: (+φ) × (+y) points away from the axis
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
 }
 
 export function buildFalconHeavy(M) {
@@ -351,14 +388,23 @@ export function buildFalconHeavy(M) {
       }
     }
   }
-  // Housings across the gap, kept off the rod mesh so the eight pneumatic
-  // paths stay eight components. Reconstructed; the count of rods is published.
+  // Where each pair of rods enters a core, a doubler: the load has to be spread into a
+  // tank wall a few millimetres thick, and a curved plate bonded to the skin is how that is
+  // done. These replace four 0.9 × 0.36 × 1.35 m boxes that sat in the 0.55 m gap between
+  // the cores, ran 17 cm into both of them and hid the rods and clevises behind a block —
+  // "the joint" read as four crates wedged between three tubes. Each doubler follows its own
+  // core's cylinder and tapers to the skin on all four edges, so it reads as a plate on the
+  // tank rather than a part stuck to it. Plate size and thickness are reconstructed.
   const saddles = [];
   for (const s of [-1, 1]) {
-    for (const y of [TANK_TOP - 0.45, 2.6]) {
+    for (const [y, zMax] of [[TANK_TOP - 0.45, 0.55], [2.6, 0.7]]) {
+      const halfW = Math.asin(Math.min(0.95, (zMax + 0.34) / R));
+      // Centre core: the plate faces the side booster (+X for s = 1).
+      saddles.push({ geometry: skinDoubler(s * Math.PI / 2, halfW, y - 0.42, y + 0.42) });
+      // Side core: the plate faces back towards the centre core.
       saddles.push({
-        geometry: new THREE.BoxGeometry(0.9, 0.36, 1.35),
-        matrix: mat4([s * spacing / 2, y, 0]),
+        geometry: skinDoubler(-s * Math.PI / 2, halfW, y - 0.42, y + 0.42),
+        matrix: mat4([s * spacing, 0, 0]),
       });
     }
   }
@@ -367,7 +413,7 @@ export function buildFalconHeavy(M) {
   // stretched over a four-metre strut. Planar metric UVs put it back on its own scale.
   g.add(mesh(boxUV(mergeAll(struts)), M.darkMetal, { name: 'fh-attach-struts' }));
   g.add(mesh(boxUV(mergeAll(detail)), M.alumDark, { name: 'fh-pusher-detail' }));
-  g.add(mesh(boxUV(mergeAll(saddles)), M.darkMetal, { name: 'fh-attach-housings', castShadow: false }));
+  g.add(mesh(boxUV(mergeAll(saddles)), M.alumDark, { name: 'fh-attach-doublers', castShadow: false }));
   g.userData.attachments = { reconstructedGeometry: true, interfaces };
   markFalconDetail(g);
 

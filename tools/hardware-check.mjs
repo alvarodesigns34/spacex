@@ -30,8 +30,11 @@ if (mutant === 'pusher') { const p = f9.getObjectByName('stage-pusher-center'); 
 if (mutant === 'qd') pad.getObjectByName('booster-qd-methane').position.x -= 40;
 if (mutant === 'actuator') actuators[0].position.x += 10;
 if (mutant === 'lod-path') paths.userData.lodFeature = 0.14;
-if (mutant === 'lod-side') delete sides[0].getObjectByName('base-bottles').userData.lodFeature;
+if (mutant === 'lod-side') delete sides[0].getObjectByName('heat-shield-boots').userData.lodFeature;
 if (mutant === 'f1-fairing') f1.getObjectByName('falcon1-fairing').scale.y = 0.8;
+if (mutant === 'shield-hole') f9.getObjectByName('base-heat-shield').rotation.y = Math.PI / 8;
+if (mutant === 'bay-phase') booster.getObjectByName('engine-bay-dividers').rotation.y = Math.PI / 20;
+if (mutant === 'shield-skin') f9.getObjectByName('base-heat-shield').scale.set(1.2, 1, 1.2);
 if (mutant === 'f1-engine') f1.getObjectByName('falcon1-merlin1c-turbopump').removeFromParent();
 for (const root of [f1, f9, fh, pad, booster]) root.updateMatrixWorld(true);
 const world = o => o.getWorldPosition(new T.Vector3());
@@ -66,7 +69,7 @@ for (const root of [f9, fh]) {
 }
 for (const side of sides) {
   assert.ok((world(side.getObjectByName('raceway')).x - world(side).x) * Math.sign(world(side).x) > 1.8, 'side raceway faces outward');
-  for (const name of ['base-bottles', 'octaweb-structure', 'leg-latches']) assert.ok(side.getObjectByName(name).userData.lodFeature > 0, `side detail ${name} participates in LOD`);
+  for (const name of ['heat-shield-boots', 'leg-latches']) assert.ok(side.getObjectByName(name).userData.lodFeature > 0, `side detail ${name} participates in LOD`);
 }
 assert.equal(paths.userData.lodFeature, undefined, 'primary attachment paths survive LOD');
 assert.ok(fh.getObjectByName('fh-pusher-detail').userData.lodFeature > 0, 'fine attachment fittings use LOD');
@@ -103,6 +106,69 @@ for (const box of rods) {
 assert.equal(rods.filter(b => b.getCenter(new T.Vector3()).y > 30).length, 4, 'four forward connections');
 assert.equal(rods.filter(b => b.getCenter(new T.Vector3()).y < 5).length, 4, 'four aft connections');
 
+
+// Engines and the structure round them. Twice now a ring of plates has been laid out on the
+// engines' own azimuths and run straight through them — Super Heavy's twenty bay dividers and
+// Falcon's Octaweb webs — so these are measured against the placed engine instances, not
+// against the constants that were wrong in the first place.
+
+/** Points spread over every triangle of a mesh, in world space. A box's eight corners can all
+ *  lie clear of an engine while its face runs straight through it, so vertices are not enough. */
+function surfaceSamples(mesh, n = 8) {
+  const g = mesh.geometry, a = g.getAttribute('position'), ix = g.index, out = [];
+  const A = new T.Vector3(), B = new T.Vector3(), C = new T.Vector3();
+  const tris = ix ? ix.count / 3 : a.count / 3;
+  for (let t = 0; t < tris; t++) {
+    const k = (j) => (ix ? ix.getX(t * 3 + j) : t * 3 + j);
+    A.fromBufferAttribute(a, k(0)); B.fromBufferAttribute(a, k(1)); C.fromBufferAttribute(a, k(2));
+    for (let i = 0; i <= n; i++) for (let j = 0; j <= n - i; j++) {
+      const u = i / n, v = j / n;
+      out.push(new T.Vector3().copy(A).multiplyScalar(1 - u - v).addScaledVector(B, u).addScaledVector(C, v).applyMatrix4(mesh.matrixWorld));
+    }
+  }
+  return out;
+}
+function engineAxes(root, radiusMin = 0) {
+  const axes = [], m = new T.Matrix4(), p = new T.Vector3();
+  root.traverse(o => {
+    if (!o.isInstancedMesh || o.parent?.name !== 'engines') return;
+    for (let i = 0; i < o.count; i++) {
+      o.getMatrixAt(i, m); p.setFromMatrixPosition(m).applyMatrix4(o.matrixWorld);
+      if (Math.hypot(p.x - world(root).x, p.z - world(root).z) >= radiusMin) axes.push(p.clone());
+    }
+  });
+  // Each engine has three instanced meshes (outer bell, inner bell, head): one axis per engine.
+  return axes.filter((a, i) => axes.findIndex(b => b.distanceTo(a) < 1e-4) === i);
+}
+for (const core of [f9.children.find(o => o.name === 'falcon-core-f9'), ...sides]) {
+  // The core also carries the second stage's Merlin Vacuum; only the nine at the base count.
+  const shield = core.getObjectByName('base-heat-shield'), axes = engineAxes(core).filter(e => e.y < world(core).y + 5);
+  assert.equal(axes.length, 9, 'nine Merlin axes per core');
+  const c = world(core);
+  let clear = Infinity, reach = 0;
+  for (const p of surfaceSamples(shield, 3)) {
+    reach = Math.max(reach, Math.hypot(p.x - c.x, p.z - c.z));
+    for (const e of axes) clear = Math.min(clear, Math.hypot(p.x - e.x, p.z - e.z));
+  }
+  // 0.254 m is the Merlin bell's radius at the shield plane (engines.js profile, 1.0 m up).
+  assert.ok(clear > 0.27, `base heat shield clears every bell (${clear.toFixed(3)} m from an axis)`);
+  assert.ok(reach <= 1.851, `base heat shield stays inside the 3.7 m skin (${reach.toFixed(3)} m)`);
+}
+{
+  const outer = engineAxes(booster, 3.5);
+  assert.equal(outer.length, 20, 'twenty outer Raptor axes');
+  const dividers = booster.getObjectByName('engine-bay-dividers');
+  let worst = Infinity;
+  for (const p of surfaceSamples(dividers, 10)) {
+    // Raptor bell radius at this height, from the engine's own profile; the exit plane is at y = 0.25.
+    const local = p.y - outer[0].y;
+    if (local > 2.2) continue;
+    const bellR = local < 0.45 ? 0.62 - (0.62 - 0.533) * (local / 0.45) : 0.533 - (0.533 - 0.434) * Math.min(1, (local - 0.45) / 0.4);
+    for (const e of outer) worst = Math.min(worst, Math.hypot(p.x - e.x, p.z - e.z) - bellR);
+  }
+  assert.ok(worst > 0, `Super Heavy bay dividers stay outside every outer bell (${worst.toFixed(3)} m)`);
+}
+
 const tower = world(pad.getObjectByName('olit'));
 const qds = pad.getObjectByName('booster-qd').children;
 assert.equal(qds.length, 2, 'two booster QD mechanisms');
@@ -125,7 +191,7 @@ for (const actuator of actuators) actuator.traverse(o => {
   for (let i = 0; i < a.count; i++) { p.fromBufferAttribute(a, i).applyMatrix4(o.matrixWorld); assert.ok(Math.hypot(p.x, p.z) < 4.5, 'every V3 actuator vertex lies inside booster hull'); }
 });
 console.log('PASS hardware: stage release counts, FH contacts/orientation/LOD, dual QDs, separate bunker rooms, internal V3 actuators');
-if (!mutant) for (const name of ['raceway', 'rod', 'pusher', 'qd', 'actuator', 'lod-path', 'lod-side', 'f1-fairing', 'f1-engine']) {
+if (!mutant) for (const name of ['raceway', 'rod', 'pusher', 'qd', 'actuator', 'lod-path', 'lod-side', 'f1-fairing', 'f1-engine', 'shield-hole', 'bay-phase', 'shield-skin']) {
   const run = spawnSync(process.execPath, [fileURLToPath(import.meta.url), `--mutant=${name}`], { encoding: 'utf8' });
   assert.notEqual(run.status, 0, `must detect sabotage ${name}`);
   assert.match(run.stderr, /AssertionError/, `sabotage ${name} must fail an assertion`);

@@ -267,12 +267,23 @@ export function buildSuperHeavy(M) {
   // Aft interior: skirt wall seen from below, thrust puck and engine-bay shielding.
   g.add(mesh(lathe([{ r: R - 0.03, y: 0.1 }, { r: R - 0.03, y: 4.3 }], { segments: 96, flip: true }), M.steelInner, { castShadow: false }));
   g.add(mesh(new THREE.CylinderGeometry(R - 0.03, R - 0.03, 0.5, 96), M.darkMetal, { position: [0, 4.35, 0] }));
+  // Radial dividers between the outer engine bays (layout approximate). They were placed on
+  // the outer ring's own azimuths, so each plate ran through the middle of an engine and
+  // showed as a pale bar across every outer bell in the view from below. They belong in the
+  // gaps, half a pitch round, and they start above the bells' widest part: two neighbouring
+  // exit rims leave no gap at all at the exit plane, so a plate that reached down there would
+  // cut both. At y = 1.0 m the bell is 0.46 m in radius and the plate clears it by 8 cm.
+  const [, , outerRing] = BOOSTER_RINGS;
+  const BAY_Y0 = 1.0, BAY_Y1 = 4.1;
   const bays = [];
-  for (let i = 0; i < 20; i++) {
-    const a = (i / 20) * Math.PI * 2 + Math.PI / 20;
-    bays.push({ geometry: new THREE.BoxGeometry(0.14, 3.3, 1.15), matrix: mat4([Math.sin(a) * 3.86, 1.95, Math.cos(a) * 3.86], [0, a, 0]) });
+  for (let i = 0; i < outerRing[0]; i++) {
+    const a = outerRing[3] + ((i + 0.5) / outerRing[0]) * Math.PI * 2;
+    bays.push({
+      geometry: new THREE.BoxGeometry(0.12, BAY_Y1 - BAY_Y0, 1.15),
+      matrix: mat4([Math.sin(a) * 3.88, (BAY_Y0 + BAY_Y1) / 2, Math.cos(a) * 3.88], [0, a, 0]),
+    });
   }
-  g.add(mesh(mergeAll(bays), M.darkMetal));
+  g.add(mesh(boxUV(mergeAll(bays)), M.darkMetal, { name: 'engine-bay-dividers' }));
 
   // 33 Raptor 3: 3 + 10 gimballing on the thrust puck, 20 fixed on the outer ring.
   // Inner 13 gimbal. The outer 20 are fixed: no actuator rods, so the cluster
