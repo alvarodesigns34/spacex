@@ -149,20 +149,26 @@ export function buildDragon(M) {
   const fine = { white: [], dark: [], seam: [], metal: [], micro: [] };
 
   // ---- Trunk -------------------------------------------------------------------------
-  // Solar cells wrap one half (−Z); the other half carries the radiator panels.
-  g.add(mesh(lathe([{ r: TRUNK_R, y: 0 }, { r: TRUNK_R, y: TRUNK_H }], { segments: 128, phiStart: -Math.PI / 2, phiLength: Math.PI }), M.radiator, { name: 'trunk-radiator' }));
+  // Solar cells wrap one half (+X); the other half (−X) carries the radiator panels. The split
+  // is turned so the default view, from the front-right, sees both halves and the boundary
+  // between them; it used to look square at the radiators and the trunk read as a white drum.
+  const RAD0 = Math.PI;                     // radiator half: φ ∈ [π, 2π]
+  g.add(mesh(lathe([{ r: TRUNK_R, y: 0 }, { r: TRUNK_R, y: TRUNK_H }], { segments: 128, phiStart: RAD0, phiLength: Math.PI }), M.radiator, { name: 'trunk-radiator' }));
   const bays = 5;
   for (let i = 0; i < bays; i++) {
-    const a0 = Math.PI / 2 + (i / bays) * Math.PI + 0.014;
+    const a0 = RAD0 - Math.PI + (i / bays) * Math.PI + 0.005;   // 1 cm seams, not 10 cm white bars
     g.add(mesh(lathe([{ r: TRUNK_R + 0.02, y: 0.22 }, { r: TRUNK_R + 0.02, y: TRUNK_H - 0.3 }],
-      { segments: 22, phiStart: a0, phiLength: Math.PI / bays - 0.028 }), M.solar, { name: 'trunk-solar' }));
+      { segments: 22, phiStart: a0, phiLength: Math.PI / bays - 0.010 }), M.solar, { name: 'trunk-solar' }));
   }
-  g.add(mesh(lathe([{ r: TRUNK_R, y: 0 }, { r: TRUNK_R, y: TRUNK_H }], { segments: 128, phiStart: Math.PI / 2, phiLength: Math.PI }), M.white));
+  g.add(mesh(lathe([{ r: TRUNK_R, y: 0 }, { r: TRUNK_R, y: TRUNK_H }], { segments: 128, phiStart: RAD0 - Math.PI, phiLength: Math.PI }), M.white));
   g.add(mesh(lathe([{ r: TRUNK_R - 0.03, y: 0.05 }, { r: TRUNK_R - 0.03, y: TRUNK_H - 0.05 }], { segments: 64, flip: true }), M.blackMatte, { castShadow: false }));
 
   // Radiator plumbing: the coolant loop's feed and return runs, and the cross-ties between
-  // panels. The radiator half was a blank white wall, which is the one half a visitor
-  // standing in front of the exhibit actually sees.
+  // panels. All of it belongs to the radiator half. The harness strips and stringers used to
+  // be laid out over the wrong half, so half the plumbing ran straight across the solar cells:
+  // black hoops and white bars caging the one face of the trunk that should be a continuous
+  // dark array. (Torus arcs here are in the x = cos θ, z = sin θ convention; the radiator half
+  // φ ∈ [π, 2π] of the lathe is x ≤ 0, i.e. θ ∈ [π/2, 3π/2].)
   {
     const pipes = [];
     for (const yy of [0.55, TRUNK_H - 0.55]) {
@@ -172,7 +178,7 @@ export function buildDragon(M) {
       });
     }
     for (let i = 0; i < 7; i++) {
-      const a = -Math.PI / 2 + 0.18 + (i / 6) * (Math.PI - 0.36);
+      const a = RAD0 + 0.18 + (i / 6) * (Math.PI - 0.36);
       pipes.push({
         geometry: new THREE.CylinderGeometry(0.022, 0.022, TRUNK_H - 1.1, 7),
         matrix: mat4([Math.sin(a) * (TRUNK_R + 0.032), TRUNK_H / 2, Math.cos(a) * (TRUNK_R + 0.032)]),
@@ -181,7 +187,7 @@ export function buildDragon(M) {
     // Harness and radiator panel gaps on the white half, so the trunk is a bay
     // of hardware rather than a painted drum. Layout is reconstructed.
     for (let i = 0; i < 6; i++) {
-      const a = Math.PI / 2 + 0.25 + (i / 5) * (Math.PI - 0.5);
+      const a = RAD0 + 0.25 + (i / 5) * (Math.PI - 0.5);
       pipes.push({
         geometry: new THREE.BoxGeometry(0.02, TRUNK_H - 0.8, 0.012),
         matrix: mat4([Math.sin(a) * (TRUNK_R + 0.012), TRUNK_H / 2, Math.cos(a) * (TRUNK_R + 0.012)], [0, a, 0]),
@@ -193,12 +199,13 @@ export function buildDragon(M) {
     });
     fine.metal.push(...pipes);
   }
-  // External stringers under the skin, every 30°: shallow ridges that catch the light and
-  // stop the 3.7 m drum reading as a paper tube.
+  // External stringers under the skin, every 15°, on the radiator half only: shallow ridges
+  // that catch the light and stop the white drum reading as a paper tube. They went all the
+  // way round, as white bars over the solar cells; the array is continuous.
   {
     const ribs = [];
-    for (let i = 0; i < 24; i++) {
-      const a = (i / 24) * Math.PI * 2;
+    for (let i = 0; i <= 12; i++) {
+      const a = RAD0 + (i / 12) * Math.PI;
       ribs.push({
         geometry: new THREE.BoxGeometry(0.075, TRUNK_H - 0.34, 0.03),
         matrix: mat4([Math.sin(a) * (TRUNK_R + 0.014), TRUNK_H / 2, Math.cos(a) * (TRUNK_R + 0.014)], [0, a, 0]),
@@ -515,8 +522,8 @@ export function buildDragon(M) {
     { label: 'Side hatch', position: [2.2, TRUNK_H + 1.85, 0] },
     { label: 'Parachute bay doors', position: [Math.sin(Math.PI * 0.25) * 1.7, NOSE_BASE - 0.3, Math.cos(Math.PI * 0.25) * 1.7] },
     { label: 'Hinged nose cone · IDSS adapter', position: [0, TOP + 0.25, 0.6] },
-    { label: 'Trunk · solar cells (half the circumference)', position: [0, 1.9, -TRUNK_R - 0.35] },
-    { label: 'Trunk · radiators and coolant loop', position: [0, 2.6, TRUNK_R + 0.35] },
+    { label: 'Trunk · solar cells (half the circumference)', position: [TRUNK_R + 0.35, 1.9, 0] },
+    { label: 'Trunk · radiators and coolant loop', position: [-(TRUNK_R + 0.35), 2.6, 0] },
     { label: 'Trunk fin', position: [Math.sin(Math.PI / 4) * (TRUNK_R + 0.95), 0.9, Math.cos(Math.PI / 4) * (TRUNK_R + 0.95)] },
     { label: 'Draco (16)', position: [0, NOSE_BASE - 0.42, wallR(NOSE_BASE - 0.42) + 0.3] },
   ];

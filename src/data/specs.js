@@ -226,7 +226,7 @@ export const VEHICLES = [
       { id: 'overview', label: 'Overview', pos: [9, 6, 12], target: [0, 4.2, 0] },
       { id: 'superdraco', label: 'SuperDracos and windows', pos: [4.2, 6.2, 5.2], target: [0, 5.6, 0] },
       { id: 'heatshield', label: 'Trunk interior and heat shield', pos: [1.1, -0.35, 1.1], target: [0, 2.6, 0] },
-      { id: 'trunk', label: 'Trunk and solar cells', pos: [-5.5, 2.6, -6.5], target: [0, 1.8, 0] },
+      { id: 'trunk', label: 'Trunk and solar cells', pos: [7.2, 2.6, -4.6], target: [0, 1.8, 0] },
       { id: 'nose', label: 'Nose cone and docking port', pos: [2.5, 10.5, 3], target: [0, 7.8, 0] },
     ],
   },
