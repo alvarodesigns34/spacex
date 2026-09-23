@@ -5,5 +5,6 @@
   { "name": "roadster-selfie.jpg", "jump": ["roadster", "selfie"], "wait": 1400 },
   { "name": "roadster-earth.jpg", "jump": ["roadster", "earth"], "wait": 1800 },
   { "name": "roadster-detail.jpg", "jump": ["roadster", "detail"], "wait": 1400 },
-  { "name": "roadster-underbody.jpg", "jump": ["roadster", "underbody"], "wait": 1400 }
+  { "name": "roadster-underbody.jpg", "jump": ["roadster", "underbody"], "wait": 1400 },
+  { "name": "roadster-rear.jpg", "jump": ["roadster", "overview"], "pos": [118.267, 2.5, -4.869], "target": [117.538, 2.0, -1.109], "wait": 1400 }
 ]

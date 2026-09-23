@@ -13,7 +13,7 @@
  * Each shot also declares the whole state it wants rather than inheriting whatever the
  * previous shot left behind, so a manifest reordered or run alone produces the same frames:
  *
- *   { name, jump:[id, preset] | pos+target | ortho | seek,
+ *   { name, jump:[id, preset] (+ pos+target to reframe) | pos+target | ortho | seek,
  *     sun, labels, ruler, humans, launch, wait }
  */
 import { createServer } from 'node:http';
@@ -93,7 +93,11 @@ for (const s of shots) {
       v.launch.setSpeed(0);
     }
     else if (s.ortho) v.ortho(s.ortho);
-    else if (s.jump) v.jump(s.jump[0] ?? null, s.jump[1] ?? undefined);
+    else if (s.jump) {
+      v.jump(s.jump[0] ?? null, s.jump[1] ?? undefined);
+      // A free camera on a selected exhibit: the HUD names the vehicle, the frame is custom.
+      if (s.pos) v.rig.jumpTo(s.pos, s.target);
+    }
     else v.rig.jumpTo(s.pos, s.target);
   }, { s, sun: SUN });
   for (const sel of s.clicks ?? []) await page.click(sel);

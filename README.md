@@ -154,8 +154,8 @@ También **recorre la secuencia de lanzamiento**. `launch.seek(t)` reproduce el 
 | ![Separación en caliente](docs/screenshots/launch-staging.jpg) | ![Boostback del propulsor](docs/screenshots/launch-boostback.jpg) |
 | ![La torre atrapa el propulsor](docs/screenshots/launch-catch.jpg) | ![Propulsor en los brazos](docs/screenshots/launch-caught.jpg) |
 | ![Falcon 9](docs/screenshots/falcon9.jpg) | ![Tesla Roadster](docs/screenshots/roadster-overview.jpg) |
-| ![Tesla Roadster](docs/screenshots/roadster-overview.jpg) | ![Starman](docs/screenshots/roadster-starman.jpg) |
-| ![Falcon 9 reutilizado](docs/screenshots/falcon9.jpg) | ![Pantalla «Don't Panic»](docs/screenshots/roadster-dontpanic.jpg) |
+| ![Trasera del Roadster](docs/screenshots/roadster-rear.jpg) | ![Starman](docs/screenshots/roadster-starman.jpg) |
+| ![Cámara del selfie](docs/screenshots/roadster-selfie.jpg) | ![Pantalla «Don't Panic»](docs/screenshots/roadster-dontpanic.jpg) |
 | ![Faros y morro](docs/screenshots/roadster-detail.jpg) | ![Tierra al fondo](docs/screenshots/roadster-earth.jpg) |
 | ![Rueda y paso](docs/screenshots/roadster-underbody.jpg) | ![Fila de motores](docs/screenshots/engines-row.jpg) |
 | ![Raptor Vacuum](docs/screenshots/engines-rvac.jpg) | ![Starship completo](docs/screenshots/starship-full.jpg) |
