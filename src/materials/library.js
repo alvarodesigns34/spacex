@@ -123,7 +123,13 @@ export function createMaterials(onProgress = () => {}) {
     clearcoat: 0.85, clearcoatRoughness: 0.08, envMapIntensity: 1.2,
   };
   M.solar = new THREE.MeshPhysicalMaterial(solarBase);
-  M.solarStarlink = new THREE.MeshPhysicalMaterial({ ...solarBase, color: 0xc9d2e6, side: THREE.DoubleSide });
+  // Starlink's arrays photograph near-black with a faint blue cast and a silver grid. With the
+  // cell map lifted ×0.8 and a mirror clearcoat the wings read, from the raised viewpoints the
+  // exhibit is seen from, as a pale sky-blue sheet reflecting the sky — a toy's colours.
+  M.solarStarlink = new THREE.MeshPhysicalMaterial({
+    ...solarBase, color: 0x747c90, metalness: 0.04, clearcoat: 0.3, clearcoatRoughness: 0.18, envMapIntensity: 0.34,
+    side: THREE.DoubleSide,
+  });
   M.concrete = new THREE.MeshStandardMaterial({
     color: 0xc4beb4,
     map: T.concrete.map, roughnessMap: T.concrete.roughnessMap, normalMap: T.concrete.normalMap,
@@ -260,7 +266,8 @@ float vcNoise(vec2 p) {
   M.swale = new THREE.MeshStandardMaterial({ color: 0x3a332c, roughness: 0.98, metalness: 0 });
   M.roadPaint = new THREE.MeshStandardMaterial({ color: 0xd7c36a, roughness: 0.72, metalness: 0 });
   M.berm = new THREE.MeshStandardMaterial({ color: 0x8a7a58, roughness: 0.96, metalness: 0 });
-  M.scrub = new THREE.MeshStandardMaterial({ color: 0x5c6746, roughness: 0.94, metalness: 0 });
+  // Coastal brush in late summer: olive going to straw, not lawn green.
+  M.scrub = new THREE.MeshStandardMaterial({ color: 0x626240, roughness: 0.96, metalness: 0, flatShading: false });
   M.service = new THREE.MeshStandardMaterial({ color: 0x3c4650, roughness: 0.7, metalness: 0.06 });
   M.copper = new THREE.MeshPhysicalMaterial({ color: 0xb87333, metalness: 1.0, roughness: 0.35 });
   // White MLI: the foil colour map is gold, so take only its crinkle normals.

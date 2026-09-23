@@ -175,17 +175,24 @@ export function dressCampus(scene, M) {
     g.add(mesh(duneGeo, M.terrain, { name: 'campus-berms', castShadow: false }));
   }
 
-  // Salt-flat scrub. One cone, instanced, outside the terrace and the pad.
-  const blades = [];
-  for (const yaw of [0, 1.05, 2.1]) {
-    const blade = new THREE.PlaneGeometry(0.42, 0.72);
-    blade.translate(0, 0.36, 0);
-    blade.rotateY(yaw);
-    blades.push(blade);
-  }
-  const scrubGeo = mergeGeometries(blades, false);
+  // Salt-flat scrub: low, rounded clumps of coastal brush, instanced. They were three crossed
+  // 0.4 × 0.7 m planes, which from any distance read as bright green posts standing on the
+  // plain. A clump is a lumpy, flattened dome, olive-brown, wider than it is tall, sitting
+  // down in the ground, and lit from the sky above rather than as a flat card.
+  const scrubGeo = (() => {
+    const geo = new THREE.IcosahedronGeometry(0.5, 2);
+    const p = geo.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      const k = 1 + 0.22 * Math.sin(x * 9.1 + z * 4.3) * Math.cos(y * 7.7 - x * 3.1) + 0.12 * Math.sin(z * 13.0 + y * 5.0);
+      p.setXYZ(i, x * k, Math.max(-0.12, y * 0.62 * k), z * k);
+    }
+    geo.translate(0, 0.06, 0);
+    geo.computeVertexNormals();
+    return geo;
+  })();
   const spots = [];
-  const scrubCount = 72;
+  const scrubCount = 140;
   let seed = 17;
   let guard = 0;
   const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed & 0x7fffffff) / 2147483647; };
@@ -204,9 +211,9 @@ export function dressCampus(scene, M) {
   scrub.receiveShadow = true;
   const dummy = new THREE.Object3D();
   for (let i = 0; i < spots.length; i += 3) {
-    const s = 0.4 + spots[i + 2] * 1.8;
+    const s = 0.6 + spots[i + 2] * 1.9;
     dummy.position.set(spots[i], 0, spots[i + 1]);
-    dummy.scale.set(s * (0.7 + spots[i + 2] * 0.6), 0.45 + spots[i + 2] * 1.35, s);
+    dummy.scale.set(s * (0.8 + spots[i + 2] * 0.5), s * (0.55 + spots[i + 2] * 0.35), s);
     dummy.rotation.y = spots[i + 2] * 6;
     dummy.updateMatrix();
     scrub.setMatrixAt(i / 3, dummy.matrix);

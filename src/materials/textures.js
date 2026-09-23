@@ -171,14 +171,16 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
       r *= (1 - sm * 0.72); g *= (1 - sm * 0.72); b *= (1 - sm * 0.70);
     }
     const panel = (colStreak[x] - 0.5) * 0.05;
-    const dark = bead[y] * 0.28 + vseam[x] * 0.22;
+    // Ring welds read; the vertical plate seams are finer and, at 0.22, drew the hull as a
+    // sheet of graph paper in every close view of the barrel.
+    const dark = bead[y] * 0.20 + vseam[x] * 0.07;
     return [clamp((r + panel) * (1 - dark) * 255), clamp((g + panel) * (1 - dark) * 255), clamp((b + panel) * (1 - dark) * 255)];
   });
   shade(rough, (x, y, u, v) => {
     // Bright mill finish: low roughness on the panels, rough at the weld and where it is
     // sooted or heat-tinted, which is what makes the ring seams read at a distance.
     const base = 0.48 + (colStreak[x] - 0.5) * 0.08 + (fbm(u * 7, v * 10, 3) - 0.5) * 0.06
-      + bead[y] * 0.36 + haz[y] * 0.10 + vseam[x] * 0.32 + vhaz[x] * 0.06 + heat * 0.16 + soot * 0.34;
+      + bead[y] * 0.36 + haz[y] * 0.10 + vseam[x] * 0.14 + vhaz[x] * 0.06 + heat * 0.16 + soot * 0.34;
     const g = clamp(base * 255);
     return [g, g, g];
   });
@@ -186,7 +188,7 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
     const height = canvas(size, size);
     shade(height, (x, y, u, v) => {
       // Bead proud of the sheet, plus a shallow dish either side from weld shrinkage.
-      const h = 0.5 + bead[y] * 0.40 - haz[y] * 0.10 + vseam[x] * 0.34 - vhaz[x] * 0.07
+      const h = 0.5 + bead[y] * 0.40 - haz[y] * 0.10 + vseam[x] * 0.12 - vhaz[x] * 0.07
         + (noise2(x * 0.6, y * 0.6) - 0.5) * 0.05 + (fbm(u * 1.5, v * 16, 2) - 0.5) * 0.05;
       const g = clamp(h * 255);
       return [g, g, g];
@@ -236,9 +238,9 @@ export function makeFalconBody({ w = 1024, h = 2048, height = 41.2, name = 'FALC
     if (!flown) return 0;
     const streak = fbm(u * 70 + 5, vv * 2.4, 4);                    // long vertical streaks
     const patch = fbm(u * 9 + 2, vv * 5 + 7, 3);
-    const amount = 0.46 + 0.50 * smoothstep(0.22, 0.88, vv);        // heavier towards the top
-    const windward = 0.78 + 0.30 * Math.cos(Math.PI * 2 * (u - 0.62));
-    const s = amount * windward * (0.35 + 0.65 * streak) * (0.8 + 0.4 * patch);
+    const amount = 0.66 + 0.30 * smoothstep(0.22, 0.88, vv);        // heavier towards the top
+    const windward = 0.88 + 0.16 * Math.cos(Math.PI * 2 * (u - 0.62));
+    const s = amount * windward * (0.62 + 0.38 * streak) * (0.88 + 0.24 * patch);
     return Math.min(0.9, s) * (1 - 0.9 * legShadow(u, vv));
   };
   shade(map, (x, y, u, v) => {
@@ -248,7 +250,7 @@ export function makeFalconBody({ w = 1024, h = 2048, height = 41.2, name = 'FALC
     // Soot is a warm grey-brown, not neutral black.
     // Strong enough to survive the exposure: the stage is lit near white, and at 0.74 the
     // streaks came out as a faint tint. Photographs show a mid grey over most of the stage.
-    let r = base * (1 - s * 0.86), g = base * (1 - s * 0.88), b = base * (1 - s * 0.84);
+    let r = base * (1 - s * 0.9), g = base * (1 - s * 0.91), b = base * (1 - s * 0.88);
     // panel lines
     const pl = Math.abs(((vv / panelPitch) % 1) - 0.5) < 0.004 ? 0.08 : 0;
     const ll = Math.abs(((u * 4) % 1) - 0.5) < 0.0015 ? 0.06 : 0;
