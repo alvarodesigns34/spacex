@@ -15,7 +15,7 @@ Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones
 
 Starship no está sobre un soporte de museo sino sobre su plataforma: una reconstrucción a escala del **Pad 2 de Starbase** — la explanada, la zanja de llamas bidireccional revestida de inoxidable con su deflector central, la mesa de lanzamiento cuadrada de cubierta refrigerada por agua con sus veinte pinzas de sujeción, las conexiones separadas de metano y oxígeno del propulsor con su búnker dividido, la torre de integración de 144,5 m, los brazos de captura de 36 m, el brazo de desconexión rápida de la nave, los pararrayos y la granja criogénica. Desde ahí **despega**: con **G** o el botón *Launch* corre la secuencia completa, de la cuenta atrás a la separación en caliente — y después **el propulsor vuelve y la torre lo atrapa**, con el ciclo de boostback, el descenso, el encendido de aterrizaje y los brazos cerrándose sobre él.
 
-Todo el modelo es procedural (sin binarios): las geometrías se generan a partir de perfiles de revolución con normales analíticas y UV métricas, los materiales PBR usan texturas generadas en Canvas (acero laminado con soldadura de anillo cada 1,83 m y costura vertical de placa cada 7,3 m, hollín de propulsor reutilizado, composite de carbono, células solares, PICA, hormigón en losas de 6 m, oleaje) y el escudo térmico de Starship son ~13 300 losetas hexagonales instanciadas de 0,26 m entre caras sobre la mitad expuesta del casco, el morro y las aletas.
+Todo el modelo es procedural (sin binarios): las geometrías se generan a partir de perfiles de revolución con normales analíticas y UV métricas, los materiales PBR usan texturas generadas en Canvas (acero laminado con soldadura de anillo cada 1,83 m y costura vertical de placa cada 7,3 m, hollín de propulsor reutilizado, composite de carbono, células solares, PICA, hormigón en losas de 6 m, oleaje) y el escudo térmico de Starship son ~13 200 losetas hexagonales instanciadas de 0,26 m entre caras sobre la mitad expuesta del casco, el morro y las aletas.
 
 Los acabados están calibrados contra fotografías del vehículo real: el acero inoxidable es **mate**, no espejo, y muestra las dos direcciones de soldadura; las losetas forman un **mosaico de gris carbón con variación en manchas** — no ruido por loseta, que se lee como escamas de pez — y no proyectan sombra sobre sí mismas; y las aletas son **oscuras por ambas caras**, con la de barlovento texturada.
 
@@ -195,13 +195,13 @@ Medido con `npm run profile`, que informa del reparto del arranque, triángulos,
 
 | | |
 |---|---|
-| Triángulos construidos | 1 251 013 |
-| Triángulos dibujados en la vista general | 697 545 |
-| Mallas | 1 045, de las cuales 648 se dibujan en la vista general |
-| Materiales / texturas | 112 / 79 |
-| Losetas instanciadas | 13 274 en 1 draw call |
+| Triángulos construidos | 1 394 547 |
+| Triángulos dibujados en la vista general | 825 655 |
+| Mallas | 943, de las cuales 526 se dibujan en la vista general |
+| Materiales / texturas | 110 / 87 |
+| Losetas instanciadas | 13 216 en 1 draw call |
 
-Medido con `npm run check` en `f71bb82` más el campus, la luz recalibrada y el HUD de esta revisión. El README anterior (≈1 205 000 / 763 000 / 866 mallas) no coincidía ya con ese HEAD: la puerta midió 1 282 055 triángulos construidos y 729 243 dibujados antes de estos cambios. Las figuras de escala pasaron de cápsulas a un cuerpo con menos triángulos, y el total construido bajó aun después de añadir el campus.
+Medido en `1e72486`, con calidad alta forzada, en la vista general recién cargada y contando igual que la puerta de CI (un grupo oculto oculta a sus hijos). La tabla anterior (1 251 013 / 697 545 / 1 045 mallas) era previa a la trasera nueva del Roadster, a la oclusión ambiental y a las figuras de escala redondeadas. La subida viene sobre todo de la trasera del Roadster (campo de alturas, carcasas, doce ópticas y difusor) y de las figuras torneadas, que tienen más triángulos pero siguen fusionadas en una malla por material. La puerta, que mide después de recorrer el resto de estados, imprime en esa misma revisión 1 413 411 triángulos construidos, 945 mallas, 112 materiales y 88 texturas. Coincide en lo dibujado: 825 655 triángulos y 526 mallas.
 
 Las losetas usan un prisma hexagonal de 28 triángulos sin cara trasera (nunca visible, siempre apoyada en el casco) y un chaflán superior que da el brillo del borde.
 
@@ -212,10 +212,10 @@ Las losetas usan un prisma hexagonal de 28 triángulos sin cara trasera (nunca v
 Cada entrada declara `lodFeature`: el tamaño real, en metros, de la pieza más pequeña que contiene. Así el mismo umbral significa lo mismo en una loseta de 0,26 m, en el marco de una ventana de la Dragon y en la junta de 2 cm de su panel trasero.
 
 - **Escudo térmico.** Trece mil hexágonos de 0,26 m se vuelven ruido sub-píxel a unas decenas de metros. Pasados ~90 m las instancias se sustituyen por una superficie de revolución con el mismo mosaico horneado, cubriendo la misma ventana angular: de cerca se ve la geometría real; de lejos, un panel limpio — y 373 000 triángulos menos.
-- **Interior del Roadster y Starman.** 247 mallas sobre un coche de 3,9 m que en la vista general mide ocho píxeles. Los asientos cosidos, el Hot Wheels del salpicadero y la placa de circuito dejan de dibujarse; la carrocería, las ruedas y el cristal no, porque son la silueta.
+- **Interior del Roadster y Starman.** 86 mallas sobre un coche de 3,9 m que en la vista general mide ocho píxeles. Los asientos cosidos, el Hot Wheels del salpicadero y la placa de circuito dejan de dibujarse; la carrocería, las ruedas y el cristal no, porque son la silueta.
 - **Filigrana de la Dragon.** Juntas de panel, marcos, bisagras y tornillería, separadas en dos lotes porque un marco de ventana de 26 cm se lee mucho más lejos que un tornillo de 1,4 cm.
 
-Medido en la vista general contra la misma escena con todo forzado a su estado detallado: **705 mallas y 763 000 triángulos, frente a 787 y 1 157 000**.
+Medido en la vista general contra la misma escena con todo forzado a su estado detallado: **526 mallas y 825 655 triángulos, frente a 821 y 1 341 923**. Son 182 grupos, y todos se retiran en la vista general.
 
 ### Niveles de calidad
 
