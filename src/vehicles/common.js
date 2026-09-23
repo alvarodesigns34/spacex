@@ -16,7 +16,7 @@ export function buildMount(M, { radius = 8, inner = 4.6, height = 8, legs = 6, c
   const deck = new THREE.ExtrudeGeometry(ring, { depth: 1.2, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.12, bevelSegments: 2, curveSegments: 64 });
   deck.rotateX(-Math.PI / 2);
   deck.translate(0, height - 1.2, 0);
-  g.add(mesh(deck, M.mount));
+  g.add(mesh(deck, M.plinth ?? M.mount, { name: 'mount-deck' }));
   // Legs
   const legParts = [];
   for (let i = 0; i < legs; i++) {
@@ -25,7 +25,7 @@ export function buildMount(M, { radius = 8, inner = 4.6, height = 8, legs = 6, c
     legParts.push({ geometry: new THREE.BoxGeometry(1.4, height - 1.2, 1.4), matrix: mat4([Math.sin(a) * r, (height - 1.2) / 2, Math.cos(a) * r], [0, a, 0]) });
     legParts.push({ geometry: new THREE.BoxGeometry(2.2, 0.3, 2.2), matrix: mat4([Math.sin(a) * r, 0.15, Math.cos(a) * r], [0, a, 0]) });
   }
-  g.add(mesh(mergeAll(legParts), M.mount));
+  g.add(mesh(mergeAll(legParts), M.plinth ?? M.mount));
   // Hold-down clamps at the vehicle skirt
   const clampParts = [];
   for (let i = 0; i < clamps; i++) {
@@ -94,40 +94,65 @@ export function buildPedestal(M, { radius = 1.2, height = 1.2, post = 0 } = {}) 
  * figure — see `buildHumanCrowd`. The geometry is identical either way; only the number of
  * draw calls differs.
  */
+/** A capsule of radius r from a to b, as a merge item. */
+function limb(a, b, r) {
+  const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b);
+  const d = B.clone().sub(A), len = d.length();
+  const geometry = new THREE.CapsuleGeometry(r, Math.max(0.001, len), 3, 8);
+  const m = new THREE.Matrix4().compose(
+    A.add(B).multiplyScalar(0.5),
+    new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()),
+    new THREE.Vector3(1, 1, 1));
+  return { geometry, matrix: m };
+}
+
 function humanParts(M, suit) {
   const cloth = suit === 'white' ? M.visitor : M.coverall;
-  const body = [];
+  // Rounded forms on the same 1.80 m frame: a lathed torso flattened front to back, capsule
+  // limbs jointed at the knee and elbow, a slightly long head on a neck. Boxes and straight
+  // cylinders read as a mannequin kit next to vehicles modelled to the centimetre.
+  const torso = new THREE.LatheGeometry([
+    [0.001, 0.86], [0.150, 0.87], [0.158, 0.94], [0.140, 1.06], [0.160, 1.22],
+    [0.185, 1.36], [0.170, 1.44], [0.090, 1.49], [0.001, 1.50],
+  ].map(([r, y]) => new THREE.Vector2(r, y)), 14);
+  torso.scale(1, 1, 0.62);
+  const body = [{ geometry: torso, matrix: new THREE.Matrix4() }];
+  for (const s of [-1, 1]) {
+    body.push(limb([0.20 * s, 1.41, 0], [0.24 * s, 1.14, 0.02], 0.044));   // upper arm
+    body.push(limb([0.24 * s, 1.14, 0.02], [0.25 * s, 0.90, 0.07], 0.037)); // forearm
+  }
   const legs = [];
-  body.push({ geometry: new THREE.BoxGeometry(0.36, 0.42, 0.18), matrix: mat4([0, 1.22, 0]) });
-  body.push({ geometry: new THREE.BoxGeometry(0.3, 0.14, 0.17), matrix: mat4([0, 0.92, 0]) });
-  body.push({ geometry: new THREE.BoxGeometry(0.44, 0.08, 0.14), matrix: mat4([0, 1.42, 0]) });
-  body.push({ geometry: new THREE.CylinderGeometry(0.042, 0.038, 0.26, 7), matrix: mat4([0.22, 1.26, 0], [0, 0, 0.18]) });
-  body.push({ geometry: new THREE.CylinderGeometry(0.036, 0.032, 0.24, 7), matrix: mat4([0.28, 1.02, 0.03], [0.55, 0, 0.08]) });
-  body.push({ geometry: new THREE.CylinderGeometry(0.042, 0.038, 0.26, 7), matrix: mat4([-0.22, 1.26, 0], [0, 0, -0.18]) });
-  body.push({ geometry: new THREE.CylinderGeometry(0.036, 0.032, 0.24, 7), matrix: mat4([-0.28, 1.02, 0.03], [0.55, 0, -0.08]) });
-  legs.push({ geometry: new THREE.CylinderGeometry(0.065, 0.05, 0.4, 7), matrix: mat4([0.08, 0.68, 0]) });
-  legs.push({ geometry: new THREE.CylinderGeometry(0.048, 0.042, 0.38, 7), matrix: mat4([0.09, 0.3, 0.02]) });
-  legs.push({ geometry: new THREE.CylinderGeometry(0.065, 0.05, 0.4, 7), matrix: mat4([-0.08, 0.68, 0]) });
-  legs.push({ geometry: new THREE.CylinderGeometry(0.048, 0.042, 0.38, 7), matrix: mat4([-0.09, 0.3, 0.02]) });
+  for (const s of [-1, 1]) {
+    legs.push(limb([0.085 * s, 0.90, 0], [0.090 * s, 0.50, 0.01], 0.064)); // thigh
+    legs.push(limb([0.090 * s, 0.50, 0.01], [0.090 * s, 0.12, -0.01], 0.048)); // shin
+  }
   const boots = [];
-  boots.push({ geometry: new THREE.BoxGeometry(0.1, 0.08, 0.22), matrix: mat4([0.09, 0.04, 0.03]) });
-  boots.push({ geometry: new THREE.BoxGeometry(0.1, 0.08, 0.22), matrix: mat4([-0.09, 0.04, 0.03]) });
+  for (const s of [-1, 1]) {
+    const boot = new THREE.CapsuleGeometry(0.048, 0.14, 3, 8);
+    boot.rotateX(Math.PI / 2);
+    boot.scale(1.05, 0.75, 1);
+    boots.push({ geometry: boot, matrix: mat4([0.09 * s, 0.045, 0.035]) });
+  }
   const head = [];
-  head.push({ geometry: new THREE.CylinderGeometry(0.04, 0.046, 0.08, 8), matrix: mat4([0, 1.56, 0]) });
-  head.push({ geometry: new THREE.SphereGeometry(0.09, 12, 10), matrix: mat4([0, 1.71, 0]) });
+  head.push({ geometry: new THREE.CylinderGeometry(0.042, 0.048, 0.10, 10), matrix: mat4([0, 1.54, 0]) });
+  const skull = new THREE.SphereGeometry(0.092, 16, 12);
+  skull.scale(0.92, 1.12, 1.0);
+  head.push({ geometry: skull, matrix: mat4([0, 1.68, 0.005]) });
+  for (const s of [-1, 1]) head.push({ geometry: new THREE.SphereGeometry(0.040, 10, 8), matrix: mat4([0.255 * s, 0.86, 0.08]) });
   const out = [
     [cloth, [...body, ...legs]],
     [M.boot, boots],
     [M.skin, head],
   ];
   if (suit !== 'white') {
-    const hat = new THREE.SphereGeometry(0.105, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2);
-    out.push([M.hardhat, [{ geometry: hat, matrix: mat4([0, 1.76, 0]) }]]);
+    const hat = new THREE.SphereGeometry(0.108, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+    hat.scale(1, 0.85, 1.1);
+    const brim = new THREE.CylinderGeometry(0.125, 0.125, 0.008, 18);
+    out.push([M.hardhat, [{ geometry: hat, matrix: mat4([0, 1.745, 0.005]) }, { geometry: brim, matrix: mat4([0, 1.745, 0.012]) }]]);
   }
   return out;
 }
 
-/** One figure on its own, kept for callers that place a single person. */
 export function buildHuman(M, { suit = 'white' } = {}) {
   const g = new THREE.Group();
   g.name = 'human';

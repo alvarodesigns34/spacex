@@ -21,6 +21,12 @@ import * as THREE from 'three';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 
 class SceneAOPass extends GTAOPass {
+  // Half resolution: the G-buffer render and both screen passes cost a quarter as much, and
+  // occlusion is a low-frequency term that the denoiser and the bilinear blend carry well.
+  setSize(width, height) {
+    super.setSize(Math.max(1, Math.round(width / 2)), Math.max(1, Math.round(height / 2)));
+  }
+
   overrideVisibility() {
     const cache = this._visibilityCache;
     this.scene.traverse((o) => {
@@ -35,7 +41,7 @@ class SceneAOPass extends GTAOPass {
 }
 
 export function createAO(scene, camera, width, height) {
-  const pass = new SceneAOPass(scene, camera, width, height, undefined, {
+  const pass = new SceneAOPass(scene, camera, Math.round(width / 2), Math.round(height / 2), undefined, {
     radius: 1,
     distanceExponent: 1,
     thickness: 1,
@@ -43,7 +49,7 @@ export function createAO(scene, camera, width, height) {
     scale: 1.5,
     samples: 16,
   }, {
-    lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 16,
+    lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, rings: 2, samples: 16,
   });
   pass.blendIntensity = 1;
   let lastRadius = 1;

@@ -186,9 +186,14 @@ float vcNoise(vec2 p) {
     float damp = smoothstep(0.42, 0.18, macro);
     diffuseColor.rgb *= mix(1.0, 1.16, salt) * mix(1.0, 0.78, damp);
     diffuseColor.rgb *= mix(vec3(1.0), vec3(0.97, 0.97, 0.90), damp * 0.7);
+    // Sparse low scrub: clumps of a few metres, thicker in the damp hollows, none on the salt
+    // crust. Without it the plain read as one sheet of felt at any distance.
+    float veg = vcNoise(wp / 9.0 + 41.0) * 0.6 + vcNoise(wp / 3.1 - 13.0) * 0.4;
+    float scrub = smoothstep(0.60, 0.76, veg + damp * 0.10) * (1.0 - salt);
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.62, 0.70, 0.46), scrub * 0.75);
   }`);
   };
-  M.terrain.customProgramCacheKey = () => 'vc-terrain-macro-2';
+  M.terrain.customProgramCacheKey = () => 'vc-terrain-macro-3';
   // The Gulf beyond the beach. Water is a dielectric with a smooth surface: almost all of what
   // it shows is the sky it reflects, so the colour here is only the body tint of shallow,
   // silty coastal water, and the wave normals do the rest.

@@ -506,13 +506,18 @@ export function makeConcrete({ size = 768, tile = 12.0 } = {}) {
   shade(map, (x, y, u, v) => {
     const n = fbm(u * 6 + 2, v * 6 + 9, 5);
     const fine = (noise2(x * 0.9, y * 0.9) - 0.5) * 0.05;
-    const stain = Math.max(0, fbm(u * 2.2 + 8, v * 2.2 + 1, 4) - 0.52) * 0.4;
+    // The tile repeats every 12 m, so anything at the scale of metres in it repeats too: a
+    // 5 m stain at 0.2 of contrast was the same dark blotch in every other slab across the
+    // whole apron. Large-scale variation is kept faint, and each slab of the four in a tile
+    // gets its own slight pour tone instead, which is what a slab apron actually shows.
+    const stain = Math.max(0, fbm(u * 2.2 + 8, v * 2.2 + 1, 4) - 0.52) * 0.10;
+    const slab = (noise2(Math.floor(u * joints) * 7.3 + 1.1, Math.floor(v * joints) * 5.9 + 3.7) - 0.5) * 0.05;
     const du = Math.abs(((u * joints) % 1) - 0.5);
     const dv = Math.abs(((v * joints) % 1) - 0.5);
     const jointDist = Math.min(du, dv);
     const joint = Math.max(0, 1 - jointDist / 0.008);
     const sealant = Math.max(0, 1 - jointDist / 0.0035);
-    let c = 0.48 + (n - 0.5) * 0.14 + fine - stain * 0.5;
+    let c = 0.48 + (n - 0.5) * 0.06 + fine - stain * 0.5 + slab;
     c -= joint * 0.06 + sealant * 0.12;
     return [clamp(c * 1.025 * 255), clamp(c * 255), clamp(c * 0.95 * 255)];
   });
