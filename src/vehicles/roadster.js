@@ -109,17 +109,31 @@ const yBelt = curve([
   [1.920, 0.600], [1.950, 0.470], [1.968, 0.360], [1.973, 0.325],
 ]);
 
-// Centreline crown: the bonnet and deck at x = 0. It runs a few centimetres below the belt,
-// which is what gives the clamshell its raised fender crowns without turning the bonnet into
-// a valley — on the real car the difference across the bonnet is 3-4 cm, not the 17 cm the
-// previous table carried.
+// Centreline crown: the bonnet and deck at x = 0. Over the cockpit it runs a few centimetres
+// below the belt; over the engine cover, between the rear haunches, about five. Over the
+// bonnet it sits lower still: every photograph of the front of the car (show-floor front
+// three-quarter, street front view) has the frunk lid and the louvre panel lying in a shallow
+// trough between two fender crowns, with the headlamps on the crowns. At 3 cm the front
+// section peaked NEAR THE CENTRE, and the nose read as a single inflated dome. The 7-8 cm here,
+// together with the crest that frontCrest() puts on the fenders, is estimated from those
+// photographs against the car's published width; it is not a measured figure.
 const yCrown = curve([
-  [-1.973, 0.734], [-1.850, 0.820], [-1.650, 0.884], [-1.400, 0.906],
-  [-1.176, 0.906], [-1.000, 0.896], [-0.720, 0.868], [-0.400, 0.846],
-  [0.000, 0.840], [0.460, 0.876], [0.900, 0.868], [1.176, 0.862],
-  [1.400, 0.846], [1.600, 0.814], [1.790, 0.734], [1.870, 0.660],
-  [1.920, 0.560], [1.950, 0.430], [1.968, 0.330], [1.973, 0.300],
+  [-1.973, 0.734], [-1.850, 0.812], [-1.650, 0.856], [-1.400, 0.868],
+  [-1.176, 0.870], [-1.000, 0.866], [-0.720, 0.858], [-0.400, 0.846],
+  [0.000, 0.840], [0.460, 0.874], [0.900, 0.830], [1.176, 0.816],
+  [1.400, 0.797], [1.600, 0.768], [1.790, 0.708], [1.870, 0.648],
+  [1.920, 0.556], [1.950, 0.430], [1.968, 0.330], [1.973, 0.300],
 ]);
+
+/**
+ * How far the section's shoulder is lifted into a fender crest: 1 over the bonnet, 0.75 over
+ * the engine cover. Zero over the cockpit, where the door tops and the windscreen base have
+ * their own fit, and zero again at both ends, where the panels roll down into one edge.
+ */
+const frontCrest = (z) => THREE.MathUtils.smoothstep(z, 0.50, 0.82) * (1 - THREE.MathUtils.smoothstep(z, 1.70, 1.90))
+  // The rear clamshell does the same thing, less strongly: the haunches over the rear wheels
+  // stand above the engine cover between them (show-floor rear three-quarter photograph).
+  + 0.75 * THREE.MathUtils.smoothstep(z, -1.80, -1.55) * (1 - THREE.MathUtils.smoothstep(z, -0.95, -0.70));
 
 // Rocker: the bottom edge of the visible body side, before the wheel arches cut into it.
 // The published ground clearance is 0.130 m at the floor; the visible sill edge sits above it
@@ -163,13 +177,16 @@ function sectionCurve(z) {
   if (z === _sectionCache.z) return _sectionCache.curve;
   const W = halfWidth(z), yb = yBelt(z), yc = yCrown(z), ys = sillEdge(z);
   const drop = Math.max(0.05, yb - ys);
+  const fk = frontCrest(z);
   const half = [
     [0.905, ys],                       // sill / arch edge
     [0.962, ys + drop * 0.11],         // tuck-under
     [1.000, yb - drop * 0.56],         // maximum half-width
     [0.955, yb - drop * 0.26],         // flank
-    [0.780, yb - drop * 0.12],         // shoulder / character line
-    [0.430, yc + (yb - yc) * 0.48],    // crown shoulder
+    // Shoulder / character line. Over the bonnet it rises to the belt and becomes the fender
+    // crest; elsewhere it stays below it and the top of the section is the crown.
+    [0.780 - 0.035 * fk, yb - drop * 0.12 * (1 - fk)],
+    [0.430, yc + (yb - yc) * (0.48 - 0.24 * fk)],    // crown shoulder: a flatter lid over the bonnet
   ];
   const pts = [];
   for (const [fx, y] of half) pts.push(new THREE.Vector3(-fx * W, y, z));
@@ -217,7 +234,10 @@ const MOUTH = { y: 0.382, w: 0.470, h: 0.044, zMin: 1.790 };
 // The black lower fascia covers this band of the front elevation. The painted panel is cut
 // away underneath it — a real car's paint stops where the moulding starts — which is also what
 // stops the fascia paint showing through the cooling slot.
-const FASCIA = { x: 0.585, y0: 0.232, y1: 0.470, zMin: 1.790, taperLo: 0.052, taperHi: 0.100 };
+// Its top edge was at 0.470 m, which made the intake a 24 cm black rectangle filling most of
+// the bumper face. The front photographs show a lower, wider slot whose top runs nearly level
+// out to the corners, with body colour between it and the emblem. Heights approximate.
+const FASCIA = { x: 0.585, y0: 0.232, y1: 0.405, zMin: 1.790, taperLo: 0.052, taperHi: 0.020 };
 const FASCIA_REAR = { x: 0.640, y0: 0.222, y1: 0.462, zMax: -1.760, taperLo: 0.040, taperHi: 0.086 };
 function fasciaBand(F, u) {
   const f = Math.pow(1 - Math.min(1, Math.abs(u)), 0.42);
@@ -887,9 +907,18 @@ function buildBodyShell(mats, M) {
   const zRear = denser(stations(Z_TAIL, Z_BULK - SHUT / 2, 52), Z_TAIL, FASCIA_REAR.zMax + 0.01, 0.005);
   const zDoor = stations(Z_BULK + SHUT / 2, Z_COWL - SHUT / 2, 22);
 
+  // The tail and the rear clamshell are kept as named geometries: the rear fascia moulding is
+  // laid ON them (raycast below) instead of into a hole cut out of them.
+  const rearGeo = sweep(zRear, tRear);
+  const tailGeo = tailPanel(ringAt(Z_TAIL, tRear), (x, y) => inTailLamp(x, y, 1.02));
   const panels = [
     { geometry: sweep(zFront, tFront, false, (z, t) => lampContains(LAMP_FRONT, z, t, 1.02) || underFascia(FASCIA, z, t)) },
-    { geometry: sweep(zRear, tRear, false, (z, t) => underFascia(FASCIA_REAR, z, t)) },
+    // Not cut under the rear fascia. The black moulding lives on the tail plane; the band
+    // also reached 15 cm forward round the rear corners of the clamshell, where the paint was
+    // cut away cell by cell and nothing covered the hole — a staircase of black teeth round
+    // both corners in any rear three-quarter view. The photographs have painted corners and
+    // the black only across the tail, so the corners keep their paint.
+    { geometry: rearGeo },
     { geometry: sweep(zDoor, tDoorL) },
     { geometry: sweep(zDoor, tDoorR) },
     // Bumper faces. The nose rolls deep, the tail is a Kamm cut-off with a tight radius.
@@ -898,15 +927,11 @@ function buildBodyShell(mats, M) {
     // is a hole straight through the back of the car.
     { geometry: endCap(ringAt(Z_NOSE, tFront), 1, CAP_NOSE, 0.30, 4) },
     // The tail is its own panel, with the lamp openings and the fascia band cut out of it.
-    {
-      geometry: tailPanel(ringAt(Z_TAIL, tRear), (x, y) => {
-        if (inTailLamp(x, y, 1.02)) return true;
-        const F = FASCIA_REAR;
-        if (Math.abs(x) > F.x * 0.99) return false;
-        const [ya, yb] = fasciaBand(F, x / F.x);
-        return y < yb;
-      }),
-    },
+    // Only the lamp openings are cut. The fascia band used to be cut out of the tail as well,
+    // on the panel's polar grid, and the flat moulding meant to cover it sat BEHIND the domed
+    // tail — so the hole's stepped edge was the outline of the black band, and everything
+    // below the band was open too.
+    { geometry: tailGeo },
     // Shut-line walls.
     { geometry: edgeFlange(ringAt(Z_COWL + SHUT / 2, tFull), -0.013, 0.006) },
     { geometry: edgeFlange(ringAt(Z_BULK - SHUT / 2, tFull), 0.013, 0.006, true) },
@@ -1183,16 +1208,26 @@ function buildBodyShell(mats, M) {
     const F = FASCIA_REAR;
     const NX = 56, NY = 10, ZF = TAIL_FACE_Z - 0.004;
     const pos = [], idx = [];
+    // Laid on the painted surface, 4 mm proud of it: a ray from behind the car finds the tail
+    // (or, round the corners, the clamshell) at each grid point.
+    const probe = new THREE.Group();
+    const probeMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    probe.add(new THREE.Mesh(tailGeo, probeMat), new THREE.Mesh(rearGeo, probeMat));
+    probe.updateMatrixWorld(true);
+    const ray = new THREE.Raycaster();
+    const behind = new THREE.Vector3(), fwd = new THREE.Vector3(0, 0, 1);
+    const surfaceZ = (x, y) => {
+      behind.set(x, y, TAIL_FACE_Z - 0.5);
+      ray.set(behind, fwd);
+      const hit = ray.intersectObject(probe, true)[0];
+      return hit ? hit.point.z : ZF;
+    };
     for (let i = 0; i <= NX; i++) {
       const u = (i / NX) * 2 - 1, x = u * F.x;
-      const [ya, yb0] = fasciaBand(F, u);
-      // Overlap the cut: the hole in the paint is quantised on the panel's polar grid, so the
-      // moulding has to run a couple of centimetres past it to bury the teeth.
-      const yb = yb0 + 0.026;
+      const [ya, yb] = fasciaBand(F, u);
       for (let j = 0; j <= NY; j++) {
         const y = ya + (yb - ya) * (j / NY);
-        // Follow the tail's dome so the moulding sits on the panel rather than through it.
-        pos.push(x, y, ZF - 0.020 * (1 - Math.min(1, (x * x) / (F.x * F.x))));
+        pos.push(x, y, surfaceZ(x, y) - 0.004);
       }
     }
     for (let i = 0; i < NX; i++) {
@@ -1339,28 +1374,121 @@ function buildBodyShell(mats, M) {
     }
   }
 
-  // Bonnet strakes. The clamshell is not a plain dome: it carries raised longitudinal ridges
-  // either side of a raised centre panel, which is the first thing the eye picks up in every
-  // photograph of the front of this car. Each is drawn along the master surface, so it follows
-  // the crown instead of floating over it.
+  // Bonnet vent. Photographs of the car (show-floor, front three-quarter) show no longitudinal
+  // ridges on the clamshell: behind the frunk lid, across nearly the whole width between the
+  // fender crowns, there are three stepped louvres, each a curved blade lifting towards its
+  // front edge over a dark slot. The four thin strakes that stood here were a guess, and the
+  // wrong one — they drew the bonnet as a set of pinstripes. Each blade is laid on the master
+  // surface, so it follows the crown; it rises from flush at its trailing edge to a lip at its
+  // leading edge, fades back into the paint at both ends, and the riser under the lip is the
+  // vent opening. Pitch, chord, lip height and the forward bow of the arcs are read off the
+  // photographs against the car's published width; they are approximate.
   {
-    const ridges = [];
-    for (const s2 of [-1, 1]) {
-      for (const dt of [0.052, 0.104]) {
-        const pts = [];
-        for (let i = 0; i <= 30; i++) {
-          const u = i / 30;
-          const z = 0.560 + (1.640 - 0.560) * u;
-          const t = T_CENTRE + s2 * dt * (0.62 + 0.38 * Math.sin(Math.PI * Math.min(1, u * 1.15)));
-          const p = bodyPoint(z, t), n = bodyNormal(z, t);
-          // Fade into the paint at both ends so the ridge starts and stops like pressed metal.
-          const f = Math.min(1, Math.sin(Math.PI * u) * 2.2);
-          pts.push([p.x + n.x * (f * 0.004 - 0.005), p.y + n.y * (f * 0.004 - 0.005), p.z + n.z * (f * 0.004 - 0.005)]);
-        }
-        ridges.push({ geometry: tube(pts, 0.0115, { tubular: 42, radial: 8 }) });
+    const W = 0.47, ZR = 0.655, PITCH = 0.118, CHORD = 0.102, LIP = 0.027, BOW = 0.055;
+    const NU = 36, NC = 5;
+    const xL = bodyPoint(0.8, T_SHOULDER_L).x;
+    // t at a given lateral offset, by bisection between the two shoulders (x is monotonic there).
+    const tAtX = (z, x) => {
+      let lo = T_SHOULDER_L, hi = T_SHOULDER_R;
+      const sgn = Math.sign(bodyPoint(z, hi).x - bodyPoint(z, lo).x) || Math.sign(-xL);
+      for (let k = 0; k < 30; k++) {
+        const mid = (lo + hi) / 2;
+        if ((bodyPoint(z, mid).x - x) * sgn < 0) lo = mid; else hi = mid;
       }
+      return (lo + hi) / 2;
+    };
+    const onSkin = (z, x, lift) => {
+      const t = tAtX(z, x), p = bodyPoint(z, t), n = bodyNormal(z, t);
+      return [p.x + n.x * lift, p.y + n.y * lift, p.z + n.z * lift];
+    };
+    const fade = (u) => 1 - THREE.MathUtils.smoothstep(Math.abs(u), 0.72, 1.0);
+    const blades = [], slots = [];
+    for (let k = 0; k < 3; k++) {
+      const pos = [], uvs = [], idx = [];
+      const spos = [], sidx = [];
+      for (let i = 0; i <= NU; i++) {
+        const u = (i / NU) * 2 - 1, x = u * W, fu = fade(u);
+        const zRear = ZR + k * PITCH + BOW * (1 - u * u);
+        for (let j = 0; j <= NC; j++) {
+          const c = j / NC, z = zRear + c * CHORD;
+          pos.push(...onSkin(z, x, 0.0015 + LIP * fu * c * (2 - c)));
+          uvs.push(x, z);
+        }
+        // The riser under the lip: from the lip down to just below the paint.
+        const zF = zRear + CHORD + 0.002;
+        spos.push(...onSkin(zF, x, 0.0015 + LIP * fu), ...onSkin(zF, x, -0.004));
+      }
+      const row = NC + 1;
+      for (let i = 0; i < NU; i++) {
+        for (let j = 0; j < NC; j++) {
+          const a = i * row + j, b = a + row;
+          idx.push(a, a + 1, b, b, a + 1, b + 1);
+        }
+        const a = i * 2, b = a + 2;
+        sidx.push(a, a + 1, b, b, a + 1, b + 1);   // the riser faces forward (+z)
+      }
+      const blade = new THREE.BufferGeometry();
+      blade.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      blade.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      blade.setIndex(idx);
+      blade.computeVertexNormals();
+      blades.push({ geometry: blade });
+      const slot = new THREE.BufferGeometry();
+      slot.setAttribute('position', new THREE.Float32BufferAttribute(spos, 3));
+      slot.setIndex(sidx);
+      slot.computeVertexNormals();
+      slots.push({ geometry: boxUV(slot) });
     }
-    g.add(mesh(mergeAll(ridges), mats.cherryRed, { name: 'bonnet-strakes' }));
+    g.add(mesh(mergeAll(blades), mats.cherryRed, { name: 'bonnet-louvres' }));
+    g.add(mesh(mergeAll(slots), mats.satinBlack, { name: 'bonnet-louvre-slots', castShadow: false }));
+
+    // Frunk lid shut line. The lid is the panel every front view of the car is organised
+    // around — louvres behind it, headlamps either side, the T just below its leading edge —
+    // and the clamshell had no line to say where it was. A 4 mm dark ribbon laid on the skin:
+    // rear edge just ahead of the louvres and bowed forward with them, sides along the inner
+    // edges of the headlamps, leading edge in a shallow arc above the emblem. The outline is
+    // traced from the photographs; the corner radii are approximate.
+    const zLR = ZR + 2 * PITCH + CHORD + 0.014, zLF = 1.755, WR = 0.470, WF = 0.430;
+    const outline = [];
+    const push = (z, x) => outline.push([z, x]);
+    for (let i = 0; i <= 24; i++) { const u = -1 + (2 * i) / 24; push(zLR + BOW * (1 - u * u), u * WR); }
+    for (let i = 1; i < 12; i++) { const k = i / 12; push(zLR + (zLF - zLR) * k, WR + (WF - WR) * k); }
+    for (let i = 0; i <= 24; i++) { const u = 1 - (2 * i) / 24; push(zLF + 0.030 * (1 - u * u), u * WF); }
+    for (let i = 1; i < 12; i++) { const k = 1 - i / 12; push(zLR + (zLF - zLR) * k, -(WR + (WF - WR) * k)); }
+    // Round the four corners: a few passes of a closed moving average.
+    let pts = outline;
+    for (let pass = 0; pass < 6; pass++) {
+      pts = pts.map((p, i) => {
+        const q = pts[(i + pts.length - 1) % pts.length], r = pts[(i + 1) % pts.length];
+        return [(q[0] + 2 * p[0] + r[0]) / 4, (q[1] + 2 * p[1] + r[1]) / 4];
+      });
+    }
+    const on = pts.map(([z, x]) => {
+      const t = tAtX(z, x), p = bodyPoint(z, t), n = bodyNormal(z, t);
+      return { p: new THREE.Vector3(p.x, p.y, p.z), n: new THREE.Vector3(n.x, n.y, n.z) };
+    });
+    const rpos = [], ridx = [], HALF = 0.002;
+    on.forEach(({ p, n }, i) => {
+      const nx = on[(i + 1) % on.length].p, pv = on[(i + on.length - 1) % on.length].p;
+      const tan = new THREE.Vector3().subVectors(nx, pv).normalize();
+      const side = new THREE.Vector3().crossVectors(n, tan).normalize().multiplyScalar(HALF);
+      const lift = n.clone().multiplyScalar(0.0009);
+      rpos.push(...p.clone().add(lift).add(side).toArray(), ...p.clone().add(lift).sub(side).toArray());
+    });
+    for (let i = 0; i < on.length; i++) {
+      const a0 = i * 2, b0 = ((i + 1) % on.length) * 2;
+      ridx.push(a0, a0 + 1, b0, b0, a0 + 1, b0 + 1, a0, b0, a0 + 1, b0, b0 + 1, a0 + 1);
+    }
+    const ribbon = new THREE.BufferGeometry();
+    ribbon.setAttribute('position', new THREE.Float32BufferAttribute(rpos, 3));
+    ribbon.setIndex(ridx);
+    ribbon.computeVertexNormals();
+    // Both windings on shared vertices would cancel the normals (see twoSided); the ribbon is
+    // lit from above only, so give it the skin's own normal instead.
+    const nrm = new Float32Array(rpos.length);
+    on.forEach(({ n }, i) => { nrm.set(n.toArray(), i * 6); nrm.set(n.toArray(), i * 6 + 3); });
+    ribbon.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+    g.add(mesh(boxUV(ribbon), mats.satinBlack, { name: 'frunk-lid-shutline', castShadow: false }));
   }
 
   // Rear deck lip. The tail finishes in a raised blade between the lamps, which is what stops
@@ -1430,6 +1558,29 @@ function lampContains(L, z, t, k = 1) {
 }
 
 /**
+ * Both faces of a thin sheet, each on its own vertices. The lamp pockets used to index the two
+ * windings onto the SAME vertices, and computeVertexNormals then sums every face normal with
+ * its own negative: what is left is rounding noise. The matte black housing behind each
+ * headlamp lens lit up as crumpled grey foil — the "wrinkled" look in the headlamp close-up.
+ */
+function twoSided(geo) {
+  geo.computeVertexNormals();
+  const n = geo.attributes.position.count;
+  const out = new THREE.BufferGeometry();
+  for (const name of Object.keys(geo.attributes)) {
+    const a = geo.attributes[name], sz = a.itemSize;
+    const arr = new Float32Array(n * 2 * sz);
+    arr.set(a.array, 0); arr.set(a.array, n * sz);
+    if (name === 'normal') for (let i = n * sz; i < arr.length; i++) arr[i] = -arr[i];
+    out.setAttribute(name, new THREE.BufferAttribute(arr, sz));
+  }
+  const idx = Array.from(geo.index.array), back = [];
+  for (let i = 0; i < idx.length; i += 3) back.push(idx[i] + n, idx[i + 2] + n, idx[i + 1] + n);
+  out.setIndex([...idx, ...back]);
+  return out;
+}
+
+/**
  * Grid over a lamp footprint. `off` displaces along the surface normal; `bulge` adds the lens
  * rise, which is zero on the rim so the part sits flush in the bodywork.
  */
@@ -1453,11 +1604,10 @@ function lampPatch(L, s, off, bulge, both = true, Nu = 22, Nv = 10) {
     for (let j = 0; j < Nv; j++) {
       const a = i * (Nv + 1) + j, b = (i + 1) * (Nv + 1) + j;
       const c = (i + 1) * (Nv + 1) + j + 1, d = i * (Nv + 1) + j + 1;
-      // The pocket is seen from the inside as well, so it carries both windings; the lens must
-      // not, or the two coincident transparent faces beat against each other and the glass
-      // renders as a scaly mesh.
-      if (both) idx.push(a, b, d, b, c, d, a, d, b, b, d, c);
-      else if (s < 0) idx.push(a, b, d, b, c, d);
+      // The pocket is seen from the inside as well, so it gets a back face (twoSided, below);
+      // the lens must not, or the two coincident transparent faces beat against each other and
+      // the glass renders as a scaly mesh.
+      if (s < 0) idx.push(a, b, d, b, c, d);
       else idx.push(a, d, b, b, d, c);
     }
   }
@@ -1466,7 +1616,7 @@ function lampPatch(L, s, off, bulge, both = true, Nu = 22, Nv = 10) {
   geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   geo.setIndex(idx);
   geo.computeVertexNormals();
-  return geo;
+  return both ? twoSided(geo) : geo;
 }
 
 /**
@@ -1488,14 +1638,14 @@ function lampSurround(L, s, mats, out) {
   }
   for (let i = 0; i < N; i++) {
     const a = i * 2, b = i * 2 + 1, c = i * 2 + 3, d = i * 2 + 2;
-    wallIdx.push(a, b, d, b, c, d, a, d, b, b, d, c);
+    wallIdx.push(a, b, d, b, c, d);
   }
   const wall = new THREE.BufferGeometry();
   wall.setAttribute('position', new THREE.Float32BufferAttribute(wallPos, 3));
   wall.setIndex(wallIdx);
   wall.computeVertexNormals();
   boxUV(wall);
-  out.add(mesh(wall, mats.lampHousing, { name: 'lamp-aperture-wall' }));
+  out.add(mesh(twoSided(wall), mats.lampHousing, { name: 'lamp-aperture-wall' }));
   out.add(mesh(tube(rim, 0.0090, { tubular: 64, radial: 8, closed: true }), mats.cherryRed, { name: 'lamp-rim' }));
 }
 
@@ -1587,14 +1737,14 @@ function buildTaillights(mats, M) {
     }
     for (let i = 0; i < N; i++) {
       const a = i * 2, b = i * 2 + 1, c = i * 2 + 3, d = i * 2 + 2;
-      idx.push(a, b, d, b, c, d, a, d, b, b, d, c);
+      idx.push(a, b, d, b, c, d);
     }
     const wall = new THREE.BufferGeometry();
     wall.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     wall.setIndex(idx);
     wall.computeVertexNormals();
     boxUV(wall);
-    side.add(mesh(wall, mats.lampHousing, { name: 'taillight-pocket' }));
+    side.add(mesh(twoSided(wall), mats.lampHousing, { name: 'taillight-pocket' }));
 
     // Back plate of the pocket.
     const bpos = [], bidx = [];
@@ -1760,21 +1910,60 @@ function buildWindshieldAndRollHoop(mats) {
   for (let i = 0; i <= 8; i++) { const p = glassPt(0.045, -0.86 + (i / 8) * 1.06); wipe.push([p.x, p.y, p.z - 0.012]); }
   g.add(mesh(tube(wipe, 0.0065, { tubular: 18, radial: 6 }), mats.blackTrim, { name: 'windshield-wiper' }));
 
-  // Two roll hoops behind the seats — the car has a pair, not a single targa bar.
-  const hoops = [];
-  for (const side of [-1, 1]) {
-    const cx = side * 0.325, pts = [];
-    for (let i = 0; i <= 14; i++) {
-      const a = Math.PI * (i / 14);
-      pts.push([cx - Math.cos(a) * 0.165, 0.782 + Math.sin(a) * 0.238, -0.690 + Math.sin(a) * 0.020]);
+  // The roll hoop: ONE carbon-fibre bar spanning the cockpit behind both seats, flat-topped,
+  // with a blade section much deeper fore-and-aft than it is thick, and the high-mounted brake
+  // light set into the top of its rear face. That is what every photograph of the car with
+  // the roof off shows (show-floor shots from front and rear three-quarter). It was two thin
+  // round tubes, one arched over each headrest, which read as a cage bolted behind the seats.
+  // Its top sits just under the published 1.128 m, which is the height of the header and bar.
+  const HOOP_Z = -0.690, HOOP_Y0 = 0.780, HOOP_TOP = 1.086;
+  const HOOP_HW0 = 0.600, HOOP_HW1 = 0.530;     // half-width at the deck and across the top
+  const HOOP_A = 0.026, HOOP_B = 0.056;         // half-thickness in the arch plane, half-depth
+  {
+    const N = 5, ALONG = 44, AROUND = 18;
+    const centre = (t) => {
+      const c = Math.cos(t), s = Math.sin(t);
+      const sy = Math.pow(Math.abs(s), 2 / N);
+      const hw = HOOP_HW1 + (HOOP_HW0 - HOOP_HW1) * (1 - sy);
+      return [Math.sign(c) * Math.pow(Math.abs(c), 2 / N) * hw, HOOP_Y0 + (HOOP_TOP - HOOP_Y0) * sy];
+    };
+    const pos = [], uv = [], idx = [];
+    const perim = 2 * Math.PI * Math.sqrt((HOOP_A * HOOP_A + HOOP_B * HOOP_B) / 2);
+    let arc = 0, prev = null;
+    for (let i = 0; i <= ALONG; i++) {
+      const t = Math.PI * (i / ALONG);
+      const p = centre(t);
+      const q0 = centre(Math.max(0, t - 1e-3)), q1 = centre(Math.min(Math.PI, t + 1e-3));
+      let tx = q1[0] - q0[0], ty = q1[1] - q0[1];
+      const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l;
+      const nx = -ty, ny = tx;                   // in the arch plane, perpendicular to the bar
+      if (prev) arc += Math.hypot(p[0] - prev[0], p[1] - prev[1]);
+      prev = p;
+      for (let j = 0; j <= AROUND; j++) {
+        const th = (j / AROUND) * Math.PI * 2;
+        const ca = Math.cos(th) * HOOP_A, sb = Math.sin(th) * HOOP_B;
+        pos.push(p[0] + nx * ca, p[1] + ny * ca, HOOP_Z + sb);
+        uv.push(arc, (j / AROUND) * perim);
+      }
     }
-    hoops.push({ geometry: tube(pts, 0.026, { tubular: 26, radial: 12 }) });
+    const row = AROUND + 1;
+    for (let i = 0; i < ALONG; i++) {
+      for (let j = 0; j < AROUND; j++) {
+        const a = i * row + j, b = a + row;
+        idx.push(a, a + 1, b, b, a + 1, b + 1);     // outward: along × around
+      }
+    }
+    const hoop = new THREE.BufferGeometry();
+    hoop.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    hoop.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    hoop.setIndex(idx);
+    hoop.computeVertexNormals();
+    g.add(mesh(hoop, mats.carbonFiber, { name: 'roll-hoop' }));
   }
-  g.add(mesh(mergeAll(hoops), mats.satinBlack, { name: 'roll-hoops' }));
 
-  // High-mounted brake light between the hoops.
-  g.add(mesh(new THREE.BoxGeometry(0.17, 0.020, 0.014), mats.taillightRed, {
-    position: [0, 0.905, -0.700], name: 'chmsl-brake-light',
+  // High-mounted brake light: a strip let into the top of the hoop's rear face.
+  g.add(mesh(new THREE.BoxGeometry(0.22, 0.016, 0.010), mats.taillightRed, {
+    position: [0, HOOP_TOP - 0.004, HOOP_Z - HOOP_B + 0.003], name: 'chmsl-brake-light',
   }));
 
   // Bulkhead panel closing the space behind the seats.
@@ -2841,7 +3030,7 @@ export function buildRoadster(M) {
     'chmsl-brake-light': 0.012,
     // Surface trim and apertures: none of it changes the outline, all of it is centimetres.
     'wheel-arch-lips': 0.02, 'rear-deck-lip': 0.02, 'nose-crease': 0.018,
-    'bonnet-strakes': 0.02, 'front-splitter': 0.025, 'front-grille': 0.015,
+    'bonnet-louvres': 0.02, 'bonnet-louvre-slots': 0.02, 'frunk-lid-shutline': 0.01, 'front-splitter': 0.025, 'front-grille': 0.015,
     'front-corner-intake': 0.02, 'front-mouth-plenum': 0.03, 'rear-cooling-port': 0.015,
     'rear-diffuser-strakes': 0.02, 'rear-diffuser-mesh': 0.012, 'rear-plate-recess': 0.02,
     'rear-bulkhead-panel': 0.025, 'battery-cooling-strake': 0.02,
