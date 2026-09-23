@@ -23,6 +23,8 @@ El entorno es contexto verosímil, no un levantamiento: la llanura costera de Bo
 
 ![Vista general del centro](docs/screenshots/overview.jpg)
 
+La interfaz de la simulación (menús, ficha técnica, etiquetas y vistas) está en inglés; esta documentación, en español.
+
 ## Ejecutar
 
 Es un sitio estático con módulos ES e *import map*; Three.js r170 (núcleo + los addons usados) va incluido en `vendor/three`, así que no depende de ningún CDN. Sólo necesita un servidor HTTP:
