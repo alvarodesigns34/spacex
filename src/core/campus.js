@@ -85,6 +85,12 @@ export function dressCampus(scene, M) {
   M.campusGround.polygonOffsetUnits = -2;
 
   // Tints over the concrete map (whose mean is a mid grey): slab, asphalt, swale, paint.
+  // The same rectangles, as a plan, for the HUD's site map.
+  g.userData.plan = [
+    { kind: 'apron', x0: -178, z0: -18, x1: 188, z1: 20 },
+    { kind: 'road', x0: -186, z0: 24, x1: 196, z1: 31.2 },
+    { kind: 'road', x0: 46, z0: -150, x1: 53, z1: 31.2 },
+  ];
   const apron = [
     painted(quad(-178, -18, 188, 20, 0.012), 0xe2dccf),
     painted(quad(-186, 24, 196, 31.2, 0.02), 0x6c7076),

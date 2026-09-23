@@ -35,8 +35,9 @@ y abrir la URL que indique. Requiere WebGL 2.
 
 ## Controles
 
-- **Arrastrar** orbita, **rueda** acerca, **botón derecho** desplaza.
+- **Arrastrar** orbita, **rueda** acerca hacia lo que hay bajo el cursor, **botón derecho** desplaza y **doble clic** centra la órbita en el punto señalado (la cámara conserva el rumbo y se acerca a la mitad de la distancia). Los saltos largos entre vistas viajan en arco, para no atravesar la torre ni los vehículos.
 - **F** cambia a vuelo libre: `W A S D` mover, `Q`/`E` bajar/subir, arrastrar para mirar, `Shift` ×4, `Ctrl` ×0,2, rueda ajusta la velocidad.
+- El **plano del recinto** (arriba a la derecha) muestra la franja de exposición, los viales y el complejo de lanzamiento, con cada expositor como una parada numerada —un clic la visita— y la cámara como una cuña que apunta hacia donde mira. Se aparta cuando se despliega la ficha técnica y se oculta en pantallas estrechas y durante el vuelo.
 - **1–8** selecciona expositor, **0** vista general, **L** etiquetas, **R** regla de altura, **T** pliega la ficha, **H** ayuda.
 - **P** (o el botón *Tour*) recorre el centro parada por parada; cualquier arrastre, rueda o clic lo termina y devuelve la cámara.
 - **G** (o el botón *Lanzamiento*) arranca la secuencia de Starship. Durante la cuenta atrás y el ascenso la cámara sigue un plan de planos, pero **arrastrar o girar la rueda devuelve el control al instante** sin detener la secuencia. El panel de misión lleva reloj, fase, altitud, velocidad, distancia y empuje, un selector de velocidad ×1 / ×2 / ×5 / ×10 que multiplica el reloj (no salta hitos) y un botón para terminar.
@@ -222,6 +223,8 @@ Medido en la vista general contra la misma escena con todo forzado a su estado d
 ### Estabilidad de la imagen
 
 La cámara usaba un plano cercano fijo de 0,15 m con el lejano a 9 km. La resolución del búfer de profundidad cae con el cuadrado de la distancia, así que en la vista general, a 400 m, solo distinguía superficies separadas más de ~0,6 m: losas, marcas viales, blindaje de la zanja y la línea de agua parpadeaban contra lo que tienen debajo al mover la cámara. Ahora el plano cercano sigue a la distancia de órbita (el 0,6 % de ella, entre 0,1 y 2 m), unas trece veces más precisión en la vista general sin perder nada de cerca. La secuencia de lanzamiento fija sus propios planos y, al terminar, devuelve los que tenía la cámara cuando empezó.
+
+Las sombras tenían un problema parecido: el volumen de sombra del sol seguía al objetivo de forma continua y cambiaba de tamaño con cada paso de la rueda, así que cada téxel del mapa de sombras caía cada fotograma en un sitio ligeramente distinto y todos los bordes de sombra de la escena titilaban al mover la cámara. Ahora el tamaño cambia en escalones de ×1,2 —unas pocas veces en todo el recorrido del zoom— y el centro se ajusta a la rejilla de téxeles en el propio marco de la luz, de modo que un téxel cubre siempre el mismo trozo de suelo.
 
 ### Niveles de calidad
 

@@ -79,6 +79,27 @@ a:hover { border-bottom-color: var(--accent); }
 .sources li { margin-top: 4px; }
 
 /* Presets */
+/* Site map. Under the data-sheet bar; when the sheet is open it would sit beneath it, so it
+   steps aside, and in the overview (no sheet) it takes the corner. */
+.minimap { position: absolute; right: 24px; top: 92px; width: 216px; padding: 10px; background: var(--surface-solid); border: 1px solid var(--surface-line); border-radius: var(--radius-panel); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); box-shadow: var(--shadow-panel); }
+.minimap svg { display: block; width: 196px; height: auto; overflow: visible; }
+.sheet.hidden ~ .minimap { top: 24px; }
+.sheet:not(.collapsed):not(.hidden) ~ .minimap { display: none; }
+.map-apron { fill: rgba(236, 233, 226, 0.14); }
+.map-road { fill: rgba(236, 233, 226, 0.06); }
+.map-pad { fill: rgba(236, 233, 226, 0.16); }
+.map-plant { fill: rgba(236, 233, 226, 0.08); stroke: rgba(236, 233, 226, 0.18); stroke-width: 0.8; }
+.map-tower { fill: var(--ink-muted); }
+.map-stop { cursor: pointer; }
+.map-stop circle { fill: rgba(18, 20, 24, 0.92); stroke: var(--ink-muted); stroke-width: 1.4; transition: stroke var(--dur-fast), fill var(--dur-fast); }
+.map-stop text { fill: var(--ink); font-family: var(--font-mono); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.map-stop:hover circle, .map-stop:focus-visible circle { stroke: var(--ink); }
+.map-stop:focus { outline: none; }
+.map-stop.active circle { fill: var(--accent); stroke: var(--accent); }
+.map-stop.active text { fill: #16130d; }
+.map-camera { fill: color-mix(in srgb, var(--accent) 38%, transparent); stroke: var(--accent); stroke-width: 1; pointer-events: none; }
+body.is-flying .minimap { display: none; }
+@media (max-width: 1100px), (max-height: 600px) { .minimap { display: none; } }
 .presets { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-width: min(720px, 46vw); padding: 6px; background: var(--surface-solid); border: 1px solid var(--surface-line); border-radius: var(--radius-panel); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); box-shadow: var(--shadow-panel); scrollbar-width: none; }
 .presets::-webkit-scrollbar { display: none; }
 .preset { padding: 6px 12px; border: 0; border-radius: 999px; background: transparent; cursor: pointer; font-size: 0.84rem; color: var(--ink-muted); transition: color var(--dur-fast), border-color var(--dur-fast); }
@@ -147,6 +168,7 @@ a:hover { border-bottom-color: var(--accent); }
 #hud.is-clean .sheet,
 #hud.is-clean .presets,
 #hud.is-clean .tools,
+#hud.is-clean .minimap,
 #hud.is-clean .scale { display: none !important; }
 #hud.is-clean .dock {
   display: flex; position: absolute; left: 50%; bottom: max(12px, env(safe-area-inset-bottom));

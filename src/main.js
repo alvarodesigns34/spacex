@@ -424,6 +424,27 @@ async function main() {
   renderer.compile(scene, camera);
   composer.render();
   await nextFrame();
+  // Site plan for the HUD map, read off the built scene rather than restated: the apron and
+  // the pad's parts by their world bounds (the complex is not rotated), the stops from the
+  // same layout table that placed the exhibits.
+  {
+    const rects = [];
+    const _b = new THREE.Box3();
+    const addRect = (obj, kind) => {
+      if (!obj) return;
+      _b.setFromObject(obj);
+      rects.push({ kind, x0: _b.min.x, z0: _b.min.z, x1: _b.max.x, z1: _b.max.z });
+    };
+    rects.push(...(scene.getObjectByName('campus')?.userData.plan ?? []));
+    for (const [name, kind] of [['pad-ground', 'pad'], ['deluge-slab', 'plant'], ['pad-farm', 'plant'], ['olit', 'tower']]) {
+      addRect(complex?.getObjectByName(name), kind);
+    }
+    const stops = VEHICLES.map((v, i) => ({ id: v.id, name: v.name, n: i + 1, x: exhibits[v.id].lay.x, z: exhibits[v.id].lay.z }));
+    const xs = [...rects.flatMap(r => [r.x0, r.x1]), ...stops.map(p => p.x)];
+    const zs = [...rects.flatMap(r => [r.z0, r.z1]), ...stops.map(p => p.z)];
+    const m = 14;
+    hud.setMap({ bounds: [Math.min(...xs) - m, Math.min(...zs) - m, Math.max(...xs) + m, Math.max(...zs) + m], rects, stops });
+  }
   hud.hideLoading();
   hud.setActive(null);
 
@@ -692,6 +713,26 @@ async function main() {
     canvas.addEventListener(ev, () => claimUserControl(), { passive: true });
   }
 
+  // Double-click re-centres the orbit on the surface under the cursor, the way every model
+  // viewer works. Only solid, drawn geometry counts: the sky dome, the cloud shell, point
+  // clouds, lines and anything hidden (or inside a hidden group) are skipped.
+  const _pick = new THREE.Raycaster();
+  const _ndc = new THREE.Vector2();
+  const shown = (o) => { for (let n = o; n; n = n.parent) if (!n.visible) return false; return true; };
+  canvas.addEventListener('dblclick', (e) => {
+    if (rig.mode !== 'orbit' || renderPass.camera !== camera) return;
+    const r = canvas.getBoundingClientRect();
+    _ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    _pick.setFromCamera(_ndc, camera);
+    _pick.far = 2500;
+    const hit = _pick.intersectObjects(scene.children, true).find(h =>
+      (h.object.isMesh || h.object.isInstancedMesh) && shown(h.object)
+      && !h.object.material?.transparent && h.object.material?.depthWrite !== false);
+    if (!hit) return;
+    claimUserControl();
+    rig.focusOn(hit.point);
+  });
+
   window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return;
     const k = e.key.toLowerCase();
@@ -832,6 +873,8 @@ async function main() {
     const fovH = THREE.MathUtils.degToRad(camera.fov);
     const mpp = (2 * dist * Math.tan(fovH / 2)) / window.innerHeight;
     hud.setScale(mpp, dist);
+    camera.getWorldDirection(_fwd);
+    hud.setMapCamera(camera.position.x, camera.position.z, _fwd.x, _fwd.z);
     // Off above the pad (launch chase and orbit): the far plane opens up and nothing is close.
     ao?.update(dist, camera.far < 20000 && !view.orbital && renderPass.camera === camera);
     updateLabelOcclusion();

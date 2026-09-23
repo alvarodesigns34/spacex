@@ -24,6 +24,10 @@ export class CameraRig {
     this.orbit.zoomSpeed = 0.9;
     this.orbit.rotateSpeed = 0.7;
     this.orbit.screenSpacePanning = true;
+    // The wheel zooms towards whatever is under the cursor, not towards an orbit target that
+    // may be 300 m away behind it: in a centre this size, zooming to the target meant zooming
+    // past everything you were pointing at.
+    this.orbit.zoomToCursor = true;
 
     this.keys = new Set();
     this.look = { yaw: 0, pitch: 0, dragging: false, lastX: 0, lastY: 0 };
@@ -131,8 +135,27 @@ export class CameraRig {
     if (this.mode === 'fly') this.setMode('orbit');
     this._endTransition();
     return new Promise((resolve) => {
-      this.transition = { from, fromT, to, toT, start: performance.now(), duration, resolve };
+      // A straight line between two framings cut through whatever stood between them — the
+      // tower, most often, on the way from the row to the pad. Long moves now rise on an arc
+      // that peaks mid-flight, higher the further they go; short reframings stay straight.
+      const span = from.distanceTo(to);
+      const lift = span > 30 ? Math.min(span * 0.18, 90) : 0;
+      this.transition = { from, fromT, to, toT, lift, start: performance.now(), duration, resolve };
     });
+  }
+
+  /**
+   * Re-centres the orbit on a point in the scene: the camera keeps its bearing and closes to
+   * half the distance to the point (never nearer than 2 m, never further than it already is).
+   */
+  focusOn(point) {
+    const p = new THREE.Vector3(point.x, point.y, point.z);
+    const dir = p.clone().sub(this.camera.position);
+    const d = dir.length();
+    if (d < 1e-3) return Promise.resolve();
+    const keep = THREE.MathUtils.clamp(d * 0.5, 2, Math.max(2, this.distance));
+    const pos = p.clone().addScaledVector(dir.normalize(), -keep);
+    return this.flyTo(pos.toArray(), p.toArray(), 0.9);
   }
 
   jumpTo(position, target) {
@@ -200,6 +223,7 @@ export class CameraRig {
       const t = (performance.now() - tr.start) / (tr.duration * 1000);
       const k = easeInOut(Math.min(t, 1));
       this.camera.position.lerpVectors(tr.from, tr.to, k);
+      if (tr.lift) this.camera.position.y += tr.lift * Math.sin(Math.PI * k);
       this.orbit.target.lerpVectors(tr.fromT, tr.toT, k);
       this.applyPolarLimit();
       this.orbit.update();

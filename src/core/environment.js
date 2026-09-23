@@ -346,15 +346,37 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   }
 
   const _tmp = new THREE.Vector3();
+  const _lx = new THREE.Vector3(), _ly = new THREE.Vector3(), _snap = new THREE.Vector3();
+  const _up = new THREE.Vector3(0, 1, 0);
+  /**
+   * Fits the sun's shadow frustum to what the camera is looking at, without making shadows
+   * crawl. The frustum used to follow the orbit target continuously and resize with every
+   * notch of zoom, so each shadow-map texel landed somewhere slightly different every frame
+   * and every shadow edge in the scene shimmered while the camera moved. Now the size moves
+   * in ×1.2 steps (it changes a handful of times across the whole zoom range, not per frame)
+   * and the centre is snapped to the texel grid in the light's own frame, so a texel always
+   * covers the same patch of ground while the size holds.
+   */
   function updateShadow(target, distance) {
-    const size = THREE.MathUtils.clamp(distance * 1.25 + 8, 18, 340);
+    const raw = THREE.MathUtils.clamp(distance * 1.25 + 8, 18, 340);
+    const size = Math.min(340, 18 * Math.pow(1.2, Math.ceil(Math.log(raw / 18) / Math.log(1.2))));
     const cam = sun.shadow.camera;
-    if (Math.abs(cam.right - size) > 0.5) {
+    if (cam.right !== size) {
       cam.left = -size; cam.right = size; cam.top = size; cam.bottom = -size;
       cam.updateProjectionMatrix();
     }
-    sun.target.position.copy(target);
-    _tmp.copy(sunDir).multiplyScalar(500).add(target);
+    // The light camera's axes, as lookAt builds them: x = up × toward-sun, y = toward-sun × x.
+    _lx.crossVectors(_up, sunDir);
+    if (_lx.lengthSq() < 1e-8) _lx.set(1, 0, 0);
+    _lx.normalize();
+    _ly.crossVectors(sunDir, _lx).normalize();
+    const texel = (2 * size) / sun.shadow.mapSize.x;
+    const px = target.dot(_lx), py = target.dot(_ly);
+    _snap.copy(target)
+      .addScaledVector(_lx, Math.round(px / texel) * texel - px)
+      .addScaledVector(_ly, Math.round(py / texel) * texel - py);
+    sun.target.position.copy(_snap);
+    _tmp.copy(sunDir).multiplyScalar(500).add(_snap);
     sun.position.copy(_tmp);
     sun.target.updateMatrixWorld();
   }

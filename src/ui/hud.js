@@ -5,6 +5,7 @@
 import { SOURCES, SOURCE_LABEL } from '../data/specs.js';
 
 const fmtHeight = (h) => `${h >= 10 ? Math.round(h) : h} m`;
+const THREE_DEG20 = Math.PI / 9;
 
 export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSun, onReset, onLaunch, onLaunchAbort, onLaunchSpeed, onTour, onHelp }) {
   const root = document.getElementById('hud');
@@ -33,6 +34,8 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
         <ul id="sheet-sources"></ul>
       </div>
     </aside>
+
+    <nav class="minimap" id="minimap" aria-label="Site map"></nav>
 
     <div class="presets" id="presets" role="tablist" aria-label="Views"></div>
 
@@ -84,7 +87,8 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       <div class="help-card">
         <div class="eyebrow">Controls</div>
         <table>
-          <tr><td>Drag</td><td>orbit · <em>wheel</em> zoom · <em>right button</em> pan</td></tr>
+          <tr><td>Drag</td><td>orbit · <em>wheel</em> zoom towards the cursor · <em>right button</em> pan</td></tr>
+          <tr><td>Double-click</td><td>orbit around the point you clicked</td></tr>
           <tr><td><kbd>F</kbd></td><td>free flight: <kbd>W A S D</kbd> move · <kbd>Q</kbd>/<kbd>E</kbd> (or <kbd>C</kbd>/<kbd>space</kbd>) down/up · drag to look · <kbd>Shift</kbd> ×4 · <kbd>Ctrl</kbd> ×0.2 · wheel adjusts speed</td></tr>
           <tr><td><kbd>1</kbd>–<kbd>${vehicles.length}</kbd></td><td>select exhibit</td></tr>
           <tr><td><kbd>L</kbd> <kbd>R</kbd> <kbd>T</kbd></td><td>labels · ruler · data sheet</td></tr>
@@ -181,6 +185,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       b.classList.toggle('active', on);
       b.setAttribute('aria-selected', on ? 'true' : 'false');
     });
+    setMapActive(id);
     const v = vehicles.find(x => x.id === id);
     if (v) { renderSheet(v); sheet.classList.remove('hidden'); el('#presets').classList.remove('hidden'); }
     else {
@@ -337,6 +342,81 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     scaleInfo.textContent = `distance to target ${distance < 10 ? distance.toFixed(1) : Math.round(distance)} m`;
   }
 
+  // ---- Site map ----------------------------------------------------------------------
+  // A plan of the centre, in metres, with the exhibits as numbered stops and the camera as a
+  // wedge pointing where it looks. In a site 370 m across the camera is often somewhere the
+  // viewer cannot name; the map answers "where am I, and where is the thing I want", and a
+  // stop on it is one click from its exhibit. Built once from the scene, updated per frame.
+  const map = el('#minimap');
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  let mapCam = null, mapBounds = null, mapLast = '';
+  function setMap({ bounds, rects, stops }) {
+    mapBounds = bounds;
+    const [x0, z0, x1, z1] = bounds;
+    const svg = document.createElementNS(SVGNS, 'svg');
+    svg.setAttribute('viewBox', `${x0} ${z0} ${x1 - x0} ${z1 - z0}`);
+    svg.setAttribute('role', 'group');
+    const k = (x1 - x0) / 196;               // metres per CSS pixel, for strokes and type
+    for (const r of rects) {
+      const e = document.createElementNS(SVGNS, 'rect');
+      e.setAttribute('x', r.x0); e.setAttribute('y', r.z0);
+      e.setAttribute('width', r.x1 - r.x0); e.setAttribute('height', r.z1 - r.z0);
+      e.setAttribute('rx', 2 * k);
+      e.setAttribute('class', `map-${r.kind}`);
+      svg.appendChild(e);
+    }
+    // Stops closer than a marker's width along the row are staggered above it, so two
+    // numbers never print on top of each other (Falcon 1 stands 18 m from Falcon 9).
+    const R = 6.5 * k;
+    const placed = [];
+    for (const st of [...stops].sort((a, b) => a.x - b.x)) {
+      let z = st.z;
+      while (placed.some(p => Math.hypot(p.x - st.x, p.z - z) < R * 2.3)) z -= R * 2.3;
+      placed.push({ ...st, z });
+    }
+    for (const st of placed) {
+      const g = document.createElementNS(SVGNS, 'g');
+      g.setAttribute('class', 'map-stop');
+      g.setAttribute('tabindex', '0');
+      g.setAttribute('role', 'button');
+      g.setAttribute('aria-label', `${st.n} · ${st.name}`);
+      g.dataset.id = st.id;
+      const c = document.createElementNS(SVGNS, 'circle');
+      c.setAttribute('cx', st.x); c.setAttribute('cy', st.z); c.setAttribute('r', R);
+      const t = document.createElementNS(SVGNS, 'text');
+      t.setAttribute('x', st.x); t.setAttribute('y', st.z); t.setAttribute('font-size', 8.5 * k);
+      t.textContent = st.n;
+      const title = document.createElementNS(SVGNS, 'title');
+      title.textContent = st.name;
+      g.append(title, c, t);
+      const go = () => { closeDock(); onSelect(st.id); };
+      g.addEventListener('click', go);
+      g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+      svg.appendChild(g);
+    }
+    mapCam = document.createElementNS(SVGNS, 'path');
+    // A 40° wedge, 18 px long, drawn pointing along +x and turned per frame.
+    const L = 18 * k, ax = Math.cos(THREE_DEG20) * L, az = Math.sin(THREE_DEG20) * L;
+    mapCam.setAttribute('d', `M0 0 L${ax} ${-az} A${L} ${L} 0 0 1 ${ax} ${az} Z`);
+    mapCam.setAttribute('class', 'map-camera');
+    svg.appendChild(mapCam);
+    map.replaceChildren(svg);
+  }
+  /** Camera position and look direction in the ground plane. Outside the plan it rides the edge. */
+  function setMapCamera(x, z, dx, dz) {
+    if (!mapCam) return;
+    const [x0, z0, x1, z1] = mapBounds;
+    const cx = Math.min(x1, Math.max(x0, x)), cz = Math.min(z1, Math.max(z0, z));
+    const deg = Math.atan2(dz, dx) * 180 / Math.PI;
+    const key = `${cx.toFixed(1)},${cz.toFixed(1)},${deg.toFixed(0)}`;
+    if (key === mapLast) return;
+    mapLast = key;
+    mapCam.setAttribute('transform', `translate(${cx} ${cz}) rotate(${deg})`);
+  }
+  function setMapActive(id) {
+    map.querySelectorAll('.map-stop').forEach(g => g.classList.toggle('active', g.dataset.id === id));
+  }
+
   const loading = document.getElementById('loading');
   function setProgress(text, frac) {
     loading.querySelector('.loading-text').textContent = text;
@@ -349,5 +429,5 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     if (map[name]) el(map[name]).checked = value;
   }
 
-  return { setActive, setPreset, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setTour, showHelp };
+  return { setActive, setPreset, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setTour, showHelp, setMap, setMapCamera };
 }
