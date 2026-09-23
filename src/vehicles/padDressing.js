@@ -49,7 +49,7 @@ export function dressPad(parent, M, padY) {
   }
 
   parent.add(mesh(boxUV(mergeAll(steel)), M.mount, { name: 'pad-cable-tray', castShadow: true }));
-  parent.add(mesh(boxUV(mergeAll(valves)), M.pipeBlue, { name: 'pad-valves', castShadow: true }));
+  parent.add(mesh(boxUV(mergeAll(valves)), M.pipePaint, { name: 'pad-valves', castShadow: true }));
 
   // Shed on the deck, outside the mount square and inside the pad slab (±64 m, ±46 m).
   const shed = [];

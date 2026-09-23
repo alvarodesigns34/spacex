@@ -3,7 +3,7 @@
  * Mounts are presentation furniture (not to scale with any SpaceX ground equipment).
  */
 import * as THREE from 'three';
-import { mesh, mergeAll, mat4 } from '../geometry/utils.js';
+import { mesh, mergeAll, mat4, boxUV } from '../geometry/utils.js';
 
 export function buildMount(M, { radius = 8, inner = 4.6, height = 8, legs = 6, clampRadius = 4.5, clamps = 4 } = {}) {
   const g = new THREE.Group();
@@ -32,7 +32,9 @@ export function buildMount(M, { radius = 8, inner = 4.6, height = 8, legs = 6, c
     const a = (i / clamps) * Math.PI * 2 + Math.PI / clamps;
     clampParts.push({ geometry: new THREE.BoxGeometry(0.66, 0.62, 0.46), matrix: mat4([Math.sin(a) * (clampRadius + 0.26), height + 0.31, Math.cos(a) * (clampRadius + 0.26)], [0, a, 0]) });
   }
-  if (clampParts.length) g.add(mesh(mergeAll(clampParts), M.mountYellow));
+  // Dark steel, not ochre: four 66 cm yellow blocks round the base were the brightest thing
+  // in every view from under a Falcon, and nothing about museum furniture asks for them.
+  if (clampParts.length) g.add(mesh(boxUV(mergeAll(clampParts)), M.darkMetal, { name: 'mount-clamps' }));
   // Safety rail
   const rail = new THREE.TorusGeometry(radius - 0.3, 0.05, 6, 96);
   rail.rotateX(Math.PI / 2);

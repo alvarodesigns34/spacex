@@ -216,7 +216,7 @@ function buildMountTable(M) {
       matrix: mat4([sx * (pierAt - 1.2), padY + 1.35 + (deckBottom - 0.4 - padY - 1.35) / 2, -pierAt - pierHalf - 0.45]),
     });
   }
-  g.add(mesh(boxUV(mergeAll(risers)), M.pipeBlue || M.conduit, { name: 'mount-risers' }));
+  g.add(mesh(boxUV(mergeAll(risers)), M.pipePaint, { name: 'mount-risers' }));
 
   // Water-cooled table seat: an annular steel plate cantilevered inboard of the deck opening
   // for the booster skirt to sit on. Its inner edge is what actually sets the size of the
@@ -283,7 +283,9 @@ function buildMountTable(M) {
     { geometry: B(1.15, 0.28, FOOT_DEPTH), matrix: mat4([0, 0.14, (FOOT_DEPTH - CLAMP_DEPTH) / 2]) },
   ]));
   radial(PAD.clamps, (a) => {
-    const m = mesh(clampGeo, M.mountYellow);
+    // Bare steel, like the mount they are bolted to. They were ochre, which no photograph of
+    // the Starbase mounts shows, and from below they closed a gold ring round the engines.
+    const m = mesh(clampGeo, M.steelSkirt);
     m.position.set(Math.sin(a) * PAD.clampR, deckTop, Math.cos(a) * PAD.clampR);
     m.rotation.y = a;
     m.userData.home = m.position.clone();
@@ -554,7 +556,7 @@ function buildPadInfrastructure(M) {
     matrix: mat4([tankX, 1.2 + 18.5, 0], [Math.PI / 2, 0, 0]),
   });
   g.add(mesh(boxUV(mergeAll(delugeTankGroup)), M.concrete));
-  g.add(mesh(boxUV(mergeAll(delugeTankPipes)), M.pipeBlue));
+  g.add(mesh(boxUV(mergeAll(delugeTankPipes)), M.pipePaint));
 
   // 5. Massive 48-Inch (1.2 m diameter) Deluge Water Supply Mains
   const bigPipes = [];
@@ -572,7 +574,7 @@ function buildPadInfrastructure(M) {
       saddles.push(block(px - 0.8, px + 0.8, padY, padY + 0.6, pz - 1.0, pz + 1.0));
     }
   }
-  g.add(mesh(boxUV(mergeAll(bigPipes)), M.pipeBlue));
+  g.add(mesh(boxUV(mergeAll(bigPipes)), M.pipePaint));
   g.add(mesh(boxUV(mergeAll(saddles)), M.concrete));
 
   // 6. Cryogenic Pipe Bridge & Racks (connecting Tank Farm to the Pad)

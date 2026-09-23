@@ -525,7 +525,7 @@ export function makeGroundTerrain({ size = 768, tile = 96.0 } = {}) {
     const clay = period(u, v, 512, 20, 3);
     const salt = Math.max(0, dune - 0.42);
     const damp = Math.max(0, 0.48 - clay);
-    const scrub = Math.max(0, period(u, v, 256, 80, 15) - 0.58);
+    const scrub = Math.max(0, period(u, v, 256, 80, 15) - 0.64);
     // No large-scale term in the tile. There was one — sin(2u)·cos(3v), integer cycles so the
     // 96 m repeat met itself — and it was the loudest artefact in the project: a regular grid
     // of light and dark bands, 32 to 48 m apart, across every wide shot, reading as corrugated
@@ -533,10 +533,17 @@ export function makeGroundTerrain({ size = 768, tile = 96.0 } = {}) {
     // it is dressed. Landscape-scale variation now comes from world-space noise in the terrain
     // material's shader (library.js), which has no period at all; the tile carries only the
     // grain, which is too fine to be seen repeating.
-    let r = 0.66, g = 0.61, b = 0.47;
-    r = lerp(r, 0.78, salt); g = lerp(g, 0.72, salt); b = lerp(b, 0.54, salt);
-    r = lerp(r, 0.36, damp * 0.85); g = lerp(g, 0.40, damp * 0.85); b = lerp(b, 0.28, damp * 0.85);
-    r = lerp(r, 0.34, scrub * 1.3); g = lerp(g, 0.42, scrub * 1.3); b = lerp(b, 0.24, scrub * 1.3);
+    // Warm enough to survive the sky. At 18° of sun about half the light on flat ground is blue
+    // skylight (hemisphere + environment), and a neutral tan multiplied by it came out
+    // grey-green; the albedo carries a little more red so the plain still reads as sand.
+    let r = 0.70, g = 0.615, b = 0.455;
+    r = lerp(r, 0.80, salt); g = lerp(g, 0.725, salt); b = lerp(b, 0.545, salt);
+    // Damp ground on a tidal flat is darker SAND — grey-brown mud — not green; the green is the
+    // sparse scrub, and only where it grows. With damp hollows tinted olive as well, the two
+    // together averaged the whole plain to grey-green felt at any distance past a hundred metres,
+    // where Boca Chica reads pale tan with scattered darker patches.
+    r = lerp(r, 0.45, damp * 0.8); g = lerp(g, 0.42, damp * 0.8); b = lerp(b, 0.34, damp * 0.8);
+    r = lerp(r, 0.36, scrub * 1.3); g = lerp(g, 0.41, scrub * 1.3); b = lerp(b, 0.25, scrub * 1.3);
     return [clamp(r * 255), clamp(g * 255), clamp(b * 255)];
   });
   shade(rough, (x, y, u, v) => {

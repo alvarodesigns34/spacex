@@ -140,7 +140,7 @@ export function createMaterials(onProgress = () => {}) {
   // before it reads as ground. So the map carries grain only, and this does the rest:
   //
   //  · three octaves of value noise on world X/Z (190 m, 63 m, 21 m) split the plain into
-  //    pale, warm salt crust and darker, slightly green damp hollows, the way a tidal flat
+  //    pale, warm salt crust and darker, browner damp hollows, the way a tidal flat
   //    actually varies;
   //  · the same map is sampled a second time, rotated 37° and scaled by the golden ratio, and
   //    blended in by a further noise field, so no two 96 m tiles look alike. Rotation and an
@@ -178,17 +178,22 @@ float vcNoise(vec2 p) {
     float salt = smoothstep(0.55, 0.80, macro);
     float damp = smoothstep(0.42, 0.18, macro);
     diffuseColor.rgb *= mix(1.0, 1.16, salt) * mix(1.0, 0.78, damp);
-    diffuseColor.rgb *= mix(vec3(1.0), vec3(0.93, 1.0, 0.86), damp * 0.7);
+    diffuseColor.rgb *= mix(vec3(1.0), vec3(0.97, 0.97, 0.90), damp * 0.7);
   }`);
   };
-  M.terrain.customProgramCacheKey = () => 'vc-terrain-macro-1';
+  M.terrain.customProgramCacheKey = () => 'vc-terrain-macro-2';
   M.trenchArmor = new THREE.MeshStandardMaterial({
     map: T.trenchArmor.map, roughnessMap: T.trenchArmor.roughnessMap, normalMap: T.trenchArmor.normalMap,
     normalScale: new THREE.Vector2(0.9, 0.9), metalness: 0.82, roughness: 0.48, envMapIntensity: 0.72,
   });
   // Opaque industrial paint is dielectric. Concrete pores are not pipe coating texture.
-  M.pipeBlue = new THREE.MeshPhysicalMaterial({
-    color: 0x1f5c8f, metalness: 0, roughness: 0.42, clearcoat: 0.2, clearcoatRoughness: 0.35,
+  // The deluge tanks, water mains, risers and valves were a saturated royal blue that nothing
+  // cites: no source gives the coating colour of the Pad 2 water system, and seven 17 m
+  // blue tanks side by side were the loudest object in every site view — a toy block beside
+  // the mount. A weathered light grey is the conventional coating on carbon-steel tankage
+  // and makes no claim of its own.
+  M.pipePaint = new THREE.MeshPhysicalMaterial({
+    color: 0xaeb1b0, metalness: 0, roughness: 0.52, clearcoat: 0.12, clearcoatRoughness: 0.5,
   });
   M.pipeCryo = new THREE.MeshPhysicalMaterial({
     color: 0xe3e7ec, metalness: 0.75, roughness: 0.28, clearcoat: 0.2,
