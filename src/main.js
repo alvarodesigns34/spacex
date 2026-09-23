@@ -7,6 +7,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { createAO } from './core/ao.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
@@ -198,6 +199,24 @@ async function main() {
   const bloom = quality.bloom
     ? new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.12, 0.6, 0.92)
     : null;
+  // Firefly clamp ahead of the bloom. A thin, curved, polished part — a weld ring, a rail, a
+  // tube — always has a pixel somewhere that mirrors the sun straight into the lens, and in
+  // HDR that one pixel can be hundreds of times white. The bloom's mip chain spread it into a
+  // bright square hanging beside the booster on its way home. The clamp scales any pixel down
+  // to a peak of 12, far above where ACES has already saturated to white, so the image is
+  // unchanged and only the bloom stops blowing single pixels up into blocks.
+  if (bloom) {
+    composer.addPass(new ShaderPass({
+      uniforms: { tDiffuse: { value: null }, uPeak: { value: 12.0 } },
+      vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `uniform sampler2D tDiffuse; uniform float uPeak; varying vec2 vUv;
+        void main() {
+          vec4 c = texture2D(tDiffuse, vUv);
+          float m = max(max(c.r, c.g), c.b);
+          gl_FragColor = vec4(m > uPeak ? c.rgb * (uPeak / m) : c.rgb, c.a);
+        }`,
+    }));
+  }
   if (bloom) composer.addPass(bloom);
   composer.addPass(new OutputPass());
   // The render target above is sized in CSS pixels, which is what EffectComposer stores as its
