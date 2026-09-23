@@ -423,10 +423,17 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     { until: EVENTS.catch - 6, blend: 4.0, shot: (t, pos, tgt) => {
       // Coming home: from beside the tower, looking up the line the booster is falling down,
       // so the pad enters frame underneath it as it arrives.
+      // It used to hold a fixed spot near the pad and rise only halfway to the booster, which
+      // at the landing burn left it 5 km away: a one-pixel dot on blue sky. Now it rides down
+      // with the booster, ~400 m off and 140 m beneath it, and settles onto the tower-side
+      // position as the booster nears the ground, so the pad enters frame as it arrives.
       boosterAt(t, tgt);
-      const k = THREE.MathUtils.clamp((t - (EVENTS.landingBurn - 26)) / 70, 0, 1);
-      const d = THREE.MathUtils.lerp(900, 190, k);
-      pos.set(S.x + 150, THREE.MathUtils.lerp(tgt.y * 0.55 + 60, 128, k), S.z + d);
+      const low = 1 - THREE.MathUtils.smoothstep(tgt.y, 250, 1800);   // 0 high up, 1 near the pad
+      pos.set(
+        THREE.MathUtils.lerp(tgt.x + 160, S.x + 150, low),
+        Math.max(128, THREE.MathUtils.lerp(tgt.y - 140, 128, low)),
+        S.z + THREE.MathUtils.lerp(400, 190, low),
+      );
     } },
     { until: Infinity, blend: 3.0, shot: (t, pos, tgt) => {
       // The catch itself, from the height of the arms: the booster comes down into frame and
