@@ -2322,13 +2322,21 @@ function buildWheels(mats, M) {
 
     // 3. Forged alloy wheel. The Demo car wore machined silver forged wheels, not a chrome
     // barrel: chrome is left for the lug nuts.
-    const barrel = lathe([
+    const barrelProfile = [
       { r: rimRadius * 0.98, y: -hw * 0.98 },
       { r: rimRadius * 0.90, y: -hw * 0.62 },
       { r: rimRadius * 0.90, y: hw * 0.30 },
       { r: rimRadius * 0.99, y: hw * 0.86 },
       { r: rimRadius, y: hw * 0.98 },
-    ], { segments: 40 });
+    ];
+    // Both faces of the barrel, and the flange lip at the wheel face. The barrel was one
+    // outward-facing sheet, so through the spokes its near (inner) face was culled and what
+    // showed instead was the outside of the far wall: a thin, broken bright arc above the hub.
+    const barrel = mergeAll([
+      { geometry: lathe(barrelProfile, { segments: 40 }) },
+      { geometry: lathe(barrelProfile.map(p => ({ r: p.r - 0.004, y: p.y })), { segments: 40, flip: true }) },
+      { geometry: new THREE.TorusGeometry(rimRadius * 1.012, 0.007, 6, 48), matrix: mat4([0, (isLeft ? 1 : -1) * hw * 0.99, 0], [Math.PI / 2, 0, 0]) },   // rotateZ below turns +y into −x: outboard
+    ]);
     barrel.rotateZ(Math.PI / 2);
     wGroup.add(mesh(barrel, mats.forgedAlloy, { name: 'rim-barrel' }));
 

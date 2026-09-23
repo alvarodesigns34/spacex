@@ -227,20 +227,55 @@ function chine(M, { length = 22, width = 1.9, depth = 0.85 } = {}) {
   return mesh(geo, M.steel);
 }
 
-/** Vented hot-stage section: on Block 3 this is built into the top of the methane tank. */
+/**
+ * Vented hot-stage section: on Block 3 this is built into the top of the methane tank.
+ *
+ * The ship lights its engines while still sitting on the booster, and this ring is where the
+ * exhaust gets out: a row of openings through the hull, with deflecting louvres behind them.
+ * It used to be a closed steel cylinder with 24 flat black plates stuck to its outside — from
+ * any distance a collar of black bricks. Now the hull is actually cut: 24 openings between
+ * structural columns, each with jambs that show the wall's depth, three angled louvres set
+ * back inside, and a dark liner behind so the openings read as holes rather than paint.
+ * Count and proportions are reconstructed from photographs; the 1.83 m height is one ring.
+ */
 function hotStageSection(M, height = 1.83) {
   const g = new THREE.Group();
-  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: height }], { segments: 160 }), M.steelSkirt));
   const n = 24;
-  const vents = [];
+  const openW = 0.72, y0 = 0.38, y1 = 1.42, depth = 0.16;
+  const bay = (Math.PI * 2) / n, openA = openW / R;
+  // Full bands above and below the openings, and the columns between them.
+  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: y0 }], { segments: 160 }), M.steelSkirt));
+  g.add(mesh(lathe([{ r: R, y: y1 }, { r: R, y: height }], { segments: 160 }), M.steelSkirt));
+  const columns = [];
   for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2;
-    // Vent apertures with the structural columns between them.
-    vents.push({ geometry: new THREE.BoxGeometry(0.72, 1.0, 0.1), matrix: mat4([Math.sin(a) * (R + 0.01), height * 0.52, Math.cos(a) * (R + 0.01)], [0, a, 0]) });
-    const b = a + Math.PI / n;
-    vents.push({ geometry: new THREE.BoxGeometry(0.16, height * 0.94, 0.16), matrix: mat4([Math.sin(b) * (R + 0.07), height * 0.5, Math.cos(b) * (R + 0.07)], [0, b, 0]) });
+    const a = i * bay;
+    columns.push({ geometry: lathe([{ r: R, y: y0 }, { r: R, y: y1 }], {
+      segments: 6, phiStart: a + openA / 2, phiLength: bay - openA,
+    }) });
   }
-  g.add(mesh(mergeAll(vents), M.blackMatte));
+  g.add(mesh(mergeAll(columns), M.steelSkirt, { name: 'hot-stage-columns' }));
+  const jambs = [], louvres = [];
+  const h = y1 - y0;
+  for (let i = 0; i < n; i++) {
+    const a = i * bay;
+    // Side jambs, sill and lintel: the wall's thickness, seen round the edge of the hole.
+    for (const side of [-1, 1]) {
+      const b = a + side * openA / 2;
+      jambs.push({ geometry: new THREE.BoxGeometry(0.03, h, depth), matrix: mat4([Math.sin(b) * (R - depth / 2), y0 + h / 2, Math.cos(b) * (R - depth / 2)], [0, a, 0]) });
+    }
+    for (const y of [y0, y1]) {
+      jambs.push({ geometry: new THREE.BoxGeometry(openW, 0.03, depth), matrix: mat4([Math.sin(a) * (R - depth / 2), y, Math.cos(a) * (R - depth / 2)], [0, a, 0]) });
+    }
+    // Louvres, set back and tilted down-and-out: the exhaust leaves downward, clear of the ship.
+    for (let k = 0; k < 3; k++) {
+      const y = y0 + h * (0.22 + 0.28 * k);
+      louvres.push({ geometry: new THREE.BoxGeometry(openW - 0.04, 0.035, 0.2), matrix: mat4([Math.sin(a) * (R - 0.12), y, Math.cos(a) * (R - 0.12)], [0, a, 0]).multiply(new THREE.Matrix4().makeRotationX(0.55)) });
+    }
+  }
+  g.add(mesh(boxUV(mergeAll(jambs)), M.steelSkirt, { name: 'hot-stage-jambs' }));
+  g.add(mesh(boxUV(mergeAll(louvres)), M.darkMetal, { name: 'hot-stage-louvres' }));
+  // Dark liner behind the openings: what the eye meets through a hole into the vented bay.
+  g.add(mesh(lathe([{ r: R - 0.26, y: y0 - 0.02 }, { r: R - 0.26, y: y1 + 0.02 }], { segments: 96 }), M.blackMatte, { name: 'hot-stage-liner', castShadow: false }));
   g.add(mesh(new THREE.TorusGeometry(R + 0.03, 0.08, 8, 160), M.darkMetal, { position: [0, height - 0.06, 0], rotation: [Math.PI / 2, 0, 0] }));
   g.add(mesh(new THREE.TorusGeometry(R + 0.03, 0.06, 8, 160), M.darkMetal, { position: [0, 0.05, 0], rotation: [Math.PI / 2, 0, 0] }));
   return g;

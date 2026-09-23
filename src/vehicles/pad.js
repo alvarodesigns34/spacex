@@ -555,11 +555,42 @@ function buildQdArm(M) {
   pivot.name = 'qd-arm';
   pivot.position.set(PAD.towerX + PAD.towerHalf + 0.6, PAD.qdY, 0);
   const L = PAD.qdLen;
-  pivot.add(mesh(boxUV(mergeAll([
-    block(0, L, -1.3, 1.3, -1.2, 1.2),
-    block(L - 2.4, L + 0.4, -2.1, 2.1, -1.9, 1.9),   // the plate that mates with the ship
-    block(0.4, L - 3, 1.3, 1.7, -0.8, 0.8),
-  ])), M.mount, { name: 'qd-beam' }));
+  // A box truss like the catch arms, in the envelope the solid beam had, ending in the hood
+  // that closes over the ship's quick-disconnect panel. It was one 18.5 m block: from the
+  // ground the arm read as a plank bolted to the tower. Member sizes are reconstructed.
+  const hy = 1.3, hz = 1.2, k = 0.2;
+  const beam = [];
+  for (const y of [-hy + k, hy - k]) for (const z of [-hz + k, hz - k]) beam.push(block(0, L - 2.4, y - k, y + k, z - k, z + k));
+  const bays = 6, bay = (L - 2.4) / bays;
+  for (let i = 0; i <= bays; i++) {
+    const x = Math.min(L - 2.4 - k, Math.max(k, i * bay));
+    for (const z of [-hz + k, hz - k]) beam.push(block(x - 0.14, x + 0.14, -hy, hy, z - 0.14, z + 0.14));
+    for (const y of [-hy + k, hy - k]) beam.push(block(x - 0.12, x + 0.12, y - 0.12, y + 0.12, -hz, hz));
+    if (i === bays) break;
+    const x0 = i * bay, x1 = x0 + bay, up = i % 2 === 0 ? 1 : -1;
+    for (const z of [-hz + k, hz - k]) beam.push(rod([x0, -up * (hy - k), z], [x1, up * (hy - k), z], 0.11));
+    for (const y of [-hy + k, hy - k]) beam.push(rod([x0, y, -up * (hz - k)], [x1, y, up * (hz - k)], 0.09));
+  }
+  beam.push(block(0, 1.6, -hy, hy, -hz, hz));                                  // hinge root
+  beam.push(block(0.4, L - 3, hy, hy + 0.12, -0.9, 0.9));                       // walkway deck
+  pivot.add(mesh(boxUV(mergeAll(beam)), M.mount, { name: 'qd-beam' }));
+  // The hood: a box open towards the ship, with a lip round its mouth.
+  const hood = [
+    block(L - 2.4, L - 2.1, -2.1, 2.1, -1.9, 1.9),        // back plate
+    block(L - 2.4, L + 0.4, 1.8, 2.1, -1.9, 1.9),          // roof
+    block(L - 2.4, L + 0.4, -2.1, -1.8, -1.9, 1.9),        // floor
+    block(L - 2.4, L + 0.4, -2.1, 2.1, -1.9, -1.6),        // sides
+    block(L - 2.4, L + 0.4, -2.1, 2.1, 1.6, 1.9),
+  ];
+  pivot.add(mesh(boxUV(mergeAll(hood)), M.mount, { name: 'qd-hood' }));
+  // Walkway handrail along the deck.
+  const rail = [];
+  // Outboard of the three umbilicals, which run at z = −0.85, 0 and 0.85.
+  for (const z of [-1.08, 1.08]) {
+    rail.push(block(0.5, L - 3.1, hy + 1.1, hy + 1.16, z - 0.03, z + 0.03));
+    for (let x = 0.6; x < L - 3; x += 1.8) rail.push(block(x - 0.03, x + 0.03, hy + 0.12, hy + 1.16, z - 0.03, z + 0.03));
+  }
+  pivot.add(mesh(boxUV(mergeAll(rail)), M.safetyYellow, { name: 'qd-rail', castShadow: false }));
   // Umbilicals looping from the tower along the arm.
   const lines = [];
   for (const dz of [-0.85, 0, 0.85]) {
@@ -852,7 +883,7 @@ export function buildLaunchComplex(M) {
   const FINE = {
     'mount-catwalk': 0.05, 'mount-catwalk-rail': 0.05, 'mount-risers': 0.12,
     'deck-manifold': 0.2, 'deck-nozzles': 0.06, 'mount-trim': 0.09,
-    'mount-rail': 0.1, 'trench-ramps': 0.3, 'qd-lines': 0.08,
+    'mount-rail': 0.1, 'trench-ramps': 0.3, 'qd-lines': 0.08, 'qd-rail': 0.05,
     'mount-baseplates': 0.14, 'pad-cable-tray': 0.12, 'pad-valves': 0.18,
   };
   g.traverse((o) => { const f = FINE[o.name]; if (f) o.userData.lodFeature = f; });
