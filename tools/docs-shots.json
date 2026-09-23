@@ -201,15 +201,5 @@
     "labels": false,
     "ruler": false,
     "humans": false
-  },
-  {
-    "name": "falcon1-night.jpg",
-    "jump": [
-      "falcon1",
-      "overview"
-    ],
-    "sun": -8,
-    "labels": false,
-    "ruler": false
   }
 ]

@@ -147,7 +147,7 @@ situations.push(await situation('launch-liftoff', () => { window.__vc.launch.see
 situations.push(await situation('launch-maxq', () => { window.__vc.launch.seek(62); }));
 situations.push(await situation('launch-catch', () => { window.__vc.launch.seek(410); }));
 await page.evaluate(() => window.__vc.launch.reset(false));
-situations.push(await situation('night-overview', () => { window.__vc.env.setSun(-8, 34); window.__vc.jump(null); }));
+situations.push(await situation('low-sun-overview', () => { window.__vc.env.setSun(6, 34); window.__vc.jump(null); }));
 await page.evaluate(() => window.__vc.env.setSun(42, 34));
 }
 

@@ -3,7 +3,6 @@
  */
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
-import { starShell } from './backdrop.js';
 import { mesh, mergeAll, mat4 } from '../geometry/utils.js';
 import { noise2 } from '../materials/textures.js';
 import { createClouds } from './clouds.js';
@@ -192,81 +191,13 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     markings.add(ring);
   }
 
-  // --- Night ---------------------------------------------------------------------------
-  // The sun control used to be an elevation slider that stopped at 6 degrees. Taking it below
-  // the horizon costs one blend factor and turns the whole centre into a different place, so
-  // the exhibits get display lighting and the sky gets stars. The floodlights and the tower
-  // beacons are display lighting, not flight hardware, and the sheet says so.
-  const night = new THREE.Group();
-  night.name = 'night';
-  night.visible = false;
-  scene.add(night);
-  const stars = starShell(3400);
-  stars.material.opacity = 0; stars.material.transparent = true;
-  night.add(stars);
-  const displayLights = [];
-  // The luminaires are real furniture, so they stand in the scene by day as well; only the
-  // lens and the light itself follow the sun down. A bare SpotLight with nothing to come out
-  // of is what the first version was, and at night the exhibits were lit by nothing visible.
-  const lightMasts = new THREE.Group();
-  lightMasts.name = 'light-masts';
-  scene.add(lightMasts);
-  const lensMat = new THREE.MeshStandardMaterial({
-    color: 0x2a2c30, emissive: 0xffe2ae, emissiveIntensity: 0, roughness: 0.35, metalness: 0.1,
-  });
-
-  /**
-   * One floodlight per station: a slim mast set outside the station ring with a shoebox head
-   * angled in at the exhibit. No shadow map — seven shadow-casting spots is not worth it, and
-   * the sun already owns the shadows.
-   */
-  function addDisplayLight(x, z, radius, height, { tiers = 1 } = {}) {
-    const H = THREE.MathUtils.clamp(height * 0.55 + 3.2, 4.2, 26);
-    // To the side of the exhibit, a little behind it. Every overview camera stands in the
-    // +x/+z quadrant, about 40° off the row, and so did the mast, at 45°: the comment promised
-    // it would never come between a view and its exhibit, and at Dragon it stood square in
-    // front of the capsule's flank. Moved round to +x it sits well clear of the line of sight
-    // and still throws its light on the faces those cameras see, where a mast mirrored behind
-    // the exhibit would only have backlit it.
-    const px = x + radius * 1.2, pz = z - radius * 0.25;
-
-    const g = new THREE.Group();
-    g.position.set(px, 0, pz);
-    // Aim the head at the exhibit.
-    g.rotation.y = Math.atan2(x - px, z - pz);
-
-    const parts = [];
-    parts.push({ geometry: new THREE.CylinderGeometry(0.24, 0.30, 0.10, 20), matrix: mat4([0, 0.05, 0]) });
-    parts.push({ geometry: new THREE.CylinderGeometry(0.062, 0.098, H, 16), matrix: mat4([0, H / 2 + 0.08, 0]) });
-    // Arm reaching in over the exhibit.
-    parts.push({ geometry: new THREE.CylinderGeometry(0.045, 0.045, 0.62, 12), matrix: mat4([0, H + 0.02, 0.30], [Math.PI / 2, 0, 0]) });
-    g.add(mesh(mergeAll(parts), M.mount, { name: 'light-mast' }));
-
-    const head = new THREE.Group();
-    head.position.set(0, H + 0.02, 0.60);
-    head.rotation.x = 0.52;   // tilted down at the exhibit
-    head.add(mesh(new THREE.BoxGeometry(0.46, 0.16, 0.30), M.mount, { name: 'luminaire' }));
-    head.add(mesh(new THREE.BoxGeometry(0.40, 0.02, 0.24), lensMat, { position: [0, -0.088, 0], name: 'luminaire-lens' }));
-    g.add(head);
-    lightMasts.add(g);
-
-    // One spot per tier. A single beam aimed a third of the way up works for a car on a
-    // plinth and fails completely on a 124 m stack: the vehicle went black above the mount
-    // and the centrepiece of the whole centre became a silhouette after dark. Tall subjects
-    // get several beams from the same mast, each aimed at its own band, which is also how a
-    // real launch complex is lit.
-    for (let i = 0; i < tiers; i++) {
-      const aimT = tiers === 1 ? 0.35 : 0.14 + (i / (tiers - 1)) * 0.78;
-      // Higher beams are narrower and stronger: they have further to throw, and a wide cone
-      // aimed at the top of a tower mostly lights the sky.
-      const cone = THREE.MathUtils.lerp(0.62, 0.20, tiers === 1 ? 0 : i / (tiers - 1));
-      const spot = new THREE.SpotLight(0xffe9c8, 0, radius * 9, cone, 0.5, 1.05);
-      spot.position.set(px + Math.sin(g.rotation.y) * 0.6, H + 0.02 + i * 0.5, pz + Math.cos(g.rotation.y) * 0.6);
-      spot.target.position.set(x, height * aimT, z);
-      night.add(spot, spot.target);
-      displayLights.push({ spot, peak: (55 + radius * radius * 3.4) * (1 + aimT * 1.9) / tiers });
-    }
-  }
+  // --- No night ------------------------------------------------------------------------
+  // The Sun control used to run below the horizon into a night mode lit by display
+  // floodlights. It did not hold together: the light came from masts nobody noticed by day,
+  // switched on out of nothing as the slider went down, and lit the centre like a car park.
+  // The centre is a daylight exhibit now. The control stops a few degrees above the horizon,
+  // where the light is at its warmest and the shadows at their longest, and never gets dark.
+  const SUN_MIN = 4, SUN_MAX = 75;
 
   const fog = new THREE.FogExp2(0xc5cdd6, 0.00027);
   scene.fog = fog;
@@ -275,7 +206,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
 
   /** Keeps the sky centred on the viewer. Cheap, and the only way it survives an ascent. */
   function followCamera(camera) {
-    sky.position.copy(camera.position); stars.position.copy(camera.position); clouds.follow(camera);
+    sky.position.copy(camera.position); clouds.follow(camera);
   }
 
   // ---- One place composes the atmosphere ------------------------------------------------
@@ -302,7 +233,8 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     su.sunPosition.value.copy(sunDir);
 
     // Night blend: starts a few degrees above the horizon, complete a few below it.
-    nightK = THREE.MathUtils.clamp((5 - elev) / 15, 0, 1);
+    // Always 0 now that the sun cannot set; kept as an input so the blend below stays one formula.
+    nightK = THREE.MathUtils.clamp((SUN_MIN - elev) / 15, 0, 1);
     const n = nightK * nightK * (3 - 2 * nightK);
     // Altitude blend: fully thin by ~26 km.
     const k = THREE.MathUtils.clamp(h / 26000, 0, 1);
@@ -334,12 +266,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     fog.density = GROUND_FOG * (1 + n * 1.6) * (1 - THREE.MathUtils.clamp(h / 9000, 0, 1));
     skyFade.value = (1 - n * 0.86) * (1 - j * 0.94);
 
-    stars.material.opacity = Math.pow(n, 1.6);
     clouds.update(sunDir, n, h, !inSpace);
-    night.visible = !inSpace && n > 0.02;
-    lightMasts.visible = !inSpace;
-    for (const d of displayLights) d.spot.intensity = d.peak * Math.pow(n, 1.3);
-    lensMat.emissiveIntensity = 2.6 * Math.pow(n, 1.4);
 
     // Stretch the apron so there is still a surface under the vehicle on the way up. Scaling
     // the mesh scales its metric UVs with it, which would smear one 48 m tile over 1.6 km at
@@ -386,7 +313,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   const PROBE_MS = 130;
   let probeAt = 0, probeTimer = 0;
   function setSun(elevationDeg, azimuthDeg, { immediate = false } = {}) {
-    air.elev = elevationDeg;
+    air.elev = THREE.MathUtils.clamp(elevationDeg, SUN_MIN, SUN_MAX);
     air.azim = azimuthDeg;
     const now = performance.now();
     const due = immediate || (now - probeAt) >= PROBE_MS;
@@ -438,7 +365,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
 
   return {
     sun, sky, hemi, ground, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation,
-    addDisplayLight, get night() { return nightK; },
+    SUN_MIN, SUN_MAX, get night() { return nightK; },
     get inSpace() { return inSpace; }, get sunDir() { return sunDir; },
   };
 }

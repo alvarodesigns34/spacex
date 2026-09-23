@@ -244,7 +244,6 @@ async function main() {
       model.position.y = lay.mount;
       model.rotation.y = 0;
       env.addStation(lay.x, lay.z, 6);
-      env.addDisplayLight(lay.x, lay.z, 16, 8);
     } else if (v.id === 'dragon') {
       const ped = buildPedestal(M, { radius: 2.3, height: lay.mount });
       // cradle: four supports under the trunk rim
@@ -258,35 +257,27 @@ async function main() {
       group.add(ped);
       model.position.y = lay.mount + 0.6;
       env.addStation(lay.x, lay.z, 5);
-      env.addDisplayLight(lay.x, lay.z, 6, 8);
     } else if (v.id === 'engines') {
       // No plinth: the engines stand on the apron on their own cradles, which is what makes
       // the 4.4 m of a Raptor Vacuum land next to a visitor rather than above one.
       env.addStation(lay.x, lay.z, 8);
-      env.addDisplayLight(lay.x, lay.z, 8, 5);
     } else if (v.id === 'roadster') {
       const ped = buildPedestal(M, { radius: 2.5, height: lay.mount });
       roadsterPedestal = ped;
       group.add(ped);
       model.position.y = lay.mount;
       env.addStation(lay.x, lay.z, 6);
-      env.addDisplayLight(lay.x, lay.z, 6, 3);
     } else if (lay.pad) {
       // Starship stands on the real thing: the launch mount spanning the flame trench, with
       // the tower alongside. No display furniture, and no apron ring — the pad has its own.
       complex = buildLaunchComplex(M);
       group.add(complex);
       model.position.y = lay.mount;
-      // The pad has no display station, but at night an unlit 124 m stack against a black sky
-      // is just a hole in the frame. Four tiers, because one beam aimed a third of the way up
-      // a vehicle that tall lights the mount and leaves the other eighty metres black.
-      env.addDisplayLight(lay.x, lay.z, 46, 124, { tiers: 4 });
     } else {
       group.add(buildMount(M, { radius: lay.mountRadius, inner: lay.inner, height: lay.mount, clampRadius: lay.clampRadius,
         clamps: ['falconheavy', 'falcon1'].includes(v.id) ? 0 : 4 }));
       model.position.y = lay.mount;
       env.addStation(lay.x, lay.z, lay.mountRadius + 1.5);
-      env.addDisplayLight(lay.x, lay.z, lay.mountRadius + 4, v.height, { tiers: v.height > 40 ? 3 : 1 });
     }
     const yaw = THREE.MathUtils.degToRad(lay.yaw ?? 0);
     model.rotation.y = yaw;
@@ -860,7 +851,7 @@ async function main() {
   };
     // Exposed for the headless check: the orbital view is a global scene change, so the gate
   // has to be able to see that leaving it puts everything back.
-  // Exposed for the headless check: the night blend has to be a pure function of the slider,
+  // Exposed for the headless check: the atmosphere has to be a pure function of the slider,
   // not something that accumulates. An earlier version read the sky uniforms back and
   // multiplied them, so every drag of the slider made the sky darker than the one before.
   const lightState = () => ({

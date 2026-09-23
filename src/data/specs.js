@@ -91,7 +91,6 @@ export const VEHICLES = [
       'Radial layout of the 33 Raptors (rings of 3 / 10 / 20): the arrangement is documented, the radii were tuned so the outer nozzles stay inside the 9 m skirt.',
       'Tiles: the published count (~18,000, Wikipedia) and the published size (≈12 in across vertices) do not agree exactly; the model follows the size and covers about 13,700 tiles over the exposed half, the nose and the flaps.',
       'Internal stations (skirt, common dome, nose base, payload bay) are not public: they are derived from the 1.83 m ring and the published propellant masses.',
-      'The night lighting on the Sun control is display lighting for the centre, not a record of how Starbase is actually lit after dark.',
       'Campus, plausible context: the salt-flat colour, low dunes and scrub match the coastal plain in kind only. Their positions are not surveyed.',
       'Campus, non-structural dressing: the gravel terrace, visitor road, drainage swale and three service trucks are scale furniture. They are not roads or vehicles at Starbase.',
       'Closeout lamps under the Pad 2 deck, and the cool point that stands in for bounce off the water-cooled steel, are reconstructed service lighting. They are not sunlight and they are not a published lighting plan.',

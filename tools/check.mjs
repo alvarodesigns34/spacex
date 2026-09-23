@@ -430,44 +430,35 @@ try {
     await page.evaluate(() => window.__vc.jump(null));
   }
 
-  // ---- Day and night -------------------------------------------------------------------
-  // The sun control now runs below the horizon and blends the whole centre into night. Two
-  // things have to hold: the blend must be a pure function of the slider (an earlier version
-  // read the sky uniforms back and multiplied them, so every call darkened the sky further),
-  // and coming back up must restore the day exactly.
+  // ---- Sun control: daylight only -----------------------------------------------------
+  // The centre no longer has a night mode. Three things have to hold: the sun cannot be taken
+  // below the control's floor (a script asking for −8° gets the floor, not darkness), the
+  // atmosphere is a pure function of the slider (an earlier version read the sky uniforms back
+  // and multiplied them, so every call darkened the sky further), and it survives a flight:
+  // setAltitude() runs every frame of the launch and must hand the ground its own fog back.
   {
-    const read = (deg) => page.evaluate((d) => { window.__vc.env.setSun(d, 34); return window.__vc.lightState(); }, deg);
-    const day1 = await read(42);
-    const nightA = await read(-8);
-    const nightB = await read(-8);
-    const day2 = await read(42);
-    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-    const pure = same(nightA, nightB);
-    const restored = same(day1, day2);
-    const darker = nightA.night > 0.85 && nightA.sun < day1.sun * 0.1 && nightA.sky < day1.sky;
-    report(pure && restored && darker, 'el ciclo día/noche es reversible y no se acumula',
-      pure && restored && darker
-        ? `noche ${nightA.night}, sol ${day1.sun} -> ${nightA.sun}, cielo ${day1.sky} -> ${nightA.sky}`
-        : `puro ${pure} · restaura ${restored} · oscurece ${darker} · ${JSON.stringify({ day1, nightA, nightB, day2 })}`);
-    // Night and altitude have to compose. setAltitude() runs every frame of the launch and
-    // used to reassign fog.density from the ground constant with no night factor, so flying at
-    // night pulled daytime fog back over the scene and reset()'s setAltitude(0) left it there
-    // under lit floodlights.
-    const read2 = (deg, alt) => page.evaluate(([d, a]) => {
+    const read = (deg, alt = 0) => page.evaluate(([d, a]) => {
       window.__vc.env.setSun(d, 34); window.__vc.env.setAltitude(a);
       return window.__vc.lightState();
     }, [deg, alt]);
-    const nightGround = await read2(-8, 0);
-    await read2(-8, 12000);
-    const nightBack = await read2(-8, 0);
-    const dayGround = await read2(42, 0);
-    const composes = Math.abs(nightGround.fog - nightBack.fog) < 1e-9
-      && nightGround.fog > dayGround.fog * 2
-      && nightBack.night > 0.85;
-    report(composes, 'la niebla de noche sobrevive a un vuelo',
-      composes ? `densidad ${dayGround.fog} de día, ${nightGround.fog} de noche, y vuelve a ${nightBack.fog} tras subir a 12 km`
-        : `día ${dayGround.fog} · noche ${nightGround.fog} · tras el vuelo ${nightBack.fog} · nightK ${nightBack.night}`);
-
+    const day1 = await read(42);
+    const lowA = await read(-8);
+    const lowB = await read(-8);
+    const floor = await page.evaluate(() => window.__vc.env.SUN_MIN);
+    const atFloor = await read(floor);
+    const day2 = await read(42);
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    const ok = same(lowA, lowB) && same(lowA, atFloor) && same(day1, day2)
+      && lowA.night === 0 && lowA.sun > day1.sun * 0.3;
+    report(ok, 'el sol no baja del horizonte y el ciclo es reversible',
+      ok ? `suelo ${floor}°, sol ${day1.sun} -> ${lowA.sun}, sin noche`
+        : JSON.stringify({ day1, lowA, lowB, atFloor, day2 }));
+    const ground = await read(42, 0);
+    await read(42, 12000);
+    const back = await read(42, 0);
+    const composes = Math.abs(ground.fog - back.fog) < 1e-12 && same(ground, back);
+    report(composes, 'la atmósfera vuelve igual tras un vuelo',
+      composes ? `niebla ${ground.fog} antes y después de subir a 12 km` : JSON.stringify({ ground, back }));
     await page.evaluate(() => { window.__vc.env.setSun(42, 34); window.__vc.env.setAltitude(0); });
   }
 
@@ -647,17 +638,17 @@ try {
       'de la vista orbital al lanzamiento y de vuelta',
       `durante ${JSON.stringify(duringLaunch)} · después ${JSON.stringify(afterLaunch)}`);
 
-    // Night, a full flight, then reset. The atmosphere has three inputs and one writer; this
-    // is the path that used to leave daytime fog under lit floodlights.
+    // Low sun, a full flight, then reset. The atmosphere has three inputs and one writer; this
+    // is the path that used to leave the wrong fog behind after a launch.
     await reset();
-    await page.evaluate(() => window.__vc.env.setSun(-8, 34));
-    const nightBefore = await page.evaluate(() => window.__vc.lightState());
+    await page.evaluate(() => window.__vc.env.setSun(6, 34));
+    const lowBefore = await page.evaluate(() => window.__vc.lightState());
     await page.evaluate(() => window.__vc.launch.seek(120));
     await page.evaluate(() => window.__vc.launch.reset(false));
-    const nightAfter = await page.evaluate(() => window.__vc.lightState());
-    report(JSON.stringify(nightBefore) === JSON.stringify(nightAfter),
-      'noche, vuelo completo y reset devuelven la misma atmósfera',
-      `antes ${JSON.stringify(nightBefore)} · después ${JSON.stringify(nightAfter)}`);
+    const lowAfter = await page.evaluate(() => window.__vc.lightState());
+    report(JSON.stringify(lowBefore) === JSON.stringify(lowAfter),
+      'sol bajo, vuelo completo y reset devuelven la misma atmósfera',
+      `antes ${JSON.stringify(lowBefore)} · después ${JSON.stringify(lowAfter)}`);
     await reset();
 
     // A resize in the middle of a framing sweep. The composer, the label renderer and the
