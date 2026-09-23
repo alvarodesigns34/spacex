@@ -158,10 +158,11 @@ export function createMaterials(onProgress = () => {}) {
   // Cheap: five noise evaluations and one extra texture fetch per ground fragment.
   M.terrain.onBeforeCompile = (sh) => {
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vVcWorld;')
-      .replace('#include <project_vertex>', '#include <project_vertex>\nvVcWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      .replace('#include <common>', '#include <common>\nvarying vec3 vVcWorld;\nattribute vec2 aShore;\nvarying vec2 vShore;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvVcWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvShore = aShore;');
     const NOISE = `
 varying vec3 vVcWorld;
+varying vec2 vShore;
 float vcHash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float vcNoise(vec2 p) {
   vec2 i = floor(p), f = fract(p);
@@ -191,11 +192,20 @@ float vcNoise(vec2 p) {
     // Sparse low scrub: clumps of a few metres, thicker in the damp hollows, none on the salt
     // crust. Without it the plain read as one sheet of felt at any distance.
     float veg = vcNoise(wp / 9.0 + 41.0) * 0.6 + vcNoise(wp / 3.1 - 13.0) * 0.4;
-    float scrub = smoothstep(0.60, 0.76, veg + damp * 0.10) * (1.0 - salt);
+    float beach = max(vShore.x, vShore.y);
+    float scrub = smoothstep(0.60, 0.76, veg + damp * 0.10) * (1.0 - salt) * (1.0 - beach);
     diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.62, 0.70, 0.46), scrub * 0.75);
+    // The beach (ground mesh only; other meshes on this material have no aShore and read 0):
+    // pale quartz sand with a faint ripple of tone, darkening to wet sand at the water. A beach
+    // tinted from the plain's olive map stayed grass-coloured all the way into the sea.
+    float grain = 0.93 + 0.14 * vcNoise(wp / 5.0 + 71.0);
+    // Linear values (this is after the sRGB map decode): dry sand ≈ sRGB (0.80, 0.70, 0.54),
+    // wet sand ≈ sRGB (0.52, 0.46, 0.37). Warm on purpose: the low sky light cools it.
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.70, 0.48, 0.21) * grain, vShore.x * 0.92);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.26, 0.19, 0.10) * grain, vShore.y * 0.85);
   }`);
   };
-  M.terrain.customProgramCacheKey = () => 'vc-terrain-macro-3';
+  M.terrain.customProgramCacheKey = () => 'vc-terrain-macro-4';
   // The Gulf beyond the beach. Water is a dielectric with a smooth surface: almost all of what
   // it shows is the sky it reflects, so the colour here is only the body tint of shallow,
   // silty coastal water, and the wave normals do the rest.

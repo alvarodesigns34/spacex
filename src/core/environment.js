@@ -24,6 +24,7 @@ function coastalDisc(radius, rings, segs) {
   const pos = new Float32Array(count * 3);
   const uv = new Float32Array(count * 2);
   const col = new Float32Array(count * 3);
+  const shore = new Float32Array(count * 2);     // [dry sand, wet sand], read by the terrain shader
   const idx = [];
   let k = 0;
   const push = (x, y) => {
@@ -37,13 +38,19 @@ function coastalDisc(radius, rings, segs) {
     const salt = Math.max(0, broad - 0.46);
     const damp = Math.max(0, 0.4 - patch);
     let m = 1 + salt * 0.26 - damp * 0.2 + (noise2(x / 16 + 4, y / 16) - 0.5) * 0.05;
-    // Beach: a pale dry band above the waterline, dark wet sand at it.
-    const dry = THREE.MathUtils.smoothstep(past, -110, -40) * (1 - THREE.MathUtils.smoothstep(past, -12, 0));
-    const wet = THREE.MathUtils.smoothstep(past, -14, 0);
-    m = m * (1 + 0.34 * dry) * (1 - 0.32 * wet);
-    col[k * 3] = m * (1 + salt * 0.04 + 0.03 * dry);
+    // Beach, measured from where the water actually is. The sea surface sits 0.9 m down, and
+    // the ground only reaches that depth ~35 m seaward of shoreZ, so a beach keyed to shoreZ
+    // itself left 35 m of grassy slope running down into the water. `wl` is metres from the
+    // real waterline (negative inland): dry sand for ~90 m, a wet margin at the water, and
+    // sand under the shallows.
+    const wl = past - WATERLINE;
+    const dry = THREE.MathUtils.smoothstep(wl, -105, -70) * (1 - THREE.MathUtils.smoothstep(wl, -20, -8));
+    const wet = THREE.MathUtils.smoothstep(wl, -20, -6);
+    shore[k * 2] = dry;
+    shore[k * 2 + 1] = wet;
+    col[k * 3] = m * (1 + salt * 0.04);
     col[k * 3 + 1] = m;
-    col[k * 3 + 2] = m * (1 - salt * 0.05 - 0.04 * dry);
+    col[k * 3 + 2] = m * (1 - salt * 0.05);
     uv[k * 2] = x;
     uv[k * 2 + 1] = y;
     return k++;
@@ -68,10 +75,14 @@ function coastalDisc(radius, rings, segs) {
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.setAttribute('aShore', new THREE.BufferAttribute(shore, 2));
   g.setIndex(idx);
   g.computeVertexNormals();
   return g;
 }
+
+/** Metres seaward of shoreZ at which the ground drops to the 0.9 m-deep sea surface. */
+const WATERLINE = 35.3;
 
 /** Radius of the apron disc at ground level, before the ascent stretches it. */
 const GROUND_R = 2500;
@@ -175,6 +186,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     water.name = 'sea';
     water.receiveShadow = false;
     ground.add(water);
+
   }
   // The terrain material is the ground's alone, so its repeat can be driven from here.
   const groundMaps = [ground.material.map, ground.material.roughnessMap, ground.material.normalMap].filter(Boolean);

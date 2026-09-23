@@ -71,9 +71,15 @@ PAD.towerH = PAD.section * PAD.sections + PAD.mast;   // 144,5 m
 PAD.trenchDepth = PAD.padY - PAD.trenchFloorY;        // 8,2 m
 
 const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
-/** Axis-aligned block given by its extents, as a {geometry, matrix} pair for mergeAll. */
+/**
+ * Axis-aligned block given by its extents, as a {geometry, matrix} pair for mergeAll.
+ * The extents may come in either order. They used not to: a mirrored call — the catch pads
+ * on the north arm, written as −s·2.1 … −s·1.35 — made a box of negative depth, turned inside
+ * out, whose inverted normals the ambient-occlusion pass read as fully buried: black pads
+ * with scanline streaks.
+ */
 const block = (x0, x1, y0, y1, z0, z1) => ({
-  geometry: B(x1 - x0, y1 - y0, z1 - z0),
+  geometry: B(Math.abs(x1 - x0), Math.abs(y1 - y0), Math.abs(z1 - z0)),
   matrix: mat4([(x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2]),
 });
 
