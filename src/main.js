@@ -7,6 +7,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { createAO } from './core/ao.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
 import { createMaterials } from './materials/library.js';
@@ -189,6 +190,9 @@ async function main() {
   const composer = new EffectComposer(renderer, rt);
   const renderPass = new RenderPass(scene, camera);
   composer.addPass(renderPass);
+  // Contact shadow in the creases the sun does not reach; before bloom, so it acts on light.
+  const ao = quality.ao ? createAO(scene, camera, window.innerWidth, window.innerHeight) : null;
+  if (ao) composer.addPass(ao.pass);
   // Bloom is the first thing a weak machine gives up: it costs a full-resolution blur chain
   // and the scene reads correctly without it.
   const bloom = quality.bloom
@@ -819,6 +823,8 @@ async function main() {
     const fovH = THREE.MathUtils.degToRad(camera.fov);
     const mpp = (2 * dist * Math.tan(fovH / 2)) / window.innerHeight;
     hud.setScale(mpp, dist);
+    // Off above the pad (launch chase and orbit): the far plane opens up and nothing is close.
+    ao?.update(dist, camera.far < 20000 && !view.orbital && renderPass.camera === camera);
     updateLabelOcclusion();
     lod.update();
     composer.render();
@@ -918,7 +924,7 @@ async function main() {
     // The state machine itself, so the gate can assert on transitions rather than on the
     // scene's reaction to them.
     view, viewState: () => view.snapshot(),
-    quality, lod,
+    quality, lod, ao,
     get tourAt() { return tourAt; },
   };
   if (params.has('verify')) verify();

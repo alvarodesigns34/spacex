@@ -244,6 +244,11 @@ float vcNoise(vec2 p) {
   M.alumDark = new THREE.MeshPhysicalMaterial({ color: 0x5c6066, metalness: 0.9, roughness: 0.5 });
   M.radiator = new THREE.MeshPhysicalMaterial({ color: 0xf2f2ee, metalness: 0.1, roughness: 0.32, clearcoat: 0.4 });
   M.mount = new THREE.MeshStandardMaterial({ color: 0x3b3e42, metalness: 0.6, roughness: 0.62 });
+  // Exhibit plinths: a satin graphite drum under a matte deck. The drum was the same
+  // 60 %-metallic grey as the mount steel, and at that metalness it took its colour from the
+  // sky: every plinth read navy blue.
+  M.plinth = new THREE.MeshStandardMaterial({ color: 0x2c2e31, metalness: 0.15, roughness: 0.48 });
+  M.plinthDeck = new THREE.MeshStandardMaterial({ color: 0x4a4c4f, metalness: 0.0, roughness: 0.86 });
   M.mountYellow = new THREE.MeshStandardMaterial({ color: 0x9d8330, metalness: 0.35, roughness: 0.62 });
   M.human = new THREE.MeshStandardMaterial({ color: 0xd8d2c6, roughness: 0.82 });
   M.humanDark = new THREE.MeshStandardMaterial({ color: 0x3d4a40, roughness: 0.86 });

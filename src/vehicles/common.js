@@ -52,13 +52,31 @@ export function buildMount(M, { radius = 8, inner = 4.6, height = 8, legs = 6, c
 export function buildPedestal(M, { radius = 1.2, height = 1.2, post = 0 } = {}) {
   const g = new THREE.Group();
   g.name = 'pedestal';
-  const base = new THREE.CylinderGeometry(radius, radius * 1.15, height, 48);
-  base.translate(0, height / 2, 0);
-  g.add(mesh(base, M.mount));
+  // Museum plinth: a drum standing on a recessed kick (the shadow gap is what lifts it off the
+  // apron), a brushed band round the top edge, and a matte deck for the exhibit to stand on.
+  const kick = Math.min(0.08, height * 0.12), band = Math.min(0.05, height * 0.08);
+  const plinth = M.plinth ?? M.mount, deck = M.plinthDeck ?? M.mount, trim = M.aluminum ?? M.mount;
+  const foot = new THREE.CylinderGeometry(radius - 0.05, radius - 0.05, kick, 64);
+  foot.translate(0, kick / 2, 0);
+  g.add(mesh(foot, M.boot ?? plinth, { name: 'pedestal-kick' }));
+  const drum = new THREE.CylinderGeometry(radius, radius, height - kick - band, 64, 1, true);
+  drum.translate(0, kick + (height - kick - band) / 2, 0);
+  g.add(mesh(drum, plinth, { name: 'pedestal-drum' }));
+  const ring = new THREE.CylinderGeometry(radius + 0.004, radius + 0.004, band, 64, 1, true);
+  ring.translate(0, height - band / 2, 0);
+  g.add(mesh(ring, trim, { name: 'pedestal-band' }));
+  const under = new THREE.CircleGeometry(radius, 64);
+  under.rotateX(Math.PI / 2);
+  under.translate(0, kick, 0);
+  g.add(mesh(under, plinth, { castShadow: false }));
+  const top = new THREE.CircleGeometry(radius + 0.004, 64);
+  top.rotateX(-Math.PI / 2);
+  top.translate(0, height, 0);
+  g.add(mesh(top, deck, { name: 'pedestal-deck' }));
   if (post > 0) {
     const p = new THREE.CylinderGeometry(0.18, 0.22, post, 24);
     p.translate(0, height + post / 2, 0);
-    g.add(mesh(p, M.mount));
+    g.add(mesh(p, plinth));
   }
   return g;
 }

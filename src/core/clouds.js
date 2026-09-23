@@ -9,9 +9,8 @@
  * The layer is a single dome that follows the camera, shaded per pixel: each view ray is
  * intersected with a flat cloud base 1.4 km up, and a few octaves of value noise over that
  * plane give the cover. Lit from the sun's side, flat-bottomed and darker underneath, fading
- * into the haze towards the horizon and away entirely with altitude and at night, so it never
- * sits in front of anything and never outlives the daylight it belongs to. It is scenery, not
- * data: no cloud here is a real cloud.
+ * into the haze towards the horizon and away entirely with altitude, so it never sits in front
+ * of anything. It is scenery, not data: no cloud here is a real cloud.
  */
 import * as THREE from 'three';
 

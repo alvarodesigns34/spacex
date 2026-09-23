@@ -41,6 +41,7 @@ y abrir la URL que indique. Requiere WebGL 2.
 - **P** (o el botón *Tour*) recorre el centro parada por parada; cualquier arrastre, rueda o clic lo termina y devuelve la cámara.
 - **G** (o el botón *Lanzamiento*) arranca la secuencia de Starship. Durante la cuenta atrás y el ascenso la cámara sigue un plan de planos, pero **arrastrar o girar la rueda devuelve el control al instante** sin detener la secuencia. El panel de misión lleva reloj, fase, altitud, velocidad, distancia y empuje, un selector de velocidad ×1 / ×2 / ×5 / ×10 que multiplica el reloj (no salta hitos) y un botón para terminar.
 - Deslizador **Sol** de 4° a 75° de elevación: de la luz rasante y cálida de última hora a mediodía (se recalibran luz, sombras, niebla y mapa de entorno). No hay modo noche: el centro es una exposición de día. La inspección visual de referencia es **18°**: a esa elevación el sol es rasante, la exposición ACES se queda en 0,7 y el relleno hemisférico es bajo para que el acero satinado, la pintura blanca, el aluminio y el hormigón no se confundan ni se quemen. El azimut está fijado para iluminar los vehículos desde el lado desde el que miran las vistas por defecto.
+- En calidad alta, una pasada de **oclusión ambiental** (GTAO de Three.js) oscurece los pliegues y contactos que el sol no sombrea — pasos de rueda, bajos del coche, entre los Raptor, bajo los brazos de la torre —; su radio sigue a la distancia de la cámara, de unos 35 cm junto al Roadster a varios metros en la vista de Starship, y se apaga en el vuelo y en órbita.
 
 ## Precisión y fuentes
 
@@ -65,6 +66,8 @@ Donde SpaceX no publica una cota, el modelo la deriva de algo que sí está publ
 ### Comparación con fotografías
 
 Donde no hay cota publicada, la forma se mide contra fotografías en lugar de estimarse de memoria. El caso más claro es el Roadster: un render ortográfico lateral se superpone a una foto de perfil del coche a la misma escala (los centros de rueda como puntos de registro y los 1,128 m publicados como comprobación). De ahí salen la línea superior en cuña — ~0,88 m en la cadera trasera, ~0,72 m en las puertas, ~0,66–0,70 m en la aleta delantera —, la posición de la cabina y del parabrisas, la toma lateral en media luna tras la puerta, las tres lamas escalonadas del capó, el arco antivuelco único de carbono y el tamaño de faros y pilotos. Estas cotas son estimaciones fotográficas y la ficha las marca como aproximadas.
+
+La trasera se rehízo con el mismo método, contra una foto trasera recta y una de tres cuartos traseros, usando la lente de 0,115 m del piloto de freno como regla. Ya no es una placa plana con dos almendras: son tres superficies apiladas — el **paragolpes** en color carrocería, que se abomba hacia atrás y se recoge hacia el difusor negro de malla y lleva estampado el hueco de matrícula (vacío: el coche voló sin placa); encima, un **escalón** nítido y la **banda de pilotos** metida ~4 cm, con una carcasa negra por lado que va de ~0,34 m del eje hasta la esquina; y el **labio** en cola de pato con el que termina la tapa. Cada carcasa lleva tres ópticas redondas de ~11, 9,5 y 6 cm con lente transparente facetada sobre reflector cromado y el centro rojo en la de freno, como en las fotos; y tras cada paso de rueda, el catadióptrico lateral rojo. La cara trasera es un campo de alturas z(x, y) mallado en rejilla de alzado, de modo que el escalón, el labio y el hueco de matrícula quedan como líneas limpias. La anterior tenía además la cara hundida en el centro y 26 mm de hueco entre la cara y su borde redondeado, lo que alargaba el coche 2,5 cm; ahora mide lo declarado.
 
 Del mismo modo, el hollín del Falcon 9 reproduce el de un propulsor ya volado (gris en vetas, más denso arriba, con la silueta limpia de las patas plegadas), y el trunk de la Dragon muestra en su vista principal la mitad de células solares junto a la de radiadores.
 
@@ -170,6 +173,7 @@ src/core/viewState.js      qué está mostrando el centro: dueño de la cámara,
 src/core/lod.js            detalle en función del tamaño en pantalla, para todo el centro
 src/core/quality.js        nivel de calidad del dispositivo (píxeles, sombras, post, partículas)
 src/core/environment.js    cielo físico, sol, sombras dinámicas, mapa de entorno PMREM
+src/core/ao.js             oclusión ambiental GTAO (nivel alto) con radio ligado a la distancia
 src/core/backdrop.js       fondo orbital (Tierra ilustrativa + estrellas) de la vista del Roadster
 src/core/cameraRig.js      órbita + vuelo libre + transiciones + límite polar sobre el suelo
 src/geometry/utils.js      lathe con normales analíticas, ojivas romas, losetas instanciadas,
@@ -215,7 +219,7 @@ Medido en la vista general contra la misma escena con todo forzado a su estado d
 
 ### Niveles de calidad
 
-`src/core/quality.js` elige uno de tres niveles al arrancar, a partir de lo que la máquina declara —no de su *user-agent*— y fija con él la densidad de píxeles, la resolución del mapa de sombras, el bloom, el MSAA, el umbral de detalle y el número de partículas de la nube. **El nivel cambia el coste, nunca la corrección**: los vehículos se siguen construyendo a 1:1 desde las mismas cifras y la verificación mide lo mismo. `?quality=low|medium|high` fuerza uno, que es como se prueba un nivel que no tienes — y cómo la puerta de CI se asegura de estar midiendo la escena completa, ya que el rasterizador por software sobre el que corre caería si no en el nivel más bajo.
+`src/core/quality.js` elige uno de tres niveles al arrancar, a partir de lo que la máquina declara —no de su *user-agent*— y fija con él la densidad de píxeles, la resolución del mapa de sombras, la oclusión ambiental, el bloom, el MSAA, el umbral de detalle y el número de partículas de la nube. **El nivel cambia el coste, nunca la corrección**: los vehículos se siguen construyendo a 1:1 desde las mismas cifras y la verificación mide lo mismo. `?quality=low|medium|high` fuerza uno, que es como se prueba un nivel que no tienes — y cómo la puerta de CI se asegura de estar midiendo la escena completa, ya que el rasterizador por software sobre el que corre caería si no en el nivel más bajo.
 
 ## Despliegue
 

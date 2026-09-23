@@ -58,6 +58,8 @@ const TIERS = {
     shadowMap: 4096,
     shadows: true,
     bloom: true,
+    // Ambient occlusion: a second full-scene pass for the G-buffer plus two screen passes.
+    ao: true,
     msaa: 4,
     // Metres of object per screen pixel at which detail is dropped. Lower is greedier.
     lodPixels: 3.5,
