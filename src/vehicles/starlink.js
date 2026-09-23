@@ -24,19 +24,23 @@ export function buildStarlink(M) {
   g.add(mesh(bus, M.aluminum, { name: 'bus' }));
   // Zenith face: white multi-layer insulation with the usual gold-taped seams. Photographs
   // of a deployed V2 Mini show a mostly white blanket, not the gold of a deep-space bus.
-  g.add(mesh(new THREE.BoxGeometry(BUS_W - 0.1, 0.02, BUS_L - 0.1), M.mliWhite, { position: [0, BUS_T / 2 + 0.011, 0] }));
-  // Structural frame round the blanket, and the ribs under it. The zenith side is the face a
-  // visitor standing beside the exhibit looks down on, and it was a bare white slab: no
-  // frame, no fasteners, nothing to say the 4.1 m is 4.1 m.
+  g.add(mesh(new THREE.BoxGeometry(BUS_W - 0.01, 0.02, BUS_L - 0.01), M.mliWhite, { position: [0, BUS_T / 2 + 0.011, 0] }));
+  // Structural frame round the deck, and the ribs under the blanket. The zenith side is the
+  // face a visitor standing beside the exhibit looks down on, and a bare white slab says
+  // nothing about its size. The frame used to stand 3.5 cm ABOVE the blanket on all four
+  // edges, which turned the flat-pack bus into an open tray with the blanket lying in the
+  // bottom of it. A flat-pack satellite's deck is a panel whose edge closeouts run down the
+  // sides; the rails are there now, flush with the top, and the blanket runs to the edge.
   {
     const frame = [];
+    const RAIL_H = 0.06, RAIL_T = 0.022, top = BUS_T / 2 + 0.021;
     for (const s of [-1, 1]) {
-      frame.push({ geometry: new THREE.BoxGeometry(0.07, 0.07, BUS_L), matrix: mat4([s * (BUS_W / 2 - 0.035), BUS_T / 2 + 0.02, 0]) });
-      frame.push({ geometry: new THREE.BoxGeometry(BUS_W, 0.07, 0.07), matrix: mat4([0, BUS_T / 2 + 0.02, s * (BUS_L / 2 - 0.035)]) });
+      frame.push({ geometry: new THREE.BoxGeometry(RAIL_T, RAIL_H, BUS_L + 2 * RAIL_T), matrix: mat4([s * (BUS_W / 2 + RAIL_T / 2), top - RAIL_H / 2, 0]) });
+      frame.push({ geometry: new THREE.BoxGeometry(BUS_W, RAIL_H, RAIL_T), matrix: mat4([0, top - RAIL_H / 2, s * (BUS_L / 2 + RAIL_T / 2)]) });
     }
-    // Cross ribs, which also give the blanket its quilted look where they press through it.
+    // Cross ribs, pressing through the blanket by a centimetre: the quilting, not a beam.
     for (const z of [-1.0, 0, 1.0]) {
-      frame.push({ geometry: new THREE.BoxGeometry(BUS_W - 0.14, 0.035, 0.05), matrix: mat4([0, BUS_T / 2 + 0.028, z]) });
+      frame.push({ geometry: new THREE.BoxGeometry(BUS_W - 0.14, 0.014, 0.05), matrix: mat4([0, top + 0.004, z]) });
     }
     g.add(mesh(mergeAll(frame), M.alumDark, { name: 'bus-frame' }));
   }
@@ -112,26 +116,24 @@ export function buildStarlink(M) {
     g.add(st);
   }
   g.add(mesh(new THREE.BoxGeometry(0.25, 0.03, 0.25), M.aluminum, { position: [0, BUS_T / 2 + 0.03, -0.6], name: 'gnss-patch' }));
-  // Argon Hall thruster on the −Z edge (fires along −Z)
+  // Argon Hall thruster on the −Z edge, firing along −Z. Built as the thing a Hall thruster
+  // is: a short drum whose exit face is an annular discharge channel in white ceramic between
+  // an inner and an outer magnetic pole, with the hollow cathode on the axis. It was a copper
+  // doughnut on a dark disc. Size and mounting are reconstructed; the type is published.
   const thr = new THREE.Group();
-  thr.add(mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.14, 32), M.darkMetal, { rotation: [Math.PI / 2, 0, 0] }));
-  thr.add(mesh(new THREE.TorusGeometry(0.11, 0.035, 12, 40), M.copper, { position: [0, 0, -0.08] }));
-  thr.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.1, 16), M.alumDark, { position: [0, 0, -0.1], rotation: [Math.PI / 2, 0, 0] }));
+  thr.name = 'hall-thruster';
+  const face = -0.075;                                   // exit plane, local z
+  thr.add(mesh(new THREE.CylinderGeometry(0.155, 0.165, 0.15, 36), M.darkMetal, { rotation: [Math.PI / 2, 0, 0] }));
+  thr.add(mesh(new THREE.RingGeometry(0.068, 0.118, 40), M.radiator, { position: [0, 0, face - 0.002], rotation: [0, Math.PI, 0], name: 'hall-channel' }));
+  thr.add(mesh(new THREE.TorusGeometry(0.136, 0.018, 8, 40), M.alumDark, { position: [0, 0, face - 0.004] }));
+  thr.add(mesh(new THREE.CylinderGeometry(0.064, 0.064, 0.012, 28), M.darkMetal, { position: [0, 0, face - 0.006], rotation: [Math.PI / 2, 0, 0] }));
+  thr.add(mesh(new THREE.CylinderGeometry(0.018, 0.022, 0.05, 14), M.aluminum, { position: [0, 0, face - 0.03], rotation: [Math.PI / 2, 0, 0], name: 'hall-cathode' }));
   thr.add(mesh(new THREE.BoxGeometry(0.5, 0.18, 0.2), M.alumDark, { position: [0, 0, 0.15] }));
   thr.position.set(0, 0, -BUS_L / 2 - 0.12);
   g.add(thr);
-  // Argon tank. A bare sphere half-sunk in the deck read as a bubble blown through the
-  // blanket; it is housed now, in a faired cover with its fill and drain fittings, which is
-  // how a pressure vessel actually sits on a spacecraft bus.
-  {
-    const tank = new THREE.Group();
-    tank.position.set(0.75, BUS_T / 2, -1.55);
-    tank.add(mesh(new THREE.SphereGeometry(0.26, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.62), M.mliWhite));
-    tank.add(mesh(new THREE.CylinderGeometry(0.28, 0.3, 0.06, 22), M.alumDark, { position: [0, 0.01, 0] }));
-    tank.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.16, 10), M.aluminum, { position: [0.14, 0.18, 0.06], rotation: [0, 0, 0.5] }));
-    tank.add(mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.5, 8), M.aluminum, { position: [0.0, 0.05, 0.3], rotation: [1.3, 0, 0] }));
-    g.add(tank);
-  }
+  // No argon tank on the deck. A white dome stood there, next to the thruster label, and read
+  // as the thruster itself; on a flat-pack bus the propellant vessel is inside the 0.48 m
+  // structure with everything else, and nothing in the deployment imagery shows it outside.
 
   // ---- Solar wings (2) ----
   const panels = 6; // accordion-folded segments (approx)
@@ -193,7 +195,7 @@ export function buildStarlink(M) {
     'bus-frame': 0.03, 'bus-avionics': 0.09, 'bus-tape': 0.025, 'array-patches': 0.11,
     'laser-terminal': 0.045, 'star-tracker': 0.035, 'gnss-patch': 0.03,
     'wing-hinges': 0.03, 'wing-substrate': 0.06, 'wing-beams': 0.05,
-    'bus-radiators': 0.04,
+    'bus-radiators': 0.04, 'hall-thruster': 0.04,
   };
   g.traverse((o) => { const f = FINE[o.name]; if (f) o.userData.lodFeature = f; });
 
