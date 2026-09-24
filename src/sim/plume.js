@@ -155,8 +155,11 @@ export class Plume {
   /**
    * @param {number} throttle 0..1 of rated thrust
    * @param {number} altitude metres, which sets how far the exhaust is allowed to expand
+   * @param {number} [spread] the lit engines' share of the cluster radius: 1 with every
+   *   engine running, less when only an inner ring is lit, so a shutdown to the centre three
+   *   narrows the column instead of only dimming it
    */
-  setThrottle(throttle, altitude) {
+  setThrottle(throttle, altitude, spread = 1) {
     const on = throttle > 0.001;
     this.group.visible = on;
     if (!on) { this.light.intensity = 0; return; }
@@ -164,12 +167,16 @@ export class Plume {
     // Over-expanded and stubby at the pad; wide and long once there is nothing to push back.
     const stretch = 1 + 3.4 * (1 - p);
     const t = 0.5 + 0.5 * throttle;
-    const rc = this.radius * 0.82;
-    this.core.scale.set(rc, this.baseLength * stretch * t, rc);
-    const rs = this.radius * 1.34;
-    this.shroud.scale.set(rs, this.baseLength * stretch * 1.45 * t, rs);
-    const rv = this.radius * (1.7 + 1.4 * (1 - p));
-    this.veil.scale.set(rv, this.baseLength * stretch * 1.7 * t, rv);
+    const r = this.radius * spread;
+    // Length follows the lit radius less than width does: fewer engines make a thinner column
+    // before they make a shorter one.
+    const len = this.baseLength * (0.55 + 0.45 * spread);
+    const rc = r * 0.82;
+    this.core.scale.set(rc, len * stretch * t, rc);
+    const rs = r * 1.34;
+    this.shroud.scale.set(rs, len * stretch * 1.45 * t, rs);
+    const rv = r * (1.7 + 1.4 * (1 - p));
+    this.veil.scale.set(rv, len * stretch * 1.7 * t, rv);
     this.veil.material.uniforms.uSpread.value = 1 + 6.5 * (1 - p);
     this.veil.material.uniforms.uOpacity.value = 0.15 + 0.85 * p;
     for (const layer of [this.core, this.shroud, this.veil]) layer.material.uniforms.uTime.value = this.time;

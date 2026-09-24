@@ -338,7 +338,7 @@ export function dressCampus(scene, M) {
     if (Math.abs(z) < 75 + R && x > -230 - R && x < 240 + R) return false;       // exhibit row and road
     if (x > 25 - R && x < 75 + R && z > -135 - R && z < 40 + R) return false;       // access road
     if (Math.hypot(x, z + 185) < R + 165) return false;                              // Pad 2 and its berm
-    return z > -900;                                                                 // clear of the beach
+    return z - R > -470;                                                             // clear of the dunes and beach
   });
 
   // Low dunes. They were flattened spheres standing on their bottom pole: the widest part of

@@ -579,6 +579,28 @@ try {
     } else {
       report(false, 'los brazos cierran a la altura de los pines', 'no se encontró la malla catch-pin');
     }
+
+    // ...and over the arms, not just at their height. The arms run out from the tower along
+    // the complex's X and sit either side of the mount on ±Z, so in the complex frame the two
+    // pins must straddle the mount axis along Z. The trio used to be clocked with the vehicle's
+    // display yaw (pins 39,6° off the arms) and the booster came home 4,2 m off the axis;
+    // a height-only check passed both.
+    const plan = await page.evaluate((tt) => {
+      const v = window.__vc;
+      v.launch.seek(tt);
+      v.scene.updateMatrixWorld(true);
+      const pins = [];
+      v.scene.traverse(o => { if (o.name === 'catch-pin' && o.visible) pins.push(o); });
+      if (pins.length !== 2) return { count: pins.length };
+      const inv = v.complex.matrixWorld.clone().invert();
+      const [a, b] = pins.map(p => p.getWorldPosition(p.position.clone()).applyMatrix4(inv));
+      const mid = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 };
+      const ang = Math.abs(Math.atan2(Math.abs(b.x - a.x), Math.abs(b.z - a.z))) * 180 / Math.PI;
+      return { count: 2, off: Math.hypot(mid.x, mid.z), ang };
+    }, 415);
+    const planOk = plan.count === 2 && plan.off < 0.5 && plan.ang < 3;
+    report(planOk, 'los pines caen sobre los brazos y en el eje de la mesa',
+      plan.count === 2 ? `desvío del eje ${plan.off.toFixed(2)} m, pines a ${plan.ang.toFixed(1)}° de la dirección de los brazos` : `pines encontrados: ${plan.count}`);
   }
 
   await page.evaluate(() => window.__vc.launch.reset(false));

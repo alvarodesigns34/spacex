@@ -10,12 +10,14 @@ import { createClouds } from './clouds.js';
 /**
  * The Gulf shore. Starbase stands on the coast at Boca Chica, and the plain runs out into a
  * beach and the sea; every wide view here ended instead in the same flat khaki to the horizon.
- * This is a PLAUSIBLE shore, not a survey: a gently wandering line about 1.1 km beyond the pad
- * (world z), a dry beach, a wet margin, and the ground sloping away under the water surface.
+ * This is a PLAUSIBLE shore, not a survey: a gently wandering line with the water about 450 m
+ * beyond the pad's mount (world z) — the launch site stands "a few hundred yards" off Boca Chica
+ * Beach, and the old 1.1 km put a kilometre of plain between them. A dry beach, a wet margin,
+ * and the ground sloping away under the water surface.
  * @returns the shore's world z at world x
  */
 export function shoreZ(x) {
-  return -1150 + 0.22 * x + 46 * (noise2(x / 280 + 3.1, 7.7) - 0.5) + 18 * (noise2(x / 90, 1.3) - 0.5);
+  return -670 + 0.22 * x + 46 * (noise2(x / 280 + 3.1, 7.7) - 0.5) + 18 * (noise2(x / 90, 1.3) - 0.5);
 }
 
 /** Disc in the XY plane (rotated flat later) with a large-scale coastal tint. */

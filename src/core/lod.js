@@ -3,7 +3,7 @@
  *
  * The scene is 1:1, so the same object is legitimately looked at from 300 m and from 2 m, and
  * the right amount of geometry for one is the wrong amount for the other. The existing rule
- * was written for Starship's tiles — 13,500 hexagons that stop resolving past a couple of
+ * was written for Starship's tiles — 13,132 hexagons that stop resolving past a couple of
  * pixels each and past that only add sparkle — and it works, but it was the only one, so
  * every other vehicle carried all of its detail at every distance: a 247-mesh Roadster with a
  * stitched interior and a Hot Wheels car on the dash, drawn in full while it was eight pixels

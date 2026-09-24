@@ -31,7 +31,7 @@ export const EVENTS = {
   start: -12,
   ignition: -3,        // Raptor ignition sequence, derived from the T-0/liftoff interval
   liftoff: 2,          // cited
-  towerClear: 12,      // derived: the stack clears the 144,5 m tower at this point
+  towerClear: 0,       // derived below from the integrated altitude (the base clears the tower top)
   maxQ: 62,            // cited
   meco: 152,           // cited
   separation: 160,     // cited
@@ -178,6 +178,21 @@ function returnThrottle(t) {
   return 0;
 }
 
+/**
+ * Which of the booster's engines are lit, as a share of the cluster's radius (rings at 1,02,
+ * 2,48 and 3,86 m, 0,62 m exit radius, 4,48 m overall). Flight 5: 13 lit for the landing burn,
+ * down to the centre 3 for the last seconds (RGV engine count, T+6:30 and T+6:37); the inner
+ * ring for the boostback (flight 7 relit 9 of 10); the centre 3 through hot-staging.
+ */
+const CENTRE_3 = (1.02 + 0.62) / 4.48, INNER_13 = (2.48 + 0.62) / 4.48;
+function boosterSpread(t) {
+  if (t < EVENTS.meco) return 1;
+  if (t < EVENTS.boostbackStart) return CENTRE_3;
+  if (t <= EVENTS.boostbackEnd) return INNER_13;
+  if (t < EVENTS.catch - 9) return INNER_13;
+  return THREE.MathUtils.lerp(INNER_13, CENTRE_3, THREE.MathUtils.smoothstep(t, EVENTS.catch - 9, EVENTS.catch - 5));
+}
+
 function sample(arr, t) {
   const u = THREE.MathUtils.clamp(t / PROFILE.step, 0, PROFILE.n - 1);
   const i = Math.floor(u), f = u - i;
@@ -187,6 +202,16 @@ export const altitudeAt = (t) => (t <= 0 ? 0 : sample(PROFILE.alt, t));
 export const speedAt = (t) => (t <= 0 ? 0 : sample(PROFILE.spd, t));
 export const downrangeAt = (t) => (t <= 0 ? 0 : sample(PROFILE.down, t));
 export const pitchAt = (t) => (t <= 0 ? 0 : sample(PROFILE.pit, t));
+
+// The moment the stack clears the tower is read off the integrated climb, not authored: the
+// base has to rise from the mount deck (9 m above the pad) past the 144,5 m tower top, 135,5 m.
+// It was a fixed T+12, by which time the curve already has the stack ~300 m up.
+{
+  const CLIMB = 144.5 - 9;
+  let t = EVENTS.liftoff;
+  while (altitudeAt(t) < CLIMB && t < 60) t += 0.05;
+  EVENTS.towerClear = Math.round(t * 10) / 10;
+}
 
 /**
  * Booster throttle. Rated thrust until the throttle-down through Max-Q, back up, then the
@@ -599,8 +624,12 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     flight.rotation.z = -pitchAt(t);
 
     // Hot staging: the ship lights first and pushes itself off the booster.
+    // The push is the ship's own thrust over the stack's, 7,5 m/s² for the first seconds; after
+    // that it holds the speed it gained on the flight path. Integrated for the whole run, it
+    // added 286 km along the axis by T+436.
     const sep = Math.max(0, t - EVENTS.separation);
-    ship.position.y = shipHome + 0.5 * 7.5 * sep * sep;
+    const PUSH = 12;
+    ship.position.y = shipHome + (sep < PUSH ? 0.5 * 7.5 * sep * sep : 0.5 * 7.5 * PUSH * PUSH + 7.5 * PUSH * (sep - PUSH));
 
     // The booster on its own trajectory. Up to separation it is exactly where the stack is;
     // after it, it flies the return.
@@ -608,8 +637,11 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     const bAlt = boosterAltAt(t);
     boosterFlight.position.set(boosterDownAt(t), bAlt, 0);
     boosterFlight.rotation.z = -boosterPitchAt(t);
-    // A little sideways drift as it is pushed off, and then it is on its own.
-    booster.position.x = boosterHome.position.x - 0.7 * Math.min(sep, 6);
+    // A little sideways drift as it is pushed off. It is flown out during the coast, so the
+    // booster comes down the mount's axis: the arms close on the centre of the table, and a
+    // 4,2 m offset left standing to the catch put the pins beside them.
+    const drift = 0.7 * Math.min(sep, 6) * (1 - THREE.MathUtils.smoothstep(t, EVENTS.boostbackEnd, EVENTS.landingBurn - 20));
+    booster.position.x = boosterHome.position.x - drift;
     booster.rotation.z = THREE.MathUtils.degToRad(9) * Math.min(1, sep / 14) * Math.max(0, 1 - sep / 26);
 
     // The catch: the carriage rides up the tower as the booster comes home, and the arms close
@@ -626,7 +658,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     const bThrottle = t < EVENTS.separation ? bt : returnThrottle(t);
     boosterPlume.setTime(t);
     shipPlume.setTime(t);
-    boosterPlume.setThrottle(bThrottle, bAlt);
+    boosterPlume.setThrottle(bThrottle, bAlt, boosterSpread(t));
     shipPlume.setThrottle(st, alt);
     cloud.setFlame(bt * Math.max(0, 1 - alt / 160));
 

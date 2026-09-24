@@ -31,7 +31,7 @@ const RACE_PHI = Math.PI * 0.78;
 const DOOR_PHI = Math.PI * 1.18;
 
 // Tile geometry: reported ≈12 in (0.305 m) point to point → circumradius ≈0.152 m,
-// ≈0.264 m across the flats. Instanced; ~13 500 of them cover the ship.
+// ≈0.264 m across the flats. Instanced; 13 132 of them cover the ship (userData.tileCount).
 const TILE_R = 0.152;
 const TILE_T = 0.016;
 
@@ -43,6 +43,11 @@ const TILE_T = 0.016;
  * throat hard-coded into it. Twenty bells hung over the steel lip, in the one view (the flame
  * trench) that looks straight up at it.
  */
+/**
+ * Yaw of the stack on its mount, in degrees. Chosen to show the heat-shield line to the default
+ * cameras; the grid-fin trio is clocked against it so the catch pins still sit over the arms.
+ */
+export const STACK_YAW_DEG = 129.6;
 const RAPTOR_EXIT_R = 0.62;
 const BOOSTER_RINGS = [[3, 1.02, 0.45, Math.PI / 6], [10, 2.48, 0.35, 0], [20, 3.86, 0.25, Math.PI / 20]];
 /** Radius the booster's engine bells actually reach. The pad derives its throat from this. */
@@ -349,9 +354,15 @@ export function buildSuperHeavy(M) {
   race.rotation.y = Math.PI;                                // local +Z → radially outward
   g.add(race);
 
-  // Grid fins: 3 in a 90°/90°/180° layout, catch pins integrated into two of them.
+  // Grid fins: 3 in a T, catch pins integrated into the opposite pair and the third a rudder
+  // (NSF, "Super Heavy Block 3", May 2026). The pins have to land on the catch arms, which run
+  // out from the tower along world X and sit either side of the mount on ±Z. The stack is
+  // yawed STACK_YAW_DEG on display to show the tile line, so the trio is clocked back by the
+  // same angle: pins at world 0°/180°, over the arms. The rudder is put on the side away from
+  // the tower; which side it faces on the real pad is not published.
   const finY = ringTop - 3.9;
-  const finPhis = [Math.PI / 2, Math.PI, Math.PI * 1.5];
+  const pinPhi = -THREE.MathUtils.degToRad(STACK_YAW_DEG);
+  const finPhis = [pinPhi, pinPhi + Math.PI / 2, pinPhi + Math.PI];
   finPhis.forEach((phi, i) => {
     const a = gridFinAssembly(M, { withPin: i !== 1 });
     a.position.set(Math.sin(phi) * R, finY, Math.cos(phi) * R);
@@ -371,17 +382,13 @@ export function buildSuperHeavy(M) {
   }
   // Common-dome stiffener band (the visible weld band between the two tanks).
   g.add(mesh(new THREE.TorusGeometry(R + 0.025, 0.055, 6, 160), M.steelWarm, { position: [0, commonDome, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false }));
-  // Hold-down / lift points at the base.
-  const lugs = [];
-  for (let i = 0; i < 4; i++) {
-    const a = Math.PI / 4 + (i * Math.PI) / 2;
-    lugs.push({ geometry: new THREE.BoxGeometry(0.7, 0.5, 0.35), matrix: mat4([Math.sin(a) * (R + 0.15), skirtTop - 0.5, Math.cos(a) * (R + 0.15)], [0, a, 0]) });
-  }
-  g.add(mesh(mergeAll(lugs), M.darkMetal));
+  // No lift lugs on the skirt: Block 3 is lifted and caught by the grid-fin pins, and Pad 2
+  // holds it down by its twenty clamps on the skirt edge (NSF, Pad 2, May 2026). Four boxes
+  // at 45° up the skirt matched nothing photographed.
 
   g.userData.annotations = [
     { label: '33 Raptor 3 · 3 + 10 + 20', position: [0, -0.3, 6.5] },
-    { label: 'Grid fin (3 on V3, 90°/90°/180°)', position: [R + 6.4, finY + 0.6, 0] },
+    { label: 'Grid fin with catch pin (3 on V3, in a T)', position: [Math.sin(pinPhi) * (R + 6.4), finY + 0.6, Math.cos(pinPhi) * (R + 6.4)] },
     { label: 'Integrated catch pin', position: [-(R + 2.6), finY - 1.5, 0] },
     { label: 'Vented hot-staging section', position: [0, ringTop + 1.0, R + 0.8] },
     { label: 'Liquid oxygen tank', position: [0, (skirtTop + commonDome) / 2, R + 0.5] },
@@ -643,18 +650,32 @@ export function buildShip(M) {
   }
   for (const f of frame) g.add(mesh(f, M.blackMatte, { castShadow: false }));
 
-  // Catch hardpoints under the forward flaps (Block 3 is caught by the ship's own pins).
-  for (const s of [1, -1]) {
-    const phi = s * fwdPhi;
-    const pin = mesh(new THREE.CylinderGeometry(0.24, 0.28, 0.7, 20), M.darkMetal);
-    pin.position.set(Math.sin(phi) * (R + 0.34), fwdBase - 0.9, Math.cos(phi) * (R + 0.34));
-    pin.rotation.set(Math.PI / 2, phi, 0, 'YXZ');
-    g.add(pin);
+  // Lift and catch points. On the V3 ship (Ship 39) the old pin sockets under the forward
+  // flaps were deleted and new lift/catch points put on the nose cone, higher up (NSF, flight
+  // 12 preview, May 2026). No station is published: they sit here just above the forward flaps,
+  // on the flap azimuths, standing off the ogive at its local radius. Reconstructed.
+  {
+    const noseR = (y) => {
+      for (let i = 1; i < nose.length; i++) {
+        const a = nose[i - 1], b = nose[i];
+        if ((a.y - y) * (b.y - y) <= 0) return a.r + (b.r - a.r) * ((y - a.y) / (b.y - a.y || 1));
+      }
+      return R;
+    };
+    const pinY = fwdBase + fwdLen + 1.0;
+    const r = noseR(pinY);
+    for (const s of [1, -1]) {
+      const phi = s * fwdPhi;
+      const pin = mesh(new THREE.CylinderGeometry(0.2, 0.24, 0.5, 20), M.darkMetal, { name: 'ship-lift-point' });
+      pin.position.set(Math.sin(phi) * (r + 0.22), pinY, Math.cos(phi) * (r + 0.22));
+      pin.rotation.set(Math.PI / 2, phi, 0, 'YXZ');
+      g.add(pin);
+    }
   }
 
   g.userData.annotations = [
     { label: '3 Raptor + 3 Raptor Vacuum', position: [0, -0.4, 5.0] },
-    { label: 'Heat shield · ≈18,000 hexagonal tiles', position: [0, 18, R + 0.7] },
+    { label: 'Heat shield · 13,132 hexagonal tiles modelled', position: [0, 18, R + 0.7] },
     { label: 'Aft flap', position: [R + 4.4, rings(1) + 3.5, 1.2] },
     { label: 'Forward flap (leeward side)', position: [Math.sin(fwdPhi) * (R + 2.4), fwdBase + 3.2, Math.cos(fwdPhi) * (R + 2.4)] },
     { label: 'Payload bay', position: [0, doorY, -(R + 0.9)] },

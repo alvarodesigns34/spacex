@@ -273,13 +273,19 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
     g.add(mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.3, 14), M.darkMetal,
       { position: [Math.sin(a) * (R + 0.06), S2_TOP - 1.2, Math.cos(a) * (R + 0.06)], rotation: [0, 0, Math.PI / 2] }));
   }
-  g.add(mesh(lathe([{ r: R, y: S2_TOP }, { r: R * 0.97, y: FAIRING_BASE }], { segments: 128 }), M.whitePanel, { name: 'payload-adapter' }));
+  // The published lengths (41.2 + 13.8 + 13.1 m, or 42.6 + 12.6 + 13.1 m in another table of
+  // the same article) fall 1.9 m short of the declared 70 m. The shortfall is carried as the
+  // second stage's forward skirt at full diameter, the way the stage meets the fairing's
+  // boat-tail, with a seam at the published stage length. It used to be a tapering cone that
+  // read as a measured payload adapter; nothing measures it.
+  g.add(mesh(lathe([{ r: R, y: S2_TOP }, { r: R, y: FAIRING_BASE }], { segments: 128 }), M.white, { name: 'stage2-forward-skirt' }));
+  g.add(mesh(new THREE.TorusGeometry(R + 0.006, 0.02, 5, 96), M.alumDark, { position: [0, S2_TOP, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false, name: 'stage2-forward-seam' }));
   g.add(mesh(new THREE.BoxGeometry(0.38, S2_H - 1.2, 0.18), M.blackMatte, { position: [0, S1_H + S2_H / 2, R + 0.08] }));
 
   // Fairing: 13.1 m × 5.2 m, two halves, blunt ogive nose.
   const ogiveStart = FAIRING_BASE + 6.1;
   const fProf = [
-    { r: R * 0.97, y: FAIRING_BASE }, { r: R * 0.97, y: FAIRING_BASE + 0.1, sharp: true },
+    { r: R, y: FAIRING_BASE }, { r: R, y: FAIRING_BASE + 0.1, sharp: true },
     { r: FAIRING_R, y: FAIRING_BASE + 1.55, sharp: true }, { r: FAIRING_R, y: ogiveStart },
     ...ogiveProfile(FAIRING_R, TOTAL_H - ogiveStart, ogiveStart, 48, 0.55).slice(1),
   ];
@@ -294,7 +300,7 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
   for (const phi of [Math.PI / 2, -Math.PI / 2]) {
     g.add(mesh(lathe(fProf.map(p => ({ r: p.r + 0.014, y: p.y })), { segments: 2, phiStart: phi - 0.005, phiLength: 0.01 }), M.blackMatte, { castShadow: false }));
   }
-  g.add(mesh(new THREE.TorusGeometry(R * 0.97 + 0.02, 0.055, 6, 96), M.darkMetal, { position: [0, FAIRING_BASE + 0.06, 0], rotation: [Math.PI / 2, 0, 0] }));
+  g.add(mesh(new THREE.TorusGeometry(R + 0.02, 0.055, 6, 96), M.darkMetal, { position: [0, FAIRING_BASE + 0.06, 0], rotation: [Math.PI / 2, 0, 0] }));
   g.userData.top = TOTAL_H;
   markFalconDetail(g);
   return g;

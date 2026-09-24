@@ -54,7 +54,7 @@ const SHOULDER = TRUNK_H + 0.30;   // top of the constant-diameter shoulder band
 const NOSE_BASE = TRUNK_H + 3.60;  // base of the hinged nose cone
 const NOSE_R = 1.14;
 const SPAN = NOSE_BASE - SHOULDER;
-const WALL_ANGLE = Math.atan((CAP_R - NOSE_R) / SPAN);   // mean slope, ≈15° (published: 15°)
+const WALL_ANGLE = Math.atan((CAP_R - NOSE_R) / SPAN);   // mean slope, ≈14.6° (from photographs; not a published figure)
 // Fitted to the table above: Δ(u) = 0.45u + 0.55u^2.2 of the radius lost by the top.
 const wallR = (y) => {
   const u = THREE.MathUtils.clamp((y - SHOULDER) / SPAN, 0, 1);
