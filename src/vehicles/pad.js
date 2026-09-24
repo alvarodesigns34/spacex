@@ -231,7 +231,7 @@ function buildMountTable(M) {
   const deck = new THREE.ExtrudeGeometry(sq, { depth: deckThick, bevelEnabled: false, curveSegments: 48 });
   deck.rotateX(-Math.PI / 2);
   deck.translate(0, deckTop - deckThick, 0);
-  g.add(mesh(boxUV(mergeAll([{ geometry: deck }])), M.mount));
+  g.add(mesh(boxUV(mergeAll([{ geometry: deck }])), (M.towerSteel ?? M.mount)));
 
   // Concrete foundation plinths and heavy steel baseplates under the four piers
   const plinths = [];
@@ -269,7 +269,7 @@ function buildMountTable(M) {
       });
     }
   }
-  g.add(mesh(boxUV(mergeAll(steel)), M.mount));
+  g.add(mesh(boxUV(mergeAll(steel)), (M.towerSteel ?? M.mount)));
 
   // Intermediate service mezzanine catwalk under the table (Y = 13.5 m)
   const catwalk = [];
@@ -497,7 +497,7 @@ function buildTower(M) {
   for (const y of [PAD.qdY - 1.6, top - 0.2]) decks.push(block(-c, c, y - 0.1, y + 0.1, -c, c));
   // Carriage rails on the pad face.
   for (const s of [-1, 1]) steel.push(block(h - 0.35, h + 0.45, base, top, s * 3.4 - 0.45, s * 3.4 + 0.45));
-  g.add(mesh(boxUV(mergeAll(steel)), M.mount, { name: 'tower-truss' }));
+  g.add(mesh(boxUV(mergeAll(steel)), (M.towerSteel ?? M.mount), { name: 'tower-truss' }));
   g.add(mesh(boxUV(mergeAll(light)), M.steelGrating, { name: 'tower-core', castShadow: true }));
   g.add(mesh(boxUV(mergeAll(decks)), M.steelGrating, { name: 'tower-decks' }));
 
@@ -547,7 +547,7 @@ function buildTower(M) {
     cable.push(rod([-h + 1.2, padY + 6, z], [-h + 1.2, sheaveY + 1.0, z], 0.06, 6));
     cable.push(rod([-h + 1.2, sheaveY + 1.0, z], [face - 0.9, sheaveY + 1.0, z], 0.06, 6));
   }
-  g.add(mesh(boxUV(mergeAll(hoist)), M.mount, { name: 'hoist-frame' }));
+  g.add(mesh(boxUV(mergeAll(hoist)), (M.towerSteel ?? M.mount), { name: 'hoist-frame' }));
   g.add(mesh(boxUV(mergeAll(sheaves)), M.darkMetal, { name: 'hoist-sheaves' }));
   g.add(mesh(boxUV(mergeAll(cable)), M.darkMetal, { name: 'hoist-cable-return', castShadow: false }));
   // The two falls from the sheaves to the carriage: unit-length rods hung from the sheave,
@@ -586,7 +586,7 @@ function buildChopsticks(M) {
     block(face - 1.4, face + 2.2, -3.2, 3.2, -7.5, 7.5),
     block(face - 0.4, face + 0.4, -4.6, 4.6, -8.4, -6.6),
     block(face - 0.4, face + 0.4, -4.6, 4.6, 6.6, 8.4),
-  ])), M.mount, { name: 'carriage' }));
+  ])), (M.towerSteel ?? M.mount), { name: 'carriage' }));
 
   // Arms open to ±42°, which clears the 9 m hull by a wide margin at the vehicle station.
   const open = THREE.MathUtils.degToRad(42);
@@ -623,7 +623,7 @@ function buildChopsticks(M) {
       const x = 8 + i * 7;
       parts.push(block(x, x + 2.4, -1.9, 1.9, -s * 2.1, -s * 1.35));
     }
-    arm.add(mesh(boxUV(mergeAll(parts)), M.mount));
+    arm.add(mesh(boxUV(mergeAll(parts)), (M.towerSteel ?? M.mount)));
     g.add(arm);
   }
   return g;
@@ -653,7 +653,7 @@ function buildQdArm(M) {
   }
   beam.push(block(0, 1.6, -hy, hy, -hz, hz));                                  // hinge root
   beam.push(block(0.4, L - 3, hy, hy + 0.12, -0.9, 0.9));                       // walkway deck
-  pivot.add(mesh(boxUV(mergeAll(beam)), M.mount, { name: 'qd-beam' }));
+  pivot.add(mesh(boxUV(mergeAll(beam)), (M.towerSteel ?? M.mount), { name: 'qd-beam' }));
   // The hood: a box open towards the ship, with a lip round its mouth.
   const hood = [
     block(L - 2.4, L - 2.1, -2.1, 2.1, -1.9, 1.9),        // back plate
@@ -662,7 +662,7 @@ function buildQdArm(M) {
     block(L - 2.4, L + 0.4, -2.1, 2.1, -1.9, -1.6),        // sides
     block(L - 2.4, L + 0.4, -2.1, 2.1, 1.6, 1.9),
   ];
-  pivot.add(mesh(boxUV(mergeAll(hood)), M.mount, { name: 'qd-hood' }));
+  pivot.add(mesh(boxUV(mergeAll(hood)), (M.towerSteel ?? M.mount), { name: 'qd-hood' }));
   // Walkway handrail along the deck.
   const rail = [];
   // Outboard of the three umbilicals, which run at z = −0.85, 0 and 0.85.

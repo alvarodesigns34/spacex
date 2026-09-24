@@ -23,7 +23,7 @@
  * Time runs 1:1 by default. The speed control multiplies the mission clock, it does not skip.
  */
 import * as THREE from 'three';
-import { Plume, GroundCloud, EngineJets, Vapor, CondensationCollar } from './plume.js';
+import { Plume, GroundCloud, EngineJets, Vapor, CondensationCollar, FlightEarth } from './plume.js';
 import { BOOSTER_RINGS, RAPTOR_EXIT_R } from '../vehicles/starship.js';
 import { seeded, monotoneSlopes, hermite } from '../geometry/utils.js';
 
@@ -500,6 +500,11 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   cloud.points.position.set(ex.lay.x, 0, ex.lay.z);
   scene.add(cloud.points);
 
+  // Above ~10 km the flat 1:1 site runs out long before the horizon: a curved Earth with a
+  // limb takes over from there, following the camera over the ground.
+  const flightEarth = new FlightEarth();
+  scene.add(flightEarth.group);
+
   // The viewer's near plane follows the orbit distance (main.js), so the value to put back is
   // whatever it was when the sequence took the camera, not what it was at construction. On the
   // pad the sequence uses a fixed near plane of its own: its cameras work metres from the hull.
@@ -831,12 +836,14 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     // pad comes back into shadow range as the booster returns to it.
     const camAlt = t < EVENTS.boostbackStart ? alt : bAlt;
     env.sun.castShadow = home.shadows && camAlt < 1800;
-    camera.near = camAlt > 900 ? 0.8 : PAD_NEAR;
-    camera.far = camAlt > 900 ? 260000 : home.far;
+    // Far plane out to past the geometric horizon, sqrt(2·R·h), with the limb shell on top.
+    camera.near = camAlt > 20000 ? 2 : camAlt > 900 ? 0.8 : PAD_NEAR;
+    camera.far = camAlt > 900 ? Math.max(260000, Math.sqrt(2 * 6371000 * camAlt) * 1.3 + 60000) : home.far;
     camera.updateProjectionMatrix();
 
     driveHardware(t);
     if (rig.external) driveCamera(t);
+    flightEarth.update(camera, env.sunDir, camera.position.y);
 
     // After staging the panel follows the booster: it is what the camera is on and what the
     // remaining milestones belong to.
@@ -889,6 +896,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     for (const vp of vapors) vp.hide();
     collar.set(0, 0);
     collarShip.set(0, 0);
+    flightEarth.hide();
     shipPlume.setThrottle(0, 0);
     resetCloud();
     parts.qdArm.rotation.y = 0;

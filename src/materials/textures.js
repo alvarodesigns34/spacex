@@ -916,3 +916,47 @@ export function makeRoadPaint({ size = 256, tile = 1.0 } = {}) {
   });
   return { map: toTexture(map, { srgb: true, tileSize: tile }), tileSize: tile };
 }
+
+// =====================================================================================
+//  WEATHERED PAINTED STEEL (Pad 2 tower, arms and mount). Dark grey coating on a coastal
+//  site: uneven paint, rust weeping down from joints and edges in vertical streaks, chipped
+//  spots showing lighter primer, a little salt bloom. Tiles every 4 m; boxUV maps it in
+//  metres on every face, and on the vertical faces v runs up, so the streaks hang down.
+// =====================================================================================
+export function makeWeatheredSteel({ size = 512, tile = 4.0 } = {}) {
+  const map = canvas(size, size), rough = canvas(size, size), height = canvas(size, size);
+  const field = (x, y, u, v) => {
+    const paint = (fbm(u * 6 + 3, v * 6 + 9, 4) - 0.5) * 0.06;
+    // Rust weeps: narrow in u, long in v, strongest just below "joints" every metre.
+    const col = fbm(u * 38 + 11, 3.7, 2);
+    const weep = Math.max(0, col - 0.55) * 2.2 * (0.35 + 0.65 * ((v * 4) % 1));
+    const chip = smoothstep(0.78, 0.84, noise2(x * 0.35 + 50, y * 0.35 + 20));
+    const salt = Math.max(0, fbm(u * 3 + 40, v * 3 + 2, 3) - 0.62) * 0.8;
+    return { paint, weep: Math.min(1, weep), chip, salt };
+  };
+  shade(map, (x, y, u, v) => {
+    const { paint, weep, chip, salt } = field(x, y, u, v);
+    let r = 0.25 + paint, g = 0.26 + paint, b = 0.28 + paint;
+    // Rust: a warm brown laid over the grey.
+    r = r * (1 - weep * 0.5) + 0.36 * weep * 0.5; g = g * (1 - weep * 0.5) + 0.22 * weep * 0.5; b = b * (1 - weep * 0.5) + 0.14 * weep * 0.5;
+    // Chips show the lighter primer; salt bloom lifts the surface a little.
+    r += chip * 0.14 + salt * 0.06; g += chip * 0.13 + salt * 0.06; b += chip * 0.11 + salt * 0.06;
+    return [clamp(r * 255), clamp(g * 255), clamp(b * 255)];
+  });
+  shade(rough, (x, y, u, v) => {
+    const { weep, chip, salt } = field(x, y, u, v);
+    const g = clamp((0.62 + weep * 0.2 + chip * 0.15 + salt * 0.1 + (fbm(u * 20, v * 20, 3) - 0.5) * 0.1) * 255);
+    return [g, g, g];
+  });
+  shade(height, (x, y, u, v) => {
+    const { chip } = field(x, y, u, v);
+    const g = clamp((0.5 - chip * 0.25 + (noise2(x * 0.8, y * 0.8) - 0.5) * 0.06) * 255);
+    return [g, g, g];
+  });
+  return {
+    map: toTexture(map, { srgb: true, tileSize: tile }),
+    roughnessMap: toTexture(rough, { tileSize: tile }),
+    normalMap: toTexture(heightToNormal(height, 1.0), { tileSize: tile }),
+    tileSize: tile,
+  };
+}

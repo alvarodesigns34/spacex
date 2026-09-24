@@ -69,6 +69,10 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
         <div><span>Downrange</span><b id="m-down">0 m</b></div>
         <div><span>Thrust</span><b id="m-thr">0 %</b></div>
       </div>
+      <figure class="mission-plot" aria-label="Altitude profile of the flight">
+        <svg id="mission-plot" viewBox="0 0 400 74" preserveAspectRatio="none"></svg>
+        <figcaption><span class="mp-ship">Ship</span><span class="mp-booster">Booster</span><span class="mp-scale">altitude, square-root scale</span></figcaption>
+      </figure>
       <div class="mission-foot">
         <div class="mission-speeds" id="mission-speeds">
           <button data-k="1" class="active">×1</button><button data-k="2">×2</button><button data-k="5">×5</button><button data-k="10">×10</button>
@@ -306,6 +310,36 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     return `T${t < 0 ? '−' : '+'}00:${String(Math.floor(a / 60)).padStart(2, '0')}:${String(Math.floor(a % 60)).padStart(2, '0')}`;
   };
   const dist = (m) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(m < 10000 ? 2 : 1)} km`);
+  // ---- Flight profile plot ----
+  // The whole flight at a glance: the ship's climb, the booster's return, the milestones as
+  // ticks and a cursor at the current instant. Altitude on a square-root scale, so the
+  // booster's 96 km arc and the pad-level catch both read beside a ship heading for orbit.
+  const plot = el('#mission-plot');
+  let plotSpan = null;
+  const PLOT_NS = 'http://www.w3.org/2000/svg';
+  function setTrajectory({ t0, t1, ship, booster, events }) {
+    plotSpan = { t0, t1 };
+    const top = Math.max(...ship.map(p => p[1]), ...booster.map(p => p[1]));
+    const X = (t) => ((t - t0) / (t1 - t0)) * 400;
+    const Y = (h) => 70 - Math.sqrt(Math.max(0, h) / top) * 64;
+    const path = (pts) => pts.map(([t, h], i) => `${i ? 'L' : 'M'}${X(t).toFixed(1)},${Y(h).toFixed(1)}`).join('');
+    plot.innerHTML = '';
+    for (const [t, label] of events) {
+      const l = document.createElementNS(PLOT_NS, 'line');
+      l.setAttribute('x1', X(t)); l.setAttribute('x2', X(t)); l.setAttribute('y1', 2); l.setAttribute('y2', 72);
+      l.setAttribute('class', 'mp-tick');
+      const tt = document.createElementNS(PLOT_NS, 'title'); tt.textContent = label; l.appendChild(tt);
+      plot.appendChild(l);
+    }
+    for (const [pts, cls] of [[booster, 'mp-line-booster'], [ship, 'mp-line-ship']]) {
+      const p = document.createElementNS(PLOT_NS, 'path');
+      p.setAttribute('d', path(pts)); p.setAttribute('class', cls);
+      plot.appendChild(p);
+    }
+    const c = document.createElementNS(PLOT_NS, 'line');
+    c.setAttribute('y1', 0); c.setAttribute('y2', 74); c.setAttribute('class', 'mp-cursor'); c.id = 'mp-cursor';
+    plot.appendChild(c);
+  }
   /** Called every frame while a sequence runs; null puts the panel away. */
   function setMission(st) {
     if (!st) {
@@ -324,6 +358,11 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     mDown.textContent = dist(st.downrange);
     mThr.textContent = `${Math.round(st.throttle * 100)} %`;
     for (const b of speeds) b.classList.toggle('active', Number(b.dataset.k) === st.speed);
+    const cur = plotSpan && plot.querySelector('#mp-cursor');
+    if (cur) {
+      const x = Math.max(0, Math.min(400, ((st.t - plotSpan.t0) / (plotSpan.t1 - plotSpan.t0)) * 400));
+      cur.setAttribute('x1', x); cur.setAttribute('x2', x);
+    }
   }
 
   function setMode(mode) {
@@ -432,5 +471,5 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     if (map[name]) el(map[name]).checked = value;
   }
 
-  return { setActive, setPreset, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setTour, showHelp, setMap, setMapCamera };
+  return { setActive, setPreset, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setTrajectory, setTour, showHelp, setMap, setMapCamera };
 }

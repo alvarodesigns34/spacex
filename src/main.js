@@ -32,7 +32,7 @@ import { buildLaunchMount, buildPedestal, buildHumanCrowd } from './vehicles/com
 import { seeded, mergeAll } from './geometry/utils.js';
 import { buildLaunchComplex, PAD } from './vehicles/pad.js';
 import { verifyExhibits, verifyScene, verifyPad, verifyInterfaces } from './data/verify.js';
-import { createLaunch } from './sim/launch.js';
+import { createLaunch, EVENTS, altitudeAt, boosterAltAt } from './sim/launch.js';
 
 // Exhibit layout (world X, metres). Mount heights are presentation choices.
 // `yaw` turns an exhibit on its mount. Starship is asymmetric — heat shield on the belly,
@@ -481,6 +481,16 @@ async function main() {
     onFinish: () => goPreset('starship', 'site'),
   });
   launch.setVisibilityHook((flying) => view.setFlying(flying));
+  {
+    const samples = (f, a, b) => Array.from({ length: 220 }, (_, i) => { const t = a + (b - a) * i / 219; return [t, f(t)]; });
+    hud.setTrajectory({
+      t0: EVENTS.start, t1: EVENTS.end,
+      ship: samples(altitudeAt, EVENTS.start, EVENTS.end),
+      booster: samples(boosterAltAt, EVENTS.separation, EVENTS.end),
+      events: [[EVENTS.liftoff, 'Liftoff'], [EVENTS.maxQ, 'Max-Q'], [EVENTS.meco, 'MECO'], [EVENTS.separation, 'Hot-staging'],
+        [EVENTS.boostbackStart, 'Boostback'], [EVENTS.boostbackEnd, 'Boostback end'], [EVENTS.landingBurn, 'Landing burn'], [EVENTS.catch, 'Catch']],
+    });
+  }
 
   hud.setProgress('Compiling shaders…', 0.95);
   await nextFrame();

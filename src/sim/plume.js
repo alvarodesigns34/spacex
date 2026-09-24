@@ -861,3 +861,114 @@ export class CondensationCollar {
     this.material.uniforms.uTime.value = t;
   }
 }
+
+// -----------------------------------------------------------------------------------------
+//  The Earth below, for the high part of the flight
+// -----------------------------------------------------------------------------------------
+/**
+ * Above a few kilometres the 5 km ground disc is a coin under the vehicle and the frame was
+ * dark navy to the edges. From 80 km the horizon is 1 000 km away and dips 9° below level: a
+ * curved, sunlit Earth with a blue limb over it, which is what every onboard view shows.
+ * This is that: a sphere of the Earth's real radius under the camera, with generic ocean,
+ * land and cloud from 3D noise on the sphere — illustrative, like the Roadster's orbital
+ * backdrop, not a map — lit by the scene's sun, hazing to sky-blue towards the horizon, and
+ * a limb shell of scattered light round it. Faded in from 9 to 20 km.
+ */
+const EARTH_R = 6371000;
+const EARTH_VERT = /* glsl */`
+  uniform vec3 uCentre;
+  varying vec3 vN, vW;
+  void main() {
+    vec4 w = modelMatrix * vec4(position, 1.0);
+    vW = w.xyz;
+    vN = normalize(w.xyz - uCentre);
+    gl_Position = projectionMatrix * viewMatrix * w;
+  }`;
+const EARTH_FRAG = /* glsl */`
+  uniform vec3 uSun, uCam;
+  uniform float uOpacity;
+  varying vec3 vN, vW;
+  float h3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+  float n3(vec3 x) {
+    vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(h3(i), h3(i + vec3(1,0,0)), f.x), mix(h3(i + vec3(0,1,0)), h3(i + vec3(1,1,0)), f.x), f.y),
+               mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z);
+  }
+  float fbm3(vec3 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 5; i++) { s += a * n3(p); p *= 2.07; a *= 0.5; } return s; }
+  void main() {
+    vec3 n = normalize(vN);
+    float land = fbm3(n * 9.0 + 3.1) - 0.56;
+    float cloud = smoothstep(0.52, 0.72, fbm3(n * 22.0 + vec3(7.0, 1.0, 4.0)));
+    vec3 ocean = vec3(0.02, 0.09, 0.2);
+    vec3 ground = mix(vec3(0.16, 0.18, 0.1), vec3(0.34, 0.3, 0.2), fbm3(n * 40.0));
+    vec3 c = land > 0.0 ? ground : ocean;
+    c = mix(c, vec3(0.86, 0.88, 0.9), cloud * 0.85);
+    float diff = max(dot(n, uSun), 0.0);
+    c *= 0.08 + 1.1 * diff;
+    // Towards the horizon the view passes through ever more air: haze to the sky's blue.
+    vec3 v = normalize(uCam - vW);
+    float mu = clamp(dot(n, v), 0.0, 1.0);
+    float haze = pow(1.0 - mu, 4.0);
+    c = mix(c, vec3(0.5, 0.66, 0.9) * (0.25 + diff), haze * 0.85);
+    gl_FragColor = vec4(c, uOpacity);
+  }`;
+const LIMB_FRAG = /* glsl */`
+  uniform vec3 uCam, uCentre, uSun;
+  uniform float uOpacity;
+  varying vec3 vN, vW;
+  // Analytic limb: the glow along each view ray goes as the air column at the ray's closest
+  // approach to the Earth, exp(-(r_min - R) / H). That is a thin bright band hugging the
+  // horizon from any altitude, whatever the shell's tessellation. Rays that hit the ground
+  // are the globe's; here they fade out just below the tangent.
+  void main() {
+    vec3 o = uCam - uCentre;
+    vec3 d = normalize(vW - uCam);
+    float tc = dot(-o, d);
+    float rmin = tc > 0.0 ? length(cross(o, d)) : length(o);
+    float hmin = rmin - ${EARTH_R.toFixed(1)};
+    // Two layers: the dense bright line (H ≈ 7 km) and the fainter blue that climbs a few
+    // tens of kilometres above it in every photograph from these altitudes.
+    float hp = max(hmin, 0.0);
+    float a = (0.85 * exp(-hp / 7000.0) + 0.4 * exp(-hp / 30000.0)) * smoothstep(-6000.0, 0.0, hmin);
+    vec3 p = normalize(o + d * max(tc, 0.0));
+    float lit = smoothstep(-0.25, 0.3, dot(p, uSun));
+    a *= lit * uOpacity;
+    if (a < 0.002) discard;
+    gl_FragColor = vec4(mix(vec3(0.3, 0.5, 1.0), vec3(0.78, 0.88, 1.0), clamp(a, 0.0, 1.0)) * a * 1.1, a);
+  }`;
+
+export class FlightEarth {
+  constructor() {
+    this.group = new THREE.Group();
+    this.group.name = 'flight-earth';
+    this.group.visible = false;
+    const uni = {
+      uCentre: { value: new THREE.Vector3() }, uCam: { value: new THREE.Vector3() },
+      uSun: { value: new THREE.Vector3(0, 1, 0) }, uOpacity: { value: 0 },
+    };
+    this.u = uni;
+    this.earth = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R, 192, 96),
+      new THREE.ShaderMaterial({ uniforms: uni, vertexShader: EARTH_VERT, fragmentShader: EARTH_FRAG, transparent: true, depthWrite: true }));
+    this.earth.name = 'flight-earth-globe';
+    this.limb = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R + 120000, 160, 80),
+      new THREE.ShaderMaterial({ uniforms: uni, vertexShader: EARTH_VERT, fragmentShader: LIMB_FRAG,
+        transparent: true, depthWrite: false, side: THREE.BackSide, blending: THREE.AdditiveBlending }));
+    this.limb.name = 'flight-earth-limb';
+    for (const m of [this.earth, this.limb]) { m.frustumCulled = false; m.renderOrder = -1; this.group.add(m); }
+  }
+
+  /** Follows the camera over the ground; fades in with the camera's altitude. */
+  update(camera, sunDir, altitude) {
+    const k = THREE.MathUtils.smoothstep(altitude, 9000, 20000);
+    this.group.visible = k > 0.001;
+    if (!this.group.visible) return;
+    // Centred under the camera, its top 40 m below the pad so the ground disc stays in front.
+    this.group.position.set(camera.position.x, -EARTH_R - 40, camera.position.z);
+    this.u.uCentre.value.copy(this.group.position);
+    this.u.uCam.value.copy(camera.position);
+    if (sunDir) this.u.uSun.value.copy(sunDir);
+    this.u.uOpacity.value = k;
+  }
+
+  hide() { this.group.visible = false; }
+}

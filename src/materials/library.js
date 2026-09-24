@@ -39,6 +39,7 @@ export function createMaterials(onProgress = () => {}) {
     ['bell', () => TX.makeEngineBell({ copper: 0.6 })],
     ['bellCool', () => TX.makeEngineBell({ copper: 0.12 })],
     ['greyDark', () => TX.makeGreyMetal({ tone: 0.28 })],
+    ['weatheredSteel', () => TX.makeWeatheredSteel()],
     ['water', () => TX.makeWater()],
   ];
   for (let i = 0; i < steps.length; i++) {
@@ -273,6 +274,13 @@ float vcNoise(vec2 p) {
   M.alumDark = new THREE.MeshPhysicalMaterial({ color: 0x5c6066, metalness: 0.9, roughness: 0.5 });
   M.radiator = new THREE.MeshPhysicalMaterial({ color: 0xf2f2ee, metalness: 0.1, roughness: 0.32, clearcoat: 0.4 });
   M.mount = new THREE.MeshStandardMaterial({ color: 0x3b3e42, metalness: 0.6, roughness: 0.62 });
+  // Pad 2's tower, arms and mount steel: a dark coating weathered by a coastal site — rust
+  // weeping from joints, chipped spots, salt bloom — rather than a flat grey. Metric UVs only.
+  M.towerSteel = new THREE.MeshStandardMaterial({
+    name: 'tower-steel', map: T.weatheredSteel.map, roughnessMap: T.weatheredSteel.roughnessMap,
+    normalMap: T.weatheredSteel.normalMap, normalScale: new THREE.Vector2(0.6, 0.6),
+    color: 0xffffff, metalness: 0.2, roughness: 1.0, envMapIntensity: 0.5,
+  });
   // Exhibit plinths: a satin graphite drum under a matte deck. The drum was the same
   // 60 %-metallic grey as the mount steel, and at that metalness it took its colour from the
   // sky: every plinth read navy blue.

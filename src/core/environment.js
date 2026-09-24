@@ -395,7 +395,10 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     // the mesh scales its metric UVs with it, which would smear one 48 m tile over 1.6 km at
     // full stretch; counter-scaling the repeat keeps the texel density fixed in world space,
     // so the ground coarsens in the frame rather than dissolving.
-    const gs = THREE.MathUtils.clamp(1 + h / 900, 1, 34);
+    // From 9 km the launch sequence's curved Earth takes over (FlightEarth, plume.js); a
+    // stretched flat disc would stand proud of its curvature as a dark band across the
+    // horizon, so the stretch is handed back over the same 9-20 km as the globe fades in.
+    const gs = 1 + (THREE.MathUtils.clamp(1 + h / 900, 1, 34) - 1) * (1 - THREE.MathUtils.smoothstep(h, 9000, 20000));
     if (ground.scale.x !== gs) {
       ground.scale.setScalar(gs);
       for (const t of groundMaps) t.repeat.set(baseRepeat.x * gs, baseRepeat.y * gs);
