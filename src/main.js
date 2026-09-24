@@ -205,7 +205,7 @@ async function main() {
   hud.setProgress('Lighting and environment…', 0.25);
   await nextFrame();
   const env = createEnvironment(renderer, scene, M, quality);
-  dressCampus(scene, M, { stops: Object.values(LAYOUT).filter(l => !l.pad).map(l => l.x) });
+  dressCampus(scene, M, { stops: Object.values(LAYOUT).filter(l => !l.pad).map(l => l.x), quality: quality.name });
 
   // ---- Post-processing (MSAA render target + subtle bloom) ----
   const rt = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { samples: quality.msaa, type: THREE.HalfFloatType });

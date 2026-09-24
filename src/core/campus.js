@@ -275,7 +275,7 @@ function buildFlats(g, M, avoid) {
       rims.push(geo);
     }
   }
-  if (!water.length) return;
+  if (!water.length) return [];
   const pondMat = M.water.clone();
   pondMat.name = 'tidal-flat-water';
   pondMat.color.setHex(0x3a4442);
@@ -289,6 +289,7 @@ function buildFlats(g, M, avoid) {
   });
   g.add(mesh(mergeGeometries(rims, false), rimMat, { name: 'tidal-flat-rims', castShadow: false }));
   g.add(mesh(mergeGeometries(water, false), pondMat, { name: 'tidal-flat-water', castShadow: false }));
+  return spec.map(([x, z, r]) => [x, z, r]);
 }
 
 /**
@@ -368,7 +369,7 @@ function buildSiteFurniture(g, M, stops) {
  * @param {import('three').Scene} scene
  * @param {Record<string, import('three').Material>} M
  */
-export function dressCampus(scene, M, { stops = [] } = {}) {
+export function dressCampus(scene, M, { stops = [], quality = 'high' } = {}) {
   const g = new THREE.Group();
   g.name = 'campus';
   g.userData.provenance = 'environmental-reconstruction';
@@ -407,7 +408,7 @@ export function dressCampus(scene, M, { stops = [] } = {}) {
 
   buildRoads(g, M);
   buildSiteFurniture(g, M, stops);
-  buildFlats(g, M, (x, z, r) => {
+  const ponds = buildFlats(g, M, (x, z, r) => {
     const R = r * 1.4;
     if (Math.abs(z) < 75 + R && x > -230 - R && x < 240 + R) return false;       // exhibit row and road
     if (x > 25 - R && x < 75 + R && z > -135 - R && z < 40 + R) return false;       // access road
@@ -488,18 +489,48 @@ export function dressCampus(scene, M, { stops = [] } = {}) {
   // 0.4 × 0.7 m planes, which from any distance read as bright green posts standing on the
   // plain. A clump is a lumpy, flattened dome, olive-brown, wider than it is tall, sitting
   // down in the ground, and lit from the sky above rather than as a flat card.
+  // Each clump is foliage, not a lump: ~170 small leaves scattered through a flattened dome,
+  // double-sided, each in one of the plain's greens (olive, grey-green, dry straw), on a few
+  // bare stems. The icosahedral domes it replaces read, in every wide view, as green boulders.
   const scrubGeo = (() => {
-    const geo = new THREE.IcosahedronGeometry(0.5, 2);
-    const p = geo.attributes.position;
-    for (let i = 0; i < p.count; i++) {
-      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
-      const k = 1 + 0.22 * Math.sin(x * 9.1 + z * 4.3) * Math.cos(y * 7.7 - x * 3.1) + 0.12 * Math.sin(z * 13.0 + y * 5.0);
-      p.setXYZ(i, x * k, Math.max(-0.12, y * 0.62 * k), z * k);
+    let sd = 91;
+    const r = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+    const pos = [], col = [];
+    const tones = [[0.36, 0.39, 0.25], [0.43, 0.45, 0.33], [0.53, 0.48, 0.33], [0.31, 0.35, 0.22]];
+    for (let i = 0; i < 170; i++) {
+      // A point in a flattened dome, denser towards the outside where the light is.
+      const a = r() * Math.PI * 2, u = Math.sqrt(r()), h = r();
+      const cx = Math.cos(a) * u * 0.5, cz = Math.sin(a) * u * 0.5;
+      const cy = 0.04 + h * 0.46 * (1 - 0.6 * u * u);
+      const size = 0.06 + r() * 0.05;
+      const t = tones[Math.floor(r() * tones.length)], lift = 0.9 + r() * 0.25;
+      // A leaf: a thin triangle in a random orientation.
+      const ax = r() * Math.PI * 2, tilt = (r() - 0.3) * 1.4;
+      const dx = Math.cos(ax) * size, dz = Math.sin(ax) * size;
+      const nx = -Math.sin(ax) * size * 0.45, nz = Math.cos(ax) * size * 0.45;
+      pos.push(cx - dx * 0.5 + nx, cy - tilt * size * 0.3, cz - dz * 0.5 + nz,
+        cx - dx * 0.5 - nx, cy - tilt * size * 0.3, cz - dz * 0.5 - nz,
+        cx + dx, cy + tilt * size * 0.6, cz + dz);
+      for (let k = 0; k < 3; k++) col.push(t[0] * lift, t[1] * lift, t[2] * lift);
     }
-    geo.translate(0, 0.06, 0);
+    // Bare stems from the root into the crown.
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + r(), R = 0.18 + r() * 0.2, w = 0.012;
+      const tx = Math.cos(a) * R, tz = Math.sin(a) * R, ty = 0.3 + r() * 0.12;
+      pos.push(-w, 0, 0, w, 0, 0, tx, ty, tz, 0, 0, -w, 0, 0, w, tx, ty, tz);
+      for (let k = 0; k < 6; k++) col.push(0.24, 0.2, 0.15);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     geo.computeVertexNormals();
+    // Leaves face the sky for lighting: a foliage clump is lit from above as a volume, and
+    // per-triangle normals in random directions made it sparkle.
+    const n = geo.attributes.normal;
+    for (let i = 0; i < n.count; i++) n.setXYZ(i, 0, 1, 0);
     return geo;
   })();
+  const scrubMat = new THREE.MeshStandardMaterial({ name: 'scrub-foliage', vertexColors: true, side: THREE.DoubleSide, roughness: 0.92, metalness: 0 });
   const spots = [];
   const scrubCount = 140;
   let seed = 17;
@@ -514,7 +545,7 @@ export function dressCampus(scene, M, { stops = [] } = {}) {
     if (onRow || onPad) continue;
     spots.push(x, z, rnd());
   }
-  const scrub = new THREE.InstancedMesh(scrubGeo, M.scrub, spots.length / 3);
+  const scrub = new THREE.InstancedMesh(scrubGeo, scrubMat, spots.length / 3);
   scrub.name = 'campus-scrub';
   scrub.castShadow = false;
   scrub.receiveShadow = true;
@@ -522,13 +553,58 @@ export function dressCampus(scene, M, { stops = [] } = {}) {
   for (let i = 0; i < spots.length; i += 3) {
     const s = 0.6 + spots[i + 2] * 1.9;
     dummy.position.set(spots[i], 0, spots[i + 1]);
-    dummy.scale.set(s * (0.8 + spots[i + 2] * 0.5), s * (0.55 + spots[i + 2] * 0.35), s);
+    dummy.scale.set(s * (0.9 + spots[i + 2] * 0.5), s * (0.8 + spots[i + 2] * 0.4), s);
     dummy.rotation.y = spots[i + 2] * 6;
     dummy.updateMatrix();
     scrub.setMatrixAt(i / 3, dummy.matrix);
   }
   scrub.instanceMatrix.needsUpdate = true;
   g.add(scrub);
+
+  // Bunchgrass across the plain: the coastal prairie round Starbase is grass as much as
+  // scrub. The same nine-blade tussock as the dune grass, in the plain's straw-olive, kept
+  // off the site, the roads, the pad and the ponds. Skipped on the low tier.
+  if (quality !== 'low' && M.duneGrass) {
+    const blades = [];
+    for (let b = 0; b < 9; b++) {
+      const a = (b / 9) * Math.PI * 2 + b * 0.7, lean = 0.25 + 0.2 * ((b * 37) % 5) / 5;
+      const len = 0.45 + 0.3 * ((b * 53) % 7) / 7;
+      const gb = new THREE.ConeGeometry(0.03, len, 3, 1, true);
+      gb.translate(0, len / 2, 0); gb.rotateZ(lean); gb.rotateY(a);
+      gb.translate(Math.cos(a) * 0.05, 0, Math.sin(a) * 0.05);
+      blades.push({ geometry: gb });
+    }
+    const tuft = mergeAll(blades);
+    let sd2 = 7;
+    const r2 = () => { sd2 = (sd2 * 16807) % 2147483647; return sd2 / 2147483647; };
+    const at = [];
+    for (let k = 0; k < 60000 && at.length < 7000; k++) {
+      const x = -320 + r2() * 650, z = -380 + r2() * 620;
+      if (z > -24 && z < 38 && x > -195 && x < 205) continue;          // site and road
+      if (x > 40 && x < 60 && z > -125 && z < 40) continue;            // access road
+      if (Math.hypot(x, z + 185) < 175) continue;                      // pad and berm
+      if (z < -440) continue;                                          // dunes and beach
+      if (ponds.some(([px, pz, pr]) => Math.hypot(x - px, z - pz) < pr * 1.4)) continue;
+      // Patchy, not uniform: keep a point only where a low-frequency field says grass.
+      if (noise2(x / 60 + 3, z / 60 - 5) < 0.38) continue;
+      at.push([x, z, r2()]);
+    }
+    const grass = new THREE.InstancedMesh(tuft, M.duneGrass, at.length);
+    grass.name = 'campus-bunchgrass';
+    const dm = new THREE.Object3D();
+    at.forEach(([x, z, k], i) => {
+      dm.position.set(x, 0, z);
+      dm.rotation.set(0, k * 9, 0);
+      const sc = 0.7 + k * 0.6;
+      dm.scale.set(sc, sc * (0.55 + k * 0.35), sc);
+      dm.updateMatrix();
+      grass.setMatrixAt(i, dm.matrix);
+    });
+    grass.instanceMatrix.needsUpdate = true;
+    grass.castShadow = false;
+    grass.receiveShadow = true;
+    g.add(grass);
+  }
 
   // Three service trucks on the road shoulder. They are scale furniture.
   const bodies = [];

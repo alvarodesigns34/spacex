@@ -254,7 +254,9 @@ float vcNoise(vec2 p) {
   // Inside a nozzle that has fired on a kerosene engine: a matte coat of soot, not bare metal.
   // With the clean-metal interior a flown Falcon's nine bells, seen from underneath, mirrored
   // the sky and read blue-grey; photographs of a recovered booster show them near-black.
-  M.bellInnerSoot = new THREE.MeshStandardMaterial({ color: 0x24211e, metalness: 0.25, roughness: 0.82, envMapIntensity: 0.45 });
+  // Seen from under the stage, the inside of a Merlin bell is dark metal with a bronze cast
+  // that picks up the light round the lip; at near-black and matt it read as nine black discs.
+  M.bellInnerSoot = new THREE.MeshStandardMaterial({ color: 0x4a3b2e, metalness: 0.55, roughness: 0.55, envMapIntensity: 0.6 });
   // Polymer cable jacket: it cannot inherit the ring welds of a Starship tank.
   M.conduit = new THREE.MeshStandardMaterial({ color: 0x555a61, metalness: 0, roughness: 0.76, envMapIntensity: 0.5 });
   M.darkMetal = new THREE.MeshStandardMaterial({ map: T.greyDark.map, roughnessMap: T.greyDark.roughnessMap, metalness: 0.85, roughness: 1.0 });

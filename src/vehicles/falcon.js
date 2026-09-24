@@ -119,6 +119,17 @@ function landingLeg(M, { length = 9.6, wrapR = R + 0.12 } = {}) {
 }
 
 /**
+ * Panel joints on painted white structure. Photographs of a Falcon's fairing and second stage
+ * show the frame stations and joints as faint grey lines, not black ones: the dark aluminium
+ * torus read as a pen line drawn round the fairing.
+ */
+let _seam = null;
+function seamMat(M) {
+  _seam ??= new THREE.MeshStandardMaterial({ name: 'falcon-seam', color: 0xb8bcc0, roughness: 0.6, metalness: 0.1 });
+  return _seam;
+}
+
+/**
  * Builds one core. variant: 'f9' | 'fh-center' | 'fh-side'.
  * Side boosters replace the interstage and second stage with a nose cone.
  */
@@ -267,7 +278,7 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
   // Second stage: LOX/RP-1 tank plus the payload interface below the fairing.
   g.add(mesh(lathe([{ r: R, y: S1_H }, { r: R, y: S2_TOP }], { segments: 128 }), M.white, { name: 'stage2' }));
   // Common-dome band between the second stage's RP-1 and LOX tanks.
-  g.add(mesh(new THREE.TorusGeometry(R + 0.012, 0.035, 6, 96), M.darkMetal, { position: [0, S1_H + S2_H * 0.42, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false }));
+  g.add(mesh(new THREE.TorusGeometry(R + 0.008, 0.025, 6, 96), seamMat(M), { position: [0, S1_H + S2_H * 0.42, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false }));
   // Cold-gas thruster pods used for second-stage attitude control.
   for (const a of [Math.PI * 0.25, Math.PI * 1.25]) {
     g.add(mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.3, 14), M.darkMetal,
@@ -279,7 +290,7 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
   // boat-tail, with a seam at the published stage length. It used to be a tapering cone that
   // read as a measured payload adapter; nothing measures it.
   g.add(mesh(lathe([{ r: R, y: S2_TOP }, { r: R, y: FAIRING_BASE }], { segments: 128 }), M.white, { name: 'stage2-forward-skirt' }));
-  g.add(mesh(new THREE.TorusGeometry(R + 0.006, 0.02, 5, 96), M.alumDark, { position: [0, S2_TOP, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false, name: 'stage2-forward-seam' }));
+  g.add(mesh(new THREE.TorusGeometry(R + 0.006, 0.02, 5, 96), seamMat(M), { position: [0, S2_TOP, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false, name: 'stage2-forward-seam' }));
   g.add(mesh(new THREE.BoxGeometry(0.38, S2_H - 1.2, 0.18), M.blackMatte, { position: [0, S1_H + S2_H / 2, R + 0.08] }));
 
   // Fairing: 13.1 m × 5.2 m, two halves, blunt ogive nose.
@@ -295,7 +306,7 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
   g.add(mesh(mergeAll([
     { geometry: new THREE.TorusGeometry(FAIRING_R + 0.008, 0.014, 5, 64), matrix: mat4([0, FAIRING_BASE + 2.2, 0], [Math.PI / 2, 0, 0]) },
     { geometry: new THREE.TorusGeometry(FAIRING_R + 0.008, 0.014, 5, 64), matrix: mat4([0, ogiveStart - 0.35, 0], [Math.PI / 2, 0, 0]) },
-  ]), M.alumDark, { name: 'fairing-frames', castShadow: false }));
+  ]), seamMat(M), { name: 'fairing-frames', castShadow: false }));
   // Split line between the halves.
   for (const phi of [Math.PI / 2, -Math.PI / 2]) {
     g.add(mesh(lathe(fProf.map(p => ({ r: p.r + 0.014, y: p.y })), { segments: 2, phiStart: phi - 0.005, phiLength: 0.01 }), M.blackMatte, { castShadow: false }));
