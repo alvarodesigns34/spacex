@@ -168,10 +168,14 @@ function buildGround(M) {
   // recomputing it from the same constant that produced it.
   g.add(mesh(boxUV(mergeAll(clad)), M.trenchArmor || M.darkMetal, { name: 'trench-armor' }));
 
-  // Bidirectional flame diverter: aerodynamic wedge under the engine opening that splits the plume
-  // down both arms of the trench, reinforced with structural stiffener ribs.
-  const ramps = [];
-  const crest = trenchFloorY + 4.2, run = 15.0;
+  // Bidirectional flame diverter. Cited (Wikipedia, SpaceX Starbase): on Pad 2 it is built from
+  // "many steel pipes" forming a flame bucket. It was drawn as a smooth steel wedge with a few
+  // ribs. Now the wedge is a concrete core, and what the exhaust meets is a bed of steel pipes
+  // laid across the trench, side by side down both slopes, fed from a header along each wall.
+  // Pipe size, count and the header layout are reconstructed; the 4.2 m crest and 15 m run are
+  // the old wedge's, so the trench's measured depth and clearances do not move.
+  const core = [];
+  const crest = trenchFloorY + 4.2, run = 15.0, drop = crest - trenchFloorY - 0.35;
   for (const s of [-1, 1]) {
     const shape = new THREE.Shape();
     shape.moveTo(0, trenchFloorY);
@@ -182,17 +186,30 @@ function buildGround(M) {
     const e = new THREE.ExtrudeGeometry(shape, { depth: tw * 2, bevelEnabled: false });
     e.rotateY(Math.PI / 2);
     e.translate(-tw, 0, 0);
-    ramps.push({ geometry: e });
+    core.push({ geometry: e });
   }
-  // Diverter central splitter spine and transverse stiffener ribs along the flame slope
-  ramps.push(block(-tw, tw, crest - 0.25, crest + 0.18, -0.35, 0.35));
-  for (const sz of [-1, 1]) {
-    for (let r = 2.5; r < run; r += 3.2) {
-      const yr = crest - (r / run) * (crest - trenchFloorY - 0.35);
-      ramps.push(block(-tw + 0.2, tw - 0.2, yr - 0.1, yr + 0.18, sz * r - 0.18, sz * r + 0.18));
+  g.add(mesh(boxUV(mergeAll(core)), M.concrete, { name: 'trench-diverter-core' }));
+
+  const pipes = [], headers = [];
+  const PIPE_R = 0.24, slopeLen = Math.hypot(run, drop);
+  const nx = drop / slopeLen, ny = run / slopeLen;        // slope normal, in (along-z, y)
+  const span = (tw - 0.75) * 2;
+  const n = Math.floor(slopeLen / (PIPE_R * 2.08));
+  for (const s of [-1, 1]) {
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n;
+      const z = s * (run * t + nx * PIPE_R), y = crest - drop * t + ny * PIPE_R;
+      pipes.push({ geometry: new THREE.CylinderGeometry(PIPE_R, PIPE_R, span, 14), matrix: mat4([0, y, z], [0, 0, Math.PI / 2]) });
+    }
+    // Headers down each wall, just proud of the pipe ends.
+    for (const x of [-(tw - 0.42), tw - 0.42]) {
+      headers.push(rod([x, crest + 0.35, 0], [x, trenchFloorY + 0.35 + 0.35, s * run], 0.4, 16));
     }
   }
-  g.add(mesh(boxUV(mergeAll(ramps)), M.trenchArmor || M.darkMetal, { name: 'trench-ramps' }));
+  // Ridge cap along the crest, where the two beds meet under the engines.
+  headers.push({ geometry: new THREE.CylinderGeometry(0.42, 0.42, span + 0.6, 18), matrix: mat4([0, crest + 0.3, 0], [0, 0, Math.PI / 2]) });
+  g.add(mesh(boxUV(mergeAll(pipes)), M.trenchArmor || M.darkMetal, { name: 'trench-ramps' }));
+  g.add(mesh(boxUV(mergeAll(headers)), M.trenchArmor || M.darkMetal, { name: 'trench-diverter-headers' }));
   return g;
 }
 
