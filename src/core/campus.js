@@ -89,12 +89,17 @@ export function dressCampus(scene, M) {
   g.userData.plan = [
     { kind: 'apron', x0: -178, z0: -18, x1: 188, z1: 20 },
     { kind: 'road', x0: -186, z0: 24, x1: 196, z1: 31.2 },
-    { kind: 'road', x0: 46, z0: -150, x1: 53, z1: 31.2 },
+    { kind: 'road', x0: 46, z0: -120, x1: 53, z1: 31.2 },
+    { kind: 'road', x0: 36, z0: -121, x1: 63, z1: -109 },
   ];
   const apron = [
     painted(quad(-178, -18, 188, 20, 0.012), 0xe2dccf),
-    painted(quad(-186, 24, 196, 31.2, 0.02), 0x6c7076),
-    painted(quad(46, -150, 53, 31.2, 0.02), 0x6c7076),
+    // Asphalt tint a touch warm: a neutral grey under the blue skylight read as navy.
+    painted(quad(-186, 24, 196, 31.2, 0.02), 0x7b7872),
+    // The access road runs to the toe of the pad's embankment and ends in a turning apron
+    // there. It used to carry on to z = −150 and vanish under the berm into the pad.
+    painted(quad(46, -120, 53, 31.2, 0.02), 0x7b7872),
+    painted(quad(36, -121, 63, -109, 0.021), 0x7b7872),
     painted(quad(-186, 31.2, 196, 32.4, 0.016), 0x5a5046),
   ];
   for (let x = -180; x < 190; x += 8) {
