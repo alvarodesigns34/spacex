@@ -888,18 +888,38 @@ function buildPadInfrastructure(M) {
   bridgeSteel.push(block(64, farmX, 8.2, 8.5, bz - 2.0, bz - 1.8));
   bridgeSteel.push(block(64, farmX, 8.2, 8.5, bz + 1.8, bz + 2.0));
 
-  for (const oy of [5.7, 6.5]) {
-    bridgeCryo.push({
-      geometry: new THREE.CylinderGeometry(0.32, 0.32, farmX - 64, 16),
-      matrix: mat4([(64 + farmX) / 2, oy, bz - 0.9], [0, 0, Math.PI / 2]),
-    });
+  // The four lines. They used to stop dead against the pad's retaining wall, six metres up.
+  // Now each rises at the pad edge, crosses the deck at 4.4 m on T-posts (clear of the deluge
+  // mains at 0.7 m and of the bunker doors), and turns in to its room of the booster fluid
+  // bunker: two lines to the methane side, two to the oxygen side. The turns are staggered so
+  // no line crosses another. Routing reconstructed.
+  const X0 = 67, riseX = 66.3, runH = padY + 4.4;
+  const lines = [
+    { y: 5.7, z: bz - 1.2, zEnd: -3.4, cryo: true },
+    { y: 6.5, z: bz - 0.4, zEnd: -1.4, cryo: true },
+    { y: 5.7, z: bz + 0.4, zEnd: 1.4, cryo: false },
+    { y: 6.5, z: bz + 1.2, zEnd: 3.4, cryo: false },
+  ];
+  const posts = [];
+  lines.forEach((ln, i) => {
+    const r = ln.cryo ? 0.32 : 0.28;
+    const out = ln.cryo ? bridgeCryo : bridgePipes;
+    out.push({ geometry: new THREE.CylinderGeometry(r, r, farmX - X0, 16), matrix: mat4([(X0 + farmX) / 2, ln.y, ln.z], [0, 0, Math.PI / 2]) });
+    const xt = 26 + i;                                   // staggered turn: inner line turns last
+    const path = [[X0, ln.y, ln.z], [riseX, ln.y, ln.z], [riseX, runH, ln.z], [xt, runH, ln.z], [xt, runH, ln.zEnd], [23.0, runH, ln.zEnd]];
+    for (let k = 0; k < path.length - 1; k++) out.push(rod(path[k], path[k + 1], r, 14));
+    for (let k = 1; k < path.length - 1; k++) out.push({ geometry: new THREE.SphereGeometry(r * 1.05, 14, 10), matrix: mat4(path[k]) });   // elbows
+  });
+  // T-posts under the deck run and the northward legs.
+  for (let x = 62; x >= 32; x -= 6) {
+    posts.push(block(x - 0.15, x + 0.15, padY, runH - 0.4, bz - 0.15, bz + 0.15));
+    posts.push(block(x - 0.2, x + 0.2, runH - 0.4, runH - 0.34, bz - 1.7, bz + 1.7));
   }
-  for (const oy of [5.7, 6.5]) {
-    bridgePipes.push({
-      geometry: new THREE.CylinderGeometry(0.28, 0.28, farmX - 64, 16),
-      matrix: mat4([(64 + farmX) / 2, oy, bz + 0.9], [0, 0, Math.PI / 2]),
-    });
+  for (let z = bz + 6; z <= -6; z += 6) {
+    posts.push(block(27.35, 27.65, padY, runH - 0.4, z - 0.15, z + 0.15));
+    posts.push(block(25.5, 29.5, runH - 0.4, runH - 0.34, z - 0.2, z + 0.2));
   }
+  g.add(mesh(boxUV(mergeAll(posts)), M.mount, { name: 'pad-pipe-posts' }));
   g.add(mesh(boxUV(mergeAll(bridgeSteel)), M.mount));
   g.add(mesh(boxUV(mergeAll(bridgeCryo)), M.pipeCryo || M.conduit));
   g.add(mesh(boxUV(mergeAll(bridgePipes)), M.conduit));
