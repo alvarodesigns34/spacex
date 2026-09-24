@@ -208,12 +208,22 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
   };
 
   if (variant === 'fh-side') {
-    // Nose cone in place of the interstage (spacex.com); length approximated from imagery.
-    const noseL = 6.5;
-    const prof = [{ r: R, y: TANK_TOP }, { r: R, y: TANK_TOP + 0.5 }, ...ogiveProfile(R, noseL - 0.5, TANK_TOP + 0.5, 30, 0.16).slice(1)];
+    // Measured against the Falcon Heavy demo on LC-39A (Wikimedia Commons, "Falcon Heavy Demo
+    // Mission (40126460511)", side-on, scaled by the 70 m stack and checked against the 13.1 m
+    // fairing, which it reads as 13.3 m): all three sets of grid fins sit level at about 40 m,
+    // and the side boosters' nose tips stand at about 45 m. So a side booster keeps a cylinder
+    // where the Falcon 9 carries its interstage, with its grid fins at the top of it, and the
+    // nose cone sits above that. It used to sit straight on the tank, 6 m lower, with the grid
+    // fins at 33 m — a visibly squat pair of boosters. This is still SpaceX's "nose cone in
+    // place of the interstage": the side booster's nose cone is a cylindrical skirt over the
+    // interstage station, closed by the taper.
+    const shoulder = S1_H - 0.3;              // top of the cylinder, level with the core's interstage
+    const noseL = 4.3;                        // tip ≈ 45.2 m, as measured
+    g.add(mesh(lathe([{ r: R, y: TANK_TOP }, { r: R, y: shoulder }], { segments: 128 }), M.whiteFresh, { name: 'side-upper' }));
+    const prof = [{ r: R, y: shoulder }, ...ogiveProfile(R, noseL, shoulder, 30, 0.16).slice(1)];
     g.add(mesh(lathe(prof, { segments: 128 }), M.whiteFresh, { name: 'nosecone' }));
-    addGridFins(TANK_TOP - 1.6);
-    g.userData.top = TANK_TOP + noseL;
+    addGridFins(S1_H - 1.95);
+    g.userData.top = shoulder + noseL;
     markFalconDetail(g);
     return g;
   }
@@ -449,7 +459,7 @@ export function buildFalconHeavy(M) {
   g.userData.stations = { tankTop: TANK_TOP, s1Top: S1_H, s2Top: S2_TOP, fairingBase: FAIRING_BASE, spacing };
   g.userData.annotations = [
     { label: '27 Merlin 1D (3 × 9)', position: [0, -0.3, 2.8] },
-    { label: 'Side booster with nose cone', position: [-spacing, TANK_TOP + 4.4, 1.2] },
+    { label: 'Side booster with nose cone', position: [-spacing, S1_H + 1.8, 1.2] },
     { label: 'Reinforced centre core', position: [0, 18, R + 0.35] },
     { label: 'Forward pneumatic attach points (LOX tank)', position: [spacing - 2.1, TANK_TOP - 0.45, 1.2] },
     { label: 'Lower attach point (Octaweb)', position: [spacing - 2.1, 3.2, 1.4] },

@@ -184,6 +184,7 @@ export const VEHICLES = [
       { label: 'Booster separation', value: '2 forward + 2 aft pneumatic mechanisms per side booster', source: 'spacex', ref: 'falcon_guide_2025' },
       { label: 'Core centreline spacing', value: '4.25 m (derived from the 12.2 m width and the 3.7 m diameter)', source: 'derived' },
       { label: 'Side nose cones', value: 'replace the interstage on the side boosters', source: 'spacex', ref: 'spacex_fh' },
+      { label: 'Side nose cone · height', value: '≈ 45 m to the tip; grid fins level with the centre core\'s at ≈ 40 m (measured from the demo-mission pad photograph)', source: 'derived', approx: true },
     ],
     approximations: [
       'Side nose cone height and attach strut geometry: estimated from imagery.',
@@ -193,7 +194,7 @@ export const VEHICLES = [
     presets: [
       { id: 'overview', label: 'Overview', pos: [80, 38, 100], target: [0, 33, 0] },
       { id: 'engines', label: '27 Merlins', pos: [3.2, -5.8, 4.2], target: [0, 0.5, 0] },
-      { id: 'nosecones', label: 'Side nose cones', pos: [15, 41, 17], target: [0, 37.5, 0] },
+      { id: 'nosecones', label: 'Side nose cones', pos: [15, 46, 17], target: [0, 42.5, 0] },
       { id: 'struts', label: 'Forward interfaces', pos: [3, 36, 8], target: [2.1, 34.1, 0] },
       { id: 'aft-interfaces', label: 'Aft interfaces', pos: [3.2, 4.9, 8], target: [2.1, 2.9, 0] },
     ],
