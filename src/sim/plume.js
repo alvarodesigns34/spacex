@@ -804,3 +804,60 @@ export class Vapor {
   hide() { this.mesh.visible = false; }
 }
 const _zero = new THREE.Vector3();
+
+// -----------------------------------------------------------------------------------------
+//  Condensation collar (transonic / Max-Q)
+// -----------------------------------------------------------------------------------------
+/**
+ * The white collar that forms round a launch vehicle through the transonic regime and Max-Q:
+ * the pressure drop behind a shoulder condenses the humid air into a sheath of cloud that
+ * trails back from it. On Starship it forms at the hot-stage ring and the ship's aft flaps.
+ * A cone of translucent white, streaked along its length and flickering, trailing back from
+ * `y` over `length` metres. Opacity is driven by the sequence; nothing here knows the clock.
+ */
+const COLLAR_VERT = /* glsl */`
+  varying vec2 vUv;
+  varying float vFace;
+  void main() {
+    vUv = uv;
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    vec3 n = normalize(normalMatrix * normal);
+    vFace = abs(dot(n, normalize(-mv.xyz)));
+    gl_Position = projectionMatrix * mv;
+  }`;
+const COLLAR_FRAG = /* glsl */`
+  uniform float uOpacity, uTime;
+  varying vec2 vUv;
+  varying float vFace;
+  void main() {
+    float v = vUv.y;                         // 1 at the shoulder, 0 at the tail
+    // Soft, uneven sheath rather than speed lines: broad lobes round the circumference with a
+    // little fine streaking along the flow.
+    float lobes = 0.7 + 0.3 * sin(vUv.x * 18.85 + sin(vUv.x * 6.28 * 3.0) * 1.5 + uTime * 1.5);
+    float streak = lobes * (0.85 + 0.15 * sin(vUv.x * 70.0 - uTime * 4.0 + v * 7.0));
+    float a = uOpacity * pow(v, 1.3) * smoothstep(1.0, 0.92, v) * streak * (0.5 + 0.5 * vFace);
+    if (a < 0.004) discard;
+    gl_FragColor = vec4(vec3(0.97, 0.975, 0.98), clamp(a, 0.0, 1.0));
+  }`;
+
+export class CondensationCollar {
+  constructor({ radius, spread = 7, length = 26, y = 0, name = 'condensation-collar' }) {
+    const g = new THREE.CylinderGeometry(radius + 0.4, radius + spread, length, 64, 8, true);
+    g.translate(0, y - length / 2, 0);
+    this.material = new THREE.ShaderMaterial({
+      uniforms: { uOpacity: { value: 0 }, uTime: { value: 0 } },
+      vertexShader: COLLAR_VERT, fragmentShader: COLLAR_FRAG,
+      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    });
+    this.mesh = new THREE.Mesh(g, this.material);
+    this.mesh.name = name;
+    this.mesh.renderOrder = 2;
+    this.mesh.visible = false;
+  }
+
+  set(opacity, t) {
+    this.mesh.visible = opacity > 0.01;
+    this.material.uniforms.uOpacity.value = opacity;
+    this.material.uniforms.uTime.value = t;
+  }
+}

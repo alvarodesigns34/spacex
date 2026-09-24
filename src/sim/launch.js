@@ -23,7 +23,7 @@
  * Time runs 1:1 by default. The speed control multiplies the mission clock, it does not skip.
  */
 import * as THREE from 'three';
-import { Plume, GroundCloud, EngineJets, Vapor } from './plume.js';
+import { Plume, GroundCloud, EngineJets, Vapor, CondensationCollar } from './plume.js';
 import { BOOSTER_RINGS, RAPTOR_EXIT_R } from '../vehicles/starship.js';
 import { seeded, monotoneSlopes, hermite } from '../geometry/utils.js';
 
@@ -116,13 +116,56 @@ const PROFILE = buildProfile();
 //
 // Altitude is not monotone here — it keeps climbing for a minute after staging — so this uses
 // a plain Catmull-Rom through the keys rather than the monotone cubic the ascent uses.
-// The last few keys are close together on purpose: a Catmull-Rom through a 3 800 m -> 10 m
-// drop with nothing after it overshoots straight through the ground, which is exactly what it
-// did — the booster arrived at altitude 0 and 80 cm the wrong side of the pad centre.
+// The descent keys come from DESCENT below, every two seconds and every second through the
+// final approach, dense enough that the spline cannot overshoot through the ground.
+// The descent after apogee is no longer authored. The old keys had the booster at 8,4 km and
+// 3 080 km/h when the landing burn lit — twice the terminal speed of an empty Super Heavy at
+// that height, which the air would not have allowed. It is integrated instead: a ballistic
+// fall from the 96 km apogee with drag (≈250 t, Cd ≈0,9 end-on over the 9 m disc, exponential
+// atmosphere — reconstructed values), then the cited landing burn at T+06:30 as a constant
+// ≈4,6 g net deceleration on 13 engines until it is down to walking pace, then the last
+// seconds on the centre three into the arms at T+06:54. The apogee time is solved for, so the
+// fall ends where the burn needs it: a booster that stops a hundred-odd metres above the arms.
+const DESCENT = (() => {
+  const APO_H = 96000, M = 250e3, CD = 0.9, AREA = Math.PI * 4.5 * 4.5, G = 9.81, BURN_DECEL = 45;
+  const CATCH_H = 22, SLOW = 12, dt = 0.02;
+  const rho = (h) => 1.225 * Math.exp(-Math.max(h, 0) / 8500);
+  const fly = (tApo) => {
+    const pts = [];
+    let t = tApo, h = APO_H, v = 0, phase = 0, tA = 0;
+    while (t < EVENTS.catch) {
+      if (phase === 0 && t >= EVENTS.landingBurn) phase = 1;
+      const drag = rho(h) * CD * AREA * v * v / (2 * M);
+      let a = -G + drag;
+      if (phase === 1) a += BURN_DECEL + G;
+      v += a * dt; h += v * dt; t += dt;
+      if (phase === 1 && v > -SLOW) { tA = t; break; }
+      pts.push([t, h]);
+    }
+    return { pts, tA, hA: h, vA: v };
+  };
+  // Solve for the apogee time that leaves ~120 m for the slow final descent.
+  let best = null;
+  for (let ta = 232; ta <= 262; ta += 0.25) {
+    const r = fly(ta);
+    if (!r.tA || r.tA > EVENTS.catch - 6) continue;
+    const err = Math.abs(r.hA - 120);
+    if (!best || err < best.err) best = { ...r, ta, err };
+  }
+  // Final descent: Hermite from the end of the burn to the arms, arriving at rest.
+  const T = EVENTS.catch - best.tA, h0 = best.hA, v0 = best.vA;
+  const c = (3 * (CATCH_H - h0) - 2 * v0 * T) / (T * T), d = (2 * (h0 - CATCH_H) + v0 * T) / (T * T * T);
+  const keys = [];
+  for (const [t, h] of best.pts) if (keys.length === 0 || t - keys[keys.length - 1][0] >= 2) keys.push([t, h]);
+  for (let s2 = 1; s2 < T; s2 += 1) keys.push([best.tA + s2, h0 + v0 * s2 + c * s2 * s2 + d * s2 * s2 * s2]);
+  return { apogee: best.ta, keys };
+})();
+
 const RETURN_ALT = [
-  [160, PROFILE.alt[EVENTS.separation / PROFILE.step]], [180, 68000], [200, 78500], [221, 85000], [250, 93000], [272, 96000],
-  [300, 91000], [330, 76000], [360, 49000], [385, 17000], [398, 4200], [405, 900],
-  [410, 140], [413, 34], [414, 22], [418, 22], [426, 22], [436, 22],
+  [160, PROFILE.alt[EVENTS.separation / PROFILE.step]], [180, 68000], [200, 78500], [221, 88500],
+  [DESCENT.apogee, 96000],
+  ...DESCENT.keys.filter(([t]) => t > DESCENT.apogee + 1.5),
+  [EVENTS.catch, 22], [418, 22], [426, 22], [436, 22],
 ];
 const RETURN_DOWN = [
   [160, PROFILE.down[EVENTS.separation / PROFILE.step]], [180, 92000], [200, 95500], [221, 93000], [250, 79000], [272, 66000],
@@ -417,7 +460,16 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
       return { at: around(6.6, -0.6, a), dir: out(a, 3.2), speed: 24, spread: 0.22, count: nv(33), life: 4.16, size: 5.28, grow: 8.4, jitter: 1.2, window: [EVENTS.ignition - 2, EVENTS.liftoff + 10] };
     }),
   });
-  rest.add(countdownVent.mesh, deluge.mesh);
+  // Landing: the last seconds of the burn blast the mount deck, and the exhaust and deck water
+  // spread out across it as a low sheet of steam.
+  const landingSpray = new Vapor({
+    name: 'vapor-landing', rng: seeded(24), accel: [0.5, 0.8, 0.2], tau: 1.4, opacity: 0.38,
+    emitters: Array.from({ length: 10 }, (_, i) => {
+      const a = (i / 10) * Math.PI * 2 + 0.2;
+      return { at: around(5.5, 0.5, a), dir: out(a, 0.08), speed: 22, spread: 0.25, count: nv(10), life: 4.5, size: 7, grow: 9, jitter: 1.5, window: [EVENTS.catch - 11, EVENTS.catch - 0.5] };
+    }),
+  });
+  rest.add(countdownVent.mesh, deluge.mesh, landingSpray.mesh);
   // After the catch the booster sits on the arms venting: off the top, round the upper tank,
   // and from the engine section. Attached to the booster, which no longer moves.
   const CATCH_WIN = [EVENTS.catch + 1.5, EVENTS.end + 60];
@@ -430,7 +482,19 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     ],
   });
   booster.add(catchVent.mesh);
-  const vapors = [countdownVent, deluge, catchVent];
+  const vapors = [countdownVent, deluge, landingSpray, catchVent];
+
+  // Max-Q: a condensation collar off the hot-stage ring, trailing down the booster, through
+  // the transonic climb and peak dynamic pressure. Timing follows the ascent's own Max-Q.
+  const collar = new CondensationCollar({ radius: 4.5, spread: 7.5, length: 30, y: 71.5 });
+  booster.add(collar.mesh);
+  const collarShip = new CondensationCollar({ radius: 4.5, spread: 5, length: 16, y: 12, name: 'condensation-collar-ship' });
+  ship.add(collarShip.mesh);
+  const collarAt = (t) => {
+    const k = THREE.MathUtils.smoothstep(t, EVENTS.maxQ - 22, EVENTS.maxQ - 12) * (1 - THREE.MathUtils.smoothstep(t, EVENTS.maxQ + 6, EVENTS.maxQ + 14));
+    // Flickers as it forms and sheds, the way it does on film.
+    return k * (0.8 + 0.2 * Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1.2));
+  };
 
   const cloud = new GroundCloud({ rng: seeded(11), count: quality.cloudParticles ?? 860 });
   cloud.points.position.set(ex.lay.x, 0, ex.lay.z);
@@ -753,6 +817,8 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     shipJets.setTime(t);
     shipJets.setState(st, alt, 6);
     for (const vp of vapors) vp.update(t, camera, env.sun);
+    collar.set(collarAt(t), t);
+    collarShip.set(collarAt(t) * 0.8, t);
     shipPlume.setThrottle(st, alt);
     cloud.setFlame(bt * Math.max(0, 1 - alt / 160));
 
@@ -821,6 +887,8 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     boosterJets.setState(0, 0, 0);
     shipJets.setState(0, 0, 0);
     for (const vp of vapors) vp.hide();
+    collar.set(0, 0);
+    collarShip.set(0, 0);
     shipPlume.setThrottle(0, 0);
     resetCloud();
     parts.qdArm.rotation.y = 0;
