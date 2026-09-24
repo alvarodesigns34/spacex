@@ -145,7 +145,10 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       dt.textContent = s.label;
       const dd = document.createElement('dd');
       const chip = s.approx ? `<span class="chip chip-approx" title="Approximate: no exact published figure">≈</span>` : `<span class="chip chip-src" title="${SOURCES[s.ref]?.label ?? ''}">${SOURCE_LABEL[s.source]}</span>`;
-      dd.innerHTML = `<span class="val">${s.value}</span>${chip}`;
+      // Keep a number and its unit together: "397 s" was breaking with the "s" alone on the
+      // next line.
+      const val = String(s.value).replace(/(\d) (?=(s|m|kg|kN|km|tf|t|N|MN|AU|°|%)\b)/g, '$1\u00a0');
+      dd.innerHTML = `<span class="val">${val}</span>${chip}`;
       dl.append(dt, dd);
     }
     const ul = el('#sheet-approx-list');

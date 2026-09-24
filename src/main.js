@@ -1053,6 +1053,9 @@ function buildRuler(M, height, id) {
     const tick = new THREE.Mesh(new THREE.BoxGeometry(height > 40 ? 1.6 : 0.5, 0.06, 0.06), mat);
     tick.position.set(0, y, 0);
     g.add(tick);
+    // The total is printed at the top already; a tick label that lands on (or within a step
+    // of) the top printed "70 m" twice, one over the other.
+    if (height - y < stepM * 0.6 && y > 0) continue;
     const div = document.createElement('div');
     div.className = 'ruler-label';
     div.textContent = `${y} m`;
