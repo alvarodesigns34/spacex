@@ -55,7 +55,7 @@ const PLUME_VERT = /* glsl */`
   }`;
 const PLUME_FRAG = /* glsl */`
   uniform vec3 uHot, uWarm, uCool;
-  uniform float uAlpha, uFalloff, uDiamond, uOpacity, uDiamondN, uTime;
+  uniform float uAlpha, uFalloff, uDiamond, uOpacity, uDiamondN, uTime, uGain;
   varying float vAxis;
   varying float vFace;
   varying float vRad;
@@ -88,7 +88,7 @@ const PLUME_FRAG = /* glsl */`
     // Deterministic billow. uTime is mission time, so a seek reproduces the same frame.
     a *= 1.0 + 0.07 * sin(v * 46.0 + uTime * 6.0) * smoothstep(0.08, 0.35, v);
     if (a < 0.0015 || a != a) discard;
-    gl_FragColor = vec4(c * shock * throat, clamp(a, 0.0, 1.0));
+    gl_FragColor = vec4(c * shock * throat * uGain, clamp(a, 0.0, 1.0));
   }`;
 
 /**
@@ -105,7 +105,7 @@ function coneLayer({ hot, warm, cool, alpha, falloff }) {
       uHot: { value: lin(hot) }, uWarm: { value: lin(warm) }, uCool: { value: lin(cool) },
       uAlpha: { value: alpha }, uFalloff: { value: falloff },
       uDiamond: { value: 0 }, uDiamondN: { value: 14.14 },
-      uOpacity: { value: 1 }, uSpread: { value: 1 }, uTime: { value: 0 },
+      uOpacity: { value: 1 }, uSpread: { value: 1 }, uTime: { value: 0 }, uGain: { value: 1 },
     },
     vertexShader: PLUME_VERT, fragmentShader: PLUME_FRAG,
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
@@ -136,6 +136,11 @@ export class Plume {
     // Outer density: soot and cooled exhaust. Wide, dim, and gone once the flow is
     // a vacuum bell. It does not write depth, so the vehicle stays visible through it.
     this.veil = coneLayer({ hot: 0xffe2c0, warm: 0x8a5a32, cool: 0x5c564e, alpha: 0.18, falloff: 1.2 });
+    // The core is an emitter, not a tint: a sea-level Raptor column photographs saturated white
+    // against a bright sky, and at 1.0 an additive layer over a pale sky only lifted it to a
+    // pinkish cream. In HDR it clips to white and blooms, as in the photographs.
+    this.core.material.uniforms.uGain.value = 2.6;
+    this.shroud.material.uniforms.uGain.value = 1.4;
     this.group.add(this.veil, this.shroud, this.core);
     this.time = 0;
 
@@ -296,9 +301,11 @@ const CLOUD_VERT = /* glsl */`
     vAlpha = aAlpha * smoothstep(1.5, 16.0, -c.z);
 
     // Fire illumination: intense strictly near the two bidirectional trench mouths (|Z| ~ 44m, Y < 18m)
-    float dFlame = length(vec3(aOffset.x * 2.0, max(0.0, aOffset.y - 3.0) * 2.2, max(0.0, abs(aOffset.z) - 38.0) * 0.9));
-    float heightFade = 1.0 - smoothstep(2.0, 24.0, aOffset.y);
-    vFire = uFlame * (1.0 - smoothstep(5.0, 52.0, dFlame)) * heightFade;
+    // The plume lights the whole near side of the cloud, not only the mouths: in photographs of
+    // a Starship liftoff the lower cloud glows yellow-orange for a couple of hundred metres.
+    float dFlame = length(vec3(aOffset.x * 1.2, max(0.0, aOffset.y - 3.0) * 1.1, max(0.0, abs(aOffset.z) - 38.0) * 0.55));
+    float heightFade = 1.0 - smoothstep(10.0, 110.0, aOffset.y);
+    vFire = uFlame * (1.0 - smoothstep(10.0, 190.0, dFlame)) * heightFade;
 
     gl_Position = projectionMatrix * vec4(c + vec3(q, 0.0), 1.0);
   }`;
@@ -336,11 +343,11 @@ const CLOUD_FRAG = /* glsl */`
     vec3 steam = mix(uShadowColor, uSunColor, wrap);
 
     // Warm incandescent amber/golden fire illumination from the 33 Raptors hitting the trench
-    vec3 fireGlow = uFireColor * (1.15 + 0.35 * wrap);
-    vec3 col = mix(steam, fireGlow, clamp(vFire * 1.15, 0.0, 1.0));
-
-    // Extra incandescence right at the mouths
-    col += uFireColor * (vFire * vFire * 0.45);
+    // Lit by the plume in HDR, so the near side of the cloud glows past white and blooms the
+    // way it does in photographs of the liftoff, instead of settling on beige.
+    vec3 fireGlow = uFireColor * (1.6 + 0.5 * wrap);
+    vec3 col = mix(steam, fireGlow, clamp(vFire * 1.3, 0.0, 1.0));
+    col += uFireColor * (vFire * vFire * 1.4);
 
     gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
   }`;
@@ -400,9 +407,9 @@ export class GroundCloud {
     const mat = new THREE.ShaderMaterial({
       uniforms: {
         uMap: { value: this.map },
-        uSunColor: { value: new THREE.Color(0xd8d2c6) },
-        uShadowColor: { value: new THREE.Color(0x8a8176) },
-        uFireColor: { value: new THREE.Color(0xff9922) },
+        uSunColor: { value: new THREE.Color(0xe6e0d4) },
+        uShadowColor: { value: new THREE.Color(0x9a9084) },
+        uFireColor: { value: new THREE.Color(0xff9a2a) },
         uSunDir: { value: new THREE.Vector3(0.4, 0.7, 0.5).normalize() },
         uFlame: { value: 0.0 },
       },
@@ -491,9 +498,12 @@ export class GroundCloud {
     let hi = -1;
     for (let i = 0; i < this.count; i++) {
       if (age[i] >= life[i]) { if (alpha[i] !== 0) { alpha[i] = 0; size[i] = 0; } continue; }
-      hi = i;
       age[i] += dt;
       if (age[i] >= life[i]) { alpha[i] = 0; size[i] = 0; continue; }
+      // Counted only once it has survived this step. Counting it before the increment kept a
+      // puff that died on the last tick inside the drawn range, so a seek (which ends with a
+      // zero-length update) and a playback reaching the same instant drew different counts.
+      hi = i;
       const j = i * 3;
       pos[j] += vel[j] * dt;
       pos[j + 1] += vel[j + 1] * dt;
@@ -506,7 +516,7 @@ export class GroundCloud {
       const kH = Math.exp(-dt * 0.58);
       vel[j] *= kH; vel[j + 2] *= kH;
       // Thermal buoyancy: hot steam mushrooms up into the sky
-      vel[j + 1] = vel[j + 1] * Math.exp(-dt * 0.45) + 3.6 * dt;
+      vel[j + 1] = vel[j + 1] * Math.exp(-dt * 0.45) + 5.2 * dt;
 
       rot[i] += rotSpeed[i] * dt;
 
@@ -516,7 +526,7 @@ export class GroundCloud {
       // High volumetric density with smooth atmospheric decay
       const fadeIn = Math.min(1.0, u * 8.0);
       const fadeOut = Math.pow(Math.max(0.0, 1.0 - u), 1.3);
-      alpha[i] = 0.62 * fadeIn * fadeOut;
+      alpha[i] = 0.88 * fadeIn * fadeOut;
     }
     this.live = hi + 1;
     this.flush();

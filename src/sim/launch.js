@@ -332,6 +332,17 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   function saveCameraPlanes() { home.near = camera.near; home.far = camera.far; }
 
   // ---- Saved state, so reset() puts everything back exactly ----------------------------
+  // Frost on the loaded tanks: shown for the sequence (the exhibit on its stand is dry), full
+  // on the pad, shedding through the ascent as the vehicle shakes and the propellant drains.
+  const frostShells = ['booster-frost', 'ship-frost'].map(n => ex.model.getObjectByName(n)).filter(Boolean);
+  const frostMat = frostShells[0]?.children[0]?.material;
+  function applyFrost(t, on) {
+    const k = !on ? 0 : t < EVENTS.liftoff + 15 ? 1
+      : THREE.MathUtils.lerp(1, 0.4, THREE.MathUtils.smoothstep(t, EVENTS.liftoff + 15, EVENTS.meco));
+    for (const f of frostShells) f.visible = k > 0.01;
+    if (frostMat) frostMat.opacity = 0.9 * k;
+  }
+
   const home = {
     near: camera.near, far: camera.far,
     shadows: env.sun.castShadow,
@@ -548,13 +559,18 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     // channelled in TWO opposing directions (<- ->) along the flame trench axis, +Z and -Z.
     const alt = altitudeAt(t);
     const drive = boosterThrottle(t) * Math.max(0, 1 - alt / 380);
-    const n = drive * 110 * dt;
+    // Measured against the flight 5 liftoff (Wikimedia Commons, "Liftoff of SpaceX IFT-5"):
+    // seconds after liftoff the cloud off the two trench mouths is several hundred metres
+    // across and taller than the tower's lower half. It was a few grey puffs. Faster out of
+    // the mouths, larger, longer-lived and more of it; the ring buffer was enlarged to hold it.
+    const n = drive * 150 * dt;
     if (n < 0.05) return;
 
     // Exactly 50% North (+Z) and 50% South (-Z)
     const trenchCount = Math.max(1, Math.round(n * 0.50));
-    cloud.emit(trenchCount, [0, 2.6, 44], [0, 0.06, 1.0], 92, 20);
-    cloud.emit(trenchCount, [0, 2.6, -44], [0, 0.06, -1.0], 92, 20);
+    const big = { size0: 18, grow: 150, life0: 12, lifeVar: 16 };
+    cloud.emit(trenchCount, [0, 2.6, 44], [0, 0.10, 1.0], 125, 22, big);
+    cloud.emit(trenchCount, [0, 2.6, -44], [0, 0.10, -1.0], 125, 22, big);
 
     // ...but not all of it. The trench takes the exhaust; the deluge does not go with it.
     // Thousands of litres a second flash to steam ON the deck and boil up around the mount,
@@ -568,13 +584,14 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     for (const [px, pz] of [[16, 11], [-16, 11], [16, -11], [-16, -11]]) {
       const r = Math.hypot(px, pz);
       cloud.emit(Math.max(1, Math.round(near / 4)), [px, 19.0, pz],
-        [px / r * 0.5, 0.5, pz / r * 0.5], 17, 10,
-        { size0: 7, grow: 22, life0: 3.5, lifeVar: 3.5 });
+        [px / r * 0.5, 0.5, pz / r * 0.5], 22, 12,
+        { size0: 10, grow: 48, life0: 5, lifeVar: 5 });
     }
   }
 
   // ---- The one function that maps a mission time to the whole scene ---------------------
   function apply(t) {
+    applyFrost(t, true);
     const alt = altitudeAt(t);
     const bt = boosterThrottle(t), st = shipThrottle(t);
 
@@ -690,6 +707,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     env.sun.castShadow = home.shadows;
     camera.near = home.near; camera.far = home.far;
     camera.updateProjectionMatrix();
+    applyFrost(0, false);
     visibilityHook?.(false);
     Object.assign(state, { phase: 'On the pad', altitude: 0, velocity: 0, throttle: 0, downrange: 0 });
     onState(state);

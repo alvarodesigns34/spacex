@@ -388,6 +388,16 @@ export function buildSuperHeavy(M) {
     { label: 'Liquid methane tank', position: [0, (commonDome + ringTop) / 2, R + 0.5] },
     { label: 'Raceway (plumbing and wiring)', position: [0, skirtTop + 8, -(R + 1.4)] },
   ];
+  // Frost shells over the two loaded tanks, hidden on the display stand (an exhibit is dry)
+  // and shown by the launch sequence. A clear band is left at the common dome, where the
+  // insulating ullage gap keeps the wall warm, as every photograph of a fuelled booster shows.
+  const frost = new THREE.Group();
+  frost.name = 'booster-frost';
+  frost.visible = false;
+  for (const [y0, y1] of [[skirtTop + 0.6, commonDome - 1.1], [commonDome + 1.1, ringTop - 0.9]]) {
+    frost.add(mesh(lathe([{ r: R + 0.014, y: y0 }, { r: R + 0.014, y: y1 }], { segments: 128 }), M.frost, { castShadow: false, name: 'frost-shell' }));
+  }
+  g.add(frost);
   g.userData.stations = { skirtTop, commonDome, ringTop, finY, pinY: finY - PIN_DROP, height: BOOSTER_H };
   return g;
 }
@@ -644,6 +654,18 @@ export function buildShip(M) {
     { label: 'Liquid methane tank', position: [0, (commonDome + payloadBase) / 2, R + 0.5] },
     { label: 'Nose cone (header tanks)', position: [0, SHIP_H - 3.0, 1.6] },
   ];
+  // Frost on the lee (steel) side of the ship's tanks only: the tiles insulate, and frost on
+  // the black side would not show on the vehicle either. Windward is +Z (phi = 0), so the
+  // steel face is centred on phi = π.
+  const shipFrost = new THREE.Group();
+  shipFrost.name = 'ship-frost';
+  shipFrost.visible = false;
+  for (const [y0, y1] of [[skirtTop + 0.5, commonDome - 0.9], [commonDome + 0.9, payloadBase - 0.4]]) {
+    shipFrost.add(mesh(lathe([{ r: R + 0.014, y: y0 }, { r: R + 0.014, y: y1 }], {
+      segments: 64, phiStart: Math.PI * 0.62, phiLength: Math.PI * 0.76, rRef: R,
+    }), M.frost, { castShadow: false, name: 'frost-shell' }));
+  }
+  g.add(shipFrost);
   g.userData.stations = { skirtTop, commonDome, payloadBase, barrelTop, noseLen, height: SHIP_H };
   return g;
 }

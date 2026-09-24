@@ -63,7 +63,7 @@ const TIERS = {
     msaa: 4,
     // Metres of object per screen pixel at which detail is dropped. Lower is greedier.
     lodPixels: 3.5,
-    cloudParticles: 860,
+    cloudParticles: 1600,
     anisotropy: 16,
   },
   medium: {
@@ -74,7 +74,7 @@ const TIERS = {
     bloom: true,
     msaa: 4,
     lodPixels: 5,
-    cloudParticles: 520,
+    cloudParticles: 900,
     anisotropy: 8,
   },
   low: {
@@ -85,7 +85,7 @@ const TIERS = {
     bloom: false,
     msaa: 0,
     lodPixels: 9,
-    cloudParticles: 240,
+    cloudParticles: 400,
     anisotropy: 4,
   },
 };

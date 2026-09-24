@@ -643,6 +643,43 @@ export function makeTrenchArmor({ size = 512, tile = 8.0 } = {}) {
 // =====================================================================================
 //  MULTI-LAYER INSULATION FOIL (crinkled)
 // =====================================================================================
+/**
+ * Cryogenic frost on a loaded tank: a white-blue skin of ice, streaked vertically where
+ * condensate runs and refreezes, with bare-steel runs where sheets of it have already let go.
+ * The colour map carries the ice tone; the alpha map is the coverage the launch sequence
+ * fades in and out. Periodic in both directions (integer lattice frequencies) so the 4 m tile
+ * meets itself round the hull.
+ */
+export function makeFrost({ size = 512, tile = 16.0, tileU = 4.0 } = {}) {
+  // One tile is 4 m round the hull by 16 m up it, so nothing repeats at a height the eye can
+  // lock onto; at 4 m square the pattern stacked into bands down the booster.
+  const map = canvas(size, size);
+  const alpha = canvas(size, size);
+  const per = (u, v, fu, fv, ou = 0, ov = 0) => noise2(u * fu + ou, v * fv + ov);
+  // Contrast, not whiteness, is what reads as frost on already-bright steel: matte ice with
+  // darker vertical runs where condensate has melted and run down, and soft tall gaps where
+  // sheets have fallen away.
+  const runsAt = (u, v) => per(u, v, 80, 3, 11, 2) * 0.6 + per(u, v, 28, 2, 5, 9) * 0.4;
+  shade(map, (x, y, u, v) => {
+    const n = per(u, v, 64, 24, 3, 7);
+    const wet = Math.max(0, runsAt(u, v) - 0.55) * 2.6;
+    const c = (0.84 + (n - 0.5) * 0.06) * (1 - 0.42 * Math.min(1, wet));
+    return [clamp(c * 0.95 * 255), clamp(c * 0.97 * 255), clamp(c * 255)];
+  });
+  shade(alpha, (x, y, u, v) => {
+    const shed = per(u, v, 12, 3, 21, 13) * 0.7 + per(u, v, 40, 6, 3, 17) * 0.3;
+    const gap = THREE.MathUtils.smoothstep(shed, 0.6, 0.75);
+    const a = (0.72 + (runsAt(u, v) - 0.5) * 0.25) * (1 - 0.8 * gap);
+    const g = clamp(a * 255);
+    return [g, g, g];
+  });
+  return {
+    map: toTexture(map, { srgb: true, tileSize: tile, tileSizeU: tileU }),
+    alphaMap: toTexture(alpha, { tileSize: tile, tileSizeU: tileU }),
+    tileSize: tile,
+  };
+}
+
 export function makeFoil({ size = 256, tile = 0.5 } = {}) {
   const map = canvas(size, size);
   const height = canvas(size, size);
