@@ -454,9 +454,12 @@ export function buildShip(M) {
   const COVER_BARREL = THREE.MathUtils.degToRad(97);
   const COVER_NOSE = THREE.MathUtils.degToRad(112);
   const coverage = (y) => {
-    const y0 = barrelTop - 3, y1 = SHIP_H - 3.4;
+    const y0 = barrelTop - 3, y1 = SHIP_H - 3.4, y2 = SHIP_H - 1.2;
     if (y < y0) return COVER_BARREL;
-    if (y > y1) return Math.PI;                       // small tiled cap over the tip
+    // The cap over the tip is reached gradually. It used to jump from 112° to the full circle
+    // at y1, and the first row of the cap stood as a ring of tiles with triangles of bare
+    // steel between it and the rows below — a hard seam 3 m under the tip.
+    if (y > y1) return COVER_NOSE + (Math.PI - COVER_NOSE) * THREE.MathUtils.smoothstep(y, y1, y2);
     const t = THREE.MathUtils.clamp((y - y0) / (y1 - y0), 0, 1);
     return COVER_BARREL + t * (COVER_NOSE - COVER_BARREL);
   };
@@ -486,7 +489,11 @@ export function buildShip(M) {
     return Math.min(Math.PI, coverage(y) + TILE_R / r);
   };
   const backing = mesh(
-    coverageShell(profile, backCoverage, tileBase, SHIP_H - 0.02, 0.002, 140, 96),
+    // 8 mm proud of the hull: half a tile's thickness. At 2 mm the shell's facets and the
+    // hull's (both chords of the same curve, 96 and 160 segments round) crossed each other on
+    // the nose, and the bright steel poked through between the tiles as white specks and
+    // zig-zags, coming and going with the zoom.
+    coverageShell(profile, backCoverage, tileBase, SHIP_H - 0.02, 0.008, 180, 128),
     M.tileUnder, { castShadow: false });
   backing.name = 'tps-backing';
   g.add(backing);

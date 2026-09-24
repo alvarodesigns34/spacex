@@ -6,7 +6,7 @@
  * measured reconstructions from late-configuration photographs.
  */
 import * as THREE from 'three';
-import { lathe, mesh, tube, mat4, mergeAll } from '../geometry/utils.js';
+import { lathe, mesh, tube, mat4, mergeAll, boxUV } from '../geometry/utils.js';
 
 const H = 21.336, R = 1.6764 / 2, FR = 1.54 / 2;
 const AFT_BODY = 1.55, S1_TOP = 12.65, S2_BASE = 15.15, FAIRING_BASE = H - 3.50;
@@ -280,4 +280,95 @@ export function buildFalcon1(M) {
     { label: 'Biconic fairing · 1.54 m × 3.50 m', position: [0, 19.40, FR + .15] },
   ];
   return root;
+}
+
+/**
+ * Ground equipment Falcon 1 stood in on Omelek, as the flight-4/5 pad photographs show it: an
+ * erector strongback behind the vehicle whose cradle arms wrap the stage, and a separate lattice
+ * umbilical tower carrying the upper-stage umbilical down to the vehicle in a slack loop.
+ * Everything here is reconstructed from those photographs: section sizes, stations and the
+ * tower height are approximate; nothing about them is published. Model frame (nozzle exit at
+ * y = 0); `deckY` is the launch-mount deck the equipment stands on.
+ */
+export function buildFalcon1GroundEquipment(M, { deckY = -0.3 } = {}) {
+  const g = new THREE.Group(); g.name = 'falcon1-ground-equipment';
+  g.userData.reconstruction = 'Erector and umbilical tower reconstructed from Omelek photographs; dimensions approximate.';
+  const paint = new THREE.MeshStandardMaterial({ name: 'falcon1-gse-white', color: 0xe4e3de, roughness: 0.62, metalness: 0.08 });
+  const beam = (a, b, w, d = w) => {
+    const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), dir = B.clone().sub(A);
+    return { geometry: new THREE.BoxGeometry(w, dir.length(), d), matrix: new THREE.Matrix4().compose(
+      A.clone().add(B).multiplyScalar(0.5), new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize()),
+      new THREE.Vector3(1, 1, 1)) };
+  };
+  const parts = [], dark = [];
+
+  // Erector strongback: a 1.0 × 0.8 m box truss behind the vehicle, hinged at the deck.
+  const z0 = -(R + 0.7), z1 = -(R + 1.5), top = 17.4;
+  for (const x of [-0.5, 0.5]) for (const z of [z0, z1]) parts.push(beam([x, deckY + 0.5, z], [x, top, z], 0.12));
+  for (let y = deckY + 0.5, i = 0; y < top; y += 1.0, i++) {
+    const y2 = Math.min(top, y + 1.0);
+    for (const z of [z0, z1]) {
+      parts.push(beam([-0.5, y, z], [0.5, y, z], 0.07));
+      parts.push(beam([i % 2 ? -0.5 : 0.5, y, z], [i % 2 ? 0.5 : -0.5, y2, z], 0.05));
+    }
+    for (const x of [-0.5, 0.5]) {
+      parts.push(beam([x, y, z0], [x, y, z1], 0.07));
+      parts.push(beam([x, y, i % 2 ? z0 : z1], [x, y2, i % 2 ? z1 : z0], 0.05));
+    }
+  }
+  parts.push(beam([-0.5, top, z0], [0.5, top, z0], 0.12), beam([-0.5, top, z1], [0.5, top, z1], 0.12));
+  // Hinge: two lugs and a pin on a base plate at the foot of the strongback.
+  dark.push({ geometry: new THREE.BoxGeometry(1.5, 0.12, 1.3), matrix: mat4([0, deckY + 0.06, (z0 + z1) / 2]) });
+  for (const x of [-0.62, 0.62]) dark.push({ geometry: new THREE.BoxGeometry(0.1, 0.5, 0.5), matrix: mat4([x, deckY + 0.3, (z0 + z1) / 2]) });
+  dark.push({ geometry: new THREE.CylinderGeometry(0.07, 0.07, 1.36, 12), matrix: mat4([0, deckY + 0.38, (z0 + z1) / 2], [0, 0, Math.PI / 2]) });
+
+  // Cradle arms: a half ring round the back of the stage, braced to the strongback, with pads.
+  for (const y of [6.6, 13.2]) {
+    const ring = new THREE.TorusGeometry(R + 0.07, 0.05, 6, 36, Math.PI);
+    ring.rotateX(-Math.PI / 2);
+    parts.push({ geometry: ring, matrix: mat4([0, y, 0]) });
+    for (const s of [-1, 1]) parts.push(beam([s * (R + 0.07), y, 0], [s * 0.5, y, z0], 0.1));
+    parts.push(beam([0, y, -(R + 0.07)], [0, y, z0], 0.1));
+    for (const a of [-0.9, 0, 0.9]) dark.push({ geometry: new THREE.BoxGeometry(0.18, 0.2, 0.04),
+      matrix: mat4([Math.sin(Math.PI + a) * (R + 0.025), y, Math.cos(Math.PI + a) * (R + 0.025)], [0, a, 0]) });
+  }
+
+  // Umbilical tower: a triangular lattice mast at the back corner of the deck, with a boom.
+  const tx = -2.1, tz = -2.1, tH = 19.2, side = 0.9;
+  const corners = [0, 1, 2].map(i => {
+    const a = i / 3 * Math.PI * 2 + Math.PI / 4;
+    return [tx + Math.sin(a) * side / Math.sqrt(3), tz + Math.cos(a) * side / Math.sqrt(3)];
+  });
+  for (const [x, z] of corners) parts.push(beam([x, deckY, z], [x, tH, z], 0.09));
+  for (let y = deckY + 0.9, i = 0; y < tH; y += 0.9, i++) {
+    for (let k = 0; k < 3; k++) {
+      const [ax, az] = corners[k], [bx, bz] = corners[(k + 1) % 3];
+      parts.push(beam([ax, y, az], [bx, y, bz], 0.045));
+      parts.push(beam(i % 2 ? [ax, y, az] : [bx, y, bz], i % 2 ? [bx, Math.min(tH, y + 0.9), bz] : [ax, Math.min(tH, y + 0.9), az], 0.035));
+    }
+  }
+  // Boom reaching toward the vehicle, and its stay.
+  const toward = new THREE.Vector2(-tx, -tz).normalize();
+  const boomEnd = [tx + toward.x * 1.5, tH - 0.3, tz + toward.y * 1.5];
+  parts.push(beam([tx, tH - 0.3, tz], boomEnd, 0.12));
+  parts.push(beam([tx, tH - 1.8, tz], boomEnd, 0.06));
+
+  // Umbilicals: the upper-stage line hangs from the boom in a slack loop into its plate on the
+  // stage; a lighter line from the tower's mid-height runs to the first stage.
+  const az = Math.atan2(tx, tz), sx = Math.sin(az), sz = Math.cos(az);
+  const plateA = [sx * (R + 0.05), 16.3, sz * (R + 0.05)], plateB = [sx * (R + 0.05), 11.4, sz * (R + 0.05)];
+  dark.push({ geometry: new THREE.BoxGeometry(0.34, 0.42, 0.08), matrix: mat4(plateA, [0, az, 0]) });
+  dark.push({ geometry: new THREE.BoxGeometry(0.26, 0.3, 0.07), matrix: mat4(plateB, [0, az, 0]) });
+  const hoses = [
+    mesh(tube([boomEnd, [boomEnd[0] + toward.x * 0.1, tH - 2.2, boomEnd[2] + toward.y * 0.1],
+      [(boomEnd[0] + plateA[0]) / 2, 15.2, (boomEnd[2] + plateA[2]) / 2],
+      [plateA[0] + sx * 0.3, 16.0, plateA[2] + sz * 0.3], plateA], 0.075, { tubular: 48, radial: 10 }), M.blackMatte, { name: 'falcon1-umbilical-upper', castShadow: false }),
+    mesh(tube([[tx + toward.x * 0.4, 12.5, tz + toward.y * 0.4],
+      [(tx + plateB[0]) / 2, 10.6, (tz + plateB[2]) / 2], [plateB[0] + sx * 0.25, 11.2, plateB[2] + sz * 0.25], plateB], 0.045,
+    { tubular: 36, radial: 8 }), M.blackMatte, { name: 'falcon1-umbilical-lower', castShadow: false }),
+  ];
+  g.add(mesh(mergeAll(parts), paint, { name: 'falcon1-erector-and-tower' }));
+  g.add(mesh(boxUV(mergeAll(dark)), M.darkMetal ?? M.blackMatte, { name: 'falcon1-gse-fittings' }));
+  for (const h of hoses) g.add(h);
+  return g;
 }

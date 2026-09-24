@@ -19,6 +19,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mesh, mergeAll, mat4, boxUV } from '../geometry/utils.js';
+import { noise2 } from '../materials/textures.js';
 
 function quad(x0, z0, x1, z1, y) {
   const g = new THREE.PlaneGeometry(Math.abs(x1 - x0), Math.abs(z1 - z0));
@@ -72,6 +73,225 @@ function truckParts(x, z, yaw) {
 }
 
 /**
+ * One strip of road surface: a grid across and along it with a crown (2 % cross-fall is the
+ * AASHTO range for a two-lane paved road; this is ~1.5 %), a bevelled 5 cm edge where the mat
+ * meets the shoulder, and the wheel paths of each lane darkened in vertex colour, where tyres
+ * polish the binder and drip oil. Metric UVs: u along the road, v across it.
+ *
+ * @param {object} o
+ * @param {'x'|'z'} o.axis  direction of travel
+ * @param {number} o.a0 @param {number} o.a1  extent along the axis
+ * @param {number} o.c0  where the cross-section starts on the other axis
+ * @param {number} o.width
+ * @param {number} [o.crown]  crown height at the centre line above the edges
+ * @param {boolean} [o.wear]  darken the wheel paths
+ * @param {number[]} [o.fade] ends ('a0'/'a1' as 0/1) where the surface eases down flat to
+ *                           tuck under the road it joins
+ */
+function roadStrip({ axis, a0, a1, c0, width: W, crown = 0.055, wear = true, fade = [] }) {
+  const TOP = 0.05, LOW = 0.045;
+  const across = [0, 0.1];
+  for (let v = 0.5; v < W - 0.1; v += 0.4) across.push(v);
+  across.push(W - 0.1, W);
+  const along = [a0, a1];
+  if (fade.length) {
+    for (const d of [0.3, 1, 2, 3, 4, 6]) { if (fade.includes(0)) along.push(a0 + d); if (fade.includes(1)) along.push(a1 - d); }
+  }
+  along.sort((p, q) => p - q);
+  const h = (v, a) => {
+    const edge = Math.min(v, W - v);
+    let y = edge < 0.1 ? 0.008 + (TOP - 0.008) * (edge / 0.1) : TOP + crown * (1 - Math.abs(v - W / 2) / (W / 2));
+    let t = 0;
+    if (fade.includes(0)) t = Math.max(t, 1 - THREE.MathUtils.smoothstep(a - a0, 0.3, 6));
+    if (fade.includes(1)) t = Math.max(t, 1 - THREE.MathUtils.smoothstep(a1 - a, 0.3, 6));
+    if (edge >= 0.1) y = y + (LOW - y) * t;
+    return y;
+  };
+  const lanes = W > 6 ? [W * 0.125, W * 0.375, W * 0.625, W * 0.875] : [];
+  const tone = (v) => {
+    if (!wear) return 1;
+    let k = 1.02;
+    for (const p of lanes) k -= 0.11 * Math.exp(-(((v - p) / 0.32) ** 2));
+    return k;
+  };
+  const pos = [], uv = [], col = [], idx = [];
+  for (const a of along) for (const v of across) {
+    const c = c0 + v, y = h(v, a);
+    if (axis === 'x') pos.push(a, y, c); else pos.push(c, y, a);
+    uv.push(a, v);
+    const k = tone(v); col.push(k, k * 0.995, k * 0.985);
+  }
+  const n = across.length;
+  for (let i = 0; i < along.length - 1; i++) for (let j = 0; j < n - 1; j++) {
+    const p = i * n + j, q = p + n;
+    // Wind so the face points up whichever axis the road runs along.
+    if (axis === 'x') idx.push(p, p + 1, q, q, p + 1, q + 1); else idx.push(p, q, p + 1, q, q + 1, p + 1);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return { geometry: g, h };
+}
+
+/**
+ * The visitor road and the service road to Pad 2, as a rural two-lane road in Texas would be
+ * built and marked (FHWA MUTCD, 2009 ed., Part 3): white edge lines 15 cm wide; a broken yellow
+ * centre line of 3.05 m (10 ft) dashes on a 12.19 m (40 ft) cycle; a white stop line 45 cm wide
+ * across the approach lane, 1.2 m (4 ft) back from the through road, with a 75 cm (30 in)
+ * R1-1 STOP sign on the right, its lower edge 1.5 m (5 ft) above the road (§2B.05, §2A.18).
+ * Flexible delineators line the shoulders. Positions are dressing, not a survey.
+ */
+function buildRoads(g, M) {
+  const W = 7.2;
+  const main = roadStrip({ axis: 'x', a0: -186, a1: 196, c0: 24, width: W });
+  const access = roadStrip({ axis: 'z', a0: -109.3, a1: 24.3, c0: 45.9, width: W, fade: [0, 1] });
+  const turn = roadStrip({ axis: 'x', a0: 36, a1: 63, c0: -121, width: 12, crown: 0, wear: false });
+  g.add(mesh(mergeGeometries([main.geometry, access.geometry, turn.geometry], false), M.asphalt, {
+    name: 'campus-road', castShadow: false,
+  }));
+
+  // Markings, draped on the crown 4 mm proud of it.
+  const WHITE = [0.93, 0.93, 0.9], YELLOW = [0.96, 0.74, 0.16];
+  const pos = [], uv = [], col = [], idx = [];
+  const stripe = (axis, a0, a1, c0, v0, v1, h, rgb) => {
+    const base = pos.length / 3;
+    for (const a of [a0, a1]) for (const v of [v0, v1]) {
+      const y = h(v, a) + 0.004;
+      if (axis === 'x') pos.push(a, y, c0 + v); else pos.push(c0 + v, y, a);
+      uv.push(a, v); col.push(...rgb);
+    }
+    if (axis === 'x') idx.push(base, base + 1, base + 2, base + 2, base + 1, base + 3);
+    else idx.push(base, base + 2, base + 1, base + 2, base + 3, base + 1);
+  };
+  // Main road: edge lines (the north one breaks for the junction) and the centre line.
+  stripe('x', -186, 196, 24, W - 0.45, W - 0.30, main.h, WHITE);
+  stripe('x', -186, 43.5, 24, 0.30, 0.45, main.h, WHITE);
+  stripe('x', 55.5, 196, 24, 0.30, 0.45, main.h, WHITE);
+  for (let x = -186; x + 3.05 < 196; x += 12.19) stripe('x', x, x + 3.05, 24, W / 2 - 0.075, W / 2 + 0.075, main.h, YELLOW);
+  // Access road: edge lines, centre line, and the stop line across the southbound (+z) lane,
+  // whose right-hand side is −x.
+  stripe('z', -108.5, 22.5, 45.9, 0.30, 0.45, access.h, WHITE);
+  stripe('z', -108.5, 22.5, 45.9, W - 0.45, W - 0.30, access.h, WHITE);
+  for (let z = -106; z + 3.05 < 20; z += 12.19) stripe('z', z, z + 3.05, 45.9, W / 2 - 0.075, W / 2 + 0.075, access.h, YELLOW);
+  stripe('z', 24 - 1.2 - 0.45, 24 - 1.2, 45.9, 0.45, W / 2 - 0.1, access.h, WHITE);
+  const paint = new THREE.BufferGeometry();
+  paint.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  paint.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  paint.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  paint.setIndex(idx);
+  paint.computeVertexNormals();
+  g.add(mesh(paint, M.roadPaint, { name: 'campus-road-markings', castShadow: false }));
+
+  // STOP sign: 0.76 m octagon on a 2 m galvanised post, facing traffic coming down the access
+  // road (toward −z), set 0.9 m off the edge on the right.
+  const sign = new THREE.Group(); sign.name = 'campus-stop-sign';
+  sign.position.set(45.9 - 0.9, 0, 24 - 1.9);
+  sign.add(mesh(new THREE.BoxGeometry(0.05, 2.25, 0.05), M.aluminum ?? M.mount, { position: [0, 1.125, 0.03] }));
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const ctx = c.getContext('2d');
+  const oct = (r, fill) => {
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) { const a = Math.PI / 8 + i * Math.PI / 4; ctx.lineTo(128 + Math.cos(a) * r, 128 + Math.sin(a) * r); }
+    ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
+  };
+  oct(128, '#f4f4f2'); oct(119, '#b3121b');
+  ctx.fillStyle = '#f4f4f2'; ctx.font = 'bold 76px "Helvetica Neue", Arial, sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('STOP', 128, 132);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const face = new THREE.CircleGeometry(0.38 / Math.cos(Math.PI / 8), 8, Math.PI / 8);
+  const faceMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.45, metalness: 0, name: 'stop-sign-face' });
+  sign.add(mesh(face, faceMat, { position: [0, 1.5 + 0.38, 0.06], rotation: [0, Math.PI, 0], castShadow: true }));
+  const back = face.clone();
+  sign.add(mesh(back, M.aluminum ?? M.mount, { position: [0, 1.5 + 0.38, 0.065] }));
+  g.add(sign);
+
+  // Delineators: white flexible posts with a reflector, every 40 m along both shoulders.
+  const spots = [];
+  for (let x = -180; x <= 190; x += 40) { spots.push([x, 32.0]); if (x < 42 || x > 57) spots.push([x, 23.2]); }
+  for (let z = -100; z <= 0; z += 40) spots.push([45.3, z], [53.7, z]);
+  const post = mergeAll([
+    { geometry: new THREE.BoxGeometry(0.09, 1.1, 0.04), matrix: mat4([0, 0.55, 0]) },
+  ]);
+  const posts = new THREE.InstancedMesh(post, M.visitor ?? M.aluminum ?? M.mount, spots.length);
+  const refl = new THREE.InstancedMesh(new THREE.BoxGeometry(0.075, 0.18, 0.05), M.safetyYellow ?? M.mount, spots.length);
+  const m = new THREE.Matrix4();
+  spots.forEach(([x, z], i) => {
+    posts.setMatrixAt(i, m.makeTranslation(x, 0, z));
+    refl.setMatrixAt(i, m.makeTranslation(x, 0.98, z));
+  });
+  posts.name = 'campus-delineators'; refl.name = 'campus-delineator-reflectors';
+  for (const o of [posts, refl]) { o.castShadow = true; o.receiveShadow = true; g.add(o); }
+}
+
+/**
+ * Wind-tidal flats. The plain round Starbase is not dry scrub to the horizon: between the
+ * dunes it is salt flat that holds sheets of shallow standing water after rain and wind tides,
+ * mirror-flat and sky-coloured, ringed by dark wet mud fading through drier silt into the flat. These are a few
+ * such pools, placed clear of the exhibits, the roads and the pad. Positions and outlines are
+ * plausible, not surveyed.
+ */
+function buildFlats(g, M, avoid) {
+  const spec = [
+    // x, z, mean radius (m), seed
+    [-340, -170, 65, 1], [260, -240, 55, 2], [-170, 200, 50, 3], [310, 210, 75, 4],
+    [-430, 60, 60, 5], [110, 270, 42, 6], [410, -70, 50, 7], [-250, -340, 60, 8],
+  ].filter(([x, z, r]) => avoid(x, z, r));
+  const water = [], rims = [];
+  const N = 64;
+  for (const [cx, cz, R, seed] of spec) {
+    const rad = (a) => R * (0.72 + 0.55 * noise2(Math.cos(a) * 1.3 + seed * 7.1, Math.sin(a) * 1.3 + seed * 3.3)
+      + 0.12 * noise2(Math.cos(a) * 4 + seed, Math.sin(a) * 4 - seed));
+    const ring = Array.from({ length: N }, (_, i) => { const a = (i / N) * Math.PI * 2; return [a, rad(a)]; });
+    // Water: a fan from the centre, 6 cm above the flat ground.
+    {
+      const pos = [cx, 0.06, cz], uv = [cx, -cz], idx = [];
+      ring.forEach(([a, r]) => { const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r; pos.push(x, 0.06, z); uv.push(x, -z); });
+      for (let i = 0; i < N; i++) idx.push(0, 1 + ((i + 1) % N), 1 + i);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      geo.setIndex(idx); geo.computeVertexNormals();
+      water.push(geo);
+    }
+    // Rim: wet mud at the water's edge, fading out through drier silt over ~30 % of R.
+    {
+      const pos = [], col = [], idx = [];
+      const bands = [[0.98, [0.2, 0.18, 0.15], 1], [1.06, [0.3, 0.27, 0.22], 0.8], [1.16, [0.56, 0.53, 0.46], 0.3], [1.3, [0.6, 0.57, 0.5], 0]];
+      for (const [k, c, alpha] of bands) ring.forEach(([a, r]) => {
+        pos.push(cx + Math.cos(a) * r * k, 0.035, cz + Math.sin(a) * r * k);
+        col.push(c[0], c[1], c[2], alpha);
+      });
+      for (let b = 0; b < bands.length - 1; b++) for (let i = 0; i < N; i++) {
+        const p = b * N + i, q = b * N + ((i + 1) % N);
+        idx.push(p, q, p + N, q, q + N, p + N);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 4));
+      geo.setIndex(idx); geo.computeVertexNormals();
+      rims.push(geo);
+    }
+  }
+  if (!water.length) return;
+  const pondMat = M.water.clone();
+  pondMat.name = 'tidal-flat-water';
+  pondMat.color.setHex(0x3a4442);
+  pondMat.roughness = 0.08;
+  pondMat.envMapIntensity = 0.75;
+  pondMat.normalScale.set(0.12, 0.12);
+  pondMat.polygonOffset = true; pondMat.polygonOffsetFactor = -4; pondMat.polygonOffsetUnits = -4;
+  const rimMat = new THREE.MeshStandardMaterial({
+    name: 'tidal-flat-rim', vertexColors: true, transparent: true, depthWrite: false, roughness: 0.9, metalness: 0, envMapIntensity: 0.25,
+    polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
+  });
+  g.add(mesh(mergeGeometries(rims, false), rimMat, { name: 'tidal-flat-rims', castShadow: false }));
+  g.add(mesh(mergeGeometries(water, false), pondMat, { name: 'tidal-flat-water', castShadow: false }));
+}
+
+/**
  * @param {import('three').Scene} scene
  * @param {Record<string, import('three').Material>} M
  */
@@ -89,24 +309,19 @@ export function dressCampus(scene, M) {
   g.userData.plan = [
     { kind: 'apron', x0: -178, z0: -18, x1: 188, z1: 20 },
     { kind: 'road', x0: -186, z0: 24, x1: 196, z1: 31.2 },
-    { kind: 'road', x0: 46, z0: -120, x1: 53, z1: 31.2 },
+    { kind: 'road', x0: 45.9, z0: -109, x1: 53.1, z1: 24 },
     { kind: 'road', x0: 36, z0: -121, x1: 63, z1: -109 },
   ];
+  // Gravel shoulders either side of the asphalt. The access road's are left off where it
+  // crosses the exhibit apron, which is paved to the road edge.
+  const SHOULDER = 0xd4c8b0;
   const apron = [
     painted(quad(-178, -18, 188, 20, 0.012), 0xe2dccf),
-    // Asphalt tint a touch warm: a neutral grey under the blue skylight read as navy.
-    painted(quad(-186, 24, 196, 31.2, 0.02), 0x7b7872),
-    // The access road runs to the toe of the pad's embankment and ends in a turning apron
-    // there. It used to carry on to z = −150 and vanish under the berm into the pad.
-    painted(quad(46, -120, 53, 31.2, 0.02), 0x7b7872),
-    painted(quad(36, -121, 63, -109, 0.021), 0x7b7872),
-    painted(quad(-186, 31.2, 196, 32.4, 0.016), 0x5a5046),
+    painted(quad(-186, 22.8, 196, 24, 0.016), SHOULDER),
+    painted(quad(-186, 31.2, 196, 32.4, 0.016), SHOULDER),
+    ...[[-109, -18], [20, 22.8]].flatMap(([z0, z1]) => [
+      painted(quad(44.7, z0, 45.9, z1, 0.016), SHOULDER), painted(quad(53.1, z0, 54.3, z1, 0.016), SHOULDER)]),
   ];
-  for (let x = -180; x < 190; x += 8) {
-    // Flat paint, not an 8 mm box: the box's sides carried no area in a ground-plane mapping.
-    const dash = quad(x - 1.1, 27.54, x + 1.1, 27.66, 0.03);
-    apron.push(painted(dash, 0xfff0a0));
-  }
   // Metric UVs in the ground plane, as every map in the project expects.
   for (const geo of apron) {
     const p = geo.attributes.position, uv = new Float32Array(p.count * 2);
@@ -116,6 +331,15 @@ export function dressCampus(scene, M) {
   g.add(mesh(mergeGeometries(apron, false), M.campusGround, {
     name: 'campus-apron', castShadow: false,
   }));
+
+  buildRoads(g, M);
+  buildFlats(g, M, (x, z, r) => {
+    const R = r * 1.4;
+    if (Math.abs(z) < 75 + R && x > -230 - R && x < 240 + R) return false;       // exhibit row and road
+    if (x > 25 - R && x < 75 + R && z > -135 - R && z < 40 + R) return false;       // access road
+    if (Math.hypot(x, z + 185) < R + 165) return false;                              // Pad 2 and its berm
+    return z > -900;                                                                 // clear of the beach
+  });
 
   // Low dunes. They were flattened spheres standing on their bottom pole: the widest part of
   // each sat a third of a metre ABOVE the ground with a dark lip under it, in a flat khaki of

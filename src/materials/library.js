@@ -19,8 +19,8 @@ export function createMaterials(onProgress = () => {}) {
     // Tempering is patchy and local to the welds; soot is what actually covers the skirt.
     ['steelSkirt', () => TX.makeSteel({ heat: 0.3, soot: 0.78 })],
     ['steelWarm', () => TX.makeSteel({ heat: 0.3, soot: 0.12 })],
-    ['f9Body', () => TX.makeFalconBody({ name: 'FALCON 9' })],
-    ['fhBody', () => TX.makeFalconBody({ name: 'FALCON HEAVY' })],
+    ['f9Body', () => TX.makeFalconBody({ name: 'FALCON 9', flown: false })],
+    ['fhBody', () => TX.makeFalconBody({ name: 'FALCON HEAVY', flown: false })],
     ['f1Body', () => TX.makeFalconBody({ height: 12.65, name: 'FALCON 1', flown: false })],
     ['f1Interstage', () => TX.makeFalcon1Interstage()],
     ['white', () => TX.makeWhitePaint({ tile: 2.0 })],
@@ -28,6 +28,8 @@ export function createMaterials(onProgress = () => {}) {
     ['carbon', () => TX.makeCarbon()],
     ['solar', () => TX.makeSolar()],
     ['concrete', () => TX.makeConcrete()],
+    ['asphalt', () => TX.makeAsphalt()],
+    ['roadPaint', () => TX.makeRoadPaint()],
     ['terrain', () => TX.makeGroundTerrain()],
     ['trenchArmor', () => TX.makeTrenchArmor()],
     ['foil', () => TX.makeFoil()],
@@ -291,10 +293,19 @@ float vcNoise(vec2 p) {
     normalMap: T.concrete.normalMap, normalScale: new THREE.Vector2(0.5, 0.5),
     roughness: 1.0, metalness: 0, envMapIntensity: 0.5,
   });
-  M.asphalt = new THREE.MeshStandardMaterial({ color: 0x4a4e54, roughness: 0.92, metalness: 0 });
+  // Visitor road: aged asphalt with crack sealing and patches (makeAsphalt), darkened in the
+  // wheel paths through vertex colour. Paint is its own worn thermoplastic map, tinted per line.
+  M.asphalt = new THREE.MeshStandardMaterial({
+    // Warm tint: aged binder is brown-grey, and a neutral grey went navy under the skylight.
+    color: 0xfff1e2, vertexColors: true, map: T.asphalt.map, roughnessMap: T.asphalt.roughnessMap, normalMap: T.asphalt.normalMap,
+    normalScale: new THREE.Vector2(0.7, 0.7), roughness: 1.0, metalness: 0, envMapIntensity: 0.5,
+  });
   M.gravel = new THREE.MeshStandardMaterial({ color: 0x8d8474, roughness: 0.96, metalness: 0 });
   M.swale = new THREE.MeshStandardMaterial({ color: 0x3a332c, roughness: 0.98, metalness: 0 });
-  M.roadPaint = new THREE.MeshStandardMaterial({ color: 0xd7c36a, roughness: 0.72, metalness: 0 });
+  M.roadPaint = new THREE.MeshStandardMaterial({
+    vertexColors: true, map: T.roadPaint.map, roughness: 0.66, metalness: 0, envMapIntensity: 0.5,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  });
   M.berm = new THREE.MeshStandardMaterial({ color: 0x8a7a58, roughness: 0.96, metalness: 0 });
   // Coastal brush in late summer: olive going to straw, not lawn green.
   M.scrub = new THREE.MeshStandardMaterial({ color: 0x626240, roughness: 0.96, metalness: 0, flatShading: false });

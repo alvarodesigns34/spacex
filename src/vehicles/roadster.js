@@ -1018,11 +1018,20 @@ function createRoadsterMaterials(M) {
     envMapIntensity: 1.2,
   });
 
-  const starmanSuitWhite = new THREE.MeshPhysicalMaterial({
-    color: 0xeef0f4, metalness: 0.0, roughness: 0.52, sheen: 0.4, sheenRoughness: 0.7,
-    sheenColor: new THREE.Color(0xffffff),
+  // Suit fabric: a matt woven outer layer, not plastic. Sheen carries the soft rim a fabric
+  // shows at grazing angles, and a fold map breaks the highlights up the way cloth does.
+  const foldCanvas = canvas(256, 256);
+  shade(foldCanvas, (x, y, u, v) => {
+    const f = fbm(u * 3 + 11, v * 9 + 2, 4) * 0.7 + fbm(u * 14 + 5, v * 22 + 9, 3) * 0.3;
+    const g = Math.max(0, Math.min(255, f * 255));
+    return [g, g, g];
   });
-  const starmanSuitGraphite = new THREE.MeshStandardMaterial({ color: 0x1a1c21, roughness: 0.55, metalness: 0.16 });
+  const starmanSuitWhite = new THREE.MeshPhysicalMaterial({
+    color: 0xe9ebee, metalness: 0.0, roughness: 0.82, sheen: 1.0, sheenRoughness: 0.55,
+    sheenColor: new THREE.Color(0xd8dde4), envMapIntensity: 0.6,
+    normalMap: toTexture(heightToNormal(foldCanvas, 2.2)), normalScale: new THREE.Vector2(0.55, 0.55),
+  });
+  const starmanSuitGraphite = new THREE.MeshPhysicalMaterial({ color: 0x24272c, roughness: 0.7, metalness: 0.05, sheen: 0.6, sheenRoughness: 0.6, sheenColor: new THREE.Color(0x5a5f66) });
 
   // Gold-tinted IVA visor, dark from outside and not bright enough to punch the bloom
   // threshold the composer runs at.
@@ -3006,23 +3015,23 @@ function buildStarman(mats) {
   torso.position.set(X, 0.50, -0.30);
   torso.rotation.set(-0.30, 0.06, 0);
   const torsoGeo = lathe([
-    { r: 0.128, y: -0.20 },   // hips
-    { r: 0.140, y: -0.10 },
-    { r: 0.132, y: 0.02 },    // waist
-    { r: 0.158, y: 0.16 },    // chest
-    { r: 0.170, y: 0.26 },    // shoulders
-    { r: 0.140, y: 0.325 },
-    { r: 0.086, y: 0.35 },    // neck root
-  ], { segments: 26 });
-  torsoGeo.scale(1.0, 1, 0.70);
+    { r: 0.140, y: -0.20 },   // hips
+    { r: 0.152, y: -0.10 },
+    { r: 0.146, y: 0.02 },    // waist
+    { r: 0.172, y: 0.16 },    // chest: a suit over a 1.8 m man, not the man
+    { r: 0.186, y: 0.26 },    // shoulders
+    { r: 0.150, y: 0.325 },
+    { r: 0.090, y: 0.35 },    // neck root
+  ], { segments: 32 });
+  torsoGeo.scale(1.0, 1, 0.74);
   torso.add(mesh(torsoGeo, starmanSuitWhite, { name: 'suit-torso' }));
-  // The suit's graphite shoulder yoke and side articulation panels.
+  // The suit's graphite collar; the shoulder panels are separate caps, below.
   const yokeGeo = lathe([
-    { r: 0.170, y: 0.205 },
-    { r: 0.176, y: 0.255 },
-    { r: 0.150, y: 0.312 },
-  ], { segments: 26 });
-  yokeGeo.scale(1.0, 1, 0.70);
+    { r: 0.166, y: 0.300 },   // collar only: a full band read as a black vest
+    { r: 0.154, y: 0.322 },
+    { r: 0.112, y: 0.342 },
+  ], { segments: 32 });
+  yokeGeo.scale(1.0, 1, 0.74);
   torso.add(mesh(yokeGeo, starmanSuitGraphite, { name: 'suit-yoke' }));
   torso.add(mesh(new THREE.TorusGeometry(0.090, 0.011, 10, 24), starmanSuitGraphite, {
     position: [0, 0.352, 0], rotation: [Math.PI / 2, 0, 0], name: 'suit-neck-ring',
@@ -3032,21 +3041,21 @@ function buildStarman(mats) {
   // Arms. Shoulder -> elbow -> wrist, with the gloves as their own smaller chain.
   g.add(limbChain(
     [[X - 0.155, 0.735, -0.395], [armX - 0.010, 0.756, -0.235], [armX, 0.745, sillFwd.z - 0.10]],
-    [0.048, 0.040, 0.034], starmanSuitWhite, 'left-arm-door-sill',
+    [0.058, 0.050, 0.043], starmanSuitWhite, 'left-arm-door-sill',
   ));
   g.add(limbChain(
     [[armX, 0.745, sillFwd.z - 0.10], [armX + 0.006, 0.727, sillFwd.z + 0.02]],
-    [0.043, 0.038], starmanSuitGraphite, 'left-glove',
+    [0.040, 0.034], starmanSuitGraphite, 'left-glove',
   ));
   g.add(gloveFingers([armX + 0.006, 0.727, sillFwd.z + 0.02], [0.01, -0.15, 1], starmanSuitGraphite, 'left-fingers'));
 
   g.add(limbChain(
     [[X + 0.155, 0.735, -0.395], [X + 0.155, 0.585, -0.185], [X + 0.028, 0.700, 0.100]],
-    [0.048, 0.040, 0.034], starmanSuitWhite, 'right-arm-steering',
+    [0.058, 0.050, 0.043], starmanSuitWhite, 'right-arm-steering',
   ));
   g.add(limbChain(
     [[X + 0.028, 0.700, 0.100], [X - 0.010, 0.716, 0.146]],
-    [0.042, 0.036], starmanSuitGraphite, 'right-glove',
+    [0.040, 0.034], starmanSuitGraphite, 'right-glove',
   ));
   g.add(gloveFingers([X - 0.010, 0.716, 0.146], [-0.15, 0.05, 0.85], starmanSuitGraphite, 'right-fingers'));
   // Shoulder and lap belts. They leave the yoke and meet the seat, so the
@@ -3062,12 +3071,41 @@ function buildStarman(mats) {
     const lx = X + s * 0.105;
     g.add(limbChain(
       [[lx, 0.430, -0.300], [lx + s * 0.012, 0.452, 0.075], [lx - s * 0.006, 0.268, 0.290]],
-      [0.064, 0.052, 0.042], starmanSuitWhite, `leg-${s < 0 ? 'left' : 'right'}`,
+      [0.078, 0.064, 0.050], starmanSuitWhite, `leg-${s < 0 ? 'left' : 'right'}`,
     ));
+    // Knee panel: the suit's graphite articulation patch, proud of the knee.
+    const pad = new THREE.SphereGeometry(0.07, 16, 10);
+    pad.scale(1.0, 0.62, 0.9);
+    g.add(mesh(pad, starmanSuitGraphite, { position: [lx + s * 0.012, 0.478, 0.082], rotation: [-0.35, 0, 0], name: 'suit-knee-panel' }));
     // Flight boot.
     const boot = new THREE.SphereGeometry(0.062, 14, 10);
     boot.scale(0.78, 0.62, 1.65);
     g.add(mesh(boot, blackTrim, { position: [lx - s * 0.008, 0.238, 0.360], rotation: [0.22, 0, 0] }));
+  }
+
+  // Shoulder panels, glove gauntlets and the suit's umbilical connector on the right thigh
+  // (where the SpaceX IVA suit plugs into the seat). Envelopes are approximate.
+  for (const s of [-1, 1]) {
+    const cap = new THREE.SphereGeometry(0.066, 16, 10);
+    cap.scale(1, 0.78, 1);
+    g.add(mesh(cap, starmanSuitGraphite, { position: [X + s * 0.162, 0.748, -0.392], name: 'suit-shoulder-panel' }));
+  }
+  const cuff = (at, dir, name) => {
+    const a = new THREE.Vector3(...at), d = new THREE.Vector3(...dir).normalize();
+    const geo = new THREE.CylinderGeometry(0.047, 0.045, 0.06, 18, 1, true);
+    geo.applyMatrix4(new THREE.Matrix4().compose(a.clone().addScaledVector(d, -0.02),
+      new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d), new THREE.Vector3(1, 1, 1)));
+    g.add(mesh(geo, starmanSuitGraphite, { name }));
+  };
+  cuff([armX, 0.745, sillFwd.z - 0.10], [0.004, -0.02, 1], 'left-glove-gauntlet');
+  cuff([X + 0.028, 0.700, 0.100], [-0.13, 0.06, 0.18], 'right-glove-gauntlet');
+  {
+    const port = new THREE.Group(); port.name = 'suit-umbilical-connector';
+    port.position.set(X + 0.105 + 0.07, 0.462, -0.12);
+    port.rotation.set(0, 0, -1.2);
+    port.add(mesh(new THREE.BoxGeometry(0.075, 0.03, 0.09), starmanSuitGraphite));
+    port.add(mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.03, 16), mats.chromeTrim ?? blackTrim, { position: [0, 0.025, 0] }));
+    g.add(port);
   }
 
   // SpaceX IVA helmet: one lathed shell from crown to neck ring, not a sphere plus a cylinder
@@ -3077,6 +3115,7 @@ function buildStarman(mats) {
   head.name = 'spacex-helmet';
   head.position.set(X, 0.925, -0.335);
   head.rotation.set(0.04, -0.46, -0.03); // turned toward the door camera, as in the flight photos
+  head.scale.setScalar(1.08);           // the helmet is bigger than a head, and the old shell was head-sized
   const shell = lathe([
     { r: 0.000, y: 0.148 },
     { r: 0.052, y: 0.142 },
@@ -3115,6 +3154,12 @@ function buildStarman(mats) {
     name: 'helmet-visor-gasket',
   }));
 
+  // Visor pivots: a disc either side where the visor hinges on the shell.
+  for (const s of [-1, 1]) {
+    head.add(mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.012, 20), starmanSuitGraphite, {
+      position: [s * 0.126, 0.012, 0.012], rotation: [0, 0, Math.PI / 2], name: 'helmet-visor-pivot',
+    }));
+  }
   // Neck lock ring joining helmet to suit.
   head.add(mesh(new THREE.TorusGeometry(0.086, 0.013, 10, 26), starmanSuitGraphite, {
     position: [0, -0.146, 0], rotation: [Math.PI / 2, 0, 0], name: 'helmet-neck-ring',

@@ -206,9 +206,11 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
 
 // =====================================================================================
 //  FALCON first-stage full-body texture (unwrapped: u = around, v = height fraction).
-//  Includes friction-stir-weld panel lines, soot streaks from a flown booster and markings.
+//  Includes friction-stir-weld panel lines and markings. The exhibits are shown as new,
+//  unflown vehicles, clean white as on the pad before a first flight: the gallery soot read as
+//  a burnt, dirty finish rather than as flight history. `flown: true` keeps the reuse pattern.
 // =====================================================================================
-export function makeFalconBody({ w = 1024, h = 2048, height = 41.2, name = 'FALCON 9', flown = true } = {}) {
+export function makeFalconBody({ w = 1024, h = 2048, height = 41.2, name = 'FALCON 9', flown = false } = {}) {
   const map = canvas(w, h);
   const rough = canvas(Math.round(w / 2), Math.round(h / 2));
   const circumference = Math.PI * 3.7;
@@ -817,4 +819,100 @@ export function makeWater({ size = 512, tile = 420 } = {}) {
     return [g, g, g];
   });
   return { normalMap: toTexture(heightToNormal(height, 1.4), { tileSize: tile, anisotropy: 8 }), tileSize: tile };
+}
+
+// =====================================================================================
+//  ASPHALT (visitor road). Dense-graded hot mix, aged: the binder has oxidised to a mid grey
+//  and the coarse aggregate stands proud of it. Crack sealing runs as glossy black
+//  squiggles, and the odd rectangular patch sits a shade darker. Tiles every 6 m.
+// =====================================================================================
+export function makeAsphalt({ size = 1024, tile = 6.0 } = {}) {
+  const map = canvas(size, size), rough = canvas(size, size), height = canvas(size, size);
+  const r = seeded(4417);
+  // Patches: axis-aligned, slightly darker and smoother, in tile units (wrap-safe inside).
+  const patches = Array.from({ length: 3 }, () => {
+    const w = 0.08 + r() * 0.16, h = 0.06 + r() * 0.12;
+    const x = 0.05 + r() * (0.9 - w), y = 0.05 + r() * (0.9 - h);
+    return [x, y, x + w, y + h, (r() - 0.5) * 0.04];
+  });
+  const patchAt = (u, v) => {
+    for (const [x0, y0, x1, y1, t] of patches) if (u > x0 && u < x1 && v > y0 && v < y1) {
+      const e = Math.min(u - x0, x1 - u, v - y0, y1 - v);
+      return { t, edge: e < 0.0025 };
+    }
+    return null;
+  };
+  const grain = (x, y) => {
+    // Coarse aggregate: stones a few millimetres to a centimetre across (0.6 cm/px at 6 m / 1024).
+    const n = noise2(x * 0.55, y * 0.55), m = noise2(x * 1.3 + 40, y * 1.3 + 17);
+    return { stone: smoothstep(0.66, 0.78, n), pit: smoothstep(0.74, 0.86, m) };
+  };
+  shade(map, (x, y, u, v) => {
+    const { stone, pit } = grain(x, y);
+    const broad = (fbm(u * 5 + 3, v * 5 + 11, 4) - 0.5) * 0.05;
+    const p = patchAt(u, v);
+    let c = 0.36 + broad + stone * 0.13 - pit * 0.10 + (noise2(x * 2.1, y * 2.1) - 0.5) * 0.05;
+    if (p) c += p.t - 0.035 - (p.edge ? 0.05 : 0);
+    // Stones catch colour of their own: some warm, some cool.
+    const tint = (noise2(x * 0.55 + 90, y * 0.55 + 31) - 0.5) * stone * 0.06;
+    return [clamp((c + tint) * 1.02 * 255), clamp(c * 255), clamp((c - tint) * 0.97 * 255)];
+  });
+  shade(rough, (x, y, u, v) => {
+    const { stone } = grain(x, y);
+    const p = patchAt(u, v);
+    const g = clamp((0.9 - stone * 0.12 - (p ? 0.05 : 0) + (fbm(u * 18, v * 18, 3) - 0.5) * 0.08) * 255);
+    return [g, g, g];
+  });
+  shade(height, (x, y) => {
+    const { stone, pit } = grain(x, y);
+    const g = clamp((0.5 + stone * 0.35 - pit * 0.4) * 255);
+    return [g, g, g];
+  });
+  // Crack sealing: meandering transverse and longitudinal runs, drawn over the three maps
+  // (black and glossy on the colour and roughness, slightly proud on the height).
+  const cracks = [];
+  for (let i = 0; i < 7; i++) {
+    const transverse = i < 4;
+    let x = r() * size, y = r() * size;
+    const pts = [[x, y]];
+    const len = size * (0.25 + r() * 0.45);
+    for (let s = 0; s < len; s += 6) {
+      const a = (transverse ? Math.PI / 2 : 0) + (noise2(i * 13 + s * 0.02, 5) - 0.5) * 1.6;
+      x += Math.cos(a) * 6; y += Math.sin(a) * 6;
+      pts.push([x, y]);
+    }
+    cracks.push({ pts, w: 3 + r() * 4 });
+  }
+  const draw = (c, style, widen = 1) => {
+    const ctx = c.getContext('2d');
+    ctx.strokeStyle = style; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const { pts, w } of cracks) for (const dx of [-size, 0, size]) for (const dy of [-size, 0, size]) {
+      ctx.lineWidth = w * widen;
+      ctx.beginPath();
+      pts.forEach(([px, py], k) => (k ? ctx.lineTo(px + dx, py + dy) : ctx.moveTo(px + dx, py + dy)));
+      ctx.stroke();
+    }
+  };
+  draw(map, 'rgba(22,22,24,0.9)');
+  draw(rough, 'rgb(120,120,120)');
+  draw(height, 'rgb(150,150,150)', 0.8);
+  return {
+    map: toTexture(map, { srgb: true, tileSize: tile, anisotropy: 8 }),
+    roughnessMap: toTexture(rough, { tileSize: tile, anisotropy: 4 }),
+    normalMap: toTexture(heightToNormal(height, 1.4), { tileSize: tile, anisotropy: 4 }),
+    tileSize: tile,
+  };
+}
+
+// Road paint: thermoplastic worn by traffic. White, multiplied by vertex colour for the yellow
+// centre line; the aggregate shows through in dark specks where the paint has abraded.
+export function makeRoadPaint({ size = 256, tile = 1.0 } = {}) {
+  const map = canvas(size, size);
+  shade(map, (x, y, u, v) => {
+    const wear = smoothstep(0.58, 0.72, fbm(u * 6 + 7, v * 6 + 3, 4));
+    const speck = smoothstep(0.7, 0.8, noise2(x * 0.9, y * 0.9));
+    const c = 0.93 - wear * 0.45 - speck * 0.35 + (noise2(x * 0.3, y * 0.3) - 0.5) * 0.05;
+    return [clamp(c * 255), clamp(c * 255), clamp(c * 0.98 * 255)];
+  });
+  return { map: toTexture(map, { srgb: true, tileSize: tile }), tileSize: tile };
 }

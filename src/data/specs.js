@@ -44,6 +44,7 @@ export const SOURCES = {
 };
 
 export const VEHICLES = [
+  FALCON1,
   {
     id: 'starship',
     name: 'Starship',
@@ -351,7 +352,6 @@ export const VEHICLES = [
       { id: 'bells', label: 'Bells from the floor', pos: [-1.75, 0.30, 4.4], target: [-1.75, 0.38, 0] },
     ],
   },
-  FALCON1,
 ];
 
 export const SOURCE_LABEL = {

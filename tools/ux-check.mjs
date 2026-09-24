@@ -43,6 +43,9 @@ const bounds = () => page.evaluate(() => {
   });
   return { boxes, outside, overlap };
 });
+// A DPR-2 frame of a wide view in software rendering can take longer than Playwright's 30 s
+// default on a shared runner; the check is about layout, not frame time (profile-check is).
+const SHOT_MS = 120000;
 try {
   console.log('Loading once at medium quality, DPR 2');
   await page.goto(`http://127.0.0.1:${PORT}/?quality=medium`, { waitUntil: 'load', timeout: 120000 });
@@ -58,7 +61,7 @@ try {
     await page.waitForTimeout(180);
     let r = await bounds();
     report(!r.outside.length && !r.overlap.length, `${width}x${height} exhibit controls`, r);
-    if ([390, 844, 1366].includes(width)) await page.screenshot({ path: join(OUT, `exhibit-${width}x${height}.jpg`), type: 'jpeg', quality: 82 });
+    if ([390, 844, 1366].includes(width)) await page.screenshot({ path: join(OUT, `exhibit-${width}x${height}.jpg`), type: 'jpeg', quality: 82, timeout: SHOT_MS });
     await page.evaluate(() => window.__vc.launch.seek(6));
     // ResizeObserver publishes the panel's measured height after layout; wait for that
     // real condition instead of assuming a 180 ms software-rendered frame has completed.
@@ -67,7 +70,7 @@ try {
       - document.getElementById('mission').getBoundingClientRect().height) < 1, null, { timeout: 30000 });
     r = await bounds();
     report(!r.outside.length && !r.overlap.length, `${width}x${height} launch controls`, r);
-    if ([390, 844].includes(width)) await page.screenshot({ path: join(OUT, `launch-${width}x${height}.jpg`), type: 'jpeg', quality: 82 });
+    if ([390, 844].includes(width)) await page.screenshot({ path: join(OUT, `launch-${width}x${height}.jpg`), type: 'jpeg', quality: 82, timeout: SHOT_MS });
   }
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => { window.__vc.launch.reset(false); window.__vc.jump('falcon1', 'overview'); });

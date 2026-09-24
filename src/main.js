@@ -22,13 +22,13 @@ import { createHUD } from './ui/hud.js';
 import { VEHICLES } from './data/specs.js';
 import { buildStarship } from './vehicles/starship.js';
 import { buildFalcon9, buildFalconHeavy } from './vehicles/falcon.js';
-import { buildFalcon1 } from './vehicles/falcon1.js';
+import { buildFalcon1, buildFalcon1GroundEquipment } from './vehicles/falcon1.js';
 import { buildDragon } from './vehicles/dragon.js';
 import { buildStarlink } from './vehicles/starlink.js';
 import { buildRoadster } from './vehicles/roadster.js';
 import { buildEngineHall } from './vehicles/enginehall.js';
 import { buildOrbitalBackdrop } from './core/backdrop.js';
-import { buildMount, buildPedestal, buildHumanCrowd } from './vehicles/common.js';
+import { buildLaunchMount, buildPedestal, buildHumanCrowd } from './vehicles/common.js';
 import { seeded } from './geometry/utils.js';
 import { buildLaunchComplex, PAD } from './vehicles/pad.js';
 import { verifyExhibits, verifyScene, verifyPad, verifyInterfaces } from './data/verify.js';
@@ -49,14 +49,35 @@ import { createLaunch } from './sim/launch.js';
 // exhibit is added, so the layout says it outright.
 const LAYOUT = {
   // Falcon 1 is the small historical bookend of the row, immediately outside Falcon 9.
-  falcon1: { x: -153, z: 0, mount: 1.6, mountRadius: 3.1, inner: 1.0, clampRadius: 0.8382, people: [[4, 0, 2, 0.5], [-4, 0, 2, -0.5]] },
+  // The Falcons stand on launch mounts (common.js, buildLaunchMount): `mount` is the deck
+  // height, `lift` how far above it the nozzle exits hang when the vehicle sits on its clamps.
+  falcon1: {
+    x: -153, z: 0, mount: 2.0, lift: 0.3, mountRadius: 3.1, people: [[4.2, 0, 2, 0.5], [-4.2, 0, 2, -0.5]],
+    launchMount: {
+      halfX: 3.1, halfZ: 3.1, tunnelHalf: 0.9, tunnelH: 1.05, opening: { hx: 0.6, hz: 0.6 },
+      // Bearing on the lower edge of the boattail (r 0.61 m at 1.18 m above the nozzle exit).
+      cores: [{ x: 0, z: 0, r: 0.61, seatY: 0.3 + 1.18, scale: 0.5, clamps: [1, 3, 5, 7].map(i => i * Math.PI / 4) }],
+    },
+  },
   falcon9: {
-    x: -135, z: 0, mount: 6.5, mountRadius: 6.5, inner: 3.1, clampRadius: 1.85,
+    x: -135, z: 0, mount: 6.5, lift: 0.35, mountRadius: 6.5,
     people: [[10, 0, 2, 0.5], [8.5, 0, -4, -2.0], [-9.5, 0, 3, 2.2]],
+    launchMount: {
+      halfX: 6.5, halfZ: 6.5, tunnelHalf: 2.6, tunnelH: 4.2, opening: { hx: 1.95, hz: 1.95 },
+      cores: [{ x: 0, z: 0, r: 1.85, seatY: 0.35 + 1.0, clamps: [0, 1, 2, 3].map(i => i * Math.PI / 2), tsm: [Math.PI * 7 / 8, Math.PI * 9 / 8] }],
+    },
   },
   falconheavy: {
-    x: -62, z: 0, mount: 6.5, mountRadius: 11.5, inner: 7.2, clampRadius: 1.85,
+    x: -62, z: 0, mount: 6.5, lift: 0.35, mountRadius: 10,
     people: [[15, 0, 2, 0.5], [13.5, 0, -4, -2.0], [-14.5, 0, 3, 2.2]],
+    launchMount: {
+      halfX: 10, halfZ: 7, tunnelHalf: 7, tunnelH: 4.2, opening: { hx: 6.2, hz: 1.95 },
+      cores: [
+        { x: 0, z: 0, r: 1.85, seatY: 1.35, clamps: [0, Math.PI], tsm: [Math.PI * 7 / 8, Math.PI * 9 / 8] },
+        { x: -4.25, z: 0, r: 1.85, seatY: 1.35, clamps: [0, Math.PI, Math.PI * 1.5], tsm: [Math.PI * 7 / 8, Math.PI * 9 / 8] },
+        { x: 4.25, z: 0, r: 1.85, seatY: 1.35, clamps: [0, Math.PI / 2, Math.PI], tsm: [Math.PI * 7 / 8, Math.PI * 9 / 8] },
+      ],
+    },
   },
   starship: {
     x: 0, z: -185, mount: PAD.deckTop, yaw: 129.6, pad: true,
@@ -297,9 +318,13 @@ async function main() {
       group.add(complex);
       model.position.y = lay.mount;
     } else {
-      group.add(buildMount(M, { radius: lay.mountRadius, inner: lay.inner, height: lay.mount, clampRadius: lay.clampRadius,
-        clamps: ['falconheavy', 'falcon1'].includes(v.id) ? 0 : 4 }));
-      model.position.y = lay.mount;
+      group.add(buildLaunchMount(M, { deck: lay.mount, ...lay.launchMount }));
+      model.position.y = lay.mount + lay.lift;
+      if (v.id === 'falcon1') {
+        const gse = buildFalcon1GroundEquipment(M, { deckY: -lay.lift });
+        gse.position.y = model.position.y;
+        group.add(gse);
+      }
       env.addStation(lay.x, lay.z, lay.mountRadius + 1.5);
     }
     const yaw = THREE.MathUtils.degToRad(lay.yaw ?? 0);
@@ -315,7 +340,7 @@ async function main() {
     const occluders = typeof occSpec === 'number'
       ? (occSpec > 0 ? [[0, 0, occSpec]] : [])
       : occSpec.map(([ox, oz, r, top]) => [ox * cy + oz * sy, -ox * sy + oz * cy, r, top]);
-    exhibits[v.id] = { group, model, data: v, lay, occluders, labels: null, lod: null, hullTop: lay.mount + (model.userData.height ?? v.height) };
+    exhibits[v.id] = { group, model, data: v, lay, occluders, labels: null, lod: null, hullTop: model.position.y + (model.userData.height ?? v.height) };
 
     // annotations
     const lg = new THREE.Group(); lg.name = `labels-${v.id}`; lg.visible = false;
@@ -392,7 +417,7 @@ async function main() {
       });
     }
     // person on the mount deck for the big vehicles
-    if (lay.mountRadius) {
+    if (lay.mountRadius >= 6) {
       crowd.push({
         x: lay.x + lay.mountRadius - 1.2, y: lay.mount, z: lay.z + 1.5, ry: 2.4, suit: 'white',
       });
@@ -405,7 +430,7 @@ async function main() {
       ruler.rotation.z = -Math.PI / 2;
       ruler.position.set(lay.x - 15, model.position.y - 1.2, lay.z + 4.2);
     } else {
-      const off = v.id === 'starship' ? 22 : v.id === 'falconheavy' ? 12 : v.id === 'falcon9' ? 8 : 4.2;
+      const off = v.id === 'starship' ? 22 : v.id === 'falconheavy' ? 12 : v.id === 'falcon9' ? 8 : v.id === 'falcon1' ? 5 : 4.2;
       ruler.position.set(lay.x + off, model.position.y, lay.z);
     }
     ruler.visible = false;
