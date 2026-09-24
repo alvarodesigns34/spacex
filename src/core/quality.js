@@ -74,7 +74,9 @@ const TIERS = {
     bloom: true,
     msaa: 4,
     lodPixels: 5,
-    cloudParticles: 900,
+    // The cloud grew (bigger, longer-lived puffs); on the mid tier the count rises only a
+    // little, since fill rate, not count, is what a full-screen transparent cloud costs.
+    cloudParticles: 640,
     anisotropy: 8,
   },
   low: {
@@ -85,7 +87,7 @@ const TIERS = {
     bloom: false,
     msaa: 0,
     lodPixels: 9,
-    cloudParticles: 400,
+    cloudParticles: 300,
     anisotropy: 4,
   },
 };

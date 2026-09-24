@@ -304,8 +304,8 @@ const CLOUD_VERT = /* glsl */`
     // The plume lights the whole near side of the cloud, not only the mouths: in photographs of
     // a Starship liftoff the lower cloud glows yellow-orange for a couple of hundred metres.
     float dFlame = length(vec3(aOffset.x * 1.2, max(0.0, aOffset.y - 3.0) * 1.1, max(0.0, abs(aOffset.z) - 38.0) * 0.55));
-    float heightFade = 1.0 - smoothstep(10.0, 110.0, aOffset.y);
-    vFire = uFlame * (1.0 - smoothstep(10.0, 190.0, dFlame)) * heightFade;
+    float heightFade = 1.0 - smoothstep(6.0, 70.0, aOffset.y);
+    vFire = uFlame * (1.0 - smoothstep(10.0, 160.0, dFlame)) * heightFade;
 
     gl_Position = projectionMatrix * vec4(c + vec3(q, 0.0), 1.0);
   }`;
@@ -345,9 +345,12 @@ const CLOUD_FRAG = /* glsl */`
     // Warm incandescent amber/golden fire illumination from the 33 Raptors hitting the trench
     // Lit by the plume in HDR, so the near side of the cloud glows past white and blooms the
     // way it does in photographs of the liftoff, instead of settling on beige.
-    vec3 fireGlow = uFireColor * (1.6 + 0.5 * wrap);
-    vec3 col = mix(steam, fireGlow, clamp(vFire * 1.3, 0.0, 1.0));
-    col += uFireColor * (vFire * vFire * 1.4);
+    // Graded, not flat: the glow falls off with vFire squared, so the cloud goes from lit
+    // orange low down to its own sunlit grey-white above, as in photographs, instead of one
+    // saturated yellow wall.
+    vec3 fireGlow = uFireColor * (1.25 + 0.4 * wrap);
+    vec3 col = mix(steam, fireGlow, clamp(vFire * vFire * 1.2, 0.0, 1.0));
+    col += uFireColor * (vFire * vFire * vFire * 0.9);
 
     gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
   }`;
@@ -409,7 +412,7 @@ export class GroundCloud {
         uMap: { value: this.map },
         uSunColor: { value: new THREE.Color(0xe6e0d4) },
         uShadowColor: { value: new THREE.Color(0x9a9084) },
-        uFireColor: { value: new THREE.Color(0xff9a2a) },
+        uFireColor: { value: new THREE.Color(0xff8a2a) },
         uSunDir: { value: new THREE.Vector3(0.4, 0.7, 0.5).normalize() },
         uFlame: { value: 0.0 },
       },
