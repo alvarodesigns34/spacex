@@ -39,6 +39,16 @@
  */
 import * as THREE from 'three';
 
+/**
+ * Hide-only entries are held to a lower threshold than swaps. A swap trades one drawing for
+ * another (tiles for a shell), and doing it early costs nothing the eye can tell. Hiding
+ * removes something, and what a builder registers is its THINNEST dimension: a 2 cm seam or
+ * a 3 cm frame rail metres long. A line one pixel wide is still plainly a line, so at the
+ * swap threshold (3.5 px) every vehicle lost its seams, frames, hinges and fittings in its
+ * own overview — Starlink 17 of 18, Falcon 9 all 10. They now stay until about a pixel.
+ */
+const HIDE_FACTOR = 0.3;
+
 export class LODManager {
   /**
    * @param camera the rendering camera
@@ -183,7 +193,7 @@ export class LODManager {
       const d = this._distance(e);
       const px = d > 1e-6 ? e.feature / (d * mpp) : Infinity;
       e.px = px;
-      const enter = this.pixels * e.bias;
+      const enter = this.pixels * (e.far ? 1 : HIDE_FACTOR) * e.bias;
       const leave = enter * (1 - this.hysteresis);
       // Between the two thresholds, whatever it is showing is what it keeps showing. That band
       // is the whole point: a camera parked near the switch drifts by centimetres every frame,
@@ -212,12 +222,14 @@ export class LODManager {
 
   /** What each entry is currently showing, for the gate. */
   snapshot() {
-    const enter = this.pixels, leave = this.pixels * (1 - this.hysteresis);
-    return this.entries.map(e => ({
+    return this.entries.map(e => {
+      const enter = this.pixels * (e.far ? 1 : HIDE_FACTOR), leave = enter * (1 - this.hysteresis);
+      return {
       name: e.name, detailed: e.state,
       px: +e.px.toFixed(2), feature: e.feature,
       enter: +(enter * e.bias).toFixed(2), leave: +(leave * e.bias).toFixed(2),
       bounded: !!e.local,
-    }));
+      };
+    });
   }
 }

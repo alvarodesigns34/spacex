@@ -23,7 +23,8 @@
  * Time runs 1:1 by default. The speed control multiplies the mission clock, it does not skip.
  */
 import * as THREE from 'three';
-import { Plume, GroundCloud } from './plume.js';
+import { Plume, GroundCloud, EngineJets, Vapor } from './plume.js';
+import { BOOSTER_RINGS, RAPTOR_EXIT_R } from '../vehicles/starship.js';
 import { seeded, monotoneSlopes, hermite } from '../geometry/utils.js';
 
 // ---- Cited event times (seconds from T-0) ------------------------------------------------
@@ -193,6 +194,20 @@ function boosterSpread(t) {
   return THREE.MathUtils.lerp(INNER_13, CENTRE_3, THREE.MathUtils.smoothstep(t, EVENTS.catch - 9, EVENTS.catch - 5));
 }
 
+/** How many booster engines are running, in lighting order (centre 3, inner 10, outer 20). */
+function boosterLit(t) {
+  if (t < EVENTS.ignition) return 0;
+  if (t < EVENTS.liftoff) {
+    // The same staggered start as boosterThrottle: centre, then inner ring, then outer.
+    const u = (t - EVENTS.ignition) / (EVENTS.liftoff - EVENTS.ignition);
+    return u < 0.18 ? 3 : u < 0.4 ? 13 : 33;
+  }
+  if (t < EVENTS.meco) return 33;
+  if (t < EVENTS.boostbackStart) return 3;
+  if (t < EVENTS.catch - 7) return 13;
+  return 3;
+}
+
 function sample(arr, t) {
   const u = THREE.MathUtils.clamp(t / PROFILE.step, 0, PROFILE.n - 1);
   const i = Math.floor(u), f = u - i;
@@ -341,10 +356,81 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   // wider than the 9 m booster and runs several booster-lengths behind it before it breaks up;
   // at 6.0 the plume was about a quarter of the booster's length and the whole ascent read as
   // a model rocket.
-  const boosterPlume = new Plume({ radius: 4.6, seaLevelLength: 9.6, name: 'plume-booster' });
+  // 16 cluster radii (≈74 m) at the pad: in liftoff photographs the bright column is well over
+  // a booster length before it breaks up into the cloud.
+  const boosterPlume = new Plume({ radius: 4.6, seaLevelLength: 16, name: 'plume-booster' });
   const shipPlume = new Plume({ radius: 2.6, seaLevelLength: 8.4, name: 'plume-ship' });
   booster.add(boosterPlume.group);
   ship.add(shipPlume.group);
+
+  // Individual engine jets under the column: centre 3, inner 10, outer 20 in lighting order
+  // for the booster; the ship's 3 sea-level Raptors, then its 3 vacuum engines.
+  const ringPositions = (n, r, y, phase) => Array.from({ length: n }, (_, i) => {
+    const a = phase + (i / n) * Math.PI * 2;
+    return [Math.sin(a) * r, y, Math.cos(a) * r];
+  });
+  const boosterJets = new EngineJets({
+    name: 'jets-booster',
+    engines: BOOSTER_RINGS.flatMap(([n, r, y, phase]) => ringPositions(n, r, y, phase).map(position => ({ position, radius: RAPTOR_EXIT_R }))),
+  });
+  const shipJets = new EngineJets({
+    name: 'jets-ship', seaLevelLength: 10,
+    engines: [
+      ...ringPositions(3, 0.95, 0.35, 0).map(position => ({ position, radius: RAPTOR_EXIT_R })),
+      ...ringPositions(3, 3.05, 0.25, Math.PI / 3).map(position => ({ position, radius: 1.15 })),
+    ],
+  });
+  booster.add(boosterJets.mesh);
+  ship.add(shipJets.mesh);
+
+  // ---- Vapour: venting in the count, the deluge at ignition, venting after the catch -------
+  // Emitters are placed in the stack's rest frame (booster base at the mount deck, y up),
+  // under a group that stays on the pad, so puffs born before liftoff do not ride up with the
+  // vehicle. Stations are reconstructed: where a fuelled Starship is seen venting from, not a
+  // plumbing diagram. Fewer puffs on the lower tiers.
+  const vScale = quality.name === 'low' ? 0.45 : quality.name === 'medium' ? 0.7 : 1;
+  const nv = (n) => Math.max(4, Math.round(n * vScale));
+  const rest = new THREE.Group();
+  rest.name = 'stack-rest-frame';
+  rest.position.copy(ex.model.position);
+  rest.rotation.copy(ex.model.rotation);
+  ex.group.add(rest);
+  const around = (r, y, a) => [Math.sin(a) * r, y, Math.cos(a) * r];
+  const out = (a, up = 0) => [Math.sin(a), up, Math.cos(a)];
+  const COUNT_WIN = [EVENTS.start, EVENTS.liftoff + 0.5];
+  const countdownVent = new Vapor({
+    name: 'vapor-countdown', rng: seeded(21), accel: [0.7, -0.45, 0.3], tau: 1.5, opacity: 0.78,
+    emitters: [
+      ...[0.6, 2.7, 4.8].map(a => ({ at: around(4.6, 48, a), dir: out(a, -0.2), speed: 2.2, spread: 0.35, count: nv(36), life: 9.1, size: 3.84, grow: 2.2, window: COUNT_WIN })),
+      ...[1.4, 4.2].map(a => ({ at: around(4.6, 69, a), dir: out(a, 0.1), speed: 2.8, spread: 0.3, count: nv(30), life: 7.8, size: 3.36, grow: 2, window: COUNT_WIN })),
+      ...[2.2, 5.3].map(a => ({ at: around(4.6, 76, a), dir: out(a, -0.1), speed: 2.4, spread: 0.3, count: nv(27), life: 7.8, size: 3.12, grow: 2, window: COUNT_WIN })),
+      { at: around(3.0, 116, 3.1), dir: out(3.1, 0.3), speed: 2, spread: 0.3, count: nv(21), life: 6.5, size: 2.4, grow: 1.8, window: COUNT_WIN },
+      ...[0.9, 3.9].map(a => ({ at: around(4.4, 2.5, a), dir: out(a, -0.3), speed: 3, spread: 0.4, count: nv(30), life: 6.5, size: 4.32, grow: 2.8, window: COUNT_WIN })),
+    ],
+  });
+  // Deluge: water driven up through the mount's plate round the engines, from a couple of
+  // seconds before ignition until the stack is clear. Spray, flashing to steam as it rises.
+  const deluge = new Vapor({
+    name: 'vapor-deluge', rng: seeded(22), accel: [0.4, -2.2, 0.2], tau: 0.9, opacity: 0.62,
+    emitters: Array.from({ length: 12 }, (_, i) => {
+      const a = (i / 12) * Math.PI * 2 + 0.13;
+      return { at: around(6.6, -0.6, a), dir: out(a, 3.2), speed: 24, spread: 0.22, count: nv(33), life: 4.16, size: 5.28, grow: 8.4, jitter: 1.2, window: [EVENTS.ignition - 2, EVENTS.liftoff + 10] };
+    }),
+  });
+  rest.add(countdownVent.mesh, deluge.mesh);
+  // After the catch the booster sits on the arms venting: off the top, round the upper tank,
+  // and from the engine section. Attached to the booster, which no longer moves.
+  const CATCH_WIN = [EVENTS.catch + 1.5, EVENTS.end + 60];
+  const catchVent = new Vapor({
+    name: 'vapor-caught', rng: seeded(23), accel: [0.9, -0.25, 0.35], tau: 1.6, opacity: 0.62,
+    emitters: [
+      { at: [0, 71.5, 0], dir: [0.1, 1, 0], speed: 3.5, spread: 0.4, count: nv(39), life: 9.1, size: 4.32, grow: 2.6, jitter: 2, window: CATCH_WIN },
+      ...[1.0, 3.6].map(a => ({ at: around(4.6, 58, a), dir: out(a, 0), speed: 2.4, spread: 0.35, count: nv(27), life: 7.8, size: 3.36, grow: 2.2, window: CATCH_WIN })),
+      ...[0.3, 3.3].map(a => ({ at: around(4.3, 2, a), dir: out(a, -0.3), speed: 2.6, spread: 0.4, count: nv(24), life: 6.5, size: 3.84, grow: 2.4, window: CATCH_WIN })),
+    ],
+  });
+  booster.add(catchVent.mesh);
+  const vapors = [countdownVent, deluge, catchVent];
 
   const cloud = new GroundCloud({ rng: seeded(11), count: quality.cloudParticles ?? 860 });
   cloud.points.position.set(ex.lay.x, 0, ex.lay.z);
@@ -659,6 +745,14 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     boosterPlume.setTime(t);
     shipPlume.setTime(t);
     boosterPlume.setThrottle(bThrottle, bAlt, boosterSpread(t));
+    // Per engine, the running ones are near full throttle whatever the cluster total says:
+    // 13 engines carrying 42 % of the cluster's thrust are each at ~100 %.
+    const lit = boosterLit(t);
+    boosterJets.setTime(t);
+    boosterJets.setState(lit ? Math.min(1, bThrottle / (lit / 33)) : 0, bAlt, lit);
+    shipJets.setTime(t);
+    shipJets.setState(st, alt, 6);
+    for (const vp of vapors) vp.update(t, camera, env.sun);
     shipPlume.setThrottle(st, alt);
     cloud.setFlame(bt * Math.max(0, 1 - alt / 160));
 
@@ -724,6 +818,9 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     booster.rotation.z = 0;
     booster.position.x = 0;
     boosterPlume.setThrottle(0, 0);
+    boosterJets.setState(0, 0, 0);
+    shipJets.setState(0, 0, 0);
+    for (const vp of vapors) vp.hide();
     shipPlume.setThrottle(0, 0);
     resetCloud();
     parts.qdArm.rotation.y = 0;

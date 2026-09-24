@@ -264,7 +264,7 @@ export const VEHICLES = [
     ],
     sources: ['sfn_v2mini', 'starlink_gen2'],
     presets: [
-      { id: 'overview', label: 'Overview', pos: [22, 8, 26], target: [0, -0.5, 0] },
+      { id: 'overview', label: 'Overview', pos: [15, 6.5, 19], target: [0, -0.8, 0] },
       { id: 'antennas', label: 'Antennas (nadir face)', pos: [3.2, -4.6, 5.2], target: [0, -0.2, 0] },
       { id: 'bus', label: 'Bus and lasers', pos: [4, 3.6, 4.2], target: [0, 0.2, 0] },
       { id: 'array', label: 'Solar wing', pos: [-13, 3.5, 8], target: [-8.5, 0, 0] },

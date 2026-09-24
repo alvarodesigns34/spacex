@@ -131,7 +131,9 @@ export class Plume {
     this.group.visible = false;
 
     // Bright shock core, then the wide envelope of afterburning around it.
-    this.core = coneLayer({ hot: 0xfffaea, warm: 0xffa442, cool: 0x5b7bd6, alpha: 0.98, falloff: 0.55 });
+    // The core ends in a dull orange, not blue: mixed with the warm band a blue tail went
+    // lavender-pink, and no photograph of a Raptor landing burn shows a pink flame.
+    this.core = coneLayer({ hot: 0xfffaea, warm: 0xffa442, cool: 0xb4643a, alpha: 0.98, falloff: 0.55 });
     this.shroud = coneLayer({ hot: 0xffe0b0, warm: 0xa86830, cool: 0x3d4038, alpha: 0.36, falloff: 1.05 });
     // Outer density: soot and cooled exhaust. Wide, dim, and gone once the flow is
     // a vacuum bell. It does not write depth, so the vehicle stays visible through it.
@@ -203,6 +205,116 @@ export class Plume {
   dispose() {
     for (const m of [this.core, this.shroud, this.veil]) { m.geometry.dispose(); m.material.dispose(); }
   }
+}
+
+// -----------------------------------------------------------------------------------------
+//  Engine jets
+// -----------------------------------------------------------------------------------------
+/**
+ * One short jet per engine, hanging from its own exit plane, instanced. The cluster column
+ * (Plume) is what a wide shot shows; this is what a close one does. Every photograph of a
+ * Starship liftoff taken near the pad shows the engines as individual bright jets for the
+ * first few metres, each with its own train of Mach diamonds, before they merge. Without them
+ * the base of the booster sat over a single glow.
+ *
+ * Instances are ordered by lighting group (centre 3, then the inner 10, then the outer 20), so
+ * "which engines are running" is just the draw count.
+ */
+const JET_VERT = /* glsl */`
+  uniform float uLength, uSpread, uP;
+  varying float vAxis, vFace, vRad;
+  void main() {
+    float v = -position.y;                              // 0 at the exit plane, 1 at the tail
+    vAxis = v;
+    vRad = length(position.xz);
+    // Over-expanded at sea level: the jet necks in after the exit before it spreads. At
+    // altitude it opens straight away.
+    float neck = 1.0 - 0.18 * uP * sin(3.14159 * clamp(v * 1.6, 0.0, 1.0));
+    float w = neck * mix(1.0, uSpread, smoothstep(0.1, 1.0, v));
+    vec4 mv = modelViewMatrix * instanceMatrix * vec4(position.x * w, position.y * uLength, position.z * w, 1.0);
+    vec3 n = normalize(normalMatrix * mat3(instanceMatrix) * vec3(normal.x, 0.0, normal.z) + vec3(1e-5));
+    vFace = clamp(abs(dot(n, normalize(-mv.xyz))), 0.0, 1.0);
+    gl_Position = projectionMatrix * mv;
+  }`;
+const JET_FRAG = /* glsl */`
+  uniform vec3 uHot, uWarm, uTail;
+  uniform float uOpacity, uP, uTime, uGain;
+  varying float vAxis, vFace, vRad;
+  void main() {
+    float v = clamp(vAxis, 0.0, 1.0);
+    vec3 c = v < 0.3 ? mix(uHot, uWarm, v / 0.3) : mix(uWarm, uTail, (v - 0.3) / 0.7);
+    // Mach diamonds: bright nodes on the axis, spaced along the jet, only where the ambient
+    // pressure is there to reflect the shocks.
+    float node = pow(max(abs(sin(v * 3.14159 * 4.5)), 1e-4), 14.0) * smoothstep(0.7, 0.05, vRad) * uP;
+    c *= 1.0 + 2.2 * node * (1.0 - v);
+    float a = uOpacity * pow(max(1.0 - v, 1e-4), 1.35) * pow(max(vFace, 1e-4), 0.8);
+    a *= 1.0 + 0.6 * node;
+    a *= 1.0 + 0.08 * sin(v * 40.0 + uTime * 9.0);
+    // Near-white where it leaves the bell.
+    c *= 1.0 + 1.8 * exp(-v * 9.0);
+    if (a < 0.002) discard;
+    gl_FragColor = vec4(c * uGain, clamp(a, 0.0, 1.0));
+  }`;
+
+export class EngineJets {
+  /**
+   * @param {object} o
+   * @param {Array<{position:number[], radius:number}>} o.engines exit planes, in lighting order
+   * @param {number} o.seaLevelLength jet length at sea level, in exit radii
+   */
+  constructor({ engines, seaLevelLength = 11, name = 'engine-jets' }) {
+    const geo = new THREE.CylinderGeometry(1, 1, 1, 18, 16, true);
+    geo.translate(0, -0.5, 0);
+    const lin = (hex) => new THREE.Color(hex).convertSRGBToLinear();
+    this.material = new THREE.ShaderMaterial({
+      uniforms: {
+        uHot: { value: lin(0xfff4dc) }, uWarm: { value: lin(0xffb259) }, uTail: { value: lin(0xff6a2e) },
+        uLength: { value: 1 }, uSpread: { value: 1 }, uP: { value: 1 },
+        uOpacity: { value: 1 }, uTime: { value: 0 }, uGain: { value: 1.25 },
+      },
+      vertexShader: JET_VERT, fragmentShader: JET_FRAG,
+      transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+    });
+    this.mesh = new THREE.InstancedMesh(geo, this.material, engines.length);
+    this.mesh.name = name;
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = 3;
+    this.meanR = engines.reduce((s, e) => s + e.radius, 0) / engines.length;
+    const m = new THREE.Matrix4();
+    engines.forEach((e, i) => {
+      // Unit length along the jet; the shader stretches it, so all jets share one length
+      // measured in the cluster's mean exit radius.
+      m.compose(new THREE.Vector3(...e.position), new THREE.Quaternion(), new THREE.Vector3(e.radius, 1, e.radius));
+      this.mesh.setMatrixAt(i, m);
+    });
+    this.mesh.instanceMatrix.needsUpdate = true;
+    this.seaLevelLength = seaLevelLength;
+    this.total = engines.length;
+    this.setState(0, 0, 0);
+  }
+
+  /**
+   * @param {number} throttle 0..1 per engine
+   * @param {number} altitude m
+   * @param {number} lit how many engines, in lighting order, are running
+   */
+  setState(throttle, altitude, lit) {
+    const on = throttle > 0.01 && lit > 0;
+    this.mesh.visible = on;
+    if (!on) return;
+    this.mesh.count = Math.min(this.total, Math.max(0, Math.round(lit)));
+    const p = pressureRatio(altitude);
+    const u = this.material.uniforms;
+    u.uP.value = p;
+    // Short and tight at the pad, long and open once the air thins.
+    u.uLength.value = this.meanR * this.seaLevelLength * (1 + 2.2 * (1 - p)) * (0.6 + 0.4 * throttle);
+    u.uSpread.value = 1.15 + 2.4 * (1 - p);
+    u.uOpacity.value = (0.55 + 0.45 * throttle) * 0.7;
+  }
+
+  setTime(t) { this.material.uniforms.uTime.value = t; }
+
+  dispose() { this.mesh.geometry.dispose(); this.material.dispose(); }
 }
 
 // -----------------------------------------------------------------------------------------
@@ -417,8 +529,10 @@ export class GroundCloud {
     const mat = new THREE.ShaderMaterial({
       uniforms: {
         uMap: { value: this.map },
-        uSunColor: { value: new THREE.Color(0xe6e0d4) },
-        uShadowColor: { value: new THREE.Color(0x9a9084) },
+        // Steam, not dust: the deluge turns the trench cloud into water vapour, sunlit white with
+        // cool grey hollows. The old tan pair made it read as a sandstorm.
+        uSunColor: { value: new THREE.Color(0xf2f0ec) },
+        uShadowColor: { value: new THREE.Color(0x8c9199) },
         uFireColor: { value: new THREE.Color(0xff8a2a) },
         uSunDir: { value: new THREE.Vector3(0.4, 0.7, 0.5).normalize() },
         uFlame: { value: 0.0 },
@@ -563,3 +677,130 @@ export class GroundCloud {
     this.map.dispose();
   }
 }
+
+// -----------------------------------------------------------------------------------------
+//  Vapour: cryogenic venting, deluge spray
+// -----------------------------------------------------------------------------------------
+/**
+ * White vapour that is a function of mission time alone, so a seek lands on the same frame as
+ * playback. Each puff belongs to an emitter with an active window; its age is the time since
+ * it was (re)spawned on a fixed cycle, and it only shows if its spawn time fell inside the
+ * window. Covers what the pad does with no fire involved:
+ *  - boil-off venting from the loaded vehicle in the terminal count — the white plumes that
+ *    stream off a fuelled Starship and sink along its sides, because the vapour is colder
+ *    and denser than the air;
+ *  - the deluge: water driven up through the mount's steel plate at ignition, flashed to
+ *    spray and steam round the engines;
+ *  - venting from the booster once it is back on the arms.
+ */
+const VAPOR_VERT = /* glsl */`
+  attribute vec3 aOrigin;
+  attribute vec3 aVel;
+  attribute vec4 aParams;   // phase 0..1, life s, start size m, growth m/s
+  attribute vec2 aWindow;   // emitter active from, to (mission s)
+  uniform float uTime, uTau, uOpacity;
+  uniform vec3 uAccel;
+  varying vec2 vUv;
+  varying float vAlpha, vRot;
+  void main() {
+    vUv = uv;
+    float life = aParams.y;
+    float age = mod(uTime - aWindow.x + aParams.x * life, life);
+    float born = uTime - age;
+    float on = step(aWindow.x, born) * step(born, aWindow.y);
+    float k = age / life;
+    // Launched fast, slowed by drag, then carried by buoyancy / sinking and the wind.
+    vec3 p = aOrigin + aVel * uTau * (1.0 - exp(-age / uTau)) + 0.5 * uAccel * age * age;
+    float size = aParams.z + aParams.w * age;
+    vAlpha = on * uOpacity * smoothstep(0.0, 0.1, k) * (1.0 - smoothstep(0.45, 1.0, k));
+    vRot = aParams.x * 6.2832 + age * 0.35 * (aParams.x - 0.5);
+    vec3 c = (modelViewMatrix * vec4(p, 1.0)).xyz;
+    float s = sin(vRot), q = cos(vRot);
+    vec2 d = vec2(position.x * q - position.y * s, position.x * s + position.y * q) * size;
+    vAlpha *= smoothstep(1.0, 8.0, -c.z);
+    gl_Position = projectionMatrix * vec4(c + vec3(d, 0.0), 1.0);
+  }`;
+const VAPOR_FRAG = /* glsl */`
+  uniform sampler2D uMap;
+  uniform vec3 uSunDir, uSun, uShade;
+  varying vec2 vUv;
+  varying float vAlpha, vRot;
+  void main() {
+    vec4 t = texture2D(uMap, vUv);
+    float a = t.a * vAlpha;
+    if (a < 0.004) discard;
+    vec2 n2 = t.rg * 2.0 - 1.0;
+    float s = sin(vRot), k = cos(vRot);
+    vec3 n = normalize(vec3(n2.x * k - n2.y * s, n2.x * s + n2.y * k, max(t.b, 0.2)));
+    float wrap = clamp((dot(n, uSunDir) + 0.5) / 1.5, 0.0, 1.0);
+    gl_FragColor = vec4(mix(uShade, uSun, wrap), clamp(a, 0.0, 1.0));
+  }`;
+
+let _vaporMap = null;
+export class Vapor {
+  /**
+   * @param {object} o
+   * @param {Array} o.emitters [{ at:[x,y,z], dir:[x,y,z], speed, spread, count, life, size, grow, window:[t0,t1] }]
+   * @param {number[]} o.accel constant acceleration (buoyancy, sinking, wind), m/s²
+   */
+  constructor({ emitters, rng, accel = [0.6, -0.4, 0.2], tau = 1.2, opacity = 0.55, name = 'vapor' }) {
+    const n = emitters.reduce((s, e) => s + e.count, 0);
+    const origin = new Float32Array(n * 3), vel = new Float32Array(n * 3);
+    const params = new Float32Array(n * 4), win = new Float32Array(n * 2);
+    let i = 0;
+    const v = new THREE.Vector3();
+    for (const e of emitters) {
+      const dir = new THREE.Vector3(...e.dir).normalize();
+      for (let k = 0; k < e.count; k++, i++) {
+        const jitter = e.jitter ?? 0.3;
+        origin.set([e.at[0] + (rng() - 0.5) * jitter, e.at[1] + (rng() - 0.5) * jitter, e.at[2] + (rng() - 0.5) * jitter], i * 3);
+        v.set(rng() - 0.5, rng() - 0.5, rng() - 0.5).multiplyScalar(2 * (e.spread ?? 0.4)).add(dir).normalize()
+          .multiplyScalar(e.speed * (0.7 + 0.6 * rng()));
+        vel.set([v.x, v.y, v.z], i * 3);
+        params.set([k / e.count + rng() * (0.5 / e.count), e.life * (0.8 + 0.4 * rng()), e.size * (0.7 + 0.6 * rng()), e.grow * (0.7 + 0.6 * rng())], i * 4);
+        win.set(e.window, i * 2);
+      }
+    }
+    const geo = new THREE.InstancedBufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-0.5, 0.5, 0, 0.5, 0.5, 0, -0.5, -0.5, 0, 0.5, -0.5, 0]), 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 1, 1, 1, 0, 0, 1, 0]), 2));
+    geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1]), 3));
+    geo.setIndex([0, 2, 1, 2, 3, 1]);
+    geo.setAttribute('aOrigin', new THREE.InstancedBufferAttribute(origin, 3));
+    geo.setAttribute('aVel', new THREE.InstancedBufferAttribute(vel, 3));
+    geo.setAttribute('aParams', new THREE.InstancedBufferAttribute(params, 4));
+    geo.setAttribute('aWindow', new THREE.InstancedBufferAttribute(win, 2));
+    geo.instanceCount = n;
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e4);
+    _vaporMap ??= puffTexture();
+    this.material = new THREE.ShaderMaterial({
+      uniforms: {
+        uMap: { value: _vaporMap }, uTime: { value: -1e4 }, uTau: { value: tau }, uOpacity: { value: opacity },
+        uAccel: { value: new THREE.Vector3(...accel) },
+        uSunDir: { value: new THREE.Vector3(0.4, 0.7, 0.5).normalize() },
+        uSun: { value: new THREE.Color(0xf6f6f4) }, uShade: { value: new THREE.Color(0x959ba4) },
+      },
+      vertexShader: VAPOR_VERT, fragmentShader: VAPOR_FRAG,
+      transparent: true, depthWrite: false,
+    });
+    this.mesh = new THREE.Mesh(geo, this.material);
+    this.mesh.name = name;
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = 3;
+    this.windows = emitters.map(e => e.window);
+    this.maxLife = Math.max(...emitters.map(e => e.life * 1.2));
+  }
+
+  /** Mission time; hidden outright when no emitter can have a live puff. */
+  update(t, camera, sun) {
+    this.material.uniforms.uTime.value = t;
+    this.mesh.visible = this.windows.some(([a, b]) => t >= a && t <= b + this.maxLife);
+    if (this.mesh.visible && camera && sun) {
+      _sunDir.subVectors(sun.position, sun.target ? sun.target.position : _zero).normalize();
+      this.material.uniforms.uSunDir.value.copy(_sunDir.transformDirection(camera.matrixWorldInverse));
+    }
+  }
+
+  hide() { this.mesh.visible = false; }
+}
+const _zero = new THREE.Vector3();

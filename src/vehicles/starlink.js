@@ -191,11 +191,14 @@ export function buildStarlink(M) {
   //
   // What stays is what the satellite IS from any distance: the bus, its blankets, the black
   // phased-array face and the wings themselves.
+  // Sizes are what the eye resolves, not the thinnest wall: a laser turret is a 0.4 m object
+  // with 4.5 cm arms, and it is the turret that has to disappear, not its arms. Registered at
+  // the arms' size, every one of these was gone in the satellite's own overview at 35 m.
   const FINE = {
-    'bus-frame': 0.03, 'bus-avionics': 0.09, 'bus-tape': 0.025, 'array-patches': 0.11,
-    'laser-terminal': 0.045, 'star-tracker': 0.035, 'gnss-patch': 0.03,
-    'wing-hinges': 0.03, 'wing-substrate': 0.06, 'wing-beams': 0.05,
-    'bus-radiators': 0.04, 'hall-thruster': 0.04,
+    'bus-frame': 0.06, 'bus-avionics': 0.3, 'bus-tape': 0.025, 'array-patches': 0.11,
+    'laser-terminal': 0.35, 'star-tracker': 0.25, 'gnss-patch': 0.2,
+    'wing-hinges': 0.1, 'wing-substrate': 0.3, 'wing-beams': 0.07,
+    'bus-radiators': 0.06, 'hall-thruster': 0.3,
   };
   g.traverse((o) => { const f = FINE[o.name]; if (f) o.userData.lodFeature = f; });
 

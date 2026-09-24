@@ -48,8 +48,8 @@ const TILE_T = 0.016;
  * cameras; the grid-fin trio is clocked against it so the catch pins still sit over the arms.
  */
 export const STACK_YAW_DEG = 129.6;
-const RAPTOR_EXIT_R = 0.62;
-const BOOSTER_RINGS = [[3, 1.02, 0.45, Math.PI / 6], [10, 2.48, 0.35, 0], [20, 3.86, 0.25, Math.PI / 20]];
+export const RAPTOR_EXIT_R = 0.62;
+export const BOOSTER_RINGS = [[3, 1.02, 0.45, Math.PI / 6], [10, 2.48, 0.35, 0], [20, 3.86, 0.25, Math.PI / 20]];
 /** Radius the booster's engine bells actually reach. The pad derives its throat from this. */
 export const RAPTOR_ENVELOPE_R = Math.max(...BOOSTER_RINGS.map(([, r]) => r)) + RAPTOR_EXIT_R;
 
