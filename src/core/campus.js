@@ -19,7 +19,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mesh, mergeAll, mat4, boxUV } from '../geometry/utils.js';
-import { noise2 } from '../materials/textures.js';
+import { noise2, canvas, toTexture } from '../materials/textures.js';
 
 function quad(x0, z0, x1, z1, y) {
   const g = new THREE.PlaneGeometry(Math.abs(x1 - x0), Math.abs(z1 - z0));
@@ -292,10 +292,83 @@ function buildFlats(g, M, avoid) {
 }
 
 /**
+ * Site furniture a real outdoor exhibit has and the apron did not: an information lectern in
+ * front of each vehicle, facing the road the visitors arrive on, and a chain-link fence round
+ * the back and sides of the site, open where the service road leaves for the pad. No text or
+ * marks on the lecterns — they stand for the panels, they do not imitate anyone's. Sizes are
+ * ordinary street furniture (a 1.2 × 0.8 m panel at reading height, a 2.4 m fence on 3 m bays).
+ */
+function buildSiteFurniture(g, M, stops) {
+  // Lecterns: a post, a slanted panel with a pale face and a dark frame.
+  const post = [], frame = [], face = [];
+  const Z = 12.5;
+  for (const x of stops) {
+    post.push({ geometry: new THREE.BoxGeometry(0.12, 0.95, 0.12), matrix: mat4([x, 0.475, Z]) });
+    post.push({ geometry: new THREE.BoxGeometry(0.5, 0.04, 0.35), matrix: mat4([x, 0.02, Z]) });
+    const tilt = -0.55;
+    frame.push({ geometry: new THREE.BoxGeometry(1.24, 0.84, 0.05), matrix: mat4([x, 1.12, Z + 0.02], [tilt, 0, 0]) });
+    face.push({ geometry: new THREE.PlaneGeometry(1.16, 0.76), matrix: mat4([x, 1.12 + 0.028 * Math.sin(-tilt), Z + 0.02 + 0.028 * Math.cos(-tilt)], [tilt, 0, 0]) });
+  }
+  if (stops.length) {
+    g.add(mesh(boxUV(mergeAll(post)), M.mount, { name: 'site-lectern-posts' }));
+    g.add(mesh(boxUV(mergeAll(frame)), M.blackMatte ?? M.mount, { name: 'site-lectern-frames' }));
+    g.add(mesh(mergeAll(face), M.plinthDeck ?? M.mount, { name: 'site-lectern-faces', castShadow: false }));
+  }
+
+  // Chain-link fence. Galvanised posts every 3 m with a top rail, and the mesh itself as an
+  // alpha-tested diamond texture at its real 5 cm pitch.
+  const c = canvas(128, 128);
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, 128, 128);
+  ctx.strokeStyle = 'rgba(200,204,206,1)';
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(0, 64); ctx.lineTo(64, 0); ctx.lineTo(128, 64); ctx.lineTo(64, 128); ctx.closePath();
+  ctx.moveTo(-64, 64); ctx.lineTo(0, 0); ctx.moveTo(128, 0); ctx.lineTo(192, 64);
+  ctx.moveTo(0, 128); ctx.lineTo(-64, 64); ctx.moveTo(128, 128); ctx.lineTo(192, 64);
+  ctx.stroke();
+  const tex = toTexture(c, { srgb: true, tileSize: 0.05 });
+  const meshMat = new THREE.MeshStandardMaterial({
+    name: 'chain-link', map: tex, alphaTest: 0.45, transparent: false, side: THREE.DoubleSide,
+    color: 0xd0d4d6, metalness: 0.6, roughness: 0.5,
+  });
+  const H = 2.4, BAY = 3;
+  const runs = [
+    [[-178, -18], [45.4, -18]], [[53.6, -18], [188, -18]],
+    [[-178, -18], [-178, 20]], [[188, -18], [188, 20]],
+  ];
+  const posts = [], rails = [], panels = [];
+  for (const [[x0, z0], [x1, z1]] of runs) {
+    const len = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.round(len / BAY));
+    const along = Math.atan2(x1 - x0, z1 - z0);
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, x = x0 + (x1 - x0) * t, z = z0 + (z1 - z0) * t;
+      posts.push({ geometry: new THREE.CylinderGeometry(0.03, 0.03, H + 0.05, 8), matrix: mat4([x, (H + 0.05) / 2, z]) });
+    }
+    rails.push({
+      geometry: new THREE.CylinderGeometry(0.02, 0.02, len, 6),
+      matrix: new THREE.Matrix4().compose(new THREE.Vector3((x0 + x1) / 2, H, (z0 + z1) / 2),
+        new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(x1 - x0, 0, z1 - z0).normalize()),
+        new THREE.Vector3(1, 1, 1)),
+    });
+    // Mesh panel: a vertical strip with metric UVs so the diamond keeps its pitch.
+    const geo = new THREE.PlaneGeometry(len, H - 0.05);
+    const uv = geo.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * len, uv.getY(i) * (H - 0.05));
+    panels.push({ geometry: geo, matrix: mat4([(x0 + x1) / 2, (H - 0.05) / 2 + 0.03, (z0 + z1) / 2], [0, along - Math.PI / 2, 0]) });
+  }
+  g.add(mesh(mergeAll(posts), M.aluminum ?? M.mount, { name: 'site-fence-posts' }));
+  g.add(mesh(mergeAll(rails), M.aluminum ?? M.mount, { name: 'site-fence-rails', castShadow: false }));
+  const fence = mesh(mergeAll(panels), meshMat, { name: 'site-fence-mesh', castShadow: false });
+  fence.userData.lodFeature = 0.05;
+  g.add(fence);
+}
+
+/**
  * @param {import('three').Scene} scene
  * @param {Record<string, import('three').Material>} M
  */
-export function dressCampus(scene, M) {
+export function dressCampus(scene, M, { stops = [] } = {}) {
   const g = new THREE.Group();
   g.name = 'campus';
   g.userData.provenance = 'environmental-reconstruction';
@@ -333,6 +406,7 @@ export function dressCampus(scene, M) {
   }));
 
   buildRoads(g, M);
+  buildSiteFurniture(g, M, stops);
   buildFlats(g, M, (x, z, r) => {
     const R = r * 1.4;
     if (Math.abs(z) < 75 + R && x > -230 - R && x < 240 + R) return false;       // exhibit row and road

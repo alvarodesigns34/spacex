@@ -29,7 +29,7 @@ import { buildRoadster } from './vehicles/roadster.js';
 import { buildEngineHall } from './vehicles/enginehall.js';
 import { buildOrbitalBackdrop } from './core/backdrop.js';
 import { buildLaunchMount, buildPedestal, buildHumanCrowd } from './vehicles/common.js';
-import { seeded } from './geometry/utils.js';
+import { seeded, mergeAll } from './geometry/utils.js';
 import { buildLaunchComplex, PAD } from './vehicles/pad.js';
 import { verifyExhibits, verifyScene, verifyPad, verifyInterfaces } from './data/verify.js';
 import { createLaunch } from './sim/launch.js';
@@ -205,7 +205,7 @@ async function main() {
   hud.setProgress('Lighting and environment…', 0.25);
   await nextFrame();
   const env = createEnvironment(renderer, scene, M, quality);
-  dressCampus(scene, M);
+  dressCampus(scene, M, { stops: Object.values(LAYOUT).filter(l => !l.pad).map(l => l.x) });
 
   // ---- Post-processing (MSAA render target + subtle bloom) ----
   const rt = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { samples: quality.msaa, type: THREE.HalfFloatType });
@@ -290,13 +290,26 @@ async function main() {
       env.addStation(lay.x, lay.z, 6);
     } else if (v.id === 'dragon') {
       const ped = buildPedestal(M, { radius: 2.3, height: lay.mount });
-      // cradle: four supports under the trunk rim
-      for (let i = 0; i < 4; i++) {
-        const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-        const s = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.6, 0.3), M.mount);
-        s.position.set(Math.sin(a) * 1.55, lay.mount + 0.3, Math.cos(a) * 1.55);
-        s.castShadow = s.receiveShadow = true;
-        ped.add(s);
+      // Cradle: the trunk stands on a conical adapter the way it stands on the second stage —
+      // a steel frustum from the 3.7 m trunk base down to the plinth, a bolted interface ring
+      // at the top and a foot ring at the bottom. Proportions reconstructed. It replaces four
+      // square posts that read as crates stacked under the spacecraft.
+      {
+        const H = 0.6, rTop = 1.8, rBot = 1.35, y0 = lay.mount;
+        const cone = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, H, 64, 1, true), M.mount);
+        cone.position.y = y0 + H / 2;
+        const ringTop = new THREE.Mesh(new THREE.TorusGeometry(rTop, 0.045, 8, 96), M.alumDark ?? M.mount);
+        ringTop.rotation.x = Math.PI / 2; ringTop.position.y = y0 + H - 0.03;
+        const ringBot = new THREE.Mesh(new THREE.TorusGeometry(rBot + 0.02, 0.06, 8, 96), M.mount);
+        ringBot.rotation.x = Math.PI / 2; ringBot.position.y = y0 + 0.05;
+        const bolts = [];
+        for (let i = 0; i < 48; i++) {
+          const a = (i / 48) * Math.PI * 2;
+          bolts.push({ geometry: new THREE.CylinderGeometry(0.018, 0.018, 0.05, 6), matrix: new THREE.Matrix4().makeTranslation(Math.sin(a) * (rTop + 0.02), y0 + H - 0.075, Math.cos(a) * (rTop + 0.02)) });
+        }
+        const boltMesh = new THREE.Mesh(mergeAll(bolts), M.alumDark ?? M.mount);
+        boltMesh.userData.lodFeature = 0.036;
+        for (const m of [cone, ringTop, ringBot, boltMesh]) { m.castShadow = m.receiveShadow = true; ped.add(m); }
       }
       group.add(ped);
       model.position.y = lay.mount + 0.6;
