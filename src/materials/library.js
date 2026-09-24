@@ -298,6 +298,8 @@ float vcNoise(vec2 p) {
   M.berm = new THREE.MeshStandardMaterial({ color: 0x8a7a58, roughness: 0.96, metalness: 0 });
   // Coastal brush in late summer: olive going to straw, not lawn green.
   M.scrub = new THREE.MeshStandardMaterial({ color: 0x626240, roughness: 0.96, metalness: 0, flatShading: false });
+  // Beach grass on the foredune: sea oats and bitter panicum, straw going to pale green.
+  M.duneGrass = new THREE.MeshStandardMaterial({ color: 0x9c9868, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
   M.service = new THREE.MeshStandardMaterial({ color: 0x3c4650, roughness: 0.7, metalness: 0.06 });
   M.copper = new THREE.MeshPhysicalMaterial({ color: 0xb87333, metalness: 1.0, roughness: 0.35 });
   // White MLI: the foil colour map is gold, so take only its crinkle normals.

@@ -187,6 +187,115 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     water.receiveShadow = false;
     ground.add(water);
 
+    // Foredune. Behind every beach on this coast — and in photographs of Starbase from the
+    // beach — the plain does not run flat into the sand: a ridge of wind-built dunes a few
+    // metres high, held by beach grass, stands between them, broken by blowouts. The ground
+    // disc is far too coarse there (≈40 m cells) to carry it, so it is its own strip following
+    // the waterline, laid on the ground's own height function and sunk a little into it at
+    // both edges. Drawn with the terrain material: same grain, same landscape noise; its
+    // seaward face is flagged as dry sand for the shader, its crest and back are grassy.
+    // Height, width and spacing are plausible for a Gulf foredune, not a survey.
+    const groundHeight = (past) => (past > 0 ? -9 * THREE.MathUtils.smoothstep(past, 0, 180)
+      : 0.35 * THREE.MathUtils.smoothstep(-past, 0, 60) * (1 - THREE.MathUtils.smoothstep(-past, 60, 160)));
+    const DUNE_C = -125, HALF = 36, ROWS = 24, STEP = 5;
+    const duneH = (x) => {
+      const h = 2.2 + 3.4 * noise2(x / 140 + 2.2, 4.4) + 1.3 * noise2(x / 37, 8.8);
+      const blow = THREE.MathUtils.smoothstep(noise2(x / 260 + 9.1, 1.7), 0.18, 0.34);   // blowouts
+      return h * blow;
+    };
+    // Across-dune profile, 0..1: steeper to seaward (d > 0), a long gentle back slope.
+    // A main ridge and a lower, older one behind it, the way a foredune system builds up.
+    const ridge = (d, w) => {
+      const t = d > 0 ? d / (w * 0.7) : -d / w;
+      return t >= 1 ? 0 : Math.pow(Math.cos(t * Math.PI / 2), 1.6);
+    };
+    const bump = (d) => Math.max(ridge(d - 8, 22), 0.45 * ridge(d + 20, 14));
+    const dpos = [], dcol = [], duv = [], dshore = [], didx = [];
+    const tufts = [];
+    let cols = 0;
+    for (let x = -GROUND_R; x <= GROUND_R; x += STEP) {
+      const zc = shoreZ(x) + 35.3 - DUNE_C;           // world z of the crest line
+      if (Math.hypot(x, zc) > GROUND_R - 60) { if (cols) break; continue; }
+      const H = duneH(x);
+      for (let r = 0; r <= ROWS; r++) {
+        const d = -HALF + (2 * HALF * r) / ROWS;       // + is seaward
+        const wz = zc - d;
+        const past = shoreZ(x) - wz;
+        // Sunk 0.35 m at the edges, so the strip meets the coarse ground under its surface.
+        const h = groundHeight(past) + H * bump(d) - 0.35 * (1 - THREE.MathUtils.smoothstep(bump(d), 0, 0.12));
+        dpos.push(x, -wz, h);
+        duv.push(x, wz * -1);
+        const lift = 1 + 0.12 * bump(d);
+        dcol.push(lift, lift, lift * 0.97);
+        dshore.push(d > 4 ? THREE.MathUtils.smoothstep(d, 4, 16) : 0, 0);
+      }
+      // Beach grass on the crest and the back slope, thinning towards the edges.
+      for (let k = 0; k < 11; k++) {
+        const n = noise2(x * 0.37 + k * 13.1, 3.3 + k);
+        const d = -HALF * 0.9 + noise2(x * 0.61 + k * 5.3, 9.9 + k) * HALF * 1.6;
+        if (bump(d) * H < 0.6 || d > 16) continue;
+        const wz = zc - d + (noise2(x * 0.9, k * 7.7) - 0.5) * 3;
+        tufts.push([x + (noise2(x * 0.5, k) - 0.5) * STEP, -wz, groundHeight(shoreZ(x) - wz) + H * bump(d) - 0.1, 0.6 + n]);
+      }
+      cols++;
+    }
+    const RW = ROWS + 1;
+    for (let i = 0; i < cols - 1; i++) {
+      for (let r = 0; r < ROWS; r++) {
+        const a = i * RW + r, b = (i + 1) * RW + r;
+        didx.push(a, b, a + 1, b, b + 1, a + 1);
+      }
+    }
+    const duneGeo = new THREE.BufferGeometry();
+    duneGeo.setAttribute('position', new THREE.Float32BufferAttribute(dpos, 3));
+    duneGeo.setAttribute('uv', new THREE.Float32BufferAttribute(duv, 2));
+    duneGeo.setAttribute('color', new THREE.Float32BufferAttribute(dcol, 3));
+    duneGeo.setAttribute('aShore', new THREE.Float32BufferAttribute(dshore, 2));
+    duneGeo.setIndex(didx);
+    duneGeo.computeVertexNormals();
+    // Faces point up (+local z) given this winding; flip if the first normal came out down.
+    if (duneGeo.attributes.normal.getZ(0) < 0) {
+      const idx = duneGeo.index.array;
+      for (let i = 0; i < idx.length; i += 3) { const t = idx[i + 1]; idx[i + 1] = idx[i + 2]; idx[i + 2] = t; }
+      duneGeo.computeVertexNormals();
+    }
+    const dune = new THREE.Mesh(duneGeo, M.terrain || M.concrete);
+    dune.name = 'foredune';
+    dune.receiveShadow = true;
+    ground.add(dune);
+
+    // Not on the low tier: some hundred thousand triangles of grass a phone does not need.
+    if (tufts.length && M.duneGrass && quality.name !== 'low') {
+      // A clump of blades, not a cone: nine thin spikes leaning out from one root, which is
+      // what a tussock of sea oats is at the distance anyone sees it from.
+      const blades = [];
+      for (let b = 0; b < 9; b++) {
+        const a = (b / 9) * Math.PI * 2 + b * 0.7, lean = 0.25 + 0.2 * ((b * 37) % 5) / 5;
+        const len = 0.55 + 0.35 * ((b * 53) % 7) / 7;
+        const g = new THREE.ConeGeometry(0.05, len, 3, 1, true);
+        g.translate(0, len / 2, 0);
+        g.rotateZ(lean); g.rotateY(a);
+        g.translate(Math.cos(a) * 0.06, 0, Math.sin(a) * 0.06);
+        blades.push({ geometry: g });
+      }
+      const tuft = mergeAll(blades);
+      tuft.rotateX(Math.PI / 2);                      // the clump's +y onto the ground's up (+z)
+      const grass = new THREE.InstancedMesh(tuft, M.duneGrass, tufts.length);
+      grass.name = 'dune-grass';
+      const dm = new THREE.Object3D();
+      tufts.forEach(([x, y, z, s], i) => {
+        dm.position.set(x, y, z);
+        dm.scale.set(1.6 * s, 1.6 * s, 1.3 * s * (0.8 + 0.5 * s));
+        dm.rotation.set(0, 0, s * 9);
+        dm.updateMatrix();
+        grass.setMatrixAt(i, dm.matrix);
+      });
+      grass.instanceMatrix.needsUpdate = true;
+      grass.castShadow = false;
+      grass.receiveShadow = true;
+      ground.add(grass);
+    }
+
   }
   // The terrain material is the ground's alone, so its repeat can be driven from here.
   const groundMaps = [ground.material.map, ground.material.roughnessMap, ground.material.normalMap].filter(Boolean);
