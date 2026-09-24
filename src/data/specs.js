@@ -80,6 +80,7 @@ export const VEHICLES = [
       { label: 'Pad 2 · launch mount', value: 'square, water-cooled deck, 20 hold-down clamps', source: 'press', ref: 'nsf_pad2' },
       { label: 'Pad 2 · flame trench', value: 'concrete bathtub lined with stainless steel, bidirectional, with a central deflector', source: 'press', ref: 'nsf_pad2' },
       { label: 'Pad 2 · tower crown', value: 'lightning rod and a small weather station on top of the tower', source: 'wiki', ref: 'wiki_starbase' },
+      { label: 'Pad 2 · carriage hoist', value: 'chopstick carriage on a pulley at the tower top, driven by a winch and spool at the base', source: 'wiki', ref: 'wiki_starbase' },
       { label: 'Pad 2 · deluge water', value: 'held in a farm of horizontal tanks, driven onto the deck by compressed gas', source: 'wiki', ref: 'wiki_starbase' },
       { label: 'Tank farm · propellant', value: '95,000 US gal horizontal LOX tank · 80,000 US gal methane tank · LN2 subcoolers', source: 'wiki', ref: 'wiki_starbase' },
       { label: 'Pad 2 · plan dimensions', value: '26 m mount, deck at 18 m, trench 22 m wide and 8.2 m deep, tower 30 m off the axis', source: 'derived', approx: true },

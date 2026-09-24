@@ -499,6 +499,63 @@ function buildTower(M) {
     crown.push({ geometry: new THREE.CylinderGeometry(0.06, 0.06, 0.25, 8), matrix: mat4([wx + d, top + 5.8, wz]) });
   }
   g.add(mesh(boxUV(mergeAll(crown)), M.alumDark, { name: 'mast' }));
+
+  // ---- Carriage hoist --------------------------------------------------------------------
+  // Cited (Wikipedia, SpaceX Starbase): the chopstick carriage hangs from a pulley at the top of
+  // the tower and is driven by a winch and spool at its base. It used to hang from nothing.
+  // Built here: a sheave frame on the crown over the pad face, two cable falls from it down to
+  // the carriage (their length follows the carriage; see userData.hoist), the return runs down
+  // inside the truss, and a winch skid with two drums beside the tower foot. Sizes reconstructed.
+  const face = h + 0.9;                  // the carriage's inner face, as buildChopsticks has it
+  const sheaveY = top - 1.8;
+  const hoist = [];
+  hoist.push(block(h - 1.2, face + 1.4, top - 0.4, top + 0.4, -2.6, 2.6));       // crown beam
+  for (const z of [-2.2, 2.2]) hoist.push(block(face + 0.6, face + 1.4, sheaveY - 1.3, top, z - 0.35, z + 0.35));
+  const sheaves = [];
+  for (const z of [-1.5, 1.5]) {
+    sheaves.push({ geometry: new THREE.CylinderGeometry(1.1, 1.1, 0.35, 28), matrix: mat4([face + 0.2, sheaveY, z], [Math.PI / 2, 0, 0]) });
+    sheaves.push({ geometry: new THREE.CylinderGeometry(0.22, 0.22, 4.6, 12), matrix: mat4([face + 0.2, sheaveY, 0], [Math.PI / 2, 0, 0]) });
+  }
+  // Winch skid on the landward side of the foot, and the return falls up inside the truss.
+  const hx = -h - 5.5;
+  hoist.push(block(hx - 3.5, hx + 3.5, padY, padY + 0.6, -5, 5));                  // skid
+  for (const z of [-2.4, 2.4]) {
+    sheaves.push({ geometry: new THREE.CylinderGeometry(1.25, 1.25, 2.4, 32), matrix: mat4([hx, padY + 2.2, z], [Math.PI / 2, 0, 0]) });
+    hoist.push(block(hx - 1.4, hx + 1.4, padY + 0.6, padY + 1.2, z - 1.5, z + 1.5));   // drum pedestal
+    hoist.push(block(hx + 1.9, hx + 3.3, padY + 0.6, padY + 2.4, z - 0.9, z + 0.9));   // motor
+  }
+  const cable = [];
+  for (const z of [-1.5, 1.5]) {
+    cable.push(rod([hx, padY + 3.4, z * 1.6], [-h + 1.2, padY + 6, z], 0.06, 6));
+    cable.push(rod([-h + 1.2, padY + 6, z], [-h + 1.2, sheaveY + 1.0, z], 0.06, 6));
+    cable.push(rod([-h + 1.2, sheaveY + 1.0, z], [face - 0.9, sheaveY + 1.0, z], 0.06, 6));
+  }
+  g.add(mesh(boxUV(mergeAll(hoist)), M.mount, { name: 'hoist-frame' }));
+  g.add(mesh(boxUV(mergeAll(sheaves)), M.darkMetal, { name: 'hoist-sheaves' }));
+  g.add(mesh(boxUV(mergeAll(cable)), M.darkMetal, { name: 'hoist-cable-return', castShadow: false }));
+  // The two falls from the sheaves to the carriage: unit-length rods hung from the sheave,
+  // stretched to reach the carriage wherever it is.
+  const fallGeo = new THREE.CylinderGeometry(0.07, 0.07, 1, 6);
+  fallGeo.translate(0, -0.5, 0);
+  const falls = [];
+  // Untextured: the falls are stretched to length, and a metric map on a unit rod would be
+  // smeared along it (the integrity gate rejects exactly that). A wire rope reads as its
+  // colour and sheen anyway.
+  const ropeMat = new THREE.MeshStandardMaterial({ color: 0x2c2f33, metalness: 0.7, roughness: 0.45 });
+  for (const z of [-1.5, 1.5]) {
+    const f = mesh(fallGeo, ropeMat, { name: 'hoist-fall', castShadow: false });
+    f.position.set(face + 1.3, sheaveY, z);   // off the outboard edge of the sheave
+    g.add(f);
+    falls.push(f);
+  }
+  const carriageTop = 3.2;                    // the carriage block's top, in its own frame
+  /** @param carriageY the chopstick group's y in the complex frame, as launch.js sets it */
+  g.userData.hoist = (carriageY) => {
+    const len = Math.max(0.5, sheaveY - (carriageY + carriageTop));
+    for (const f of falls) f.scale.y = len;
+    return len;
+  };
+  g.userData.hoist(PAD.armY);
   return g;
 }
 
@@ -851,7 +908,8 @@ export function buildLaunchComplex(M) {
   g.add(buildGround(M));
   const table = buildMountTable(M);
   g.add(table);
-  g.add(buildTower(M));
+  const tower = buildTower(M);
+  g.add(tower);
   const chop = buildChopsticks(M);
   g.add(chop);
   const qd = buildQdArm(M);
@@ -877,6 +935,8 @@ export function buildLaunchComplex(M) {
     holddowns: table.getObjectByName('holddowns'),
     qdArm: qd,
     chopsticks: chop,
+    // Call after moving the carriage: stretches the hoist falls down to it.
+    hoist: (y) => tower.userData.hoist(y),
   };
   // ---- Level of detail --------------------------------------------------------------------
   // The complex is nearly always looked at from a hundred metres or more, and a good deal of
@@ -891,6 +951,7 @@ export function buildLaunchComplex(M) {
     'deck-manifold': 0.2, 'deck-nozzles': 0.06, 'mount-trim': 0.09,
     'mount-rail': 0.1, 'trench-ramps': 0.3, 'qd-lines': 0.08, 'qd-rail': 0.05,
     'mount-baseplates': 0.14, 'pad-cable-tray': 0.12, 'pad-valves': 0.18,
+    'hoist-cable-return': 0.12,
   };
   g.traverse((o) => { const f = FINE[o.name]; if (f) o.userData.lodFeature = f; });
 

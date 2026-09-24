@@ -599,6 +599,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     // on it in the last seconds of the landing burn.
     const ride = THREE.MathUtils.smoothstep(t, EVENTS.landingBurn - 60, EVENTS.landingBurn + 6);
     chop.position.y = THREE.MathUtils.lerp(chopHome.y, CATCH_CARRIAGE, ride);
+    parts.hoist?.(chop.position.y);
     const close = THREE.MathUtils.smoothstep(t, EVENTS.catch - 11, EVENTS.catch - 1);
     for (const a of chopHome.arms) {
       const s2 = a.ry < 0 ? 1 : -1;
@@ -681,6 +682,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     parts.holddowns.children.forEach((c, i) => c.position.copy(home.clamps[i]));
     env.setAltitude(0);
     chop.position.y = chopHome.y;
+    parts.hoist?.(chop.position.y);
     for (const a of chopHome.arms) a.obj.rotation.y = a.ry;
     boosterFlight.position.set(0, 0, 0);
     boosterFlight.rotation.z = 0;
