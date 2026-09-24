@@ -28,9 +28,24 @@ export function buildMount(M, { radius = 8, inner = 4.6, height = 8, legs = 6, c
   g.add(mesh(mergeAll(legParts), M.plinth ?? M.mount));
   // Hold-down clamps at the vehicle skirt
   const clampParts = [];
+  // Each clamp is a hold-down, not a block: a pedestal on the deck, an upright on its outboard
+  // side, a jaw reaching in over the edge of the base to the hard point, the pin it pivots on,
+  // and the hydraulic cylinder that swings it open at release. Same footprint and height as the
+  // 66 cm box it replaces (which, seen from under the vehicle, was four dark crates round the
+  // engines). Proportions reconstructed.
+  const clampShape = [];
+  clampShape.push({ geometry: new THREE.BoxGeometry(0.66, 0.2, 0.62), matrix: mat4([0, 0.1, 0.05]) });           // pedestal
+  clampShape.push({ geometry: new THREE.BoxGeometry(0.5, 0.52, 0.16), matrix: mat4([0, 0.36, 0.28]) });          // upright
+  clampShape.push({ geometry: new THREE.BoxGeometry(0.42, 0.12, 0.46), matrix: mat4([0, 0.56, 0.1]) });          // jaw
+  clampShape.push({ geometry: new THREE.BoxGeometry(0.42, 0.14, 0.08), matrix: mat4([0, 0.49, -0.1]) });         // jaw lip
+  clampShape.push({ geometry: new THREE.CylinderGeometry(0.06, 0.06, 0.62, 12), matrix: mat4([0, 0.5, 0.28], [0, 0, Math.PI / 2]) });   // pivot pin
+  clampShape.push({ geometry: new THREE.CylinderGeometry(0.075, 0.075, 0.42, 12), matrix: mat4([0, 0.26, 0.47], [0.55, 0, 0]) });     // actuator
+  clampShape.push({ geometry: new THREE.CylinderGeometry(0.035, 0.035, 0.3, 8), matrix: mat4([0, 0.44, 0.38], [0.55, 0, 0]) });       // rod
   for (let i = 0; i < clamps; i++) {
     const a = (i / clamps) * Math.PI * 2 + Math.PI / clamps;
-    clampParts.push({ geometry: new THREE.BoxGeometry(0.66, 0.62, 0.46), matrix: mat4([Math.sin(a) * (clampRadius + 0.26), height + 0.31, Math.cos(a) * (clampRadius + 0.26)], [0, a, 0]) });
+    const r = clampRadius + 0.26;
+    const place = mat4([Math.sin(a) * r, height, Math.cos(a) * r], [0, a, 0]);
+    for (const part of clampShape) clampParts.push({ geometry: part.geometry, matrix: place.clone().multiply(part.matrix) });
   }
   // Dark steel, not ochre: four 66 cm yellow blocks round the base were the brightest thing
   // in every view from under a Falcon, and nothing about museum furniture asks for them.
