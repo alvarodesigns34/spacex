@@ -13,7 +13,7 @@ const BUS_L = 4.1;   // along Z (press)
 const BUS_T = 0.48;  // structural depth, approximate; the published figure is the 30 m span
 // Sized so the deployed span is exactly the published 30 m: (30 − 2.7)/2 − 0.55 yoke.
 const WING_L = 13.1;
-const WING_W = 4.1;
+const WING_W = 4.0;   // 52.5 m² per wing (Teslarati, Feb 2023) over 13.1 m
 
 export function buildStarlink(M) {
   const g = new THREE.Group();

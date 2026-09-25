@@ -1077,7 +1077,11 @@ function createRoadsterMaterials(M) {
     color: 0xdde0e4, metalness: 0.0, roughness: 0.86, sheen: 0.5, sheenRoughness: 0.5,
     sheenColor: new THREE.Color(0xd8dde4), envMapIntensity: 0.6,
   });
-  const starmanSuitGraphite = new THREE.MeshPhysicalMaterial({ color: 0x24272c, roughness: 0.7, metalness: 0.05, sheen: 0.6, sheenRoughness: 0.6, sheenColor: new THREE.Color(0x5a5f66) });
+  // Graphite panels are dark grey, not black, and the chest piping is a mid grey line: the
+  // SpaceX suit as NASA photographed it on the Crew-3 crew at LC-39A (KSC-20211028-PH-SPX02),
+  // the same design Starman wears.
+  const starmanSuitGraphite = new THREE.MeshPhysicalMaterial({ color: 0x3a3d43, roughness: 0.72, metalness: 0.05, sheen: 0.6, sheenRoughness: 0.6, sheenColor: new THREE.Color(0x6a6f76) });
+  const starmanSuitPiping = new THREE.MeshStandardMaterial({ color: 0x74787e, roughness: 0.65, metalness: 0.05 });
 
   // Gold-tinted IVA visor, dark from outside and not bright enough to punch the bloom
   // threshold the composer runs at.
@@ -1113,7 +1117,7 @@ function createRoadsterMaterials(M) {
   return {
     cherryRed, blackTrim, satinBlack, carbonFiber, chromeTrim, forgedAlloy, aluminium, reflectorBowl, lampHousing,
     tyreRubber, brakeRotor, brakeCaliper, amberReflector, windshieldGlass, headlightLens, taillightRed, tailLens,
-    starmanSuitWhite, starmanSuitGraphite, starmanVisor, quartzDisc, grilleMesh, radiatorCore, lowerFascia,
+    starmanSuitWhite, starmanSuitGraphite, starmanSuitPiping, starmanVisor, quartzDisc, grilleMesh, radiatorCore, lowerFascia,
   };
 }
 // -----------------------------------------------------------------------------------------
@@ -3130,7 +3134,7 @@ function buildStarman(mats) {
   const g = new THREE.Group();
   g.name = 'starman';
 
-  const { starmanSuitWhite, starmanSuitGraphite, starmanVisor, blackTrim } = mats;
+  const { starmanSuitWhite, starmanSuitGraphite, starmanSuitPiping, starmanVisor, blackTrim } = mats;
   const X = -0.34; // driver seat centreline
 
   // Door sill the left forearm rests on, taken from the body surface rather than guessed, so
@@ -3181,7 +3185,7 @@ function buildStarman(mats) {
       }
       seams.push({ geometry: tube(pts, 0.0045, { tubular: 24, radial: 6 }) });
     }
-    torso.add(mesh(mergeAll(seams), starmanSuitGraphite, { name: 'suit-seams', castShadow: false }));
+    torso.add(mesh(mergeAll(seams), starmanSuitPiping, { name: 'suit-seams', castShadow: false }));
   }
   g.add(torso);
 
