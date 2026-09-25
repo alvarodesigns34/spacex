@@ -593,6 +593,51 @@ function tailLampPolygon(s, grow = 0, n = 72) {
   return out;
 }
 
+/**
+ * zProbe(geometries)(x, y, zFrom): the smallest z ≥ zFrom at which the vertical line through
+ * (x, y) crosses any triangle of the geometries (both faces), or null — what a Raycaster
+ * aimed along +z from (x, y, zFrom) returns, without testing every triangle for every ray.
+ */
+function zProbe(geos, cells = 96) {
+  const tris = [];
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const g of geos) {
+    const p = g.attributes.position, ix = g.index;
+    const n = ix ? ix.count : p.count;
+    for (let k = 0; k < n; k += 3) {
+      const a = ix ? ix.getX(k) : k, b = ix ? ix.getX(k + 1) : k + 1, c = ix ? ix.getX(k + 2) : k + 2;
+      const t = [p.getX(a), p.getY(a), p.getZ(a), p.getX(b), p.getY(b), p.getZ(b), p.getX(c), p.getY(c), p.getZ(c)];
+      tris.push(t);
+      x0 = Math.min(x0, t[0], t[3], t[6]); x1 = Math.max(x1, t[0], t[3], t[6]);
+      y0 = Math.min(y0, t[1], t[4], t[7]); y1 = Math.max(y1, t[1], t[4], t[7]);
+    }
+  }
+  const sx = cells / (x1 - x0 || 1), sy = cells / (y1 - y0 || 1);
+  const bins = Array.from({ length: cells * cells }, () => []);
+  const ci = (v, o, sc) => Math.min(cells - 1, Math.max(0, Math.floor((v - o) * sc)));
+  tris.forEach((t, k) => {
+    const i0 = ci(Math.min(t[0], t[3], t[6]), x0, sx), i1 = ci(Math.max(t[0], t[3], t[6]), x0, sx);
+    const j0 = ci(Math.min(t[1], t[4], t[7]), y0, sy), j1 = ci(Math.max(t[1], t[4], t[7]), y0, sy);
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) bins[j * cells + i].push(k);
+  });
+  return (x, y, zFrom) => {
+    if (x < x0 || x > x1 || y < y0 || y > y1) return null;
+    let best = null;
+    for (const k of bins[ci(y, y0, sy) * cells + ci(x, x0, sx)]) {
+      const t = tris[k];
+      const d = (t[4] - t[7]) * (t[0] - t[6]) + (t[6] - t[3]) * (t[1] - t[7]);
+      if (Math.abs(d) < 1e-14) continue;
+      const l1 = ((t[4] - t[7]) * (x - t[6]) + (t[6] - t[3]) * (y - t[7])) / d;
+      const l2 = ((t[7] - t[1]) * (x - t[6]) + (t[0] - t[6]) * (y - t[7])) / d;
+      const l3 = 1 - l1 - l2;
+      if (l1 < -1e-9 || l2 < -1e-9 || l3 < -1e-9) continue;
+      const z = l1 * t[2] + l2 * t[5] + l3 * t[8];
+      if (z >= zFrom && (best === null || z < best)) best = z;
+    }
+    return best;
+  };
+}
+
 function pointInPoly(x, y, poly) {
   let inside = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -672,13 +717,17 @@ function tailPanel(ring) {
       }
     }
     const inDomain = (x, y) => pointInPoly(x, y, outline) && !holes.some(h => pointInPoly(x, y, h));
+    // Each grid vertex is shared by four cells and was tested once for each of them (and again
+    // below): answered once here instead. The cell centres still get their own test.
+    const inV = new Uint8Array(cols * rows);
+    for (let k = 0; k < cols * rows; k++) inV[k] = inDomain(gx[k], gy[k]) ? 1 : 0;
     const keep = new Uint8Array((cols - 1) * (rows - 1));
     const used = new Uint8Array(cols * rows);
     for (let j = 0; j < rows - 1; j++) {
       for (let i = 0; i < cols - 1; i++) {
         const k = [j * cols + i, j * cols + i + 1, (j + 1) * cols + i, (j + 1) * cols + i + 1];
         const cxm = (gx[k[0]] + gx[k[3]]) / 2, cym = (gy[k[0]] + gy[k[1]] + gy[k[2]] + gy[k[3]]) / 4;
-        if (!inDomain(cxm, cym) && !k.some(q => inDomain(gx[q], gy[q]))) continue;
+        if (!k.some(q => inV[q]) && !inDomain(cxm, cym)) continue;
         keep[j * (cols - 1) + i] = 1;
         for (const q of k) used[q] = 1;
       }
@@ -687,7 +736,7 @@ function tailPanel(ring) {
     const _n = new THREE.Vector3();
     for (let k = 0; k < cols * rows; k++) {
       let x = gx[k], y = gy[k];
-      if (used[k] && !inDomain(x, y)) {
+      if (used[k] && !inV[k]) {
         let best = null, bd = Infinity;
         for (const poly of [outline, ...holes]) {
           const [p, d] = nearestOnPoly(x, y, poly);
@@ -1019,17 +1068,13 @@ function createRoadsterMaterials(M) {
   });
 
   // Suit fabric: a matt woven outer layer, not plastic. Sheen carries the soft rim a fabric
-  // shows at grazing angles, and a fold map breaks the highlights up the way cloth does.
-  const foldCanvas = canvas(256, 256);
-  shade(foldCanvas, (x, y, u, v) => {
-    const f = fbm(u * 3 + 11, v * 9 + 2, 4) * 0.7 + fbm(u * 14 + 5, v * 22 + 9, 3) * 0.3;
-    const g = Math.max(0, Math.min(255, f * 255));
-    return [g, g, g];
-  });
+  // shows at grazing angles. There is deliberately no normal map: the suit is built from
+  // merged spheres, cylinders and lathes whose stock UVs pinch at the poles and jump at the
+  // seams, and a tangent-space map derives its frame from those UVs — at every joint it came
+  // out inverted and the elbows, shoulders and chest showed ragged black patches.
   const starmanSuitWhite = new THREE.MeshPhysicalMaterial({
-    color: 0xe9ebee, metalness: 0.0, roughness: 0.82, sheen: 1.0, sheenRoughness: 0.55,
+    color: 0xe9ebee, metalness: 0.0, roughness: 0.86, sheen: 1.0, sheenRoughness: 0.5,
     sheenColor: new THREE.Color(0xd8dde4), envMapIntensity: 0.6,
-    normalMap: toTexture(heightToNormal(foldCanvas, 2.2)), normalScale: new THREE.Vector2(0.55, 0.55),
   });
   const starmanSuitGraphite = new THREE.MeshPhysicalMaterial({ color: 0x24272c, roughness: 0.7, metalness: 0.05, sheen: 0.6, sheenRoughness: 0.6, sheenColor: new THREE.Color(0x5a5f66) });
 
@@ -1431,18 +1476,14 @@ function buildBodyShell(mats, M) {
     const F = FASCIA_REAR;
     const NX = 64, NY = 10;
     const pos = [], idx = [];
-    const probe = new THREE.Group();
-    const probeMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
-    probe.add(new THREE.Mesh(tailGeo, probeMat), new THREE.Mesh(rearGeo, probeMat));
-    probe.updateMatrixWorld(true);
-    const ray = new THREE.Raycaster();
-    const behind = new THREE.Vector3(), fwd = new THREE.Vector3(0, 0, 1);
-    const surfaceZ = (x, y) => {
-      behind.set(x, y, TAIL_FACE_Z - 0.5);
-      ray.set(behind, fwd);
-      const hit = ray.intersectObject(probe, true)[0];
-      return hit ? hit.point.z : tailZ(x, y);
-    };
+    // The first surface a ray fired forward (+z) from behind the car meets. It was a
+    // Raycaster against both meshes, which tests every triangle for every ray: ~900 rays over
+    // tens of thousands of triangles, the largest single cost of building the car. The rays
+    // are all parallel to z, so the same answer comes from a grid of triangles binned by
+    // their x/y extent and an exact point-in-triangle test in the plane.
+    const probeZ = zProbe([tailGeo, rearGeo]);
+    const z0 = TAIL_FACE_Z - 0.5;
+    const surfaceZ = (x, y) => probeZ(x, y, z0) ?? tailZ(x, y);
     for (let i = 0; i <= NX; i++) {
       const u = (i / NX) * 2 - 1, x = u * F.x;
       const [ya, yb] = fasciaBand(F, u);

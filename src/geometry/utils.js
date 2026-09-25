@@ -572,3 +572,38 @@ export function mesh(geometry, material, opts = {}) {
 export function radial(n, fn, offset = 0) {
   for (let i = 0; i < n; i++) fn(offset + (i / n) * Math.PI * 2, i);
 }
+
+/**
+ * One InstancedMesh per `cell`-metre square of the ground instead of one for the whole field.
+ *
+ * A single InstancedMesh spread over hundreds of metres has one bounding sphere the size of
+ * the field, so it is never frustum-culled and every instance is drawn from every viewpoint —
+ * the grass behind the camera included. Binned, each chunk is culled on its own, and each
+ * carries `userData.lodFeature` so the LOD manager can stop drawing chunks whose tussocks are
+ * under a pixel, instead of drawing a hundred thousand sub-pixel triangles as speckle.
+ *
+ * @param placements [{ x, z, matrix }] — x/z in the frame the chunks are added to
+ * @returns a Group holding the chunk meshes
+ */
+export function chunkedInstances(geometry, material, placements, { cell = 120, name = 'instances', feature = 0.6, castShadow = false, receiveShadow = true } = {}) {
+  const bins = new Map();
+  for (const p of placements) {
+    const key = `${Math.floor(p.x / cell)},${Math.floor(p.z / cell)}`;
+    if (!bins.has(key)) bins.set(key, []);
+    bins.get(key).push(p.matrix);
+  }
+  const group = new THREE.Group();
+  group.name = name;
+  for (const [key, mats] of bins) {
+    const im = new THREE.InstancedMesh(geometry, material, mats.length);
+    im.name = `${name}-${key}`;
+    mats.forEach((m, i) => im.setMatrixAt(i, m));
+    im.instanceMatrix.needsUpdate = true;
+    im.computeBoundingSphere();
+    im.computeBoundingBox();
+    im.castShadow = castShadow; im.receiveShadow = receiveShadow;
+    im.userData.lodFeature = feature;
+    group.add(im);
+  }
+  return group;
+}

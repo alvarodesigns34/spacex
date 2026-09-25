@@ -57,24 +57,30 @@ export function shade(c, fn) {
   return c;
 }
 
-/** Height (grayscale canvas) -> tangent-space normal map canvas, tileable. */
+/**
+ * Height (grayscale canvas) -> tangent-space normal map canvas, tileable. The heights are read
+ * once into a float array and the wrap is resolved per row and column, not per sample: the
+ * old version went through a closure with two modulos and a Math.hypot for each of four
+ * samples a pixel, and was the single largest cost of building the materials.
+ */
 export function heightToNormal(src, strength = 2) {
   const w = src.width, h = src.height;
   const sd = src.getContext('2d').getImageData(0, 0, w, h).data;
+  const H = new Float32Array(w * h);
+  for (let i = 0, n = w * h; i < n; i++) H[i] = sd[i * 4] / 255;
   const out = canvas(w, h);
   const ctx = out.getContext('2d');
   const img = ctx.createImageData(w, h);
   const d = img.data;
-  const H = (x, y) => sd[(((y + h) % h) * w + ((x + w) % w)) * 4] / 255;
   for (let y = 0; y < h; y++) {
+    const row = y * w, up = ((y + h - 1) % h) * w, dn = ((y + 1) % h) * w;
     for (let x = 0; x < w; x++) {
-      const dx = (H(x + 1, y) - H(x - 1, y)) * strength;
-      const dy = (H(x, y + 1) - H(x, y - 1)) * strength;
-      let nx = -dx, ny = dy, nz = 1;
-      const l = Math.hypot(nx, ny, nz);
-      nx /= l; ny /= l; nz /= l;
-      const i = (y * w + x) * 4;
-      d[i] = (nx * 0.5 + 0.5) * 255; d[i + 1] = (ny * 0.5 + 0.5) * 255; d[i + 2] = (nz * 0.5 + 0.5) * 255; d[i + 3] = 255;
+      const xl = x === 0 ? w - 1 : x - 1, xr = x === w - 1 ? 0 : x + 1;
+      const nx = -(H[row + xr] - H[row + xl]) * strength;
+      const ny = (H[dn + x] - H[up + x]) * strength;
+      const inv = 1 / Math.sqrt(nx * nx + ny * ny + 1);
+      const i = (row + x) * 4;
+      d[i] = (nx * inv * 0.5 + 0.5) * 255; d[i + 1] = (ny * inv * 0.5 + 0.5) * 255; d[i + 2] = (inv * 0.5 + 0.5) * 255; d[i + 3] = 255;
     }
   }
   ctx.putImageData(img, 0, 0);
@@ -245,6 +251,15 @@ export function makeFalconBody({ w = 1024, h = 2048, height = 41.2, name = 'FALC
     const s = amount * windward * (0.62 + 0.38 * streak) * (0.88 + 0.24 * patch);
     return Math.min(0.9, s) * (1 - 0.9 * legShadow(u, vv));
   };
+  // Falcon 9 and Falcon Heavy share the whole body shading and roughness; only the wordmark
+  // painted on top differs. Shading a 1024 × 2048 map costs six million noise lookups, so the
+  // unlettered result is kept per (size, height, flown) and the second vehicle copies it.
+  const key = `${w}x${h}:${height}:${flown}`;
+  const cached = FALCON_BODY_CACHE.get(key);
+  if (cached) {
+    map.getContext('2d').drawImage(cached.map, 0, 0);
+    return letterFalconBody(map, cached.rough, w, h, name);
+  }
   shade(map, (x, y, u, v) => {
     const vv = 1 - v; // canvas y=0 is the top of the stage
     let base = 0.93 + (fbm(u * 24, vv * 60, 3) - 0.5) * 0.05;
@@ -265,6 +280,14 @@ export function makeFalconBody({ w = 1024, h = 2048, height = 41.2, name = 'FALC
     const g = clamp((0.38 + (fbm(u * 30, vv * 80, 3) - 0.5) * 0.15 + s * 0.45) * 255);
     return [g, g, g];
   });
+  const plain = canvas(w, h);
+  plain.getContext('2d').drawImage(map, 0, 0);
+  FALCON_BODY_CACHE.set(key, { map: plain, rough });
+  return letterFalconBody(map, rough, w, h, name);
+}
+const FALCON_BODY_CACHE = new Map();
+
+function letterFalconBody(map, rough, w, h, name) {
   // Markings: vehicle name reads top-to-bottom along the stage.
   const ctx = map.getContext('2d');
   ctx.save();

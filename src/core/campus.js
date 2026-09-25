@@ -18,7 +18,7 @@
  */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { mesh, mergeAll, mat4, boxUV } from '../geometry/utils.js';
+import { mesh, mergeAll, mat4, boxUV, chunkedInstances } from '../geometry/utils.js';
 import { noise2, canvas, toTexture } from '../materials/textures.js';
 
 function quad(x0, z0, x1, z1, y) {
@@ -589,21 +589,18 @@ export function dressCampus(scene, M, { stops = [], quality = 'high' } = {}) {
       if (noise2(x / 60 + 3, z / 60 - 5) < 0.38) continue;
       at.push([x, z, r2()]);
     }
-    const grass = new THREE.InstancedMesh(tuft, M.duneGrass, at.length);
-    grass.name = 'campus-bunchgrass';
     const dm = new THREE.Object3D();
-    at.forEach(([x, z, k], i) => {
+    const placements = at.map(([x, z, k]) => {
       dm.position.set(x, 0, z);
       dm.rotation.set(0, k * 9, 0);
       const sc = 0.7 + k * 0.6;
       dm.scale.set(sc, sc * (0.55 + k * 0.35), sc);
       dm.updateMatrix();
-      grass.setMatrixAt(i, dm.matrix);
+      return { x, z, matrix: dm.matrix.clone() };
     });
-    grass.instanceMatrix.needsUpdate = true;
-    grass.castShadow = false;
-    grass.receiveShadow = true;
-    g.add(grass);
+    // Binned into 110 m chunks so the field is frustum-culled and thinned with distance
+    // instead of being one always-drawn mesh (chunkedInstances). A tussock is ~0,7 m across.
+    g.add(chunkedInstances(tuft, M.duneGrass, placements, { cell: 110, name: 'campus-bunchgrass', feature: 0.7 }));
   }
 
   // Three service trucks on the road shoulder. They are scale furniture.

@@ -467,6 +467,14 @@ async function main() {
     }
   }
 
+  // The ground and the campus dressing register theirs the same way: the chunked grass
+  // fields (chunkedInstances) and the fence, whose flag was set and never read.
+  for (const root of [scene.getObjectByName('campus'), env.ground]) {
+    root?.traverse((o) => {
+      if (o.userData?.lodFeature) lod.registerHidden(`site-${o.name || 'detail'}`, [o], null, o.userData.lodFeature, o.userData.lodBias ?? 1, o);
+    });
+  }
+
   // ---- Launch sequence ----
   const launch = createLaunch({
     scene, exhibits, complex, env, rig, camera, quality,
@@ -494,7 +502,12 @@ async function main() {
 
   hud.setProgress('Compiling shaders…', 0.95);
   await nextFrame();
-  renderer.compile(scene, camera);
+  // compileAsync hands every program to the driver at once and waits on
+  // KHR_parallel_shader_compile where it exists, so a multi-core driver links them side by
+  // side instead of one after another inside a blocking compile(). It resolves once all are
+  // ready; without the extension it degrades to the same work as compile().
+  if (renderer.compileAsync) await renderer.compileAsync(scene, camera);
+  else renderer.compile(scene, camera);
   composer.render();
   await nextFrame();
   // Site plan for the HUD map, read off the built scene rather than restated: the apron and

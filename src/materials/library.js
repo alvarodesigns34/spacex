@@ -195,10 +195,33 @@ float vcNoise(vec2 p) {
     diffuseColor.rgb *= mix(vec3(1.0), vec3(0.97, 0.97, 0.90), damp * 0.7);
     // Sparse low scrub: clumps of a few metres, thicker in the damp hollows, none on the salt
     // crust. Without it the plain read as one sheet of felt at any distance.
-    float veg = vcNoise(wp / 9.0 + 41.0) * 0.6 + vcNoise(wp / 3.1 - 13.0) * 0.4;
+    // Domain-warped: patches with ragged, drawn-out edges rather than the round blobs plain
+    // value noise makes, which were most of why the plain read as a procedural pattern.
+    vec2 wq = wp / 23.0;
+    vec2 warp = vec2(vcNoise(wq + 7.1), vcNoise(wq - 3.3)) - 0.5;
+    float veg = vcNoise(wp / 9.0 + warp * 3.0 + 41.0) * 0.6 + vcNoise(wp / 3.1 - 13.0) * 0.4;
     float beach = max(vShore.x, vShore.y);
     float scrub = smoothstep(0.60, 0.76, veg + damp * 0.10) * (1.0 - salt) * (1.0 - beach);
     diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.62, 0.70, 0.46), scrub * 0.75);
+    // Tidal drainage. Every aerial photograph of the flats round Boca Chica is laced with
+    // sinuous channels a metre or two wide, where the wind tides drain back to the lagoon:
+    // darker, wet, bare of scrub. Drawn as the 0,5 contour of a warped field — a line that
+    // meanders and branches but never ends in the open — and only in some districts, not as
+    // a lattice over the whole plain. fwidth keeps it one antialiased line at any distance.
+    {
+      vec2 cq = wp / 150.0;
+      vec2 cw = vec2(vcNoise(cq * 2.1 + 5.3), vcNoise(cq * 2.1 - 8.7)) - 0.5;
+      float cn = vcNoise(cq + cw * 0.9) * 0.7 + vcNoise(cq * 3.3 + cw * 1.6 + 2.0) * 0.3;
+      float cd = abs(cn - 0.5);
+      float cwidth = 0.006 + 0.004 * vcNoise(wp / 40.0 + 9.0);
+      float chan = 1.0 - smoothstep(cwidth, cwidth + fwidth(cn) * 1.5, cd);
+      float district = smoothstep(0.45, 0.62, vcNoise(wp / 420.0 + 17.0));
+      float bank = (1.0 - smoothstep(cwidth, cwidth * 4.0 + fwidth(cn) * 2.0, cd)) * district * (1.0 - beach);
+      chan *= district * (1.0 - beach);
+      // Wet mud margins, then the water-darkened bed with a hint of the sky in it.
+      diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.78, 0.76, 0.70), bank * 0.6);
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.10, 0.11, 0.10), chan * 0.8);
+    }
     // The beach (ground mesh only; other meshes on this material have no aShore and read 0):
     // pale quartz sand with a faint ripple of tone, darkening to wet sand at the water. A beach
     // tinted from the plain's olive map stayed grass-coloured all the way into the sea.
@@ -209,7 +232,7 @@ float vcNoise(vec2 p) {
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.26, 0.19, 0.10) * grain, vShore.y * 0.85);
   }`);
   };
-  M.terrain.customProgramCacheKey = () => 'vc-terrain-macro-4';
+  M.terrain.customProgramCacheKey = () => 'vc-terrain-macro-5';
   // The Gulf beyond the beach. Water is a dielectric with a smooth surface: almost all of what
   // it shows is the sky it reflects, so the colour here is only the body tint of shallow,
   // silty coastal water, and the wave normals do the rest.

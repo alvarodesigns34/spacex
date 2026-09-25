@@ -3,7 +3,7 @@
  */
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
-import { mesh, mergeAll, mat4 } from '../geometry/utils.js';
+import { mesh, mergeAll, mat4, chunkedInstances } from '../geometry/utils.js';
 import { noise2 } from '../materials/textures.js';
 import { createClouds } from './clouds.js';
 
@@ -282,20 +282,17 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
       }
       const tuft = mergeAll(blades);
       tuft.rotateX(Math.PI / 2);                      // the clump's +y onto the ground's up (+z)
-      const grass = new THREE.InstancedMesh(tuft, M.duneGrass, tufts.length);
-      grass.name = 'dune-grass';
       const dm = new THREE.Object3D();
-      tufts.forEach(([x, y, z, s], i) => {
+      const placements = tufts.map(([x, y, z, s]) => {
         dm.position.set(x, y, z);
         dm.scale.set(1.6 * s, 1.6 * s, 1.3 * s * (0.8 + 0.5 * s));
         dm.rotation.set(0, 0, s * 9);
         dm.updateMatrix();
-        grass.setMatrixAt(i, dm.matrix);
+        // Binned on the ground's own plane (its local x/y; z is up in this frame).
+        return { x, z: y, matrix: dm.matrix.clone() };
       });
-      grass.instanceMatrix.needsUpdate = true;
-      grass.castShadow = false;
-      grass.receiveShadow = true;
-      ground.add(grass);
+      // 4,6 km of dune in 150 m chunks: culled when off screen, thinned with distance.
+      ground.add(chunkedInstances(tuft, M.duneGrass, placements, { cell: 150, name: 'dune-grass', feature: 1.0 }));
     }
 
   }
