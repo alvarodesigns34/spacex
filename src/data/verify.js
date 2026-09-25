@@ -329,7 +329,7 @@ export function verifyExhibits(exhibits, { log = true } = {}) {
  */
 export const EXPECTED_PAD = {
   towerH: { value: 144.5, label: 'torre · altura sobre la explanada', cited: true },
-  armLen: { value: 36, label: 'brazo de captura · longitud', cited: true },
+  armLen: { value: 26, label: 'brazo de captura · longitud (≈36 del Pad 1 − 10)', cited: true },
   deckTop: { value: 18, label: 'mesa · cota de la cubierta' },
   padY: { value: 5, label: 'explanada · cota' },
   trenchDepth: { value: 4.2, label: 'zanja de llamas · profundidad' },

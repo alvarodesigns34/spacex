@@ -8,7 +8,8 @@
  * are carried into the vehicle sheet in data/specs.js so the interface never presents a
  * reconstructed number as a published one.
  *
- *   cited    tower height 144,5 m (474 ft) · chopstick arms ≈ 36 m · 20 hold-down clamps
+ *   cited    tower height 144,5 m (474 ft) · chopstick arms ≈ 26 m (Pad 1's ≈36 m less the ≈10 m
+ *            NSF reports for Pad 2) · 20 hold-down clamps
  *   cited    square launch mount with a water-cooled deck; integrated bidirectional flame
  *            trench, a concrete "bathtub" clad in stainless; booster sits several metres
  *            lower than Pad A's stilted OLM
@@ -67,7 +68,9 @@ export const PAD = {
   sections: 10,           // 122 m of truss
   mast: 22.5,             // lightning mast on top
   armY: 46.0,             // chopstick carriage height at launch (arms parked open)
-  armLen: 36.0,
+  // Pad 2's chopsticks are about 10 m shorter than Pad 1's ≈36 m (NASASpaceflight, "Starbase
+  // Pad 2: Design Advancements from Pad 1", August 2025; Wikipedia: "a new shorter design").
+  armLen: 26.0,
   qdY: 96.0,              // ship quick-disconnect arm
   qdLen: 18.5,
   // Field
@@ -633,7 +636,7 @@ function buildChopsticks(M) {
     arm.name = `arm-${s < 0 ? 'north' : 'south'}`;
     arm.position.set(face + 1.2, 0, s * 2.2);
     arm.rotation.y = -s * open;
-    // A box truss in the envelope the solid beam had (36 m × 3.4 m × 2.7 m, so the catch
+    // A box truss in the envelope the solid beam had (3.4 m × 2.7 m section, so the catch
     // geometry the gate measures is unchanged): four chords, a post every 3 m, a diagonal
     // per bay on the two vertical faces and on the bottom, and a closed deck on top that
     // carries the rail the booster's pins land on. Member sizes are reconstructed.
@@ -658,8 +661,7 @@ function buildChopsticks(M) {
     parts.push(block(0, 3.2, -hy, hy, -hz, hz));
     // Bumper pads on the inboard face: they close against the hull and centre the booster,
     // they do not carry it. The weight goes through the booster's pins onto the rail on top.
-    for (let i = 0; i < 4; i++) {
-      const x = 8 + i * 7;
+    for (let x = 8; x + 2.4 <= A - 0.6; x += 7) {
       parts.push(block(x, x + 2.4, -1.9, 1.9, -s * ARM_PAD, -s * 1.35));
     }
     arm.add(mesh(boxUV(mergeAll(parts)), (M.towerSteel ?? M.mount)));
@@ -1042,7 +1044,7 @@ export function buildLaunchComplex(M) {
 
   g.userData.annotations = [
     { label: 'Integration and launch tower · 144.5 m', position: [PAD.towerX - 9, PAD.padY + 96, 0] },
-    { label: 'Catch arms · 36 m', position: [PAD.towerX + 16, PAD.armY + 4, -22] },
+    { label: 'Catch arms · ≈26 m', position: [PAD.towerX + 12, PAD.armY + 4, -22] },
     { label: 'Ship quick-disconnect arm', position: [PAD.towerX + 14, PAD.qdY + 4, 0] },
     { label: 'Launch mount · water-cooled deck', position: [17, PAD.deckTop + 2.5, 14] },
     { label: '20 hold-down clamps', position: [8.5, PAD.deckTop + 3.6, -9] },

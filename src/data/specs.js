@@ -79,7 +79,7 @@ export const VEHICLES = [
       { label: 'Tank split', value: 'LOX 59 % / CH4 41 % by volume, from the older 3,400 t split (2,700 t LOX + 700 t CH4) at cryogenic density; the Block 3 figure of 3,650 t has no published split', source: 'derived' },
       { label: 'Section stations', value: 'whole multiples of the 1.83 m ring (skirt 3.5 · nose from ring 21)', source: 'derived', approx: true },
       { label: 'Pad 2 · integration tower', value: '144.5 m (474 ft)', source: 'press', ref: 'se_pad2' },
-      { label: 'Pad 2 · catch arms', value: '≈ 36 m long', source: 'press', ref: 'se_pad2' },
+      { label: 'Pad 2 · catch arms', value: '≈26 m long: about 10 m shorter than Pad 1\'s ≈36 m', source: 'press', ref: 'nsf_pad2' },
       { label: 'Pad 2 · launch mount', value: 'square, water-cooled deck, 20 hold-down clamps', source: 'press', ref: 'nsf_pad2' },
       { label: 'Pad 2 · flame trench', value: 'concrete bathtub lined with stainless steel, bidirectional, with a central deflector', source: 'press', ref: 'nsf_pad2' },
       { label: 'Pad 2 · tower crown', value: 'lightning rod and a small weather station on top of the tower', source: 'wiki', ref: 'wiki_starbase' },
