@@ -74,6 +74,7 @@ for (const s of shots) {
     document.getElementById('hud').style.display = s.hud === false ? 'none' : '';
     // First-visit tips belong to a visitor's first seconds, not to a documentation frame.
     if (!s.coach) v.hud?.hideCoach?.();
+    else { try { localStorage.removeItem('vc-coach-seen-1'); } catch { /* storage unavailable */ } v.hud?.showCoach?.(0); }
     // Reset the state a previous shot may have left, so order cannot change a frame.
     if (s.seek === undefined) v.launch.reset(false);
     v.ortho(null);

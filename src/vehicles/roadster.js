@@ -1072,7 +1072,9 @@ function createRoadsterMaterials(M) {
   // seams, and a tangent-space map derives its frame from those UVs — at every joint it came
   // out inverted and the elbows, shoulders and chest showed ragged black patches.
   const starmanSuitWhite = new THREE.MeshPhysicalMaterial({
-    color: 0xe9ebee, metalness: 0.0, roughness: 0.86, sheen: 1.0, sheenRoughness: 0.5,
+    // Sheen at half strength over a slightly lower white: at 1.0 over 0xe9ebee the lit side
+    // clipped to paper white and the folds of the sleeves could not be seen.
+    color: 0xdde0e4, metalness: 0.0, roughness: 0.86, sheen: 0.5, sheenRoughness: 0.5,
     sheenColor: new THREE.Color(0xd8dde4), envMapIntensity: 0.6,
   });
   const starmanSuitGraphite = new THREE.MeshPhysicalMaterial({ color: 0x24272c, roughness: 0.7, metalness: 0.05, sheen: 0.6, sheenRoughness: 0.6, sheenColor: new THREE.Color(0x5a5f66) });
@@ -3231,8 +3233,10 @@ function buildStarman(mats) {
     // Clearly proud of the arm's shoulder sphere (0,058 m) all round. At 0,066 × 0,78 its top
     // sat 7 mm INSIDE the arm, and the two coarse surfaces crossed in a sawtooth edge — the
     // ragged graphite patches on Starman's shoulders.
-    const cap = new THREE.SphereGeometry(0.072, 32, 20);
-    cap.scale(1, 0.9, 1);
+    // A panel over the top of the shoulder, not a ball round it: a spherical cap covering the
+    // upper 70° of the arm's shoulder sphere, 8 mm proud of it. As a full sphere it read as a
+    // black bowling ball on each shoulder in every close view.
+    const cap = new THREE.SphereGeometry(0.066, 32, 12, 0, Math.PI * 2, 0, 1.22);
     g.add(mesh(cap, starmanSuitGraphite, { position: [X + s * 0.162, 0.748, -0.392], name: 'suit-shoulder-panel' }));
   }
   const cuff = (at, dir, name) => {

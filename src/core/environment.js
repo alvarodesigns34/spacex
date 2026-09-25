@@ -434,11 +434,14 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     // stays neutral enough that steel, paint and aluminium separate by roughness.
     const warmth = Math.pow(1 - t, 3.4);
     sun.color.setHSL(0.09, 0.04 + 0.28 * warmth, THREE.MathUtils.lerp(0.74, 0.98, Math.pow(t, 0.55)));
-    const daylight = THREE.MathUtils.lerp(1.2, 2.5, Math.pow(t, 0.55));
+    // Key against fill. With the sky probe almost as strong as the sun, the side of a vehicle
+    // turned away from the light barely darkened and every view read flat and hazy; in the
+    // photographs of the site the sun cuts hard. Sun up ~12 %, probe down ~22 %, below.
+    const daylight = THREE.MathUtils.lerp(1.35, 2.8, Math.pow(t, 0.55));
     sun.intensity = daylight * ((1 - n) + 0.012 * n);
     hemi.color.setHSL(0.58, 0.22 - 0.08 * warmth, 0.58 + 0.06 * t).lerp(_nightHemi, n);
     hemi.intensity = THREE.MathUtils.lerp(THREE.MathUtils.lerp(0.22, 0.36, t), 0.04, n) * (1 - j * 0.9);
-    fog.color.setHSL(0.58, 0.18 + 0.14 * warmth, THREE.MathUtils.lerp(0.50, 0.70, t)).lerp(_nightFog, n);
+    fog.color.setHSL(0.58, 0.24 + 0.14 * warmth, THREE.MathUtils.lerp(0.48, 0.66, t)).lerp(_nightFog, n);
 
     // Scattering: the two blends multiply. Everything is computed from the ground constants,
     // never read back out of the uniforms — reading and multiplying compounds on every call.
@@ -450,7 +453,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     su.turbidity.value = nightSky.turbidity * (1 - j * 0.97);
     su.rayleigh.value = nightSky.rayleigh * (1 - j * 0.985);
     su.mieCoefficient.value = nightSky.mie * (1 - j * 0.9);
-    fog.density = GROUND_FOG * (1 + n * 1.6) * (1 - THREE.MathUtils.clamp(h / 9000, 0, 1));
+    fog.density = GROUND_FOG * 0.75 * (1 + n * 1.6) * (1 - THREE.MathUtils.clamp(h / 9000, 0, 1));
     skyFade.value = (1 - n * 0.86) * (1 - j * 0.94);
 
     clouds.update(sunDir, n, h, !inSpace);
@@ -468,7 +471,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
       for (const t of groundMaps) t.repeat.set(baseRepeat.x * gs, baseRepeat.y * gs);
     }
 
-    scene.environmentIntensity = THREE.MathUtils.lerp(1.05, 1.45, n) * (1 - j * 0.55);
+    scene.environmentIntensity = THREE.MathUtils.lerp(0.82, 1.45, n) * (1 - j * 0.55);
 
     if (rebuildProbe) {
       // The probe is the sky at ground level for this sun, so chrome and clearcoat go dark

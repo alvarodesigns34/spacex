@@ -52,7 +52,10 @@ try {
   await page.goto(`http://127.0.0.1:${PORT}/?quality=medium`, { waitUntil: 'load', timeout: 120000 });
   await page.waitForFunction(() => window.__vc && !document.getElementById('loading'), null, { timeout: 300000 });
   report(await page.evaluate(() => window.__vc.quality.name === 'medium' && devicePixelRatio === 2), 'Explicit medium quality and DPR 2');
-  const sizes = [[360, 800], [390, 844], [430, 932], [768, 1024], [844, 390], [1366, 768], [1440, 900], [1920, 1080]];
+  // The first-visit tips are measured at every size like the rest of the HUD: shown, and
+  // held (no timer), so an overlap cannot hide behind their 20 s fade.
+  await page.evaluate(() => { try { localStorage.removeItem('vc-coach-seen-1'); } catch {} window.__vc.hud.showCoach(0); });
+  const sizes = [[360, 800], [390, 844], [430, 932], [768, 1024], [844, 390], [1024, 768], [1366, 768], [1440, 900], [1920, 1080]];
   for (const [width, height] of sizes) {
     await page.setViewportSize({ width, height });
     await page.evaluate(() => {

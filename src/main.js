@@ -878,6 +878,32 @@ async function main() {
     renderer.setSize(w, h); composer.setSize(w, h); labelRenderer.setSize(w, h);
   });
 
+  // The frame is centred on the part of the screen the HUD leaves free. On a desktop the
+  // vehicle rail takes the left 256 px, and a view centred on the whole window put its left
+  // quarter behind it — in the overview, Falcon 1 and Falcon 9 were entirely under the list.
+  // setViewOffset shifts the projection centre without moving the camera, so picking, labels
+  // and depth all follow; with no rail (phones, clean scene, flight) there is no shift.
+  let viewShift = -1, shiftTick = 0;
+  const railEl = document.getElementById('rail');
+  function updateViewShift() {
+    // Layout reads force a style pass; the rail only moves on resize or a HUD toggle, so a
+    // look every twelfth frame is plenty (a resize resets the cache and is seen at once).
+    if (viewShift >= 0 && (shiftTick++ % 12) !== 0) return;
+    const w = window.innerWidth, h = window.innerHeight;
+    const r = railEl?.getBoundingClientRect();
+    const shown = r && r.width > 0 && getComputedStyle(railEl).display !== 'none'
+      && getComputedStyle(document.getElementById('hud')).visibility !== 'hidden'
+      && !document.getElementById('hud').classList.contains('is-clean') && !view.orbital
+      && r.height < h * 0.8;
+    const shift = shown ? Math.round(r.right + 12) : 0;
+    if (shift === viewShift) return;
+    viewShift = shift;
+    if (shift) camera.setViewOffset(w + shift, h, 0, 0, w, h);
+    else camera.clearViewOffset();
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', () => { viewShift = -1; });
+
   // ---- Loop ----
   const clock = new THREE.Clock();
   const tmp = new THREE.Vector3();
@@ -992,6 +1018,7 @@ async function main() {
       const near = THREE.MathUtils.clamp(dist * 0.006, 0.1, 2.0);
       if (Math.abs(near - camera.near) > 1e-3) { camera.near = near; camera.updateProjectionMatrix(); }
     }
+    updateViewShift();
     env.updateShadow(target, dist);
     // scale bar: metres per pixel at the target distance
     const fovH = THREE.MathUtils.degToRad(camera.fov);

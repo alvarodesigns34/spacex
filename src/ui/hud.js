@@ -496,12 +496,12 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     for (const [t, f] of coachListeners) window.removeEventListener(t, f, true);
   };
   const coachListeners = [];
-  const showCoach = () => {
+  const showCoach = (ms = 20000) => {
     let seen = false;
     try { seen = localStorage.getItem(COACH_KEY) === '1'; } catch { /* storage unavailable */ }
     if (seen) return;
     coach.classList.remove('hidden');
-    coachTimer = setTimeout(hideCoach, 20000);
+    if (ms) coachTimer = setTimeout(hideCoach, ms);
     const onScene = (e) => { if (e.target === document.getElementById('scene')) hideCoach(); };
     const onKey = (e) => { if (!e.ctrlKey && !e.metaKey && !e.altKey) hideCoach(); };
     coachListeners.push(['pointerdown', onScene], ['wheel', onScene], ['keydown', onKey]);
