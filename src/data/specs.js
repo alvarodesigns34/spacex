@@ -43,8 +43,9 @@ export const SOURCES = {
   dimensions_roadster: { label: 'dimensions.com — Tesla Roadster (2008) drawings', url: 'https://www.dimensions.com/element/tesla-roadster-2008' },
 };
 
+// Starship first: it is the centre's main exhibit and the one the launch belongs to; Falcon 1
+// follows it and opens the historical line (Falcon 1 → Falcon 9 → Falcon Heavy).
 export const VEHICLES = [
-  FALCON1,
   {
     id: 'starship',
     name: 'Starship',
@@ -127,6 +128,7 @@ export const VEHICLES = [
       { id: 'trench', label: 'Flame trench', frame: 'site', pos: [3, 11, 74], target: [0, 12, 0] },
     ],
   },
+  FALCON1,
   {
     id: 'falcon9',
     name: 'Falcon 9',

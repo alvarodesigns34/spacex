@@ -169,7 +169,7 @@ async function main() {
   const lod = new LODManager(camera, { pixels: quality.lodPixels });
 
   // ---- HUD ----
-  let sunRaf = 0, pendingSun = 42;
+  let sunRaf = 0, pendingSun = 20;
   let sound = null;
   const hud = createHUD({
     vehicles: VEHICLES,

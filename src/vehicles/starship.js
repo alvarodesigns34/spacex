@@ -304,6 +304,24 @@ export function buildSuperHeavy(M) {
   g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: skirtTop }], { segments: 160 }), M.steelSkirt, { name: 'skirt' }));
   g.add(mesh(lathe([{ r: R, y: skirtTop }, { r: R, y: ringTop }], { segments: 160 }), M.steel, { name: 'tanks' }));
   const hs = hotStageSection(M, hotStageH); hs.position.y = ringTop; g.add(hs);
+  // The methane tank's forward dome, closing the top of the booster. Stacked, the ship hides
+  // it; after separation and on the arms it is the top of the vehicle, and without it the
+  // booster was an open tube you could look straight down. On Block 3 the vented hot-stage
+  // section is built into the top of this tank, so the dome rises into the vented ring, under
+  // a steel shield that takes the ship's exhaust at hot-staging. Dome rise and shield size
+  // reconstructed.
+  {
+    const rise = 1.35, base = ringTop - 0.25, pts = [];
+    for (let i = 0; i <= 16; i++) {
+      const a = (i / 16) * Math.PI / 2;
+      pts.push({ r: Math.max(0.001, (R - 0.02) * Math.cos(a)), y: base + rise * Math.sin(a) });
+    }
+    g.add(mesh(lathe(pts, { segments: 96 }), M.steelInner, { name: 'forward-dome' }));
+    const shield = pts.filter(p => p.r < R * 0.78).map(p => ({ r: p.r, y: p.y + 0.06 }));
+    g.add(mesh(lathe(shield, { segments: 72 }), M.darkMetal, { name: 'forward-dome-shield', castShadow: false }));
+    // The top ring's inner face, so the rim of the tube reads as a wall, not a paper edge.
+    g.add(mesh(lathe([{ r: R - 0.05, y: ringTop + hotStageH - 0.3 }, { r: R - 0.05, y: ringTop + hotStageH }], { segments: 96, flip: true }), M.steelInner, { castShadow: false }));
+  }
 
   // Aft interior: skirt wall seen from below, thrust puck and engine-bay shielding.
   g.add(mesh(lathe([{ r: R - 0.03, y: 0.1 }, { r: R - 0.03, y: 4.3 }], { segments: 96, flip: true }), M.steelInner, { castShadow: false }));

@@ -575,7 +575,17 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     y: chop.position.y,
     arms: chop.children.filter(c => c.name.startsWith('arm-')).map(a => ({ obj: a, ry: a.rotation.y })),
   };
-  const CATCH_ARM = THREE.MathUtils.degToRad(6.5);   // arms just embracing the 9 m hull
+  /**
+   * How far the arms close. It was a fixed 6,5°, which with the hinges 2,2 m either side of the
+   * tower's centreline put the arms' bumper pads 2,6 m from the booster's axis: 1,9 m inside a
+   * 4,5 m hull, so the arms passed straight through the tank. Now it is solved from the pad's
+   * own geometry: each arm swings until its inboard pads stand 5 cm off the hull, at the
+   * booster's axis, and stays outboard of it — the way the chopsticks close on a booster.
+   */
+  const CG = chop.userData.catchGeometry ?? { railTop: 2.3, padReach: 1.75, hinge: [8.2, 2.2] };
+  const HULL_R = 4.5;
+  const armToAxis = -chop.position.x - CG.hinge[0];
+  const CATCH_ARM = Math.atan2(HULL_R + 0.05 + CG.padReach - CG.hinge[1], armToAxis);
   const CATCH_ALT = CATCH_BASE;                       // booster held this far above its launch station
   /**
    * Where the carriage has to be for the arms to take the load on the pins.
@@ -589,7 +599,10 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
    * Derived from the booster's published station so the two cannot drift apart again: move
    * the grid fins and the tower follows them.
    */
-  const CATCH_CARRIAGE = ex.lay.mount + CATCH_ALT + ex.model.userData.stations.booster.pinY;
+  // …and not with the pins buried halfway down the arm, where they sat: the pins rest ON the
+  // rail along the top of each arm, so the carriage stops one rail height below them (pin
+  // radius included).
+  const CATCH_CARRIAGE = ex.lay.mount + CATCH_ALT + ex.model.userData.stations.booster.pinY - CG.railTop - 0.34;
 
   // ---- Plumes -------------------------------------------------------------------------
   // Cluster radii: the 33 Raptors sit inside a 3,86 m ring, the ship's six inside a 2,3 m

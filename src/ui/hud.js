@@ -43,7 +43,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       <label class="tool"><input type="checkbox" id="tg-labels" checked> Labels <kbd>L</kbd></label>
       <label class="tool"><input type="checkbox" id="tg-ruler" checked> Ruler <kbd>R</kbd></label>
       <label class="tool"><input type="checkbox" id="tg-humans" checked> 1.80 m figures</label>
-      <label class="tool tool-sun">Sun <input type="range" id="sun" min="4" max="75" value="42" step="1" title="Sun elevation, from low evening light to midday"></label>
+      <label class="tool tool-sun">Sun <input type="range" id="sun" min="4" max="75" value="20" step="1" title="Sun elevation, from low evening light to midday"></label>
       <button class="tool tool-btn tool-launch" id="launch-btn" title="Starship launch sequence from Pad 2 (G)">Starship · Launch <kbd>G</kbd></button>
       <button class="tool tool-btn" id="tour-btn" title="Guided tour of the centre (P)">Tour <kbd>P</kbd></button>
       <button class="tool tool-btn" id="mode-btn" title="Switch camera mode (F)">Orbit <kbd>F</kbd></button>

@@ -21,6 +21,20 @@ import * as TX from './textures.js';
  * `calm` scales the two long layers: a pool a few centimetres deep on a flat carries ripples
  * and no swell. The clock is WAVE_TIME, advanced by the render loop.
  */
+/**
+ * Grass tussocks are thin double-sided blades. Lit with their own side normals, and with the
+ * back faces' normals flipped the way three.js does for double-sided materials, half of every
+ * clump faced away from the sky and the tufts on the dunes read from the tower as black
+ * specks. A tussock is lit as a volume from above: every normal points up, and the material
+ * (duneGrass) does not flip them for back faces.
+ */
+export function grassNormals(geo) {
+  const n = geo.attributes.normal;
+  for (let i = 0; i < n.count; i++) n.setXYZ(i, 0, 1, 0);
+  n.needsUpdate = true;
+  return geo;
+}
+
 export const WAVE_TIME = { value: 0 };
 export function waveNormals(sh, { tileSize = 420, calm = 1 } = {}) {
   sh.uniforms.uWaveTime = WAVE_TIME;
@@ -225,14 +239,14 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
   // Landscape-scale variation, in world space and without a period.
   //
   // One tiled map cannot describe five kilometres of coastal plain: whatever it carries at a
-  // scale the eye can see repeats every 96 m, and a repeat that regular reads as a pattern
+  // scale the eye can see repeats every 48 m (the tile, since round 4), and a repeat that regular reads as a pattern
   // before it reads as ground. So the map carries grain only, and this does the rest:
   //
   //  · three octaves of value noise on world X/Z (190 m, 63 m, 21 m) split the plain into
   //    pale, warm salt crust and darker, browner damp hollows, the way a tidal flat
   //    actually varies;
   //  · the same map is sampled a second time, rotated 37° and scaled by the golden ratio, and
-  //    blended in by a further noise field, so no two 96 m tiles look alike. Rotation and an
+  //    blended in by a further noise field, so no two 48 m tiles look alike. Rotation and an
   //    irrational scale make the two lookups incommensurate: they never line up again.
   //
   // Cheap: five noise evaluations and one extra texture fetch per ground fragment.
@@ -268,7 +282,7 @@ float vcNoise(vec2 p) {
     vec2 vcUv3 = mat2(0.28, 0.96, -0.96, 0.28) * vMapUv * 6.7 + vec2(0.57, 0.11);
     float vcFine = dot(texture2D( map, vcUv3 ).rgb, vec3(0.3, 0.59, 0.11));
     float vcMean = dot(texture2D( map, vcUv3, 6.0 ).rgb, vec3(0.3, 0.59, 0.11));
-    sampledDiffuseColor.rgb *= mix(1.0, clamp(vcFine / max(vcMean, 0.02), 0.55, 1.5), vcNear * 0.55);
+    sampledDiffuseColor.rgb *= mix(1.0, clamp(vcFine / max(vcMean, 0.02), 0.75, 1.3), vcNear * 0.35);
   }
   diffuseColor *= sampledDiffuseColor;
 #endif`)
@@ -295,14 +309,18 @@ float vcNoise(vec2 p) {
     // Grey-tan, not yellow: half-way to the map's own luminance, which is what sun-bleached
     // salt crust and dry sand look like beside grass.
     vec3 bareBase = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), 0.22);
-    vec3 bare = bareBase * mix(vec3(0.93, 0.91, 0.87), vec3(0.68, 0.66, 0.61), low);
+    // A touch warmer than neutral: under a low sun half the light on flat ground is blue
+    // skylight, and a neutral pale ground came out blue-grey.
+    vec3 bare = bareBase * mix(vec3(0.97, 0.92, 0.84), vec3(0.70, 0.66, 0.59), low);
     // Vegetation, in linear colour: green grass and dry straw by district, dark shrub clumps a
     // few metres across. The map's luminance is kept as grain so the grass is not flat paint.
     float lum = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11)) / 0.40;
     float straw = smoothstep(0.35, 0.70, vcNoise(wp / 140.0 - 9.0) + warp.x * 0.3);
     vec3 vegCol = mix(vec3(0.150, 0.165, 0.070), vec3(0.265, 0.225, 0.105), straw);
     float clump = vcNoise(wp / 6.0 + warp * 3.0 + 41.0) * 0.6 + vcNoise(wp / 2.3 - 13.0) * 0.4;
-    vegCol = mix(vegCol, vec3(0.085, 0.105, 0.045), smoothstep(0.62, 0.80, clump) * 0.55);
+    // Darker shrub clumps: soft-edged and lighter than they were. At 0.62–0.80 and 0.55 they
+    // were crisp dark blobs that read, from the tower, as camouflage paint on the plain.
+    vegCol = mix(vegCol, vec3(0.095, 0.112, 0.052), smoothstep(0.58, 0.92, clump) * 0.38);
     vegCol *= mix(0.8, 1.2, clamp(lum, 0.0, 1.5) / 1.5);
     // Thornscrub cover on the lomas and the small rises of the plain (terrain.js thicket, per
     // vertex), as a ground tone: a dark olive mottle with bare clay between, not grass.
@@ -311,7 +329,7 @@ float vcNoise(vec2 p) {
     vec3 scrubCol = mix(vec3(0.050, 0.064, 0.030), vec3(0.120, 0.112, 0.062), smoothstep(0.35, 0.75, clump));
     vegCol = mix(vegCol, scrubCol, thick * 0.85);
     // The fringe between the two is sparse: grass thinning out over bare ground.
-    float fringe = smoothstep(0.0, 1.0, veg) * smoothstep(0.35, 0.65, clump + veg * 0.6);
+    float fringe = smoothstep(0.0, 1.0, veg) * smoothstep(0.28, 0.78, clump + veg * 0.6);
     diffuseColor.rgb = mix(bare, vegCol, max(fringe, smoothstep(0.7, 1.0, veg)));
     // The beach (ground mesh only; other meshes on this material have no aShore and read 0):
     // pale quartz sand with a faint ripple of tone, darkening to wet sand at the water. A beach
@@ -326,7 +344,7 @@ float vcNoise(vec2 p) {
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
   roughnessFactor = mix(roughnessFactor, 0.28, vShore.y * 0.8);`);
   };
-  M.terrain.customProgramCacheKey = () => 'vc-terrain-macro-11';
+  M.terrain.customProgramCacheKey = () => 'vc-terrain-macro-13';
   // The Gulf beyond the beach. Water is a dielectric with a smooth surface: almost all of what
   // it shows is the sky it reflects, so the colour here is only the body tint of shallow,
   // silty coastal water, and the wave normals do the rest.
@@ -439,6 +457,11 @@ float vcNoise(vec2 p) {
   M.scrub = new THREE.MeshStandardMaterial({ color: 0x626240, roughness: 0.96, metalness: 0, flatShading: false });
   // Beach grass on the foredune: sea oats and bitter panicum, straw going to pale green.
   M.duneGrass = new THREE.MeshStandardMaterial({ color: 0x9c9868, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
+  M.duneGrass.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>',
+      THREE.ShaderChunk.normal_fragment_begin.replace('normal *= faceDirection;', ''));
+  };
+  M.duneGrass.customProgramCacheKey = () => 'vc-grass-up-1';
   M.service = new THREE.MeshStandardMaterial({ color: 0x3c4650, roughness: 0.7, metalness: 0.06 });
   M.copper = new THREE.MeshPhysicalMaterial({ color: 0xb87333, metalness: 1.0, roughness: 0.35 });
   // White MLI: the foil colour map is gold, so take only its crinkle normals.

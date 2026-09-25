@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { mesh, mergeAll, mat4, chunkedInstances } from '../geometry/utils.js';
 import { noise2 } from '../materials/textures.js';
-import { waveNormals } from '../materials/library.js';
+import { waveNormals, grassNormals } from '../materials/library.js';
 import { createClouds } from './clouds.js';
 import { shoreZ, terrainHeight, thicket } from './terrain.js';
 
@@ -286,7 +286,8 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     const DUNE_C = -125, HALF = 36, ROWS = 24, STEP = 5;
     const duneH = (x) => {
       const h = 2.2 + 3.4 * noise2(x / 140 + 2.2, 4.4) + 1.3 * noise2(x / 37, 8.8);
-      const blow = THREE.MathUtils.smoothstep(noise2(x / 260 + 9.1, 1.7), 0.18, 0.34);   // blowouts
+      // Blowouts, tapering over tens of metres: a narrow ramp here ended every dune like a sausage.
+      const blow = THREE.MathUtils.smoothstep(noise2(x / 260 + 9.1, 1.7), 0.12, 0.46);
       return h * blow;
     };
     // Across-dune profile, 0..1: steeper to seaward (d > 0), a long gentle back slope.
@@ -307,15 +308,19 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
         const d = -HALF + (2 * HALF * r) / ROWS;       // + is seaward
         const wz = zc - d;
         const past = shoreZ(x) - wz;
-        // Sunk 0.35 m at the edges, so the strip meets the coarse ground under its surface.
-        const h = groundHeight(past) + H * bump(d) - 0.35 * (1 - THREE.MathUtils.smoothstep(bump(d), 0, 0.12));
+        // Sunk 0.35 m wherever the dune does not actually rise, so the strip meets the coarse
+        // ground under its surface. The sink used to follow the profile's shape, not the rise:
+        // in a blowout (H → 0) the strip lay exactly ON the ground and the two surfaces fought
+        // for the depth buffer, a patchwork of sand and green blotches along the coast.
+        const rise = H * bump(d);
+        const h = groundHeight(past) + rise - 0.35 * (1 - THREE.MathUtils.smoothstep(rise, 0.05, 0.4));
         dpos.push(x, -wz, h);
         duv.push(x, wz * -1);
         const lift = 1 + 0.12 * bump(d);
         dcol.push(lift, lift, lift * 0.97);
         // Seaward face bare dry sand; the crest and back slope sand held by sparse grass, not a
         // lawn: about half sand, thinning to the plain's own cover at the landward toe.
-        dshore.push(Math.max(d > 4 ? THREE.MathUtils.smoothstep(d, 4, 16) : 0, 0.5 * THREE.MathUtils.smoothstep(bump(d), 0.05, 0.5)), 0);
+        dshore.push(Math.max(d > 4 ? THREE.MathUtils.smoothstep(d, 4, 16) : 0, 0.5 * THREE.MathUtils.smoothstep(rise, 0.15, 1.8)), 0);
       }
       // Beach grass on the crest and the back slope, thinning towards the edges.
       for (let k = 0; k < 11; k++) {
@@ -367,6 +372,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
         blades.push({ geometry: g });
       }
       const tuft = mergeAll(blades);
+      grassNormals(tuft);
       tuft.rotateX(Math.PI / 2);                      // the clump's +y onto the ground's up (+z)
       const dm = new THREE.Object3D();
       const placements = tufts.map(([x, y, z, s]) => {
@@ -601,7 +607,11 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
 
   // Azimuth is chosen so the exhibits are lit from the side the default views look from,
   // raked about 35° off the camera axis for modelling rather than flat frontal light.
-  setSun(42, 34, { immediate: true });
+  // 20° by default: a morning or late-afternoon sun. Compared on the same framings at 16, 22,
+  // 28 and 42°, the high sun flattened every exhibit (short shadows, a white hazy sky, steel and
+  // paint lit from above); at about 20° the hulls model from light to shadow, shadows fall long
+  // across the apron and the sky goes blue. The Sun control still runs from 4° to 75°.
+  setSun(20, 34, { immediate: true });
 
   return {
     sun, sky, hemi, ground, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation,

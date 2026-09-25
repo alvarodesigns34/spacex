@@ -590,6 +590,7 @@ function buildChopsticks(M) {
 
   // Arms open to ±42°, which clears the 9 m hull by a wide margin at the vehicle station.
   const open = THREE.MathUtils.degToRad(42);
+  const ARM_PAD = 1.75;       // inboard face of the bumper pads, from the arm's centreline
   for (const s of [-1, 1]) {
     const arm = new THREE.Group();
     arm.name = `arm-${s < 0 ? 'north' : 'south'}`;
@@ -618,14 +619,18 @@ function buildChopsticks(M) {
     parts.push(block(2, A - 2, hy, 2.3, -1.0, 1.0));                          // catch rail
     // Root: a solid plated section where the arm meets its hinge on the carriage.
     parts.push(block(0, 3.2, -hy, hy, -hz, hz));
-    // Load-bearing pads the booster hangs from, on the inboard face.
+    // Bumper pads on the inboard face: they close against the hull and centre the booster,
+    // they do not carry it. The weight goes through the booster's pins onto the rail on top.
     for (let i = 0; i < 4; i++) {
       const x = 8 + i * 7;
-      parts.push(block(x, x + 2.4, -1.9, 1.9, -s * 2.1, -s * 1.35));
+      parts.push(block(x, x + 2.4, -1.9, 1.9, -s * ARM_PAD, -s * 1.35));
     }
     arm.add(mesh(boxUV(mergeAll(parts)), (M.towerSteel ?? M.mount)));
     g.add(arm);
   }
+  // What the launch sequence needs to close the arms on the booster without entering it and
+  // to stop the carriage with the pins sitting on the rail (arm frame: y up from the carriage).
+  g.userData.catchGeometry = { railTop: 2.3, padReach: ARM_PAD, hinge: [face + 1.2, 2.2] };
   return g;
 }
 

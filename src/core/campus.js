@@ -21,7 +21,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mesh, mergeAll, mat4, boxUV, chunkedInstances } from '../geometry/utils.js';
 import { noise2, canvas, toTexture } from '../materials/textures.js';
 import { POOL_SPEC, poolStretch, terrainHeight } from './terrain.js';
-import { waveNormals } from '../materials/library.js';
+import { waveNormals, grassNormals } from '../materials/library.js';
 
 function quad(x0, z0, x1, z1, y) {
   const g = new THREE.PlaneGeometry(Math.abs(x1 - x0), Math.abs(z1 - z0));
@@ -612,6 +612,7 @@ export function dressCampus(scene, M, { stops = [], quality = 'high' } = {}) {
       blades.push({ geometry: gb });
     }
     const tuft = mergeAll(blades);
+    grassNormals(tuft);
     let sd2 = 7;
     const r2 = () => { sd2 = (sd2 * 16807) % 2147483647; return sd2 / 2147483647; };
     const at = [];

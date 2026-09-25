@@ -577,7 +577,7 @@ export function makeConcrete({ size = 768, tile = 12.0 } = {}) {
 // =====================================================================================
 //  GROUND TERRAIN (Boca Chica / Starbase coastal plain)
 // =====================================================================================
-export function makeGroundTerrain({ size = 768, tile = 96.0 } = {}) {
+export function makeGroundTerrain({ size = 1024, tile = 48.0 } = {}) {
   const map = canvas(size, size);
   const rough = canvas(size, size);
   const height = canvas(size, size);
@@ -609,14 +609,33 @@ export function makeGroundTerrain({ size = 768, tile = 96.0 } = {}) {
     // where Boca Chica reads pale tan with scattered darker patches.
     r = lerp(r, 0.45, damp * 0.8); g = lerp(g, 0.42, damp * 0.8); b = lerp(b, 0.34, damp * 0.8);
     r = lerp(r, 0.36, scrub * 1.3); g = lerp(g, 0.41, scrub * 1.3); b = lerp(b, 0.25, scrub * 1.3);
+    // Close-range grain, at the resolution a visitor standing on the plain sees: 4.7 cm per
+    // pixel over the 48 m tile. The old tile carried two noise frequencies (37 and 19 cm) and
+    // nothing finer, so from a few metres the ground was a smooth wash. Now:
+    //  · sand grain at the pixel scale;
+    //  · short grass blades, streaks 4:1 in clusters, darker olive and dry straw;
+    //  · small stones and pale shell grit scattered through it.
+    // Every frequency is a whole multiple of the noise lattice's 256-cell period, so the tile
+    // still meets itself.
+    const grain = (period(u, v, 1024, 13, 5) - 0.5) * 0.07;
+    r *= 1 + grain; g *= 1 + grain; b *= 1 + grain * 0.9;
+    const blade = smoothstep(0.7, 0.88, noise2(u * 1024 + 71, v * 512 + 19)) * smoothstep(0.45, 0.65, period(u, v, 256, 55, 31));
+    const straw = period(u, v, 512, 91, 7);
+    r = lerp(r, lerp(0.30, 0.62, straw), blade * 0.45); g = lerp(g, lerp(0.34, 0.56, straw), blade * 0.45); b = lerp(b, lerp(0.17, 0.34, straw), blade * 0.45);
+    const stone = smoothstep(0.84, 0.93, period(u, v, 1024, 101, 57));
+    const shell = smoothstep(0.9, 0.97, period(u, v, 1024, 17, 211));
+    r = lerp(r, 0.44, stone * 0.4); g = lerp(g, 0.4, stone * 0.4); b = lerp(b, 0.33, stone * 0.4);
+    r = lerp(r, 0.86, shell * 0.35); g = lerp(g, 0.82, shell * 0.35); b = lerp(b, 0.72, shell * 0.35);
     return [clamp(r * 255), clamp(g * 255), clamp(b * 255)];
   });
   shade(rough, (x, y, u, v) => {
-    const g = clamp((0.9 + (period(u, v, 512) - 0.5) * 0.08) * 255);
+    const g = clamp((0.9 + (period(u, v, 512) - 0.5) * 0.08 + (period(u, v, 1024, 3, 9) - 0.5) * 0.06) * 255);
     return [g, g, g];
   });
   shade(height, (x, y, u, v) => {
-    const g = clamp((0.5 + (period(u, v, 256, 2, 6) - 0.5) * 0.2) * 255);
+    const blade = smoothstep(0.7, 0.88, noise2(u * 1024 + 71, v * 512 + 19)) * smoothstep(0.45, 0.65, period(u, v, 256, 55, 31));
+    const stone = smoothstep(0.84, 0.93, period(u, v, 1024, 101, 57));
+    const g = clamp((0.5 + (period(u, v, 256, 2, 6) - 0.5) * 0.2 + (period(u, v, 1024, 13, 5) - 0.5) * 0.12 + blade * 0.12 + stone * 0.18) * 255);
     return [g, g, g];
   });
   return {
