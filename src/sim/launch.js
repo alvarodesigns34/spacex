@@ -629,7 +629,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   // of the booster (starship.js, hotStageSection), turned down and out by the louvres. A ring
   // of fire round the interstage for the second or two before the stages part, then the gap
   // opens and the ship's plume plays straight onto the booster's dome instead.
-  const HS_STATION = (ex.model.userData.stations?.booster?.ringTop ?? 70.17) + 0.9;
+  const HS_STATION = (ex.model.userData.stations?.booster?.ringTop ?? 70.47) + 0.9;
   const hotStageVents = new EngineJets({
     name: 'jets-hot-stage', seaLevelLength: 9,
     engines: Array.from({ length: 24 }, (_, i) => {
@@ -687,10 +687,11 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   // After the catch the booster sits on the arms venting: off the top, round the upper tank,
   // and from the engine section. Attached to the booster, which no longer moves.
   const CATCH_WIN = [EVENTS.catch + 1.5, EVENTS.end + 60];
+  const BOOSTER_TOP = ex.model.userData.stations?.booster?.height ?? 72.3;
   const catchVent = new Vapor({
     name: 'vapor-caught', rng: seeded(23), accel: [0.9, -0.25, 0.35], tau: 1.6, opacity: 0.62,
     emitters: [
-      { at: [0, 71.5, 0], dir: [0.1, 1, 0], speed: 3.5, spread: 0.4, count: nv(39), life: 9.1, size: 4.32, grow: 2.6, jitter: 2, window: CATCH_WIN },
+      { at: [0, BOOSTER_TOP - 0.8, 0], dir: [0.1, 1, 0], speed: 3.5, spread: 0.4, count: nv(39), life: 9.1, size: 4.32, grow: 2.6, jitter: 2, window: CATCH_WIN },
       ...[1.0, 3.6].map(a => ({ at: around(4.6, 58, a), dir: out(a, 0), speed: 2.4, spread: 0.35, count: nv(27), life: 7.8, size: 3.36, grow: 2.2, window: CATCH_WIN })),
       ...[0.3, 3.3].map(a => ({ at: around(4.3, 2, a), dir: out(a, -0.3), speed: 2.6, spread: 0.4, count: nv(24), life: 6.5, size: 3.84, grow: 2.4, window: CATCH_WIN })),
     ],
@@ -700,7 +701,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
 
   // Max-Q: a condensation collar off the hot-stage ring, trailing down the booster, through
   // the transonic climb and peak dynamic pressure. Timing follows the ascent's own Max-Q.
-  const collar = new CondensationCollar({ radius: 4.5, spread: 7.5, length: 30, y: 71.5 });
+  const collar = new CondensationCollar({ radius: 4.5, spread: 7.5, length: 30, y: (ex.model.userData.stations?.booster?.height ?? 72.3) - 0.8 });
   booster.add(collar.mesh);
   const collarShip = new CondensationCollar({ radius: 4.5, spread: 5, length: 16, y: 12, name: 'condensation-collar-ship' });
   ship.add(collarShip.mesh);

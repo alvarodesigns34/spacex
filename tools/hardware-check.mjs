@@ -42,9 +42,16 @@ const bounds = o => new T.Box3().setFromObject(o);
 const finite = p => p.toArray().every(Number.isFinite);
 
 const f1Fairing = f1.getObjectByName('falcon1-fairing'), f1FairingBox = bounds(f1Fairing);
-assert.ok(Math.abs(f1FairingBox.max.y - f1FairingBox.min.y - 3.5) < 0.002, 'Falcon 1 fairing is the published 3.50 m');
-assert.ok(Math.abs(Math.max(Math.abs(f1FairingBox.min.x), Math.abs(f1FairingBox.max.x)) - 0.77) < 0.002,
-  'Falcon 1 fairing is the published 1.54 m diameter');
+// Figure 2-5 of the 2008 guide: separation plane at station 756.36 in, tip at 891.83, Ø60.00 in.
+// (Figure 2-1 rounds the same fairing to 3.5 m [136 in] and 1.5 m [60 in].)
+assert.ok(Math.abs(f1FairingBox.max.y - f1FairingBox.min.y - (891.83 - 756.36) * 0.0254) < 0.002, 'Falcon 1 fairing is the drawing\'s 135.47 in (3.441 m)');
+assert.ok(Math.abs(Math.max(Math.abs(f1FairingBox.min.x), Math.abs(f1FairingBox.max.x)) - 0.762) < 0.002,
+  'Falcon 1 fairing is the drawing\'s 60.00 in diameter');
+// The engine hangs below the stage on an open thrust frame: the stage ends at station 133.3.
+{
+  const s1 = bounds(f1.getObjectByName('falcon1-stage1'));
+  assert.ok(Math.abs(s1.min.y - (133.3 - 26.3) * 0.0254) < 0.01, 'Falcon 1 first stage ends at its aft ring (station 133.3), no boat-tail');
+}
 assert.equal(f1.children.filter(o => o.name === 'falcon1-fairing-frame').length, 2, 'Falcon 1 has both biconic break frames');
 assert.equal(f1.getObjectByName('falcon1-closed-shell').children.filter(o => o.name === 'falcon1-upper-stage-rcs').length, 4,
   'Falcon 1 RCS stays attached to the hidden shell in cutaway');
@@ -99,8 +106,8 @@ const rods = components(paths); assert.equal(rods.length, 8, 'eight physical FH 
 for (const box of rods) {
   const c = box.getCenter(new T.Vector3()), s = Math.sign(c.x);
   const centerX = s > 0 ? box.min.x : box.max.x, sideX = s > 0 ? box.max.x : box.min.x;
-  assert.ok(Math.hypot(centerX, c.z) < 1.85, 'rod center endpoint intersects center hull');
-  assert.ok(Math.hypot(sideX - s * 4.25, c.z) < 1.85, 'rod side endpoint intersects side hull');
+  assert.ok(Math.hypot(centerX, c.z) < 1.83, 'rod center endpoint intersects center hull');
+  assert.ok(Math.hypot(sideX - s * 4.27, c.z) < 1.83, 'rod side endpoint intersects side hull');
   assert.ok(c.y < 34.5, 'forward connections enter LOX tank below interstage');
 }
 assert.equal(rods.filter(b => b.getCenter(new T.Vector3()).y > 30).length, 4, 'four forward connections');
@@ -152,7 +159,7 @@ for (const core of [f9.children.find(o => o.name === 'falcon-core-f9'), ...sides
   }
   // 0.254 m is the Merlin bell's radius at the shield plane (engines.js profile, 1.0 m up).
   assert.ok(clear > 0.27, `base heat shield clears every bell (${clear.toFixed(3)} m from an axis)`);
-  assert.ok(reach <= 1.851, `base heat shield stays inside the 3.7 m skin (${reach.toFixed(3)} m)`);
+  assert.ok(reach <= 1.831, `base heat shield stays inside the 3.66 m skin (${reach.toFixed(3)} m)`);
 }
 {
   const outer = engineAxes(booster, 3.5);

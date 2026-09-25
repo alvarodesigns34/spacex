@@ -56,8 +56,10 @@ const LAYOUT = {
     x: -153, z: 0, mount: 2.0, lift: 0.3, mountRadius: 3.1, people: [[4.2, 0, 2, 0.5], [-4.2, 0, 2, -0.5]],
     launchMount: {
       halfX: 3.1, halfZ: 3.1, tunnelHalf: 0.9, tunnelH: 1.05, opening: { hx: 0.6, hz: 0.6 },
-      // Bearing on the lower edge of the boattail (r 0.61 m at 1.18 m above the nozzle exit).
-      cores: [{ x: 0, z: 0, r: 0.61, seatY: 0.3 + 1.18, scale: 0.5, clamps: [1, 3, 5, 7].map(i => i * Math.PI / 4) }],
+      // Bearing on the stage's aft ring, which Figure 2-5 of the 2008 guide labels as the
+      // launch-mount interface: station 133.3 in, 2.72 m above the nozzle exit, r ≈ 0.75 m. The
+      // Merlin and its thrust frame hang free inside the four clamp pedestals.
+      cores: [{ x: 0, z: 0, r: 0.75, seatY: 0.3 + 2.718, scale: 0.5, clamps: [1, 3, 5, 7].map(i => i * Math.PI / 4) }],
     },
   },
   falcon9: {
@@ -65,7 +67,7 @@ const LAYOUT = {
     people: [[10, 0, 2, 0.5], [8.5, 0, -4, -2.0], [-9.5, 0, 3, 2.2]],
     launchMount: {
       halfX: 6.5, halfZ: 6.5, tunnelHalf: 2.6, tunnelH: 4.2, opening: { hx: 1.95, hz: 1.95 },
-      cores: [{ x: 0, z: 0, r: 1.85, seatY: 0.35 + 1.0, clamps: [0, 1, 2, 3].map(i => i * Math.PI / 2), tsm: [Math.PI * 7 / 8, Math.PI * 9 / 8] }],
+      cores: [{ x: 0, z: 0, r: 1.83, seatY: 0.35 + 1.0, clamps: [0, 1, 2, 3].map(i => i * Math.PI / 2), tsm: [Math.PI * 7 / 8, Math.PI * 9 / 8] }],
     },
   },
   falconheavy: {
@@ -74,9 +76,9 @@ const LAYOUT = {
     launchMount: {
       halfX: 10, halfZ: 7, tunnelHalf: 7, tunnelH: 4.2, opening: { hx: 6.2, hz: 1.95 },
       cores: [
-        { x: 0, z: 0, r: 1.85, seatY: 1.35, clamps: [0, Math.PI], tsm: [Math.PI * 7 / 8, Math.PI * 9 / 8] },
-        { x: -4.25, z: 0, r: 1.85, seatY: 1.35, clamps: [0, Math.PI, Math.PI * 1.5], tsm: [Math.PI * 7 / 8, Math.PI * 9 / 8] },
-        { x: 4.25, z: 0, r: 1.85, seatY: 1.35, clamps: [0, Math.PI / 2, Math.PI], tsm: [Math.PI * 7 / 8, Math.PI * 9 / 8] },
+        { x: 0, z: 0, r: 1.83, seatY: 1.35, clamps: [0, Math.PI], tsm: [Math.PI * 7 / 8, Math.PI * 9 / 8] },
+        { x: -4.27, z: 0, r: 1.83, seatY: 1.35, clamps: [0, Math.PI, Math.PI * 1.5], tsm: [Math.PI * 7 / 8, Math.PI * 9 / 8] },
+        { x: 4.27, z: 0, r: 1.83, seatY: 1.35, clamps: [0, Math.PI / 2, Math.PI], tsm: [Math.PI * 7 / 8, Math.PI * 9 / 8] },
       ],
     },
   },
@@ -109,7 +111,7 @@ const OVERVIEW = { pos: [3, 72, 330], target: [-1, 39, -68] };
 // occlude to the 4.8 m of the vacuum engine standing next to it. Starlink is a flat panel and
 // needs none.
 const OCCLUDER = {
-  falcon1: 0.8382,
+  falcon1: 0.8402,
   starship: 4.5, falcon9: 1.9, falconheavy: 1.9, dragon: 2.0, starlink: 0, roadster: 1.0,
   engines: [[-4.15, 0, 0.50, 2.6], [-1.75, 0, 0.70, 3.4], [1.55, 0, 1.20, 4.9]],
 };
@@ -294,7 +296,7 @@ async function main() {
     } else if (v.id === 'dragon') {
       const ped = buildPedestal(M, { radius: 2.3, height: lay.mount });
       // Cradle: the trunk stands on a conical adapter the way it stands on the second stage —
-      // a steel frustum from the 3.7 m trunk base down to the plinth, a bolted interface ring
+      // a steel frustum from the 3.66 m trunk base down to the plinth, a bolted interface ring
       // at the top and a foot ring at the bottom. Proportions reconstructed. It replaces four
       // square posts that read as crates stacked under the spacecraft.
       {

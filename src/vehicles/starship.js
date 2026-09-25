@@ -1,8 +1,9 @@
 /**
  * Starship (Version 3 / Block 3) — Super Heavy booster + Starship ship, stacked.
  *
- * Verified figures (spacex.com unless noted): stack 124 m, diameter 9 m, booster 72 m,
- * ship 52 m, 33 Raptor on the booster (13 gimballing inner + 20 fixed outer, Wikipedia),
+ * Verified figures (spacex.com unless noted): stack 124.4 m (408 ft), diameter 9 m; booster
+ * 72.3 m (Super Heavy Block 3, Wikipedia) and ship 52.1 m (Wikipedia; unchanged from Block 2),
+ * which sum to the published 124.4 m; 33 Raptor on the booster (13 gimballing inner + 20 fixed outer, Wikipedia),
  * 3 Raptor + 3 RVac on the ship, Raptor 1.3 m × 2.9 m, RVac 2.3 m × 4.4 m, steel rings
  * 1.83 m, 3 grid fins in a 90°/90°/180° layout ~1.5× the size of V1/V2 fins and integrated
  * with the catch pins (Wikipedia), 1.8 m vented hot-stage section, ≈18 000 hexagonal silica
@@ -23,8 +24,8 @@ const R = 4.5;                 // 9 m diameter (spacex.com)
 /** The hull radius the pad's clamps and seat have to meet. Exported so they can derive it. */
 export const BOOSTER_R = R;
 const RING = 1.83;             // steel ring height (Wikipedia)
-const BOOSTER_H = 72;          // spacex.com
-const SHIP_H = 52;             // spacex.com
+const BOOSTER_H = 72.3;        // Super Heavy Block 3 (Wikipedia)
+const SHIP_H = 52.1;           // Starship upper stage (Wikipedia); 72.3 + 52.1 = 124.4 m (408 ft)
 const rings = (n) => n * RING; // helper: express a station as a ring count
 // Leeward-side furniture, kept clear of each other (φ measured from the belly, +Z).
 const RACE_PHI = Math.PI * 0.78;
@@ -295,7 +296,7 @@ export function buildSuperHeavy(M) {
 
   const skirtTop = rings(3.5);            // 6.41 m engine/thrust section
   const hotStageH = RING;                 // 1.83 m vented section at the top
-  const ringTop = BOOSTER_H - hotStageH;  // 70.17 m
+  const ringTop = BOOSTER_H - hotStageH;  // 70.47 m
   // Tank split from the published propellant loads at cryogenic density
   // (2 700 t LOX / 1 141 kg·m⁻³ vs 700 t LCH4 / 422 kg·m⁻³ ⇒ 59 % / 41 % by volume).
   const commonDome = skirtTop + (ringTop - skirtTop) * 0.59;
@@ -423,7 +424,7 @@ export function buildShip(M) {
   const barrelTop = rings(21);      // 38.43 m — start of the nose curve
   const payloadBase = rings(18);    // 32.94 m — payload bay above the methane tank
   const commonDome = skirtTop + (payloadBase - skirtTop) * 0.57;
-  const noseLen = SHIP_H - barrelTop;   // 13.57 m (fineness ratio ≈1.5 D)
+  const noseLen = SHIP_H - barrelTop;   // 13.67 m (fineness ratio ≈1.5 D)
 
   // More stations and a smaller spherical cap: the old 0.75 m blunting read as a
   // generic cone with a ball on top. The tip still ends on the published stack height.

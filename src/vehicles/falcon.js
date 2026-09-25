@@ -1,21 +1,23 @@
 /**
  * Falcon 9 Block 5 and Falcon Heavy.
  *
- * Verified figures: height 70 m, diameter 3.7 m, fairing 13.1 m × 5.2 m, 9 Merlin 1D per
- * core, Falcon Heavy width 12.2 m (spacex.com); first stage 41.2 m, second stage 13.8 m,
+ * Verified figures: height 70 m, diameter 3.66 m (12 ft), standard fairing 13.2 m × 5.2 m
+ * (SpaceX Falcon User's Guide, May 2025, §2 and §4.1.3; spacex.com rounds the diameter to
+ * 3.7 m and gives the fairing as 13.1 m), 9 Merlin 1D per core, Falcon Heavy width 12.2 m
+ * (spacex.com); first stage 41.2 m, second stage 13.8 m,
  * Merlin 1D nozzle exit 0.92 m, MVac nozzle 3.3 m, titanium grid fins (Wikipedia).
  *
  * The 41.2 m first-stage figure is the whole stage, interstage included — stacking a separate
  * interstage on top of it would make the booster a sixth too long. The stations below split
  * that 41.2 m into a 34.5 m tank section and a 6.7 m interstage, and place the second stage
- * so that the fairing base lands at 70 − 13.1 = 56.9 m. Interstage length, stowed leg length,
+ * so that the fairing base lands at 70 − 13.2 = 56.8 m. Interstage length, stowed leg length,
  * grid-fin size and Merlin plumbing detail are approximations from imagery.
  */
 import * as THREE from 'three';
 import { lathe, ogiveProfile, mesh, mergeAll, mat4, plate, boxUV } from '../geometry/utils.js';
 import { merlinGeometry, merlinVacGeometry, instanceEngines, ringLayout } from './engines.js';
 
-const R = 1.85;                    // 3.7 m diameter
+const R = 1.83;                    // 3.66 m (12 ft), Falcon User's Guide 2025
 // y = 0 is the Merlin exit plane — the lowest point of the vehicle and the datum the 70 m
 // overall height is measured from. The tank barrel therefore starts one nozzle length up.
 const ENGINE_DROP = 1.0;
@@ -25,7 +27,7 @@ const INTERSTAGE_H = 6.7;          // approx
 const TANK_TOP = S1_H - INTERSTAGE_H;   // 34.5 m — top of the LOX tank / base of interstage
 const S2_H = 13.8;                 // second stage (Wikipedia)
 const S2_TOP = S1_H + S2_H;        // 55.0 m
-const FAIRING_BASE = TOTAL_H - 13.1;    // 56.9 m (fairing height from spacex.com)
+const FAIRING_BASE = TOTAL_H - 13.2;    // 56.8 m (13.2 m standard fairing, Falcon User's Guide 2025)
 const FAIRING_R = 2.6;             // 5.2 m diameter
 
 /**
@@ -220,8 +222,8 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
 
   if (variant === 'fh-side') {
     // Measured against the Falcon Heavy demo on LC-39A (Wikimedia Commons, "Falcon Heavy Demo
-    // Mission (40126460511)", side-on, scaled by the 70 m stack and checked against the 13.1 m
-    // fairing, which it reads as 13.3 m): all three sets of grid fins sit level at about 40 m,
+    // Mission (40126460511)", side-on, scaled by the 70 m stack and checked against the fairing,
+    // which it reads as 13.3 m against the guide's 13.2 m): all three sets of grid fins sit level at about 40 m,
     // and the side boosters' nose tips stand at about 45 m. So a side booster keeps a cylinder
     // where the Falcon 9 carries its interstage, with its grid fins at the top of it, and the
     // nose cone sits above that. It used to sit straight on the tank, 6 m lower, with the grid
@@ -284,8 +286,8 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
     g.add(mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.3, 14), M.darkMetal,
       { position: [Math.sin(a) * (R + 0.06), S2_TOP - 1.2, Math.cos(a) * (R + 0.06)], rotation: [0, 0, Math.PI / 2] }));
   }
-  // The published lengths (41.2 + 13.8 + 13.1 m, or 42.6 + 12.6 + 13.1 m in another table of
-  // the same article) fall 1.9 m short of the declared 70 m. The shortfall is carried as the
+  // The published lengths (41.2 + 13.8 + 13.2 m, or 42.6 + 12.6 + 13.2 m in another table of
+  // the same article) fall 1.8 m short of the declared 70 m. The shortfall is carried as the
   // second stage's forward skirt at full diameter, the way the stage meets the fairing's
   // boat-tail, with a seam at the published stage length. It used to be a tapering cone that
   // read as a measured payload adapter; nothing measures it.
@@ -293,7 +295,7 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
   g.add(mesh(new THREE.TorusGeometry(R + 0.006, 0.02, 5, 96), seamMat(M), { position: [0, S2_TOP, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false, name: 'stage2-forward-seam' }));
   g.add(mesh(new THREE.BoxGeometry(0.38, S2_H - 1.2, 0.18), M.blackMatte, { position: [0, S1_H + S2_H / 2, R + 0.08] }));
 
-  // Fairing: 13.1 m × 5.2 m, two halves, blunt ogive nose.
+  // Fairing: 13.2 m × 5.2 m, two halves, blunt ogive nose.
   const ogiveStart = FAIRING_BASE + 6.1;
   const fProf = [
     { r: R, y: FAIRING_BASE }, { r: R, y: FAIRING_BASE + 0.1, sharp: true },
@@ -341,7 +343,7 @@ const commonAnnotations = () => [
   { label: 'Interstage (composite)', position: [0, TANK_TOP + 3.2, R + 0.35] },
   { label: 'Titanium grid fin', position: [Math.sin(Math.PI / 4) * 2.9, S1_H - 1.6, Math.cos(Math.PI / 4) * 2.9] },
   { label: 'Second stage · Merlin Vacuum', position: [0, S1_H + S2_H / 2, R + 0.35] },
-  { label: 'Fairing · 13.1 m × 5.2 m', position: [0, FAIRING_BASE + 6, FAIRING_R + 0.4] },
+  { label: 'Fairing · 13.2 m × 5.2 m', position: [0, FAIRING_BASE + 6, FAIRING_R + 0.4] },
 ];
 
 export function buildFalcon9(M) {
@@ -397,7 +399,7 @@ function skinDoubler(phi0, halfW, y0, y1, { t = 0.022, ramp = 0.07, cols = 18, r
 export function buildFalconHeavy(M) {
   const g = new THREE.Group();
   g.name = 'falconheavy';
-  const spacing = (12.2 - 3.7) / 2;   // 4.25 m between core axes, from the 12.2 m width
+  const spacing = (12.2 - 2 * R) / 2;   // 4.27 m between core axes, from the 12.2 m width
   const center = buildFalconCore(M, { variant: 'fh-center', bodyMaterial: M.fhCore });
   const left = buildFalconCore(M, { variant: 'fh-side', bodyMaterial: M.fhSide });
   const right = buildFalconCore(M, { variant: 'fh-side', bodyMaterial: M.fhSide });
@@ -480,7 +482,7 @@ export function buildFalconHeavy(M) {
     { label: 'Reinforced centre core', position: [0, 18, R + 0.35] },
     { label: 'Forward pneumatic attach points (LOX tank)', position: [spacing - 2.1, TANK_TOP - 0.45, 1.2] },
     { label: 'Lower attach point (Octaweb)', position: [spacing - 2.1, 3.2, 1.4] },
-    { label: 'Fairing · 13.1 m × 5.2 m', position: [0, FAIRING_BASE + 6, FAIRING_R + 0.4] },
+    { label: 'Fairing · 13.2 m × 5.2 m', position: [0, FAIRING_BASE + 6, FAIRING_R + 0.4] },
   ];
   return g;
 }

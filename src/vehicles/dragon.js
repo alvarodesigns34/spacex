@@ -4,10 +4,10 @@
  * Verified figures: 8.1 m with the trunk, 4 m maximum diameter, 9.3 m³ pressurised and 37 m³
  * trunk volume, 16 Draco at 400 N, 8 SuperDraco at 71 kN, solar cells over one half of the
  * trunk (spacex.com); capsule alone 4.4 m × 3.7 m, PICA heat shield, two drogue and four main
- * parachutes (Wikipedia). The trunk is 3.7 m across — the diameter of the Falcon 9 it rides
- * on — and the capsule flares slightly wider than that at the heat-shield shoulder, which is
- * what makes the published 4 m and the 8.1 m total consistent: 3.7 m of trunk plus 4.4 m of
- * capsule.
+ * parachutes (Wikipedia). The trunk is 3.66 m across — the diameter of the Falcon 9 it rides
+ * on (Falcon User's Guide 2025) — and the capsule flares slightly wider than that at the heat-shield shoulder, which is
+ * what makes the published 4 m and the 8.1 m total consistent: 3.7 m of trunk height plus
+ * 4.4 m of capsule.
  *
  * WHAT IS RECONSTRUCTED. SpaceX publishes no drawing, so everything below the level of those
  * figures is read off photographs and is approximate: the wall angle, where the windows and
@@ -26,7 +26,7 @@
 import * as THREE from 'three';
 import { lathe, domeProfile, mesh, mergeAll, mat4, plate, boxUV } from '../geometry/utils.js';
 
-const TRUNK_R = 1.85;      // 3.7 m — matches the Falcon 9 it launches on
+const TRUNK_R = 1.83;      // 3.66 m — the diameter of the Falcon 9 it launches on (Falcon User's Guide 2025; spacex.com rounds to 3.7 m)
 const CAP_R = 2.0;         // 4 m maximum diameter at the heat-shield shoulder (spacex.com)
 const TRUNK_H = 3.7;
 const CAP_H = 4.4;         // capsule alone (Wikipedia)
