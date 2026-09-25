@@ -664,7 +664,20 @@ function buildChopsticks(M) {
     for (let x = 8; x + 2.4 <= A - 0.6; x += 7) {
       parts.push(block(x, x + 2.4, -1.9, 1.9, -s * ARM_PAD, -s * 1.35));
     }
+    // Pin centring (NSF on Pad 2): where Pad 1 has two sleds per rail, Pad 2 has one sled
+    // and a telescopic pusher at the arm's end, and the two together centre the booster's
+    // pin near the tip. That arrangement is cited; the sizes below are reconstructed. The
+    // sled rides the rail on the root side of where the pin sits (≈22 m out), and the
+    // pusher's housing sits on the deck past the rail's end with its ram run in towards it.
+    parts.push(block(19.4, 21.4, 2.3, 2.85, -0.95, 0.95));                   // sled
+    parts.push(block(A - 1.9, A - 0.3, hy, 3.1, -0.75, 0.75));               // pusher housing
     arm.add(mesh(boxUV(mergeAll(parts)), (M.towerSteel ?? M.mount)));
+    // Built about its own centre and placed, so its metric UVs span its own 1.3 m.
+    const ram = [
+      block(-0.6, 0.6, -0.18, 0.18, -0.18, 0.18),                               // ram
+      block(-0.72, -0.6, -0.28, 0.28, -0.28, 0.28),                             // pusher plate
+    ];
+    arm.add(mesh(boxUV(mergeAll(ram)), M.darkMetal, { name: 'arm-pusher-ram', castShadow: false, position: [A - 2.5, 2.7, 0] }));
     g.add(arm);
   }
   // What the launch sequence needs to close the arms on the booster without entering it and

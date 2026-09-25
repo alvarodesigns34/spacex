@@ -15,7 +15,7 @@
  */
 import * as THREE from 'three';
 import { mesh, mergeAll, mat4, lathe } from '../geometry/utils.js';
-import { raptorGeometry, raptorVacGeometry, merlinGeometry } from './engines.js';
+import { raptorGeometry, raptorVacGeometry, merlinGeometry, profileRadius } from './engines.js';
 
 const CRADLE_Y = 0.42;
 
@@ -63,7 +63,7 @@ const STANDS = [
   { id: 'raptor', x: -1.75, geo: () => raptorGeometry(), exitR: 0.65, flutes: 96, hoops: [] },
   // The vacuum bell's extension is radiatively cooled sheet, not a channel wall: it is smooth,
   // and carries stiffening hoops instead.
-  { id: 'rvac', x: 1.55, geo: () => raptorVacGeometry(), exitR: 1.15, flutes: 0, hoops: [0.16, 0.55, 1.05, 1.62, 2.25] },
+  { id: 'rvac', x: 1.55, geo: () => raptorVacGeometry(), exitR: 1.15, flutes: 0, hoops: [0.65, 1.4, 2.25] },
 ];
 
 /** Welded stand: a base ring on four feet, uprights, and a top ring the bell rim sits in. */
@@ -142,15 +142,15 @@ export function buildEngineHall(M) {
     if (st.hoops.length && geo.profile) {
       const hoops = [];
       for (const y of st.hoops) {
-        const p = geo.profile.find(q => q.y >= y) ?? geo.profile[geo.profile.length - 1];
-        hoops.push({ geometry: new THREE.TorusGeometry(p.r * 1.004, 0.018, 8, 90), matrix: mat4([0, y, 0], [Math.PI / 2, 0, 0]) });
+        hoops.push({ geometry: new THREE.TorusGeometry(profileRadius(geo.profile, y) + 0.012, 0.018, 8, 90), matrix: mat4([0, y, 0], [Math.PI / 2, 0, 0]) });
       }
       eng.add(mesh(mergeAll(hoops), M.darkMetal, { name: `${st.id}-hoops` }));
     }
 
-    // Propellant plumbing down the side of the chamber: two runs and their clamps. Every engine
-    // here has them; without any the powerhead reads as a plain grey drum.
-    {
+    // Propellant plumbing down the side of the chamber: runs and their clamps, on the Merlin.
+    // Raptor 3 folds its plumbing into the pack's housings (see raptorGeometry), and on the
+    // vacuum engine these runs stood in the air round the throat.
+    if (st.id === 'merlin') {
       const lines = [];
       const top = geo.height - 0.42, bot = geo.height * 0.68;
       for (const [ang, rad] of [[0.6, 0.022], [2.4, 0.017], [4.1, 0.014]]) {

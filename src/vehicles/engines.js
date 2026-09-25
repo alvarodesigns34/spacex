@@ -15,6 +15,16 @@ import { lathe, mergeAll, mat4 } from '../geometry/utils.js';
 
 function bellProfile(points) { return points.map(([r, y]) => ({ r, y })); }
 
+/** The bell's radius at height y, interpolated between profile points. Rings placed with the
+ *  radius of the next point up sat inside a bell that narrows upwards, hidden. */
+export function profileRadius(profile, y) {
+  for (let i = 1; i < profile.length; i++) {
+    const a = profile[i - 1], b = profile[i];
+    if (y <= b.y) return a.r + (b.r - a.r) * THREE.MathUtils.clamp((y - a.y) / ((b.y - a.y) || 1), 0, 1);
+  }
+  return profile[profile.length - 1].r;
+}
+
 /** Raptor 3 (sea level): 1.3 m diameter, 2.9 m tall (spacex.com). Internal layout approximate. */
 export function raptorGeometry({ exitRadius = 0.62, height = 2.9, gimbal = true } = {}) {
   const bell = bellProfile([
@@ -80,26 +90,27 @@ export function raptorGeometry({ exitRadius = 0.62, height = 2.9, gimbal = true 
 
 /** Raptor Vacuum: 2.3 m diameter, 4.4 m tall (spacex.com). Radiatively cooled skirt. */
 export function raptorVacGeometry({ exitRadius = 1.15, height = 4.4 } = {}) {
+  // The vacuum engine is the sea-level Raptor's chamber and turbomachinery on a longer bell,
+  // so it carries the same pack: the 1.28 m from throat to puck of the 2.9 m engine, with
+  // the rest of the published 4.4 m in the nozzle. It used to end in a 0.48 m drum and two
+  // spheres, a third of the sea-level engine's pack, which the engine row shows side by side.
+  const lift = height - 2.9;
   const bell = bellProfile([
-    [exitRadius, 0], [exitRadius * 0.985, 0.25], [exitRadius * 0.93, 0.8], [exitRadius * 0.82, 1.5],
-    [exitRadius * 0.66, 2.2], [exitRadius * 0.47, 2.8], [exitRadius * 0.3, 3.25], [0.215, 3.5], [0.235, 3.62], [0.3, 3.8], [0.3, 3.95],
+    [exitRadius, 0], [exitRadius * 0.985, 0.25], [exitRadius * 0.93, 0.75], [exitRadius * 0.82, 1.35],
+    [exitRadius * 0.66, 1.95], [exitRadius * 0.47, 2.45], [exitRadius * 0.3, 2.85], [0.215, 1.62 + lift], [0.235, 1.75 + lift], [0.3, 1.95 + lift], [0.3, 2.2 + lift],
   ]);
   const outer = lathe(bell, { segments: 80, uvMode: 'normalized' });
   const inner = lathe(bell.map(p => ({ r: Math.max(p.r - 0.02, 0.19), y: p.y })), { segments: 80, flip: true, uvMode: 'normalized' });
-  const parts = [];
-  // Same enclosed full-flow pack as the sea-level engine, sat on a much longer bell.
-  parts.push({ geometry: new THREE.CylinderGeometry(0.44, 0.38, 0.48, 8), matrix: mat4([0, 4.14, 0]) });
-  parts.push({ geometry: new THREE.CylinderGeometry(0.22, 0.28, 0.16, 16), matrix: mat4([0, height - 0.08, 0]) });
-  // Domes stay inside the published 4.4 m height. The previous station stuck out.
-  parts.push({ geometry: new THREE.SphereGeometry(0.12, 12, 10), matrix: mat4([0.26, 4.18, 0.08]) });
-  parts.push({ geometry: new THREE.SphereGeometry(0.10, 10, 8), matrix: mat4([-0.22, 4.16, -0.10]) });
-  parts.push({ geometry: new THREE.TorusGeometry(0.34, 0.045, 8, 32), matrix: mat4([0, 3.66, 0], [Math.PI / 2, 0, 0]) });
+  // The vacuum engines do not gimbal, so no actuators.
+  const pack = raptorGeometry({ gimbal: false }).head;
+  pack.translate(0, lift, 0);
+  const parts = [{ geometry: pack }];
   // Joint between the regen chamber and the radiatively cooled extension.
-  parts.push({ geometry: new THREE.TorusGeometry(0.36, 0.03, 8, 48), matrix: mat4([0, 3.52, 0], [Math.PI / 2, 0, 0]) });
+  parts.push({ geometry: new THREE.TorusGeometry(0.425, 0.03, 8, 48), matrix: mat4([0, 2.7, 0], [Math.PI / 2, 0, 0]) });
   // Stiffening rings on the radiatively cooled nozzle extension.
   for (const y of [0.3, 1.0, 1.8]) {
-    const r = bell.find(p => p.y >= y)?.r ?? exitRadius;
-    parts.push({ geometry: new THREE.TorusGeometry(r * 0.99, 0.02, 6, 80), matrix: mat4([0, y, 0], [Math.PI / 2, 0, 0]) });
+    const r = profileRadius(bell, y);
+    parts.push({ geometry: new THREE.TorusGeometry(r + 0.012, 0.02, 6, 80), matrix: mat4([0, y, 0], [Math.PI / 2, 0, 0]) });
   }
   const head = mergeAll(parts);
   return { outer, inner, head, height, profile: bell };
