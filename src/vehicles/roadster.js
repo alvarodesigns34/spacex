@@ -1233,7 +1233,8 @@ function buildBodyShell(mats, M) {
   // open cockpit, swept on a coarse grid (≈3 k triangles against 162 k) with no lamp or fascia
   // cuts. Nothing about the silhouette is invented — it is bodyPoint() sampled less often.
   // Worst chord error is ~2 cm on the shoulder radius, under half a pixel at the ~40 m where
-  // the LOD swaps it in (feature 0,12 m at 3,5 px), so the switch is not visible. The lamps
+  // the LOD swaps it in (feature 0,18 m at 3,5 px, ≈ 54 m), so the switch is not visible: at 45 m
+  // a full frame differs in 470 of 1,28 M pixels, the lamp recesses closed over. The lamps
   // and the other fittings shed their own detail by then.
   {
     const zF = stations(Z_COWL, Z_NOSE, 16), zR = stations(Z_TAIL, Z_BULK, 16), zD = stations(Z_BULK, Z_COWL, 6);
@@ -1247,7 +1248,7 @@ function buildBodyShell(mats, M) {
     ]), mats.cherryRed, { name: 'body-paint-far' });
     far.visible = false;
     g.add(far);
-    bodyPaint.userData.lod = { name: 'body', near: [bodyPaint], far, feature: 0.12 };
+    bodyPaint.userData.lod = { name: 'body', near: [bodyPaint], far, feature: 0.18 };
   }
 
   // Rolled arch lips, following the cut the arches make in the rocker line.
@@ -3037,6 +3038,66 @@ function limbChain(joints, radii, material, name) {
   return mesh(mergeAll(parts), material, { name });
 }
 
+/**
+ * A suit sleeve or trouser leg: one continuous tube through the joints on a smooth curve,
+ * instead of spheres and cylinders stacked like a mannequin's. The radius runs through the
+ * given joint radii, swells a little at the middle joint (fabric bunching over the elbow or
+ * knee) and carries a few soft compression folds on the inside of the bend, where cloth
+ * folds when a limb is flexed. Proportions are the old chain's; the folds are illustrative.
+ */
+function sleeve(joints, radii, material, name) {
+  const pts = joints.map(j => new THREE.Vector3(...j));
+  const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5);
+  const N = 72, R = 28;
+  const frames = curve.computeFrenetFrames(N, false);
+  // Joint parameters along the curve, by chord length, for the radius profile.
+  const lens = [0]; for (let i = 1; i < pts.length; i++) lens.push(lens[i - 1] + pts[i].distanceTo(pts[i - 1]));
+  const tj = lens.map(l => l / lens[lens.length - 1]);
+  const mid = tj.length > 2 ? tj[1] : null;
+  // Inside of the bend: from the middle joint towards the chord between the ends.
+  const bendDir = mid !== null
+    ? new THREE.Vector3().addVectors(pts[0], pts[pts.length - 1]).multiplyScalar(0.5).sub(pts[1]).normalize()
+    : null;
+  const radiusAt = (t) => {
+    let k = 0; while (k < tj.length - 2 && t > tj[k + 1]) k++;
+    const u = (t - tj[k]) / Math.max(1e-6, tj[k + 1] - tj[k]);
+    const s = u * u * (3 - 2 * u);
+    let r = radii[k] + (radii[k + 1] - radii[k]) * s;
+    if (mid !== null) r *= 1 + 0.07 * Math.exp(-(((t - mid) / 0.09) ** 2));
+    return r;
+  };
+  const pos = [], idx = [];
+  const p = new THREE.Vector3(), n = new THREE.Vector3();
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    curve.getPointAt(t, p);
+    const r0 = radiusAt(t);
+    for (let j = 0; j <= R; j++) {
+      const a = (j / R) * Math.PI * 2;
+      n.copy(frames.normals[i]).multiplyScalar(Math.cos(a)).addScaledVector(frames.binormals[i], Math.sin(a));
+      let r = r0;
+      if (bendDir) {
+        // Folds: a few ridges across the inside of the bend, fading away from the joint.
+        const inside = Math.max(0, n.dot(bendDir));
+        const near = Math.exp(-(((t - mid) / 0.13) ** 2));
+        r *= 1 - 0.035 * inside * near * (0.5 + 0.5 * Math.cos((t - mid) * 95));
+      }
+      pos.push(p.x + n.x * r, p.y + n.y * r, p.z + n.z * r);
+    }
+  }
+  for (let i = 0; i < N; i++) for (let j = 0; j < R; j++) {
+    const a = i * (R + 1) + j, b = a + R + 1;
+    idx.push(a, b, a + 1, a + 1, b, b + 1);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  // Rounded ends so the tube is closed where it meets the torso and the glove.
+  const ends = [0, pts.length - 1].map((k) => ({ geometry: new THREE.SphereGeometry(radii[k] * 0.98, 24, 16), matrix: mat4(joints[k]) }));
+  return mesh(mergeAll([{ geometry: geo }, ...ends]), material, { name });
+}
+
 function gloveFingers(origin, dir, material, name) {
   const o = new THREE.Vector3(...origin);
   const d = new THREE.Vector3(...dir);
@@ -3099,10 +3160,28 @@ function buildStarman(mats) {
   torso.add(mesh(new THREE.TorusGeometry(0.090, 0.011, 10, 24), starmanSuitGraphite, {
     position: [0, 0.352, 0], rotation: [Math.PI / 2, 0, 0], name: 'suit-neck-ring',
   }));
+  // Seam piping down the chest, collar to waist, either side of the front: the lines that
+  // break up the white torso in the flight photographs. Traced on the torso's own profile
+  // (same radii and 0,74 depth scale), 3 mm proud. Positions are read from photos, not
+  // from a drawing of the suit.
+  {
+    const prof = [[-0.02, 0.146], [0.02, 0.146], [0.16, 0.172], [0.26, 0.186], [0.30, 0.170]];
+    const rAt = (y) => { let k = 0; while (k < prof.length - 2 && y > prof[k + 1][0]) k++; const [y0, r0] = prof[k], [y1, r1] = prof[k + 1]; return r0 + (r1 - r0) * (y - y0) / (y1 - y0); };
+    const seams = [];
+    for (const phi of [-0.42, 0.42]) {
+      const pts = [];
+      for (let y = 0.295; y >= -0.02; y -= 0.025) {
+        const r = rAt(y) + 0.003;
+        pts.push([Math.sin(phi) * r, y, Math.cos(phi) * r * 0.74 + 0.002]);
+      }
+      seams.push({ geometry: tube(pts, 0.0045, { tubular: 24, radial: 6 }) });
+    }
+    torso.add(mesh(mergeAll(seams), starmanSuitGraphite, { name: 'suit-seams', castShadow: false }));
+  }
   g.add(torso);
 
   // Arms. Shoulder -> elbow -> wrist, with the gloves as their own smaller chain.
-  g.add(limbChain(
+  g.add(sleeve(
     [[X - 0.155, 0.735, -0.395], [armX - 0.010, 0.756, -0.235], [armX, 0.745, sillFwd.z - 0.10]],
     [0.058, 0.050, 0.043], starmanSuitWhite, 'left-arm-door-sill',
   ));
@@ -3112,7 +3191,7 @@ function buildStarman(mats) {
   ));
   g.add(gloveFingers([armX + 0.006, 0.727, sillFwd.z + 0.02], [0.01, -0.15, 1], starmanSuitGraphite, 'left-fingers'));
 
-  g.add(limbChain(
+  g.add(sleeve(
     [[X + 0.155, 0.735, -0.395], [X + 0.155, 0.585, -0.185], [X + 0.028, 0.700, 0.100]],
     [0.058, 0.050, 0.043], starmanSuitWhite, 'right-arm-steering',
   ));
@@ -3132,7 +3211,7 @@ function buildStarman(mats) {
   // Legs, folded into the footwell toward the pedals.
   for (const s of [-1, 1]) {
     const lx = X + s * 0.105;
-    g.add(limbChain(
+    g.add(sleeve(
       [[lx, 0.430, -0.300], [lx + s * 0.012, 0.452, 0.075], [lx - s * 0.006, 0.268, 0.290]],
       [0.078, 0.064, 0.050], starmanSuitWhite, `leg-${s < 0 ? 'left' : 'right'}`,
     ));

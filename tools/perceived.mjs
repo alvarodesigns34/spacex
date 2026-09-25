@@ -58,6 +58,8 @@ try {
       longTasks: long.length, longTaskMs: long.reduce((a, [, d]) => a + d, 0),
       longestTaskMs: long.reduce((a, [, d]) => Math.max(a, d), 0),
       heapMB: performance.memory ? +(performance.memory.usedJSHeapSize / 1048576).toFixed(1) : null,
+      marks: performance.getEntriesByType('mark').filter(m => m.name.startsWith('vc:')).map(m => [m.name, Math.round(m.startTime)]),
+      longList: long,
     };
   });
   // Exhibit switches: time from jump() to the rig settling, and the worst frame gap.

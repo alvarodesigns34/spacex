@@ -79,12 +79,19 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
         </div>
         <button class="mission-abort" id="mission-abort">End</button>
       </div>
-      <details class="mission-note"><summary>Composite demonstration · sources and limits</summary><p><b>Not a reconstruction of one flight.</b> The vehicle and the pad are the V3 / Pad 2 configuration that debuted on flight 12 (22 May 2026), but that flight did <i>not</i> attempt a catch: booster 19 was sent to the Gulf and its landing burn failed to relight. So the ascent milestones are flight 7's (liftoff T+0:02 · Max-Q 1:02 · MECO 2:32 · hot-staging 2:40) and the return milestones are flight 5's, the flight on which a booster was first caught (boostback 2:45–3:41, landing burn 6:30, caught 6:54). Everything between the milestones — the speed curve, the gravity turn, the separation speed and the whole return trajectory — is authored.</p></details>
+      <details class="mission-note"><summary>Composite demonstration · sources and limits</summary><p><b>Not a reconstruction of one flight.</b> The vehicle and the pad are the V3 / Pad 2 configuration that debuted on flight 12 (22 May 2026), but that flight did <i>not</i> attempt a catch: booster 19 was sent to the Gulf and its landing burn failed to relight. So the ascent milestones are flight 7's (liftoff T+0:02 · Max-Q 1:02 · MECO 2:32 · hot-staging 2:40) and the return milestones are flight 5's, the flight on which a booster was first caught (boostback 2:45–3:41, landing burn 6:30, caught 6:54). Between the milestones, the ascent's speed curve, gravity turn and separation speed are authored. The booster's return is <i>computed</i> from that state with gravity, drag and two burns whose size and direction are solved so the cited times are met, then eased into the arms over the last 7.5 s. Mass, drag and the resulting apogee (≈ 90 km) are assumptions and results, not flight data.</p></details>
     </div>
 
     <div class="scale" id="scale">
       <div class="scale-bar"><span id="scale-label">10 m</span></div>
       <div class="scale-info" id="scale-info"></div>
+    </div>
+
+    <div class="coach hidden" id="coach" role="note" aria-label="How to look around">
+      <span class="coach-tip"><b class="coach-desk">Drag</b><b class="coach-touch">Drag</b> to orbit · <b class="coach-desk">scroll</b><b class="coach-touch">pinch</b> to zoom</span>
+      <span class="coach-tip"><b class="coach-desk">1–${vehicles.length}</b><b class="coach-touch">Vehicles</b> to visit an exhibit, then pick a view</span>
+      <span class="coach-tip"><b class="coach-desk">G</b><b class="coach-touch">Tools</b> launches Starship</span>
+      <button type="button" class="coach-close" id="coach-close" aria-label="Dismiss these tips">×</button>
     </div>
 
     <div class="help hidden" id="help" role="dialog" aria-modal="true" aria-label="Help and keyboard shortcuts">
@@ -349,6 +356,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       return;
     }
     mission.classList.remove('hidden');
+    hideCoach();
     document.body.classList.add('is-flying');
     launchBtn.classList.add('is-live');
     mClock.textContent = clockText(st.t);
@@ -471,5 +479,35 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     if (map[name]) el(map[name]).checked = value;
   }
 
-  return { setActive, setPreset, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setTrajectory, setTour, showHelp, setMap, setMapCamera };
+  // ---- first-visit tips ----
+  // Three lines for someone who has never used the page: how to move, how to reach the
+  // exhibits, how to launch. They go at the first real interaction with the scene (a drag,
+  // a wheel, a key) or after 20 s, and a visitor who has seen them does not see them again.
+  // Storage is a convenience: in a private window it may throw, and then the tips simply
+  // show once per visit.
+  const coach = root.querySelector('#coach');
+  const COACH_KEY = 'vc-coach-seen-1';
+  let coachTimer = 0;
+  const hideCoach = () => {
+    if (coach.classList.contains('hidden')) return;
+    coach.classList.add('hidden');
+    clearTimeout(coachTimer);
+    try { localStorage.setItem(COACH_KEY, '1'); } catch { /* storage unavailable */ }
+    for (const [t, f] of coachListeners) window.removeEventListener(t, f, true);
+  };
+  const coachListeners = [];
+  const showCoach = () => {
+    let seen = false;
+    try { seen = localStorage.getItem(COACH_KEY) === '1'; } catch { /* storage unavailable */ }
+    if (seen) return;
+    coach.classList.remove('hidden');
+    coachTimer = setTimeout(hideCoach, 20000);
+    const onScene = (e) => { if (e.target === document.getElementById('scene')) hideCoach(); };
+    const onKey = (e) => { if (!e.ctrlKey && !e.metaKey && !e.altKey) hideCoach(); };
+    coachListeners.push(['pointerdown', onScene], ['wheel', onScene], ['keydown', onKey]);
+    for (const [t, f] of coachListeners) window.addEventListener(t, f, true);
+  };
+  root.querySelector('#coach-close').addEventListener('click', hideCoach);
+
+  return { setActive, setPreset, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setTrajectory, setTour, showHelp, setMap, setMapCamera, showCoach, hideCoach };
 }

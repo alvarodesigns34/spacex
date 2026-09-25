@@ -72,6 +72,8 @@ for (const s of shots) {
   await page.evaluate(({ s, sun }) => {
     const v = window.__vc;
     document.getElementById('hud').style.display = s.hud === false ? 'none' : '';
+    // First-visit tips belong to a visitor's first seconds, not to a documentation frame.
+    if (!s.coach) v.hud?.hideCoach?.();
     // Reset the state a previous shot may have left, so order cannot change a frame.
     if (s.seek === undefined) v.launch.reset(false);
     v.ortho(null);

@@ -27,7 +27,7 @@ const report = (ok, label, detail) => {
   console.log(`${ok ? 'PASS' : 'FAIL'} ${label}${detail ? ` ${JSON.stringify(detail)}` : ''}`);
 };
 const bounds = () => page.evaluate(() => {
-  const selectors = ['.hud-header', '.sheet', '.rail', '.tools', '.presets', '.mission'];
+  const selectors = ['.hud-header', '.sheet', '.rail', '.tools', '.presets', '.mission', '.coach'];
   const boxes = {};
   for (const selector of selectors) {
     const el = document.querySelector(selector);
@@ -36,7 +36,8 @@ const bounds = () => page.evaluate(() => {
     boxes[selector] = { x: r.x, y: r.y, right: r.right, bottom: r.bottom };
   }
   const outside = Object.entries(boxes).filter(([, r]) => r.x < -1 || r.y < -1 || r.right > innerWidth + 1 || r.bottom > innerHeight + 1).map(([s]) => s);
-  const pairs = [['.hud-header', '.sheet'], ['.rail', '.tools'], ['.rail', '.presets'], ['.tools', '.presets'], ['.mission', '.tools'], ['.mission', '.rail'], ['.mission', '.sheet']];
+  const pairs = [['.hud-header', '.sheet'], ['.rail', '.tools'], ['.rail', '.presets'], ['.tools', '.presets'], ['.mission', '.tools'], ['.mission', '.rail'], ['.mission', '.sheet'],
+    ['.coach', '.hud-header'], ['.coach', '.sheet'], ['.coach', '.rail'], ['.coach', '.tools'], ['.coach', '.presets']];
   const overlap = pairs.filter(([a, b]) => {
     const p = boxes[a], q = boxes[b];
     return p && q && Math.min(p.right, q.right) - Math.max(p.x, q.x) > 1 && Math.min(p.bottom, q.bottom) - Math.max(p.y, q.y) > 1;

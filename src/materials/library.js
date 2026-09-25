@@ -9,7 +9,7 @@
 import * as THREE from 'three';
 import * as TX from './textures.js';
 
-export function createMaterials(onProgress = () => {}) {
+export async function createMaterials(onProgress = () => {}, pause = null) {
   const T = {};
   const steps = [
     ['steel', () => TX.makeSteel()],
@@ -42,10 +42,13 @@ export function createMaterials(onProgress = () => {}) {
     ['weatheredSteel', () => TX.makeWeatheredSteel()],
     ['water', () => TX.makeWater()],
   ];
+  // One texture, then a frame: the generators are the longest stretch of the start-up, and
+  // run back to back they were one block in which the progress bar could not repaint.
   for (let i = 0; i < steps.length; i++) {
     const [key, fn] = steps[i];
     T[key] = fn();
     onProgress(key, (i + 1) / steps.length);
+    if (pause) await pause();
   }
 
   const M = {};

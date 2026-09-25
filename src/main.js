@@ -200,7 +200,7 @@ async function main() {
   // instant is the one that ships — and the headless check ignores font errors, so it never
   // showed up there.
   if (document.fonts?.ready) await document.fonts.ready;
-  const { M } = createMaterials((name, frac) => hud.setProgress(`Generating materials · ${name}`, 0.05 + frac * 0.2));
+  const { M } = await createMaterials((name, frac) => hud.setProgress(`Generating materials · ${name}`, 0.05 + frac * 0.2), nextFrame);
   timings.materials = performance.now() - t0;
   hud.setProgress('Lighting and environment…', 0.25);
   await nextFrame();
@@ -502,13 +502,36 @@ async function main() {
 
   hud.setProgress('Compiling shaders…', 0.95);
   await nextFrame();
-  // compileAsync hands every program to the driver at once and waits on
-  // KHR_parallel_shader_compile where it exists, so a multi-core driver links them side by
-  // side instead of one after another inside a blocking compile(). It resolves once all are
-  // ready; without the extension it degrades to the same work as compile().
-  if (renderer.compileAsync) await renderer.compileAsync(scene, camera);
-  else renderer.compile(scene, camera);
+  performance.mark('vc:compile');
+  // Warm-up, one part of the scene at a time — each exhibit, the pad, the ground — with a
+  // frame between parts so the progress bar keeps moving. The profile (tools/perceived.mjs)
+  // showed that precompiling programs was not where the time went: the FIRST RENDER was one
+  // ~12 s task in software rendering, because it is where every texture and vertex buffer is
+  // uploaded, the shadow pass's depth programs are built and any program whose state differs
+  // from the precompiled one is rebuilt — all at once, with the page frozen. Rendering the
+  // real scene into a 1 × 1 target with only one part visible (and nothing culled) does that
+  // same work for that part, with the lights and shadows it will actually be drawn with.
+  {
+    const parts = scene.children.filter(o => !o.isLight && o.visible);
+    const warmRT = new THREE.WebGLRenderTarget(1, 1);
+    const culled = [];
+    scene.traverse(o => { if (o.frustumCulled) { culled.push(o); o.frustumCulled = false; } });
+    const prevTarget = renderer.getRenderTarget();
+    for (let i = 0; i < parts.length; i++) {
+      for (const p of parts) p.visible = p === parts[i];
+      renderer.setRenderTarget(warmRT);
+      renderer.render(scene, camera);
+      hud.setProgress('Preparing the scene…', 0.95 + 0.05 * (i + 1) / parts.length);
+      await nextFrame();
+    }
+    for (const p of parts) p.visible = true;
+    for (const o of culled) o.frustumCulled = true;
+    renderer.setRenderTarget(prevTarget);
+    warmRT.dispose();
+  }
+  performance.mark('vc:first-render');
   composer.render();
+  performance.mark('vc:first-render-done');
   await nextFrame();
   // Site plan for the HUD map, read off the built scene rather than restated: the apron and
   // the pad's parts by their world bounds (the complex is not rotated), the stops from the
@@ -532,6 +555,7 @@ async function main() {
     hud.setMap({ bounds: [Math.min(...xs) - m, Math.min(...zs) - m, Math.max(...xs) + m, Math.max(...zs) + m], rects, stops });
   }
   hud.hideLoading();
+  hud.showCoach();
   hud.setActive(null);
 
   // ---- Interaction ----
@@ -1076,7 +1100,7 @@ async function main() {
     // The state machine itself, so the gate can assert on transitions rather than on the
     // scene's reaction to them.
     view, viewState: () => view.snapshot(),
-    quality, lod, ao,
+    quality, lod, ao, hud,
     get tourAt() { return tourAt; },
   };
   if (params.has('verify')) verify();
