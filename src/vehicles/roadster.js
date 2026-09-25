@@ -2999,14 +2999,14 @@ function limbChain(joints, radii, material, name) {
   const v = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), q = new THREE.Quaternion();
   for (let i = 0; i < joints.length; i++) {
     parts.push({
-      geometry: new THREE.SphereGeometry(radii[i], 14, 10),
+      geometry: new THREE.SphereGeometry(radii[i], 28, 18),
       matrix: mat4(joints[i]),
     });
     if (i === joints.length - 1) break;
     const a = new THREE.Vector3(...joints[i]), b = new THREE.Vector3(...joints[i + 1]);
     v.subVectors(b, a);
     const len = v.length();
-    const seg = new THREE.CylinderGeometry(radii[i + 1], radii[i], len, 14, 1, true);
+    const seg = new THREE.CylinderGeometry(radii[i + 1], radii[i], len, 28, 1, true);
     q.setFromUnitVectors(up, v.clone().normalize());
     const m = new THREE.Matrix4().compose(a.clone().addScaledVector(v, 0.5), q, new THREE.Vector3(1, 1, 1));
     seg.applyMatrix4(m);
@@ -3127,13 +3127,18 @@ function buildStarman(mats) {
   // Shoulder panels, glove gauntlets and the suit's umbilical connector on the right thigh
   // (where the SpaceX IVA suit plugs into the seat). Envelopes are approximate.
   for (const s of [-1, 1]) {
-    const cap = new THREE.SphereGeometry(0.066, 16, 10);
-    cap.scale(1, 0.78, 1);
+    // Clearly proud of the arm's shoulder sphere (0,058 m) all round. At 0,066 × 0,78 its top
+    // sat 7 mm INSIDE the arm, and the two coarse surfaces crossed in a sawtooth edge — the
+    // ragged graphite patches on Starman's shoulders.
+    const cap = new THREE.SphereGeometry(0.072, 32, 20);
+    cap.scale(1, 0.9, 1);
     g.add(mesh(cap, starmanSuitGraphite, { position: [X + s * 0.162, 0.748, -0.392], name: 'suit-shoulder-panel' }));
   }
   const cuff = (at, dir, name) => {
     const a = new THREE.Vector3(...at), d = new THREE.Vector3(...dir).normalize();
-    const geo = new THREE.CylinderGeometry(0.047, 0.045, 0.06, 18, 1, true);
+    // 9 mm proud of the forearm and as finely divided, so the edge is a clean ring rather than
+    // two faceted cylinders trading places along a sawtooth line.
+    const geo = new THREE.CylinderGeometry(0.053, 0.050, 0.06, 32, 1, true);
     geo.applyMatrix4(new THREE.Matrix4().compose(a.clone().addScaledVector(d, -0.02),
       new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d), new THREE.Vector3(1, 1, 1)));
     g.add(mesh(geo, starmanSuitGraphite, { name }));

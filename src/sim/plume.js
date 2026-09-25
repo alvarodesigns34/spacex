@@ -951,7 +951,7 @@ const LIMB_FRAG = /* glsl */`
  * quadratically towards the nadir, 0,05–0,1° apart where the horizon falls, so the chord sag
  * at the silhouette is a few metres.
  */
-function earthCap(rings = 300, segments = 256, maxDeg = 25) {
+function earthCap(rings = 200, segments = 192, maxDeg = 25) {
   const pos = [], idx = [];
   const tMax = THREE.MathUtils.degToRad(maxDeg);
   pos.push(0, EARTH_R, 0);

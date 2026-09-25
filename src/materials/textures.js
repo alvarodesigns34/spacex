@@ -865,11 +865,14 @@ export function makeAsphalt({ size = 1024, tile = 6.0 } = {}) {
     }
     return null;
   };
-  const grain = (x, y) => {
-    // Coarse aggregate: stones a few millimetres to a centimetre across (0.6 cm/px at 6 m / 1024).
-    const n = noise2(x * 0.55, y * 0.55), m = noise2(x * 1.3 + 40, y * 1.3 + 17);
-    return { stone: smoothstep(0.66, 0.78, n), pit: smoothstep(0.74, 0.86, m) };
-  };
+  // Coarse aggregate: stones a few millimetres to a centimetre across (0.6 cm/px at 6 m / 1024).
+  // All three maps read it at every pixel, so it is worked out once, not three times.
+  const STONE = new Float32Array(size * size), PIT = new Float32Array(size * size);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    STONE[y * size + x] = smoothstep(0.66, 0.78, noise2(x * 0.55, y * 0.55));
+    PIT[y * size + x] = smoothstep(0.74, 0.86, noise2(x * 1.3 + 40, y * 1.3 + 17));
+  }
+  const grain = (x, y) => ({ stone: STONE[y * size + x], pit: PIT[y * size + x] });
   shade(map, (x, y, u, v) => {
     const { stone, pit } = grain(x, y);
     const broad = (fbm(u * 5 + 3, v * 5 + 11, 4) - 0.5) * 0.05;
