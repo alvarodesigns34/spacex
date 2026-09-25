@@ -885,7 +885,7 @@ const EARTH_VERT = /* glsl */`
     gl_Position = projectionMatrix * viewMatrix * w;
   }`;
 const EARTH_FRAG = /* glsl */`
-  uniform vec3 uSun, uCam;
+  uniform vec3 uSun, uCam, uCentre;
   uniform float uOpacity;
   varying vec3 vN, vW;
   float h3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
@@ -905,11 +905,17 @@ const EARTH_FRAG = /* glsl */`
     c = mix(c, vec3(0.86, 0.88, 0.9), cloud * 0.85);
     float diff = max(dot(n, uSun), 0.0);
     c *= 0.08 + 1.1 * diff;
-    // Towards the horizon the view passes through ever more air: haze to the sky's blue.
+    // Haze from the air between the camera and the ground: a plane-parallel air mass, the
+    // vertical optical depth (≈0,35 for a clear coastal sky, scaled by the share of the
+    // atmosphere below the camera, 8,5 km scale height) over the cosine of the view angle.
+    // Towards the horizon the path is hundreds of kilometres of air and the ground vanishes
+    // into it, as it does in every photograph from altitude; straight down it is a veil.
     vec3 v = normalize(uCam - vW);
     float mu = clamp(dot(n, v), 0.0, 1.0);
-    float haze = pow(1.0 - mu, 4.0);
-    c = mix(c, vec3(0.5, 0.66, 0.9) * (0.25 + diff), haze * 0.85);
+    float camH = max(length(uCam - uCentre) - ${EARTH_R.toFixed(1)}, 0.0);
+    float tau = 0.35 * (1.0 - exp(-camH / 8500.0));
+    float haze = 1.0 - exp(-tau / max(mu, 0.035));
+    c = mix(c, vec3(0.52, 0.66, 0.88) * (0.3 + 0.9 * diff), haze);
     gl_FragColor = vec4(c, uOpacity);
   }`;
 const LIMB_FRAG = /* glsl */`
@@ -937,6 +943,37 @@ const LIMB_FRAG = /* glsl */`
     gl_FragColor = vec4(mix(vec3(0.3, 0.5, 1.0), vec3(0.78, 0.88, 1.0), clamp(a, 0.0, 1.0)) * a * 1.1, a);
   }`;
 
+/**
+ * The visible part of the Earth as a cap around the point under the camera, out to 25° of
+ * arc — past the horizon from any altitude the sequence reaches (14° at 200 km). A plain
+ * 192 × 96 sphere put 208 km facets across the view, 850 m below the true surface at their
+ * middles: from 24 km the horizon was a jagged polygon edge. Here the rings close in
+ * quadratically towards the nadir, 0,05–0,1° apart where the horizon falls, so the chord sag
+ * at the silhouette is a few metres.
+ */
+function earthCap(rings = 300, segments = 256, maxDeg = 25) {
+  const pos = [], idx = [];
+  const tMax = THREE.MathUtils.degToRad(maxDeg);
+  pos.push(0, EARTH_R, 0);
+  for (let i = 1; i <= rings; i++) {
+    const th = tMax * (i / rings) ** 2, y = EARTH_R * Math.cos(th), r = EARTH_R * Math.sin(th);
+    for (let j = 0; j < segments; j++) { const a = (j / segments) * Math.PI * 2; pos.push(r * Math.cos(a), y, r * Math.sin(a)); }
+  }
+  for (let j = 0; j < segments; j++) idx.push(0, 1 + ((j + 1) % segments), 1 + j);
+  for (let i = 1; i < rings; i++) {
+    const a0 = 1 + (i - 1) * segments, b0 = 1 + i * segments;
+    for (let j = 0; j < segments; j++) {
+      const j1 = (j + 1) % segments;
+      idx.push(a0 + j, a0 + j1, b0 + j, a0 + j1, b0 + j1, b0 + j);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
 export class FlightEarth {
   constructor() {
     this.group = new THREE.Group();
@@ -947,10 +984,14 @@ export class FlightEarth {
       uSun: { value: new THREE.Vector3(0, 1, 0) }, uOpacity: { value: 0 },
     };
     this.u = uni;
-    this.earth = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R, 192, 96),
+    this.earth = new THREE.Mesh(earthCap(),
       new THREE.ShaderMaterial({ uniforms: uni, vertexShader: EARTH_VERT, fragmentShader: EARTH_FRAG, transparent: true, depthWrite: true }));
     this.earth.name = 'flight-earth-globe';
-    this.limb = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R + 120000, 160, 80),
+    // The limb is worked out per view ray (LIMB_FRAG), so its geometry only has to cover the
+    // screen: a 150 km sphere round the camera, always inside the far plane. A shell at the
+    // top of the atmosphere was 1 100 km away along the horizon from 24 km up, past the far
+    // plane, which cut it along a faceted line that read as a dark ridge above the horizon.
+    this.limb = new THREE.Mesh(new THREE.SphereGeometry(150000, 64, 32),
       new THREE.ShaderMaterial({ uniforms: uni, vertexShader: EARTH_VERT, fragmentShader: LIMB_FRAG,
         transparent: true, depthWrite: false, side: THREE.BackSide, blending: THREE.AdditiveBlending }));
     this.limb.name = 'flight-earth-limb';
@@ -965,6 +1006,7 @@ export class FlightEarth {
     // Centred under the camera, its top 40 m below the pad so the ground disc stays in front.
     this.group.position.set(camera.position.x, -EARTH_R - 40, camera.position.z);
     this.u.uCentre.value.copy(this.group.position);
+    this.limb.position.set(0, camera.position.y - this.group.position.y, 0);
     this.u.uCam.value.copy(camera.position);
     if (sunDir) this.u.uSun.value.copy(sunDir);
     this.u.uOpacity.value = k;

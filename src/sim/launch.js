@@ -107,102 +107,217 @@ function buildProfile() {
 const PROFILE = buildProfile();
 
 // ---- Booster return ----------------------------------------------------------------------
-// The ascent is integrated from a speed curve because its endpoints are cited. The return is
-// not: no public source gives Super Heavy's altitude second by second, so this is an authored
-// trajectory pinned to the four cited times above and to the two facts that bracket it — the
-// booster is at the staging point when the boostback burn lights, and it is in the arms at
-// T+06:54. Apogee near 96 km and a downrange peak near 95 km are the reported neighbourhood
-// for a flight 5 return, and the shape between the pins is a reconstruction.
+// One integrated trajectory from separation to the arms. Position, velocity and attitude all
+// come from it, so the booster on screen, the speed on the panel and the way it points cannot
+// disagree — and nothing jumps at the joins.
 //
-// Altitude is not monotone here — it keeps climbing for a minute after staging — so this uses
-// a plain Catmull-Rom through the keys rather than the monotone cubic the ascent uses.
-// The descent keys come from DESCENT below, every two seconds and every second through the
-// final approach, dense enough that the spline cannot overshoot through the ground.
-// The descent after apogee is no longer authored. The old keys had the booster at 8,4 km and
-// 3 080 km/h when the landing burn lit — twice the terminal speed of an empty Super Heavy at
-// that height, which the air would not have allowed. It is integrated instead: a ballistic
-// fall from the 96 km apogee with drag (≈250 t, Cd ≈0,9 end-on over the 9 m disc, exponential
-// atmosphere — reconstructed values), then the cited landing burn at T+06:30 as a constant
-// ≈4,6 g net deceleration on 13 engines until it is down to walking pace, then the last
-// seconds on the centre three into the arms at T+06:54. The apogee time is solved for, so the
-// fall ends where the burn needs it: a booster that stops a hundred-odd metres above the arms.
-const DESCENT = (() => {
-  const APO_H = 96000, M = 250e3, CD = 0.9, AREA = Math.PI * 4.5 * 4.5, G = 9.81, BURN_DECEL = 45;
-  const CATCH_H = 22, SLOW = 12, dt = 0.02;
-  const rho = (h) => 1.225 * Math.exp(-Math.max(h, 0) / 8500);
-  const fly = (tApo) => {
-    const pts = [];
-    let t = tApo, h = APO_H, v = 0, phase = 0, tA = 0;
-    while (t < EVENTS.catch) {
-      if (phase === 0 && t >= EVENTS.landingBurn) phase = 1;
-      const drag = rho(h) * CD * AREA * v * v / (2 * M);
-      let a = -G + drag;
-      if (phase === 1) a += BURN_DECEL + G;
-      v += a * dt; h += v * dt; t += dt;
-      if (phase === 1 && v > -SLOW) { tA = t; break; }
-      pts.push([t, h]);
-    }
-    return { pts, tA, hA: h, vA: v };
-  };
-  // Solve for the apogee time that leaves ~120 m for the slow final descent.
-  let best = null;
-  for (let ta = 232; ta <= 262; ta += 0.25) {
-    const r = fly(ta);
-    if (!r.tA || r.tA > EVENTS.catch - 6) continue;
-    const err = Math.abs(r.hA - 120);
-    if (!best || err < best.err) best = { ...r, ta, err };
+// What is cited: the four times (boostback T+02:45–T+03:41, landing burn T+06:30, catch
+// T+06:54, flight 5) and the state it starts from, which is the stack's own at separation
+// (itself integrated from the ascent inputs above). What is assumed, and marked so in the
+// sheet: a 250 t booster for drag with Cd ≈ 0,9 end-on over the 9 m disc, an exponential
+// atmosphere (ρ₀ 1,225 kg/m³, 8,5 km scale height), a boostback of constant thrust direction
+// and size, and a landing burn of constant thrust against the velocity. What is *solved*,
+// rather than chosen: those two thrusts and the boostback's direction, by Newton iteration at
+// load, so the landing burn lit at the cited T+06:30 brings the booster to walking pace
+// (12 m/s) 45 m above the catch height at T+06:46,5 — the moment the thirteen engines give way to
+// the centre three, 7,5 s before the cited catch. The centre three then set it down in the
+// arms on a cubic that matches position and velocity at both ends.
+//
+// The model integrates the booster's centre of mass, 30 m up its axis, not its base: it flips
+// about that point, as a free body does, instead of swinging 70 m of tank about its engines.
+const CATCH_BASE = 22;            // booster base held this far above the mount deck when caught
+export const RETURN_ASSUMED = { mass: 250e3, cd: 0.9, diameter: 9, rho0: 1.225, scaleHeight: 8500, comOffset: 30 };
+export const BURN_THREE = 406.5;   // landing burn: 13 engines → centre 3; 12 m/s, 45 m above the catch
+const FLIP_END = 166.5;            // the flip to boostback attitude, overlapping the throttle-up
+const RETRO_BLEND = [221, 245];    // after the boostback: swing to engines-first
+
+const pitchRate = (t) => (pitchProgram(t + 0.01) - pitchProgram(t - 0.01)) / 0.02;
+
+const RETURN_ITER = { n: 0 };
+const RETURN = (() => {
+  const { mass: M, cd: CD, diameter, rho0, scaleHeight, comOffset: R } = RETURN_ASSUMED;
+  const G = 9.81, AREA = Math.PI * (diameter / 2) ** 2, DT = 0.02;
+  const K = (h) => rho0 * Math.exp(-Math.max(h, 0) / scaleHeight) * CD * AREA / (2 * M);
+  const T0 = EVENTS.separation, BB0 = EVENTS.boostbackStart, BB1 = EVENTS.boostbackEnd;
+  const LB = EVENTS.landingBurn, STOP_V = -12;
+  // Stop where the centre three can take it to the arms at a steady deceleration: 12 m/s over
+  // the remaining 7,5 s is 45 m, so the burn hands over 45 m above the catch height.
+  const STOP_H = CATCH_BASE + 45 + R;
+  const sst = THREE.MathUtils.smoothstep;
+  const bbWeight = (t) => sst(t, BB0, BB0 + 2) * (1 - sst(t, BB1 - 3, BB1));
+
+  // Initial state: the base of the stack at separation, plus R up the axis, moving with it.
+  const p0 = pitchProgram(T0), w0 = pitchRate(T0), v0 = PROFILE.spd[EVENTS.separation / PROFILE.step];
+  const init = [
+    PROFILE.down[EVENTS.separation / PROFILE.step] + R * Math.sin(p0),
+    PROFILE.alt[EVENTS.separation / PROFILE.step] + R * Math.cos(p0),
+    v0 * Math.sin(p0) + R * w0 * Math.cos(p0),
+    v0 * Math.cos(p0) - R * w0 * Math.sin(p0),
+  ];
+
+  function deriv(t, s, q, out) {
+    const [, h, vx, vh] = s;
+    const sp = Math.hypot(vx, vh), k = K(h);
+    let ax = -k * sp * vx, ah = -G - k * sp * vh;
+    if (t >= BB0 && t <= BB1) { const w = bbWeight(t); ax += w * q[0]; ah += w * q[1]; }
+    if (t >= LB) { const sp1 = sp || 1, w = sst(t, LB, LB + 1.5); ax -= w * q[2] * vx / sp1; ah -= w * q[2] * vh / sp1; }
+    out[0] = vx; out[1] = vh; out[2] = ax; out[3] = ah;
   }
-  // Final descent: Hermite from the end of the burn to the arms, arriving at rest.
-  const T = EVENTS.catch - best.tA, h0 = best.hA, v0 = best.vA;
-  const c = (3 * (CATCH_H - h0) - 2 * v0 * T) / (T * T), d = (2 * (h0 - CATCH_H) + v0 * T) / (T * T * T);
-  const keys = [];
-  for (const [t, h] of best.pts) if (keys.length === 0 || t - keys[keys.length - 1][0] >= 2) keys.push([t, h]);
-  for (let s2 = 1; s2 < T; s2 += 1) keys.push([best.tA + s2, h0 + v0 * s2 + c * s2 * s2 + d * s2 * s2 * s2]);
-  return { apogee: best.ta, keys };
+  const k1 = [0, 0, 0, 0], k2 = [0, 0, 0, 0], k3 = [0, 0, 0, 0], k4 = [0, 0, 0, 0], tmp = [0, 0, 0, 0];
+  function rk4(t, s, dt, q) {
+    deriv(t, s, q, k1);
+    for (let i = 0; i < 4; i++) tmp[i] = s[i] + k1[i] * dt / 2;
+    deriv(t + dt / 2, tmp, q, k2);
+    for (let i = 0; i < 4; i++) tmp[i] = s[i] + k2[i] * dt / 2;
+    deriv(t + dt / 2, tmp, q, k3);
+    for (let i = 0; i < 4; i++) tmp[i] = s[i] + k3[i] * dt;
+    deriv(t + dt, tmp, q, k4);
+    return s.map((v, i) => v + dt / 6 * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]));
+  }
+  // Flies q = [boostback ax, boostback ah, landing-burn thrust] (m/s²) from separation until
+  // the burn has slowed the descent to STOP_V; returns the stop time and state.
+  function fly(q, rec) {
+    let s = init.slice(), t = T0;
+    while (t < 440) {
+      const n = rk4(t, s, DT, q);
+      if (t + DT > LB && n[3] >= STOP_V) {
+        const f = (STOP_V - s[3]) / (n[3] - s[3]);
+        const e = s.map((v, i) => v + (n[i] - v) * f);
+        if (rec) rec.push([t + DT * f, ...e]);
+        return { t: t + DT * f, s: e };
+      }
+      s = n; t += DT;
+      if (rec) rec.push([t, ...s]);
+    }
+    return { t, s };
+  }
+  const residual = (q) => { const r = fly(q); return [r.s[0] / 1000, (r.s[1] - STOP_H) / 100, r.t - BURN_THREE]; };
+  // Seeded with the converged solution, so this normally takes one step to confirm it.
+  let q = [-39.143829, 4.758797, 40.967829];
+  for (let it = 0; it < 30; it++) {
+    RETURN_ITER.n = it;
+    const r0 = residual(q), n0 = Math.hypot(...r0);
+    if (n0 < 1e-4) break;
+    const J = [0, 1, 2].map((j) => { const qq = q.slice(); qq[j] += 0.01; return residual(qq).map((v, i) => (v - r0[i]) / 0.01); });
+    const d = solve3([0, 1, 2].map((i) => [J[0][i], J[1][i], J[2][i]]), r0.map((v) => -v));
+    let lam = 1;
+    while (lam > 1e-3) { const qn = q.map((v, j) => v + lam * d[j]); if (Math.hypot(...residual(qn)) < n0) { q = qn; break; } lam /= 2; }
+    if (lam <= 1e-3) break;
+  }
+  const rec = [];
+  const stop = fly(q, rec);
+  // Resample onto a uniform table and append the final descent on the centre three: a cubic
+  // per axis from the stop state to the arms (base 22 m over the mount, at rest) at the catch.
+  const step = DT, t1 = EVENTS.end, n = Math.round((t1 - T0) / step) + 1;
+  const tab = { step, n, x: new Float64Array(n), h: new Float64Array(n), vx: new Float64Array(n), vh: new Float64Array(n) };
+  const Tf = EVENTS.catch - stop.t, [xs, hs, vxs, vhs] = stop.s, HT = CATCH_BASE + R;
+  const cubic = (p0, v0, p1, u) => {
+    const c = (3 * (p1 - p0) - 2 * v0 * Tf) / (Tf * Tf), d = (2 * (p0 - p1) + v0 * Tf) / (Tf * Tf * Tf);
+    return [p0 + v0 * u + c * u * u + d * u * u * u, v0 + 2 * c * u + 3 * d * u * u];
+  };
+  let j = 0;
+  for (let i = 0; i < n; i++) {
+    const t = T0 + i * step;
+    if (t <= stop.t) {
+      while (j < rec.length - 2 && rec[j + 1][0] < t) j++;
+      const a = j === 0 && t < rec[0][0] ? [T0, ...init] : rec[j], b = rec[j + 1] ?? rec[j];
+      const f = b[0] > a[0] ? THREE.MathUtils.clamp((t - a[0]) / (b[0] - a[0]), 0, 1) : 0;
+      tab.x[i] = a[1] + (b[1] - a[1]) * f; tab.h[i] = a[2] + (b[2] - a[2]) * f;
+      tab.vx[i] = a[3] + (b[3] - a[3]) * f; tab.vh[i] = a[4] + (b[4] - a[4]) * f;
+    } else if (t < EVENTS.catch) {
+      const u = t - stop.t;
+      [tab.x[i], tab.vx[i]] = cubic(xs, vxs, 0, u);
+      [tab.h[i], tab.vh[i]] = cubic(hs, vhs, HT, u);
+    } else { tab.x[i] = 0; tab.h[i] = HT; tab.vx[i] = 0; tab.vh[i] = 0; }
+  }
+  let apo = 0, apoT = T0, apoX = 0, vMax = 0, vMaxT = T0;
+  for (let i = 0; i < n; i++) {
+    if (tab.h[i] > apo) { apo = tab.h[i]; apoT = T0 + i * step; apoX = tab.x[i]; }
+    const sp = Math.hypot(tab.vx[i], tab.vh[i]);
+    if (T0 + i * step > BB1 && sp > vMax) { vMax = sp; vMaxT = T0 + i * step; }
+  }
+  const burnIdx = Math.round((LB - T0) / step);
+  return {
+    tab, q, stop,
+    apogee: { t: apoT, h: apo - R, x: apoX },
+    reentryPeak: { t: vMaxT, speed: vMax },
+    burnStart: { h: tab.h[burnIdx] - R, speed: Math.hypot(tab.vx[burnIdx], tab.vh[burnIdx]) },
+    bbPitch: Math.atan2(q[0], q[1]),
+  };
 })();
 
-const RETURN_ALT = [
-  [160, PROFILE.alt[EVENTS.separation / PROFILE.step]], [180, 68000], [200, 78500], [221, 88500],
-  [DESCENT.apogee, 96000],
-  ...DESCENT.keys.filter(([t]) => t > DESCENT.apogee + 1.5),
-  [EVENTS.catch, 22], [418, 22], [426, 22], [436, 22],
-];
-const RETURN_DOWN = [
-  [160, PROFILE.down[EVENTS.separation / PROFILE.step]], [180, 92000], [200, 95500], [221, 93000], [250, 79000], [272, 66000],
-  [300, 46000], [330, 26000], [360, 10500], [385, 2400], [398, 420], [405, 90],
-  [410, 14], [413, 2], [414, 0], [418, 0], [426, 0], [436, 0],
-];
-// Attitude, in radians from vertical. Nose-up at staging, swung retrograde for the boostback
-// burn, then engines-first — which for Super Heavy means upright — for the descent and catch.
-const RETURN_PITCH = [
-  [160, PROFILE.pit[EVENTS.separation / PROFILE.step]], [166, 1.60], [180, 2.30], [221, 2.30], [240, 1.20], [270, 0.34],
-  [330, 0.16], [385, 0.05], [414, 0.0], [436, 0.0],
-];
-
-/** Catmull-Rom through (t, value) keys. Unlike the ascent's cubic this may rise and fall. */
-function catmull(keys, t) {
-  const n = keys.length;
-  if (t <= keys[0][0]) return keys[0][1];
-  if (t >= keys[n - 1][0]) return keys[n - 1][1];
-  let i = 0;
-  while (i < n - 2 && t > keys[i + 1][0]) i++;
-  const p0 = keys[Math.max(0, i - 1)], p1 = keys[i], p2 = keys[i + 1], p3 = keys[Math.min(n - 1, i + 2)];
-  const u = (t - p1[0]) / (p2[0] - p1[0]);
-  const u2 = u * u, u3 = u2 * u;
-  return 0.5 * ((2 * p1[1]) + (-p0[1] + p2[1]) * u
-    + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * u2
-    + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * u3);
+/** Gaussian elimination with partial pivoting, 3 × 3. */
+function solve3(A, b) {
+  const m = A.map((r, i) => [...r, b[i]]);
+  for (let i = 0; i < 3; i++) {
+    let p = i;
+    for (let k = i + 1; k < 3; k++) if (Math.abs(m[k][i]) > Math.abs(m[p][i])) p = k;
+    [m[i], m[p]] = [m[p], m[i]];
+    for (let k = i + 1; k < 3; k++) { const f = m[k][i] / m[i][i]; for (let c = i; c < 4; c++) m[k][c] -= f * m[i][c]; }
+  }
+  const x = [0, 0, 0];
+  for (let i = 2; i >= 0; i--) { let v = m[i][3]; for (let c = i + 1; c < 3; c++) v -= m[i][c] * x[c]; x[i] = v / m[i][i]; }
+  return x;
 }
-export const boosterAltAt = (t) => (t < EVENTS.separation ? altitudeAt(t) : Math.max(0, catmull(RETURN_ALT, t)));
-export const boosterDownAt = (t) => (t < EVENTS.separation ? downrangeAt(t) : catmull(RETURN_DOWN, t));
-export const boosterPitchAt = (t) => (t < EVENTS.separation ? pitchAt(t) : catmull(RETURN_PITCH, t));
+
+/** Centre of mass and its velocity at t ≥ separation: cubic Hermite through the table. */
+function returnState(t) {
+  const T = RETURN.tab, u = THREE.MathUtils.clamp((t - EVENTS.separation) / T.step, 0, T.n - 1);
+  const i = Math.min(Math.floor(u), T.n - 2), f = u - i, dt = T.step;
+  const hp = (a, va, b, vb) => {
+    const f2 = f * f, f3 = f2 * f;
+    return (2 * f3 - 3 * f2 + 1) * a + (f3 - 2 * f2 + f) * dt * va + (-2 * f3 + 3 * f2) * b + (f3 - f2) * dt * vb;
+  };
+  return {
+    x: hp(T.x[i], T.vx[i], T.x[i + 1], T.vx[i + 1]), h: hp(T.h[i], T.vh[i], T.h[i + 1], T.vh[i + 1]),
+    vx: T.vx[i] + (T.vx[i + 1] - T.vx[i]) * f, vh: T.vh[i] + (T.vh[i + 1] - T.vh[i]) * f,
+  };
+}
+
 /**
- * Speed of the booster, differentiated from its own trajectory rather than authored, so the
- * number on the panel cannot contradict the thing on the screen.
+ * Attitude after separation, radians from vertical (positive leans the nose downrange):
+ * flip to the boostback's thrust direction (the nose is where the engines push), hold it
+ * through the burn, then swing engines-first — nose opposite the velocity, the way a booster
+ * falls — and come upright over the last seconds into the arms.
+ */
+function returnPitch(t) {
+  const sst = THREE.MathUtils.smoothstep;
+  const pS = pitchProgram(EVENTS.separation), wS = pitchRate(EVENTS.separation), pB = RETURN.bbPitch;
+  if (t < FLIP_END) {
+    const T = FLIP_END - EVENTS.separation, u = (t - EVENTS.separation) / T, u2 = u * u, u3 = u2 * u;
+    return (2 * u3 - 3 * u2 + 1) * pS + (u3 - 2 * u2 + u) * T * wS + (-2 * u3 + 3 * u2) * pB;
+  }
+  if (t < RETRO_BLEND[0]) return pB;
+  const s = returnState(t);
+  const retro = Math.hypot(s.vx, s.vh) > 0.5 ? Math.atan2(-s.vx, -s.vh) : 0;
+  const upright = sst(t, BURN_THREE, EVENTS.catch - 3);
+  return THREE.MathUtils.lerp(THREE.MathUtils.lerp(pB, retro, sst(t, RETRO_BLEND[0], RETRO_BLEND[1])), 0, upright);
+}
+
+export const boosterPitchAt = (t) => (t < EVENTS.separation ? pitchAt(t) : returnPitch(t));
+// The base of the booster (its engines), which is what the scene positions.
+export const boosterDownAt = (t) => {
+  if (t < EVENTS.separation) return downrangeAt(t);
+  return returnState(t).x - RETURN_ASSUMED.comOffset * Math.sin(returnPitch(t));
+};
+export const boosterAltAt = (t) => {
+  if (t < EVENTS.separation) return altitudeAt(t);
+  return Math.max(0, returnState(t).h - RETURN_ASSUMED.comOffset * Math.cos(returnPitch(t)));
+};
+/** The same trajectory's summary, for the data sheet and the checks. */
+export const returnSummary = () => ({
+  apogee: RETURN.apogee, reentryPeak: RETURN.reentryPeak, burnStart: RETURN.burnStart,
+  boostback: { accel: Math.hypot(RETURN.q[0], RETURN.q[1]), pitchDeg: THREE.MathUtils.radToDeg(RETURN.bbPitch) },
+  landingBurnAccel: RETURN.q[2], stop: { t: RETURN.stop.t }, q: RETURN.q.slice(), iterations: RETURN_ITER.n,
+});
+/**
+ * Speed of the booster's base, differentiated from the positions the scene uses, so the
+ * number on the panel cannot contradict the thing on the screen. Every piece of the path is
+ * C¹, so a narrow central difference is exact to well under 1 km/h.
  */
 export function boosterSpeedAt(t) {
   if (t < EVENTS.separation) return speedAt(t);
-  const h = 0.5;
+  const h = 0.02;
   const dy = boosterAltAt(t + h) - boosterAltAt(t - h);
   const dx = boosterDownAt(t + h) - boosterDownAt(t - h);
   return Math.hypot(dx, dy) / (2 * h);
@@ -216,7 +331,7 @@ function returnThrottle(t) {
   }
   if (t >= EVENTS.landingBurn && t <= EVENTS.catch) {
     // Thirteen engines to arrest the descent, down to three for the last few seconds.
-    const lit = t < EVENTS.catch - 9 ? 0.42 : 0.42 * (1 - 0.72 * THREE.MathUtils.smoothstep(t, EVENTS.catch - 9, EVENTS.catch - 1));
+    const lit = t < BURN_THREE - 1.5 ? 0.42 : 0.42 * (1 - 0.72 * THREE.MathUtils.smoothstep(t, BURN_THREE - 1.5, BURN_THREE + 0.5));
     return lit * (1 - THREE.MathUtils.smoothstep(t, EVENTS.catch - 1.2, EVENTS.catch));
   }
   return 0;
@@ -233,8 +348,8 @@ function boosterSpread(t) {
   if (t < EVENTS.meco) return 1;
   if (t < EVENTS.boostbackStart) return CENTRE_3;
   if (t <= EVENTS.boostbackEnd) return INNER_13;
-  if (t < EVENTS.catch - 9) return INNER_13;
-  return THREE.MathUtils.lerp(INNER_13, CENTRE_3, THREE.MathUtils.smoothstep(t, EVENTS.catch - 9, EVENTS.catch - 5));
+  if (t < BURN_THREE - 1.5) return INNER_13;
+  return THREE.MathUtils.lerp(INNER_13, CENTRE_3, THREE.MathUtils.smoothstep(t, BURN_THREE - 1.5, BURN_THREE + 0.5));
 }
 
 /** How many booster engines are running, in lighting order (centre 3, inner 10, outer 20). */
@@ -247,7 +362,7 @@ function boosterLit(t) {
   }
   if (t < EVENTS.meco) return 33;
   if (t < EVENTS.boostbackStart) return 3;
-  if (t < EVENTS.catch - 7) return 13;
+  if (t < BURN_THREE) return 13;
   return 3;
 }
 
@@ -256,9 +371,22 @@ function sample(arr, t) {
   const i = Math.floor(u), f = u - i;
   return i >= PROFILE.n - 1 ? arr[PROFILE.n - 1] : arr[i] * (1 - f) + arr[i + 1] * f;
 }
-export const altitudeAt = (t) => (t <= 0 ? 0 : sample(PROFILE.alt, t));
+/**
+ * Position between table rows is a cubic Hermite on the integrated velocity (speed along the
+ * pitch), not a straight line: linear rows made the velocity a staircase, a 0,25 s step of
+ * a few km/h every row that any derivative of the position — the camera, the booster's
+ * starting state — would pick up.
+ */
+function sampleC1(arr, comp, t) {
+  const u = THREE.MathUtils.clamp(t / PROFILE.step, 0, PROFILE.n - 1);
+  const i = Math.min(Math.floor(u), PROFILE.n - 2), f = u - i, dt = PROFILE.step;
+  const va = PROFILE.spd[i] * comp(PROFILE.pit[i]), vb = PROFILE.spd[i + 1] * comp(PROFILE.pit[i + 1]);
+  const f2 = f * f, f3 = f2 * f;
+  return (2 * f3 - 3 * f2 + 1) * arr[i] + (f3 - 2 * f2 + f) * dt * va + (-2 * f3 + 3 * f2) * arr[i + 1] + (f3 - f2) * dt * vb;
+}
+export const altitudeAt = (t) => (t <= 0 ? 0 : sampleC1(PROFILE.alt, Math.cos, t));
 export const speedAt = (t) => (t <= 0 ? 0 : sample(PROFILE.spd, t));
-export const downrangeAt = (t) => (t <= 0 ? 0 : sample(PROFILE.down, t));
+export const downrangeAt = (t) => (t <= 0 ? 0 : sampleC1(PROFILE.down, Math.sin, t));
 export const pitchAt = (t) => (t <= 0 ? 0 : sample(PROFILE.pit, t));
 
 // The moment the stack clears the tower is read off the integrated climb, not authored: the
@@ -377,7 +505,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     arms: chop.children.filter(c => c.name.startsWith('arm-')).map(a => ({ obj: a, ry: a.rotation.y })),
   };
   const CATCH_ARM = THREE.MathUtils.degToRad(6.5);   // arms just embracing the 9 m hull
-  const CATCH_ALT = 22;                               // booster held this far above its launch station
+  const CATCH_ALT = CATCH_BASE;                       // booster held this far above its launch station
   /**
    * Where the carriage has to be for the arms to take the load on the pins.
    *
@@ -466,7 +594,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     name: 'vapor-landing', rng: seeded(24), accel: [0.5, 0.8, 0.2], tau: 1.4, opacity: 0.38,
     emitters: Array.from({ length: 10 }, (_, i) => {
       const a = (i / 10) * Math.PI * 2 + 0.2;
-      return { at: around(5.5, 0.5, a), dir: out(a, 0.08), speed: 22, spread: 0.25, count: nv(10), life: 4.5, size: 7, grow: 9, jitter: 1.5, window: [EVENTS.catch - 11, EVENTS.catch - 0.5] };
+      return { at: around(5.5, 0.5, a), dir: out(a, 0.08), speed: 22, spread: 0.25, count: nv(10), life: 4.5, size: 7, grow: 9, jitter: 1.5, window: [BURN_THREE - 1, EVENTS.catch - 0.5] };
     }),
   });
   rest.add(countdownVent.mesh, deluge.mesh, landingSpray.mesh);
@@ -778,33 +906,28 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     flight.position.set(downrangeAt(t), alt, 0);
     flight.rotation.z = -pitchAt(t);
 
-    // Hot staging: the ship lights first and pushes itself off the booster.
-    // The push is the ship's own thrust over the stack's, 7,5 m/s² for the first seconds; after
-    // that it holds the speed it gained on the flight path. Integrated for the whole run, it
-    // added 286 km along the axis by T+436.
-    const sep = Math.max(0, t - EVENTS.separation);
-    const PUSH = 12;
-    ship.position.y = shipHome + (sep < PUSH ? 0.5 * 7.5 * sep * sep : 0.5 * 7.5 * PUSH * PUSH + 7.5 * PUSH * (sep - PUSH));
+    // Hot staging. The ship keeps flying the ascent profile (its own engines, still
+    // accelerating) and the booster its integrated return (three engines off, gravity and a
+    // little drag), so the gap between them opens on its own at their difference in
+    // acceleration — about 11 m/s² — without a separate push that the panel knew nothing of.
+    ship.position.y = shipHome;
 
     // The booster on its own trajectory. Up to separation it is exactly where the stack is;
-    // after it, it flies the return.
+    // after it, it flies the return. Its attitude is part of that trajectory, so nothing here
+    // adds a tilt or a drift of its own.
     detachBooster(true);
     const bAlt = boosterAltAt(t);
     boosterFlight.position.set(boosterDownAt(t), bAlt, 0);
     boosterFlight.rotation.z = -boosterPitchAt(t);
-    // A little sideways drift as it is pushed off. It is flown out during the coast, so the
-    // booster comes down the mount's axis: the arms close on the centre of the table, and a
-    // 4,2 m offset left standing to the catch put the pins beside them.
-    const drift = 0.7 * Math.min(sep, 6) * (1 - THREE.MathUtils.smoothstep(t, EVENTS.boostbackEnd, EVENTS.landingBurn - 20));
-    booster.position.x = boosterHome.position.x - drift;
-    booster.rotation.z = THREE.MathUtils.degToRad(9) * Math.min(1, sep / 14) * Math.max(0, 1 - sep / 26);
+    booster.position.x = boosterHome.position.x;
+    booster.rotation.z = 0;
 
     // The catch: the carriage rides up the tower as the booster comes home, and the arms close
     // on it in the last seconds of the landing burn.
     const ride = THREE.MathUtils.smoothstep(t, EVENTS.landingBurn - 60, EVENTS.landingBurn + 6);
     chop.position.y = THREE.MathUtils.lerp(chopHome.y, CATCH_CARRIAGE, ride);
     parts.hoist?.(chop.position.y);
-    const close = THREE.MathUtils.smoothstep(t, EVENTS.catch - 11, EVENTS.catch - 1);
+    const close = THREE.MathUtils.smoothstep(t, BURN_THREE, EVENTS.catch - 1);
     for (const a of chopHome.arms) {
       const s2 = a.ry < 0 ? 1 : -1;
       a.obj.rotation.y = THREE.MathUtils.lerp(a.ry, -s2 * CATCH_ARM, close);

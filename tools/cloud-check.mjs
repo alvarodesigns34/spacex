@@ -21,6 +21,8 @@ registerHooks({
     if (mutant === 'frozen') source = source.replace('advanceCloud(t);', 'advanceCloud(Math.min(t, CLOUD_UNTIL));');
     if (mutant === 'speed') source = source.replace('    advanceCloud(t);\n\n    if (t >=', '    advanceCloud(prev + Math.min(dt * state.speed, 0.12));\n\n    if (t >=');
     if (mutant === 'staging') source = source.replace('PROFILE.down[EVENTS.separation / PROFILE.step]', '84000');
+    // The defect found in review: positions met at staging but the velocity did not.
+    if (mutant === 'kink') source = source.replace('v0 * Math.sin(p0) + R * w0 * Math.cos(p0)', '0.55 * v0 * Math.sin(p0) + R * w0 * Math.cos(p0)');
     return { ...result, source };
   },
 });
@@ -29,9 +31,43 @@ globalThis.document = { createElement: () => ({ getContext: () => ({
   createImageData: (w, h) => ({ data: new Uint8ClampedArray(w * h * 4) }), putImageData() {},
 }) }) };
 const THREE = await import('three');
-const { createLaunch, altitudeAt, downrangeAt, pitchAt, boosterAltAt, boosterDownAt, boosterPitchAt } = await import('../src/sim/launch.js');
+const { createLaunch, altitudeAt, downrangeAt, pitchAt, speedAt, boosterAltAt, boosterDownAt, boosterPitchAt, boosterSpeedAt, EVENTS } = await import('../src/sim/launch.js');
 for (const [name, before, after] of [['altitude', altitudeAt, boosterAltAt], ['downrange', downrangeAt, boosterDownAt], ['pitch', pitchAt, boosterPitchAt]]) {
   assert.ok(Math.abs(before(160) - after(160)) < 1e-9, `staging ${name} must be continuous`);
+}
+// Position continuity is not enough: the review found the positions meeting at staging while
+// the speed fell from 5 695 to 3 155 km/h in 0,2 s. Velocity is differentiated from the very
+// positions the scene uses, over the whole flight, for the stack and then the booster, and
+// three things are asserted: no speed change beyond 8 g (the landing burn in dense air peaks
+// near 7,3 g, thrust plus drag), no kink in the velocity *vector* (a change of direction at
+// constant speed is a jump too), and an attitude that turns no faster than 40°/s (the flip).
+{
+  const H = 0.02, STEP = 0.05, G8 = 8 * 9.81;
+  const vel = (t) => [(boosterDownAt(t + H) - boosterDownAt(t - H)) / (2 * H), (boosterAltAt(t + H) - boosterAltAt(t - H)) / (2 * H)];
+  let worstA = [0, 0], worstV = [0, 0], worstP = [0, 0];
+  let prev = vel(EVENTS.liftoff + 1), prevS = boosterSpeedAt(EVENTS.liftoff + 1), prevP = boosterPitchAt(EVENTS.liftoff + 1);
+  for (let t = EVENTS.liftoff + 1 + STEP; t < EVENTS.catch - 0.1; t += STEP) {
+    const v = vel(t), sp = boosterSpeedAt(t), p = boosterPitchAt(t);
+    const dvec = Math.hypot(v[0] - prev[0], v[1] - prev[1]) / STEP;
+    const dsp = Math.abs(sp - prevS) / STEP, dp = Math.abs(p - prevP) / STEP;
+    if (dvec > worstV[1]) worstV = [t, dvec];
+    if (dsp > worstA[1]) worstA = [t, dsp];
+    if (dp > worstP[1]) worstP = [t, dp];
+    prev = v; prevS = sp; prevP = p;
+  }
+  assert.ok(worstA[1] < G8, `booster speed jumps ${worstA[1].toFixed(0)} m/s² at T+${worstA[0].toFixed(2)}`);
+  assert.ok(worstV[1] < G8, `booster velocity vector kinks ${worstV[1].toFixed(0)} m/s² at T+${worstV[0].toFixed(2)}`);
+  assert.ok(worstP[1] < THREE.MathUtils.degToRad(40), `booster attitude turns ${THREE.MathUtils.radToDeg(worstP[1]).toFixed(0)}°/s at T+${worstP[0].toFixed(2)}`);
+  // The panel's number and the moving booster: the same speed at separation, and a speed the
+  // booster actually has (position-derived) everywhere after it.
+  assert.ok(Math.abs(boosterSpeedAt(EVENTS.separation + 0.01) - speedAt(EVENTS.separation)) < 5, 'panel speed continuous through staging');
+  for (const t of [170, 253, 330, 391, 405, 410]) {
+    const v = vel(t);
+    assert.ok(Math.abs(Math.hypot(...v) - boosterSpeedAt(t)) < 0.5, `panel speed matches motion at T+${t}`);
+  }
+  // It comes home: at rest on the axis, 22 m over the deck, at the cited catch time.
+  assert.ok(Math.abs(boosterDownAt(EVENTS.catch)) < 0.05 && Math.abs(boosterAltAt(EVENTS.catch) - 22) < 0.05 && boosterSpeedAt(EVENTS.catch) < 0.1, 'booster at rest in the arms at the catch');
+  console.log(`PASS trajectory: max ${worstA[1].toFixed(0)} m/s² speed change, ${worstV[1].toFixed(0)} m/s² vector change, ${THREE.MathUtils.radToDeg(worstP[1]).toFixed(0)}°/s attitude`);
 }
 function fixture() {
   const scene = new THREE.Scene(), model = new THREE.Group(), group = new THREE.Group();
@@ -65,7 +101,7 @@ for (const t of [0, 6, 36, 45, 100, 407, 424]) {
 launch.reset(false); assert.equal(snapshot().count, 0, 'reset clears all particles');
 console.log('PASS deterministic clouds, all playback rates, smoke expiry, reset and staging continuity');
 if (!mutant) {
-  for (const name of ['random', 'frozen', 'speed', 'staging']) {
+  for (const name of ['random', 'frozen', 'speed', 'staging', 'kink']) {
     const run = spawnSync(process.execPath, [fileURLToPath(import.meta.url), `--mutant=${name}`], { encoding: 'utf8' });
     assert.notEqual(run.status, 0, `regression test must reject sabotage: ${name}`);
     assert.match(run.stderr, /AssertionError/, `sabotage ${name} must fail an assertion, not crash`);
