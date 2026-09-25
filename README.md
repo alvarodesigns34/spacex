@@ -108,6 +108,15 @@ Los colores y las formas son verosímiles, no un levantamiento: ni las lagunas n
 - **Suelo de cerca:** una tercera lectura de la textura del terreno, 6,7 veces más fina y girada, aplicada solo como contraste (su valor sobre su propia media difusa). Da grano de pocos milímetros a los pies del visitante y se desvanece hacia los 45 m.
 - **Hierba:** cada mata de la llanura y de la duna tiene su propio tono, más verde en los distritos húmedos, paja decolorada en los secos y alguna gris y muerta.
 
+### Vehículos: ronda 4
+
+Se revisaron todas las vistas predefinidas de todos los expositores (46 encuadres renderizados) buscando lo que delataba el modelo. Cambios:
+- **Acero de Starship y Super Heavy.** El mapa del casco es un anillo de 1,83 m con una junta vertical por tesela. Al repetirse idéntico, las juntas se alineaban en líneas continuas de los motores a la punta y el cilindro de 70 m parecía un tubo extruido con papel milimetrado encima. Un anillo real se lamina con chapas distintas y se apila con las juntas al tresbolillo; en las fotos cada anillo y cada chapa se distinguen por el tono y por lo nítido de su reflejo. Ahora cada anillo gira su patrón (las juntas se escalonan) y cada chapa tiene su propio tono (±5,5 %) y su propio brillo (rugosidad ±18 %), a partir de sus índices reales, porque las UV son métricas. El acabado de laminación es algo más nítido (rugosidad ×0,86).
+- **Cabeza del Raptor 3.** Era un tambor octogonal con dos esferas pegadas. Ahora está hecha de volúmenes torneados, como un motor de ciclo de flujo completo: la cámara con el hombro del inyector; dos conjuntos de turbobomba a lados opuestos (oxidante, mayor, y combustible), cada uno con su prequemador, el cuerpo de la bomba con la voluta y la toma abombada; los conductos de gas caliente que se curvan hacia la cabeza de la cámara; el colector de refrigeración en la garganta; y el disco de empuje arriba. Las proporciones están reconstruidas a partir de fotos y quedan dentro de los 1,3 × 2,9 m publicados. Es la misma geometría para los 33 del propulsor, los 3 de la nave y el de la fila de motores.
+- **Pintura blanca de los Falcon.** Con el mapa casi blanco y el color a 1,0, los cilindros saturaban en la curva de tono y se veían de un blanco plano, sin volumen: plástico al lado del acero y de las losetas. La pintura blanca refleja en torno al 80 %, y ahora el lado iluminado queda por debajo de la saturación y el cilindro se sombrea del sol a la sombra.
+
+Sin cambios, con motivo: Dragon (su perfil se midió contra la foto del Crew-3 y coincide en un 3 %), Starlink, Roadster y Starman, y Falcon 1, que ya habían pasado rondas de detalle y en estas vistas no mostraban nada que corregir sin inventar datos.
+
 ### Auditoría externa
 
 En septiembre de 2026 una auditoría de solo lectura hecha con otro modelo (Grok) revisó el código y la simulación. Cada hallazgo se contrastó con el código y, cuando era posible, con su fuente antes de aplicarlo.

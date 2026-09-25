@@ -43,6 +43,39 @@ ${layers}
   vec3 mapN = vec3(vcWave, 1.0);`));
 }
 
+/**
+ * The hull steel's map is one ring (1.83 m tall) with one vertical plate seam per tile, and
+ * repeated as it is every ring came out identical: seams lined up into continuous vertical
+ * lines from the engines to the nose, and a 70 m barrel read as one extruded tube with graph
+ * paper on it. A Starship ring is rolled from separate sheets and stacked with its seams
+ * staggered, and photographs show neighbouring rings and plates differing clearly in tone and
+ * in how sharply they reflect. So each ring gets its own rotation of the pattern (the seams
+ * stagger), and each plate — a ring and a seam-to-seam span — its own tone and sheen, from a
+ * hash of its indices. The map UVs are metric, so ring and plate indices are real ones.
+ */
+function ringsAndPlates(m) {
+  const prev = m.onBeforeCompile;
+  m.onBeforeCompile = (sh, r) => {
+    prev?.(sh, r);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+float vcPlateHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }`)
+      .replace('void main() {', `void main() {
+  float vcRing = floor(vMapUv.y);
+  vec2 vcSteelUv = vec2(vMapUv.x + vcPlateHash(vec2(vcRing, 3.1)), vMapUv.y);
+  float vcPlate = floor(vcSteelUv.x + 0.5);
+  float vcTone = 1.0 + (vcPlateHash(vec2(vcRing, vcPlate + 17.0)) - 0.5) * 0.11;
+  float vcSheen = 1.0 + (vcPlateHash(vec2(vcPlate - 5.0, vcRing + 41.0)) - 0.5) * 0.36;`)
+      .replace('#include <map_fragment>', `${THREE.ShaderChunk.map_fragment.replace(/vMapUv/g, 'vcSteelUv')}
+  diffuseColor.rgb *= vcTone;`)
+      .replace('#include <roughnessmap_fragment>', `${THREE.ShaderChunk.roughnessmap_fragment.replace(/vRoughnessMapUv/g, 'vcSteelUv')}
+  roughnessFactor *= vcSheen;`)
+      .replace('#include <normal_fragment_maps>', THREE.ShaderChunk.normal_fragment_maps.replace(/vNormalMapUv/g, 'vcSteelUv'));
+  };
+  const key = m.customProgramCacheKey?.bind(m);
+  m.customProgramCacheKey = () => `vc-steel-plates-1${key ? key() : ''}`;
+}
+
 export async function createMaterials(onProgress = () => {}, pause = null) {
   const T = {};
   const steps = [
@@ -92,7 +125,8 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
   // Anisotropy runs with the rolling direction (circumferential, the U axis of the metric
   // UVs), which stretches the sun's highlight vertically the way it does on the vehicle.
   const steelBase = {
-    metalness: 1.0, roughness: 1.0, color: 0xffffff,
+    // 0.86: a touch sharper than the map alone, so each plate's own sheen (ringsAndPlates) shows.
+    metalness: 1.0, roughness: 0.86, color: 0xffffff,
     anisotropy: 0.62, anisotropyRotation: 0, envMapIntensity: 0.82,
     normalScale: new THREE.Vector2(0.85, 0.85),
   };
@@ -101,6 +135,7 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
   M.steelWarm = new THREE.MeshPhysicalMaterial({ ...steelBase, anisotropy: 0.3, envMapIntensity: 0.78, map: T.steelWarm.map, roughnessMap: T.steelWarm.roughnessMap, normalMap: T.steelWarm.normalMap });
   // Payload-bay door seam: the same steel, darkened, so the outline reads without a decal.
   M.steelDoor = new THREE.MeshPhysicalMaterial({ ...steelBase, color: 0xeceded, map: T.steel.map, roughnessMap: T.steel.roughnessMap, normalMap: T.steel.normalMap });
+  for (const m of [M.steel, M.steelSkirt, M.steelWarm, M.steelDoor]) ringsAndPlates(m);
   // Flap skins: the same steel, but rougher so the rounded leading edge catches a soft
   // highlight instead of drawing a mirror-bright outline against the sky.
   // Both faces of a Starship flap read dark grey in photographs — the lee face carries a
@@ -142,8 +177,12 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
   const paintBase = { metalness: 0.0, roughness: 1.0, clearcoat: 0.22, clearcoatRoughness: 0.42 };
   // Whole-body maps use normalized UVs. A metric paint normal map would span the
   // entire 33.5 m tank, so omit its unresolved micro-normal on these two materials.
-  M.f9Stage1 = new THREE.MeshPhysicalMaterial({ ...paintBase, map: T.f9Body.map, roughnessMap: T.f9Body.roughnessMap });
-  M.fhCore = new THREE.MeshPhysicalMaterial({ ...paintBase, map: T.fhBody.map, roughnessMap: T.fhBody.roughnessMap });
+  // White paint reflects about 80 %, not 100 %: with the map near white and the colour at
+  // 1.0 the barrels clipped under the tone curve to one flat white with no roundness, which
+  // is what made the Falcons read as plastic beside the steel and the tiles. The tint brings
+  // the lit side under the knee so the cylinder shades from sun to shadow again.
+  M.f9Stage1 = new THREE.MeshPhysicalMaterial({ ...paintBase, color: 0xe4e4e2, map: T.f9Body.map, roughnessMap: T.f9Body.roughnessMap });
+  M.fhCore = new THREE.MeshPhysicalMaterial({ ...paintBase, color: 0xe4e4e2, map: T.fhBody.map, roughnessMap: T.fhBody.roughnessMap });
   // Side boosters carry the same markings as the centre core: reuse the map rather than
   // generating a second 1024×2048 pair for it.
   M.fhSide = M.fhCore;

@@ -26,17 +26,41 @@ export function raptorGeometry({ exitRadius = 0.62, height = 2.9, gimbal = true 
   const inner = lathe(innerP, { segments: 64, flip: true, uvMode: 'normalized' });
 
   const parts = [];
-  // Raptor 3 encloses the pumps. The readable shape is a faceted powerpack with
-  // two preburner domes on the shoulders and a methane inlet, not a Merlin's
-  // exposed gas generator. Housing layout is reconstructed from photographs.
-  parts.push({ geometry: new THREE.CylinderGeometry(0.46, 0.40, 0.62, 8), matrix: mat4([0, 2.42, 0]) });
-  parts.push({ geometry: new THREE.CylinderGeometry(0.34, 0.46, 0.12, 8), matrix: mat4([0, 2.08, 0]) });
-  parts.push({ geometry: new THREE.CylinderGeometry(0.22, 0.28, 0.22, 16), matrix: mat4([0, height - 0.11, 0]) });
-  parts.push({ geometry: new THREE.SphereGeometry(0.16, 12, 10), matrix: mat4([0.30, 2.70, 0.10]) });
-  parts.push({ geometry: new THREE.SphereGeometry(0.13, 12, 8), matrix: mat4([-0.28, 2.66, -0.12]) });
-  parts.push({ geometry: new THREE.CylinderGeometry(0.07, 0.07, 0.26, 10), matrix: mat4([0.06, 2.64, 0.34], [0.95, 0, 0.15]) });
-  parts.push({ geometry: new THREE.TorusGeometry(0.36, 0.04, 8, 28), matrix: mat4([0, 1.82, 0], [Math.PI / 2, 0, 0]) });
-  parts.push({ geometry: new THREE.CylinderGeometry(0.50, 0.36, 0.07, 16), matrix: mat4([0, 2.16, 0]) });
+  // Raptor 3 is the "clean" engine: the plumbing is folded into the housings, and what shows
+  // is a few smooth, cast-looking volumes. A full-flow engine has two turbopumps, one per
+  // propellant, each driven by its own preburner, and the two hot-gas streams feed the chamber
+  // from opposite sides. That is what is built here, as lathed forms rather than an octagonal
+  // drum with spheres on it: the chamber with its injector shoulder, the two pump assemblies
+  // (preburner below, pump body with its volute scroll above, a domed inlet on top) standing
+  // either side of it, their hot-gas ducts curving into the chamber head, the regen manifold
+  // at the throat, and the thrust puck on top. Proportions are reconstructed from photographs;
+  // the envelope stays inside the published 1.3 m × 2.9 m.
+  const lat = (pts, seg = 28) => lathe(pts.map(([r, y]) => ({ r, y })), { segments: seg, uvMode: 'normalized' });
+  // Chamber, from the throat up through the injector shoulder to the dome under the puck.
+  parts.push({ geometry: lat([[0.215, 1.6], [0.26, 1.7], [0.3, 1.8], [0.305, 2.02], [0.35, 2.1], [0.35, 2.2], [0.3, 2.3], [0.22, 2.44], [0.2, 2.62]], 36) });
+  // Thrust puck and the gimbal block it bolts to.
+  parts.push({ geometry: lat([[0.2, 2.6], [0.27, 2.66], [0.28, height - 0.05], [0.24, height], [0.001, height]], 32) });
+  // The two turbopump assemblies, oxidiser (larger) and fuel, on opposite sides.
+  for (const [side, k, ang] of [[1, 1, 0.35], [-1, 0.84, 0.2]]) {
+    const cx = side * 0.36 * Math.cos(ang), cz = side * 0.36 * Math.sin(ang);
+    const body = lat([[0.001, 1.98], [0.1 * k, 2.0], [0.13 * k, 2.1], [0.13 * k, 2.24], [0.16 * k, 2.3], [0.17 * k, 2.44], [0.15 * k, 2.56], [0.1 * k, 2.66], [0.06 * k, 2.72], [0.001, 2.74]], 24);
+    parts.push({ geometry: body, matrix: mat4([cx, 0, cz]) });
+    // Volute: the scroll the pump discharges into, a flattened torus round the pump body.
+    parts.push({ geometry: new THREE.TorusGeometry(0.165 * k, 0.045 * k, 10, 28), matrix: mat4([cx, 2.33, cz], [Math.PI / 2, 0, 0]) });
+    // Hot-gas duct from the preburner down and in to the chamber head.
+    const duct = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(cx, 2.05, cz), new THREE.Vector3(cx * 0.8, 1.98, cz * 0.8), new THREE.Vector3(cx * 0.55, 2.04, cz * 0.55), new THREE.Vector3(cx * 0.3, 2.15, cz * 0.3),
+    ]);
+    parts.push({ geometry: new THREE.TubeGeometry(duct, 12, 0.075 * k, 12, false) });
+    // Pump discharge line, from the volute to the injector shoulder.
+    const line = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(cx - side * 0.02, 2.36, cz + 0.12 * k), new THREE.Vector3(cx * 0.6, 2.42, cz + 0.16), new THREE.Vector3(cx * 0.2, 2.3, cz * 0.2 + 0.2),
+    ]);
+    parts.push({ geometry: new THREE.TubeGeometry(line, 10, 0.045 * k, 10, false) });
+  }
+  // Regen coolant manifold round the top of the nozzle, where the channels turn into the jacket.
+  parts.push({ geometry: new THREE.TorusGeometry(0.33, 0.042, 10, 40), matrix: mat4([0, 1.8, 0], [Math.PI / 2, 0, 0]) });
+  parts.push({ geometry: new THREE.TorusGeometry(0.36, 0.022, 8, 40), matrix: mat4([0, 2.1, 0], [Math.PI / 2, 0, 0]) });
   // Gimbal actuators. Raptor 3 steers the inner engines; the hardware is enclosed,
   // so these are the two rods and clevises that photographs actually show, not a
   // guessed turbopump cutaway.

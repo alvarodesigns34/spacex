@@ -762,8 +762,11 @@ try {
         materials: mats.size, textures: v.renderer.info.memory.textures,
       };
     });
-    // Ceilings sit well clear of today's figures: they catch a doubling, not a drift.
-    const LIMITS = { tris: 2_200_000, meshes: 1400, materials: 160, textures: 120 };
+    // Ceilings sit well clear of today's figures: they catch a doubling, not a drift. The
+    // triangle ceiling moved from 2,2 M to 2,8 M when the built scene reached 2,2 M (round 4:
+    // denser ground for the relief, 39 Raptors with a lathed powerhead); at 2,2 M it had
+    // stopped leaving room for anything but the drift it is not meant to catch.
+    const LIMITS = { tris: 2_800_000, meshes: 1400, materials: 160, textures: 120 };
     const over = Object.entries(LIMITS).filter(([k, max]) => budget[k] > max);
     report(over.length === 0, 'presupuesto de escena',
       `${budget.tris.toLocaleString('es-ES')} triángulos construidos, ${budget.drawnTris.toLocaleString('es-ES')} dibujados `
