@@ -138,6 +138,41 @@ Sin cambios de forma, con motivo: el perfil de la cápsula Dragon (se midió con
 - **Luz por defecto:** el sol arranca a 20° (ver *Controles*).
 - **Sonido** del lanzamiento y del resto de fases de Starship, rehecho (ver *El complejo de lanzamiento y la secuencia*).
 
+### Lanzamiento, sonido y entorno: ronda 5
+
+**Bug de la explanada.** La losa de hormigón de los expositores pasaba por debajo de la carretera de acceso. Como se dibuja adelantada en profundidad (*polygon offset*), tapaba el asfalto y dejaba las marcas viales flotando sobre el hormigón. Ahora la losa se corta en los bordes de la carretera, y el asfalto la cruza entero.
+
+**Nube de despegue.**
+- **Presupuesto de partículas.** Se emitían unas 190 bocanadas por segundo con una vida de unos 20 s, pero el búfer de calidad alta tiene 1600 plazas. Cada bocanada se reciclaba hacia los 8 s, a mitad de vida, y la nube desaparecía a trozos en lugar de crecer como una masa. Ahora la emisión se calcula como una fracción del búfer (≈95 % vivo en el pico). En los niveles de calidad con menos plazas hay menos bocanadas, pero más grandes, para cubrir el mismo volumen.
+- **Forma.** Cuatro bocanadas distintas en un atlas, con el borde en coliflor (ruido fractal), en lugar de una sola mancha lisa repetida mil veces. El relieve de cada una sale de su densidad suavizada, así que no se marcan líneas oscuras en el interior.
+- **Movimiento.** El chorro sale de la zanja casi a ras de suelo, con menos arrastre y una flotación más suave. La nube rueda cientos de metros por el llano y sube despacio, como en los vídeos, en vez de levantarse en dos columnas.
+- **Densidad y color.** Cada bocanada se mantiene densa durante la mayor parte de su vida y solo se deshace al final. La base de la masa es más oscura que las torretas iluminadas por el sol, porque tiene más nube encima. Parte de la nube va teñida de polvo.
+- **Oclusión ambiental.** Se desactiva durante toda la secuencia. La nube no escribe profundidad, así que se le aplicaba la oclusión del terreno que había detrás, y la cruzaba una franja a la altura del horizonte.
+
+**Fuego y llama.**
+- **Fuego por la zanja.** De las dos bocas de la zanja, a 44 m a cada lado de la mesa, sale fuego durante los primeros segundos: tres chorros turbulentos por boca, que se apagan a medida que el vehículo sube.
+- **Llama de Super Heavy.** Va de blanco dorado junto a los motores a naranja en la columna; antes acababa en un marrón que sobre el cielo azul se volvía rosa. La columna es algo más ancha que el grupo de motores. Además de emitir luz, ahora tapa parte del cielo que tiene detrás, así que a nivel del mar deja de ser un trazo pálido.
+- **Pluma en altura.** Con la altitud se abre en una campana más ancha y más larga que antes.
+
+**Separación en caliente y regreso.**
+- **Corona de fuego.** Los 24 respiraderos del anillo expulsan lenguas de fuego que se abren en abanico, como una corona alrededor de la interetapa, y hay una bola de fuego desde que la nave enciende hasta que las etapas se separan.
+- **Motores centrales.** Siguen encendidos durante el giro, como en todos los vuelos; antes se apagaban de golpe en la separación. Solo cambia lo que se ve y se oye: la trayectoria integrada no se toca.
+- **Venteo del giro.** Durante el giro, el propulsor ventea gas desde lo alto del tanque, y a 70 km se abre y desaparece en uno o dos segundos.
+- **Nube de la captura.** Solo aparece cuando el chorro del encendido de aterrizaje llega a la plataforma, en los últimos 260 m, y no con el propulsor todavía a 700 m.
+
+**Sonido, segunda ronda.**
+- **Crepitar.** Ahora es un tren de choques en forma de N, de uno o dos milisegundos, que llegan a ráfagas. La cadencia oscila entre decenas y cientos por segundo (unos cien de media) y las amplitudes tienen cola larga: la mayoría son pequeñas y de vez en cuando uno desgarra.
+- **Turbulencia.** El rugido sube y baja al azar alrededor de un cuarto de su nivel.
+- **Reflexión en el suelo.** Cerca del suelo, cada etapa se oye dos veces: la onda directa y la que rebota en el llano. La diferencia entre las dos cambia mientras el cohete sube, y eso barre un filtro en peine por el espectro: el *phasing* que se oye en todas las grabaciones del despegue hechas desde tierra. Si la cámara está en el aire, el rebote desaparece.
+- **Encendido y medios.** Cada escalón del encendido (3 → 13 → 33 motores) empieza con un golpe grave, y hay una banda media de desgarro que solo se oye de cerca.
+
+**Entorno.**
+- **Reflejo del cielo.** El suelo y el hormigón reflejaban demasiado cielo a ángulo rasante (Fresnel), y desde la altura de los ojos todo el llano parecía un césped gris azulado. La hierba y la tierra atrapan esa luz, así que el reflejo se reduce a un tercio, salvo en la arena mojada, que sí brilla.
+- **Prado a ras de suelo.** Hay matas de paja entre el verde cada uno o dos metros, con sombra entre los tallos, y más grano de cerca. Hay más prado curado a paja, como está la pradera costera casi todo el año.
+- **Hormigón.** Es más claro y cálido: con el sol bajo, el cielo azul lo dejaba gris pizarra.
+- **Lagunas.** Son más claras y pardas: desde la torre se veían azul marino.
+- **Sin objetos nuevos.** No se ha añadido ninguna planta ni ningún objeto.
+
 ### Auditoría externa
 
 En septiembre de 2026 una auditoría de solo lectura hecha con otro modelo (Grok) revisó el código y la simulación. Cada hallazgo se contrastó con el código y, cuando era posible, con su fuente antes de aplicarlo.
@@ -246,7 +281,7 @@ El penacho se calcula a partir de la presión ambiente, no de un guion: corto, e
   - supersónico (T+52, cuando la velocidad supera la del sonido local según el perfil de temperatura de la atmósfera estándar de 1976);
   - apogeo del propulsor (T+4:13);
   - propulsor transónico (T+6:37,6). El vuelo 7 lo situó en T+6:26, antes del encendido de aterrizaje; en este modelo el propulsor aún es supersónico cuando enciende, porque ese encendido se resuelve para cumplir los tiempos citados con un empuje constante. Se deja la discrepancia a la vista.
-- **Sonido opcional**, sintetizado y no grabado. Cada etapa es una fuente situada en el espacio (panorámica HRTF: suena de donde está el vehículo) y se oye con el empuje, la posición y la altitud que tenía hace d/343 s. Está hecho de un retumbo muy grave (ruido browniano bajo 70 Hz), un rugido de banda media y el **crepitar** característico de los motores grandes. El crepitar sale como en la realidad, de las ondas de choque del chorro que llegan como saltos de presión bruscos y asimétricos: ruido filtrado deformado por una curva cúbica, más impulsos sueltos, no chasquidos sobre un siseo. El aire se come primero los agudos con la distancia, así que un lanzamiento lejano es solo retumbo, y el aire fino de la altura apaga la nave. El conjunto pasa por una reverberación de campo abierto de 3,6 s y un compresor para que el encendido no sature. Por fases: en la cuenta atrás, el siseo del venteo criogénico junto a la plataforma y, desde T−10, el agua del desviador de llama; el encendido escalonado 3 → 13 → 33 hace subir el rugido a escalones; un chasquido en la separación en caliente; y los **estampidos sónicos** del propulsor al volver, como triple onda en N (morro, grid fins, faldón). Esos estampidos se oyen en Starbase en cada captura. Se emiten cuando el propulsor del modelo baja por última vez de Mach 1,2 y llegan con el retardo de la distancia. Los niveles de cada banda se ajustaron de oído con vídeos de lanzamientos y capturas. No es un espectro medido, y el momento de los estampidos es el del modelo, no el de un vuelo concreto. No suena nada hasta pulsar el botón.
+- **Sonido opcional**, sintetizado y no grabado. Cada etapa es una fuente situada en el espacio (panorámica HRTF: suena de donde está el vehículo) y se oye con el empuje, la posición y la altitud que tenía hace d/343 s. Está hecho de un retumbo muy grave (ruido browniano bajo 70 Hz), un rugido de banda media y el **crepitar** característico de los motores grandes. El crepitar sale como en la realidad, de las ondas de choque del chorro que llegan como saltos de presión bruscos y asimétricos: un tren de choques en N a ráfagas, sobre un poco de ruido deformado, no chasquidos sobre un siseo. El rugido fluctúa con la turbulencia y, cerca del suelo, el rebote en el llano produce el barrido de fase del despegue. El aire se come primero los agudos con la distancia, así que un lanzamiento lejano es solo retumbo, y el aire fino de la altura apaga la nave. El conjunto pasa por una reverberación de campo abierto de 3,6 s y un compresor para que el encendido no sature. Por fases: en la cuenta atrás, el siseo del venteo criogénico junto a la plataforma y, desde T−10, el agua del desviador de llama; el encendido escalonado 3 → 13 → 33 hace subir el rugido a escalones; un chasquido en la separación en caliente; y los **estampidos sónicos** del propulsor al volver, como triple onda en N (morro, grid fins, faldón). Esos estampidos se oyen en Starbase en cada captura. Se emiten cuando el propulsor del modelo baja por última vez de Mach 1,2 y llegan con el retardo de la distancia. Los niveles de cada banda se ajustaron de oído con vídeos de lanzamientos y capturas. No es un espectro medido, y el momento de los estampidos es el del modelo, no el de un vuelo concreto. No suena nada hasta pulsar el botón.
 
 ### Verificación automática
 

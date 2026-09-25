@@ -23,7 +23,7 @@
  * Time runs 1:1 by default. The speed control multiplies the mission clock, it does not skip.
  */
 import * as THREE from 'three';
-import { Plume, GroundCloud, EngineJets, Vapor, CondensationCollar, FlightEarth } from './plume.js';
+import { Plume, GroundCloud, EngineJets, Vapor, CondensationCollar, FlightEarth, Glow } from './plume.js';
 import { BOOSTER_RINGS, RAPTOR_EXIT_R } from '../vehicles/starship.js';
 import { seeded, monotoneSlopes, hermite } from '../geometry/utils.js';
 
@@ -344,6 +344,21 @@ function returnThrottle(t) {
 }
 
 /**
+ * What the booster's engines are doing at any time, for the plume, the jets, the panel and the
+ * sound. The three centre engines that hold the stack through hot-staging do not shut down at
+ * separation: on every flight they stay lit through the flip and the inner ring relights around
+ * them for the boostback. The trajectory's own thrust model is returnThrottle's; this adds only
+ * the centre engines' low thrust between the two, which the integration leaves out.
+ */
+function boosterEngineThrottle(t) {
+  if (t < EVENTS.separation) return boosterThrottle(t);
+  const hold = t < EVENTS.boostbackStart + 3
+    ? 0.1 * (1 - THREE.MathUtils.smoothstep(t, EVENTS.boostbackStart + 1, EVENTS.boostbackStart + 3))
+    : 0;
+  return Math.max(returnThrottle(t), hold);
+}
+
+/**
  * Which of the booster's engines are lit, as a share of the cluster's radius (rings at 1,02,
  * 2,48 and 3,86 m, 0,62 m exit radius, 4,48 m overall). Flight 5: 13 lit for the landing burn,
  * down to the centre 3 for the last seconds (RGV engine count, T+6:30 and T+6:37); the inner
@@ -643,15 +658,28 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   // of fire round the interstage for the second or two before the stages part, then the gap
   // opens and the ship's plume plays straight onto the booster's dome instead.
   const HS_STATION = (ex.model.userData.stations?.booster?.ringTop ?? 70.47) + 0.9;
+  // At 65 km there is almost no air to hold the vent flames in, so each one fans out into a
+  // wide tongue many metres long: from the ground the ring reads as a flower of fire round the
+  // interstage (flight 7 and 8 tracking footage). They were 0,4 m jets a dozen metres long.
   const hotStageVents = new EngineJets({
-    name: 'jets-hot-stage', seaLevelLength: 9,
+    name: 'jets-hot-stage', seaLevelLength: 16,
     engines: Array.from({ length: 24 }, (_, i) => {
       const a = (i / 24) * Math.PI * 2;
-      return { position: [Math.sin(a) * 4.45, HS_STATION, Math.cos(a) * 4.45], radius: 0.42, direction: [Math.sin(a), -0.45, Math.cos(a)] };
+      return { position: [Math.sin(a) * 4.45, HS_STATION, Math.cos(a) * 4.45], radius: 0.6, direction: [Math.sin(a), -0.35, Math.cos(a)] };
     }),
   });
   booster.add(hotStageVents.mesh);
   const ventAt = (t) => shipThrottle(t) * (1 - THREE.MathUtils.smoothstep(t, EVENTS.separation + 0.4, EVENTS.separation + 2.6));
+  // …and the fireball those vents make together, round the interstage, from the ship's
+  // ignition until the gap opens.
+  const stageGlow = new Glow({ name: 'glow-hot-stage' });
+  stageGlow.mesh.position.set(0, HS_STATION, 0);
+  booster.add(stageGlow.mesh);
+  const stageGlowAt = (t) => {
+    const up = THREE.MathUtils.smoothstep(t, EVENTS.separation - 1.5, EVENTS.separation - 0.6);
+    const down = 1 - THREE.MathUtils.smoothstep(t, EVENTS.separation + 0.2, EVENTS.separation + 3.2);
+    return up * down;
+  };
 
   // ---- Vapour: venting in the count, the deluge at ignition, venting after the catch -------
   // Emitters are placed in the stack's rest frame (booster base at the mount deck, y up),
@@ -710,7 +738,15 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     ],
   });
   booster.add(catchVent.mesh);
-  const vapors = [countdownVent, deluge, landingSpray, catchVent];
+  // The flip. Once the ship is away the booster turns end over end on its engines and its
+  // cold-gas thrusters, venting ullage gas from the top of the tank: in the thin air at 70 km
+  // each puff flashes out wide and vanishes within a second or two.
+  const flipVent = new Vapor({
+    name: 'vapor-flip', rng: seeded(25), accel: [0, 0, 0], tau: 0.6, opacity: 0.18,
+    emitters: [0.4, 2.5, 4.6].map(a => ({ at: around(4.4, BOOSTER_TOP - 2.5, a), dir: out(a, 0.3), speed: 30, spread: 0.6, count: nv(14), life: 1.4, size: 4, grow: 26, jitter: 0.8, window: [EVENTS.separation + 1.5, EVENTS.boostbackStart + 2] })),
+  });
+  booster.add(flipVent.mesh);
+  const vapors = [countdownVent, deluge, landingSpray, catchVent, flipVent];
 
   // Max-Q: a condensation collar off the hot-stage ring, trailing down the booster, through
   // the transonic climb and peak dynamic pressure. Timing follows the ascent's own Max-Q.
@@ -727,6 +763,25 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   const cloud = new GroundCloud({ rng: seeded(11), count: quality.cloudParticles ?? 860 });
   cloud.points.position.set(ex.lay.x, 0, ex.lay.z);
   scene.add(cloud.points);
+  // Emission is budgeted to the ring. At ~190 puffs a second living ~20 s, the high tier's 1600
+  // slots were overwritten at ~8 s, halfway through each puff's life: the cloud popped away in
+  // pieces and never built into a mass. Rates are now a share of the ring (≈ 0,95 of it alive
+  // at the peak), and a smaller ring gets fewer, larger puffs covering the same volume.
+  const CLOUD_RATE = cloud.count / 1600;
+  const CLOUD_SIZE = Math.sqrt(1 / CLOUD_RATE);
+
+  // Fire out of the trench. The 33 jets go down into the flame trench and leave through its two
+  // mouths, 44 m either side of the mount, as flame for the first seconds and then as the
+  // cloud. It was only a glow painted on the cloud; photographs of the flight 5 liftoff show
+  // flame itself rolling out of the trench ends. Three turbulent jets per mouth, no shock
+  // diamonds (the flow has hit the deflector), fading as the vehicle climbs.
+  const trenchFire = new EngineJets({
+    name: 'jets-trench-fire', seaLevelLength: 9,
+    engines: [1, -1].flatMap(sz => [-6.5, 0, 6.5].map(x => ({ position: [x, 3.2, sz * 42], radius: 3.4, direction: [x * 0.02, 0.1, sz] }))),
+  });
+  trenchFire.mesh.position.set(ex.lay.x, 0, ex.lay.z);
+  scene.add(trenchFire.mesh);
+  const trenchFireAt = (t) => boosterThrottle(t) * (1 - THREE.MathUtils.smoothstep(altitudeAt(t), 15, 160));
 
   // Above ~10 km the flat 1:1 site runs out long before the horizon: a curved Earth with a
   // limb takes over from there, following the camera over the ground.
@@ -981,12 +1036,15 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     // The landing burn kicks up its own cloud off the pad as the booster settles into the
     // arms. Same trench mouths, much less of it: three engines, not thirty-three.
     if (t >= EVENTS.catch - 16 && t <= EVENTS.catch + 8) {
-      const near = 1 - THREE.MathUtils.clamp(boosterAltAt(t) / 700, 0, 1);
-      const n2 = near * 34 * dt;
+      // The landing burn's exhaust only reaches the deck in the last couple of hundred metres;
+      // from 700 m the trench was already pouring steam with the booster a speck overhead.
+      const near = 1 - THREE.MathUtils.smoothstep(boosterAltAt(t), 40, 260);
+      const n2 = near * 26 * CLOUD_RATE * dt;
       if (n2 >= 0.05) {
         const m2 = Math.max(1, Math.round(n2 * 0.5));
-        cloud.emit(m2, [0, 2.4, 44], [0, 0.05, 1.0], 46, 16, { grow: 52 });
-        cloud.emit(m2, [0, 2.4, -44], [0, 0.05, -1.0], 46, 16, { grow: 52 });
+        const k = { size0: 14 * CLOUD_SIZE, grow: 52 * CLOUD_SIZE };
+        cloud.emit(m2, [0, 2.4, 44], [0, 0.05, 1.0], 46, 16, k);
+        cloud.emit(m2, [0, 2.4, -44], [0, 0.05, -1.0], 46, 16, k);
       }
       return;
     }
@@ -996,13 +1054,14 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     // a cold white mist rolls out of both mouths (<- ->), thickening as the flow comes up.
     if (t < EVENTS.ignition) {
       const deluge = 0.35 + 0.65 * THREE.MathUtils.smoothstep(t, EVENTS.deflector, EVENTS.ignition);
-      const nWater = deluge * THREE.MathUtils.smoothstep(t, EVENTS.deflector, EVENTS.deflector + 1.5) * 30 * dt;
+      const nWater = deluge * THREE.MathUtils.smoothstep(t, EVENTS.deflector, EVENTS.deflector + 1.5) * 14 * CLOUD_RATE * dt;
       if (nWater < 0.05) return;
       const m = Math.max(1, Math.round(nWater * 0.5));
+      const k = { size0: 12 * CLOUD_SIZE, grow: 52 * CLOUD_SIZE };
       // North mouth (+Z)
-      cloud.emit(m, [0, 2.2, 44], [0, 0.05, 1.0], 52, 18, { size0: 10, grow: 46 });
+      cloud.emit(m, [0, 2.2, 44], [0, 0.05, 1.0], 40, 18, k);
       // South mouth (-Z)
-      cloud.emit(m, [0, 2.2, -44], [0, 0.05, -1.0], 52, 18, { size0: 10, grow: 46 });
+      cloud.emit(m, [0, 2.2, -44], [0, 0.05, -1.0], 40, 18, k);
       return;
     }
 
@@ -1015,12 +1074,13 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     // seconds after liftoff the cloud off the two trench mouths is several hundred metres
     // across and taller than the tower's lower half. It was a few grey puffs. Faster out of
     // the mouths, larger, longer-lived and more of it; the ring buffer was enlarged to hold it.
-    const n = drive * 150 * dt;
+    const n = drive * 62 * CLOUD_RATE * dt;
     if (n < 0.05) return;
 
-    // Exactly 50% North (+Z) and 50% South (-Z)
+    // Exactly 50% North (+Z) and 50% South (-Z). Fewer, larger puffs than before, each living
+    // its whole life (see CLOUD_RATE), overlapping into one mass.
     const trenchCount = Math.max(1, Math.round(n * 0.50));
-    const big = { size0: 18, grow: 150, life0: 12, lifeVar: 16 };
+    const big = { size0: 24 * CLOUD_SIZE, grow: 175 * CLOUD_SIZE, life0: 12, lifeVar: 14 };
     cloud.emit(trenchCount, [0, 2.6, 44], [0, 0.10, 1.0], 125, 22, big);
     cloud.emit(trenchCount, [0, 2.6, -44], [0, 0.10, -1.0], 125, 22, big);
 
@@ -1034,12 +1094,12 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     // the whole 124 m stack. They were still thrown upward at 11 m/s on top of the cloud's
     // buoyancy, which stood them up into a grey sheath round the climbing vehicle; the steam
     // off a deck rolls outward over its edge, so it leaves nearly flat.
-    const near = Math.max(1, Math.round(n * 0.26));
+    const near = Math.max(1, Math.round(n * 0.3));
     for (const [px, pz] of [[16, 11], [-16, 11], [16, -11], [-16, -11]]) {
       const r = Math.hypot(px, pz);
       cloud.emit(Math.max(1, Math.round(near / 4)), [px, 18.5, pz],
         [px / r * 0.95, 0.08, pz / r * 0.95], 24, 10,
-        { size0: 8, grow: 30, life0: 3.5, lifeVar: 3.5 });
+        { size0: 8 * CLOUD_SIZE, grow: 30 * CLOUD_SIZE, life0: 3.5, lifeVar: 3.5 });
     }
   }
 
@@ -1079,7 +1139,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
       a.obj.rotation.y = THREE.MathUtils.lerp(a.ry, -s2 * CATCH_ARM, close);
     }
 
-    const bThrottle = t < EVENTS.separation ? bt : returnThrottle(t);
+    const bThrottle = boosterEngineThrottle(t);
     boosterPlume.setTime(t);
     shipPlume.setTime(t);
     boosterPlume.setThrottle(bThrottle, bAlt, boosterSpread(t));
@@ -1093,11 +1153,16 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     const vent = ventAt(t);
     hotStageVents.setTime(t);
     hotStageVents.setState(vent, alt, vent > 0.01 ? 24 : 0);
+    const sg = stageGlowAt(t);
+    stageGlow.set(3 * sg, 26 + 46 * THREE.MathUtils.smoothstep(t, EVENTS.separation - 1.5, EVENTS.separation + 2.5), t);
     for (const vp of vapors) vp.update(t, camera, env.sun);
     collar.set(collarAt(t), t);
     collarShip.set(collarAt(t) * 0.8, t);
     shipPlume.setThrottle(st, alt);
     cloud.setFlame(bt * Math.max(0, 1 - alt / 160));
+    const tf = trenchFireAt(t);
+    trenchFire.setTime(t);
+    trenchFire.setState(tf, 5500, tf > 0.01 ? 6 : 0);
 
     // The atmosphere follows whatever the camera is on: the ship until staging, the booster
     // afterwards, which is what brings the sky back as it comes down.
@@ -1137,7 +1202,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     // Both vehicles, the way the webcast carries them: identical until they part.
     state.ship.altitude = alt; state.ship.velocity = speedAt(t); state.ship.lit = shipLit(t);
     state.booster.altitude = bAlt; state.booster.velocity = boosterSpeedAt(t);
-    state.booster.lit = t >= EVENTS.separation ? (returnThrottle(t) > 0.001 ? boosterLit(t) : 0) : boosterLit(t);
+    state.booster.lit = boosterEngineThrottle(t) > 0.001 ? boosterLit(t) : 0;
     const next = MILESTONES.find(m => m.t > t);
     state.next = next ?? null;
   }
@@ -1178,6 +1243,8 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     boosterJets.setState(0, 0, 0);
     shipJets.setState(0, 0, 0);
     hotStageVents.setState(0, 0, 0);
+    trenchFire.setState(0, 0, 0);
+    stageGlow.set(0, 1, 0);
     for (const vp of vapors) vp.hide();
     collar.set(0, 0);
     collarShip.set(0, 0);
@@ -1251,7 +1318,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     sources(t, out = [{ pos: new THREE.Vector3() }, { pos: new THREE.Vector3() }]) {
       const b = out[0], s = out[1];
       b.pos.set(S.x + boosterDownAt(t), ex.lay.mount + boosterAltAt(t), S.z);
-      b.throttle = t < EVENTS.separation ? boosterThrottle(t) : returnThrottle(t);
+      b.throttle = boosterEngineThrottle(t);
       b.altitude = boosterAltAt(t);
       s.pos.set(S.x + downrangeAt(t), ex.lay.mount + altitudeAt(t), S.z);
       s.throttle = shipThrottle(t);

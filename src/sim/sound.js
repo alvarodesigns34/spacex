@@ -9,15 +9,20 @@
  *    the sound comes from where the vehicle is.
  *  - A large rocket's noise is a broadband roar whose energy peaks low (tens of hertz for a
  *    vehicle this size) with the characteristic CRACKLE on top: the jet's shocks reach the
- *    listener as steep, one-sided pressure jumps. Crackle is made here the way it arises, by
- *    skewing band-limited noise into a waveform with sharp positive steps (a cubic waveshaper
- *    on noise), plus sparse impulses — not by adding clicks to hiss.
+ *    listener as steep, one-sided pressure jumps. Crackle is made here the way it arises: a
+ *    train of N-shaped shock fronts arriving in bursts, at a rate that wanders between tens
+ *    and hundreds a second, with heavy-tailed amplitudes, over a little skewed noise.
+ *  - The roar is not steady: a slow random flutter swells and sags it by about a quarter.
+ *  - Near the ground each stage is heard twice, directly and off the flats, and the changing
+ *    gap between the two as the vehicle climbs sweeps a comb filter down the spectrum: the
+ *    phasing of every liftoff recorded from the ground.
  *  - The air takes the top off with distance (absorption grows with frequency), so a far
  *    launch is a rumble; thin air at the source carries less, so the ship is silent in space.
  *  - An open-field reverberation: a long, low, diffuse echo off the land around the site.
  *  - Before ignition, the fuelled stack vents (cryogenic hiss, near the pad) and at T−10 the
  *    flame deflector's water comes on (a broadband rush). The staggered ignition (3 → 13 → 33
- *    engines) comes from the booster's throttle, so the roar rises in steps. One-shots: the
+ *    engines) comes from the booster's throttle, so the roar rises in steps, each step opening
+ *    with a low thump as the chambers light. One-shots: the
  *    hot-staging crack, and the returning booster's sonic booms, heard at the pad on every
  *    catch. The booms are timed from the model's own descent through Mach 1.2, delayed by the
  *    distance, and played as a triple N-wave.
@@ -63,15 +68,29 @@ export function createLaunchSound({ launch, camera }) {
     // Noise beds, generated once and looped.
     const white = buffer(ctx, 4, (d) => { for (let i = 0; i < d.length; i++) d[i] = r() * 2 - 1; });
     const brown = buffer(ctx, 5, (d) => { let v = 0; for (let i = 0; i < d.length; i++) { v = (v + 0.02 * (r() * 2 - 1)) / 1.02; d[i] = v * 3.5; } });
-    const spikes = buffer(ctx, 3, (d, sr) => {
-      let i = 0;
+    // Crackle as it is measured in rocket noise: not a hiss but a train of shock fronts, each a
+    // near-instant pressure jump followed by a slower fall (an N-wave a millisecond or two
+    // long), arriving in bursts. The arrival rate itself wanders between a few tens and a few
+    // hundred a second on a ~0,2 s time scale, and the amplitudes are heavy-tailed: mostly
+    // small, now and then one that tears. Eight seconds, so the loop is not heard.
+    const shocks = buffer(ctx, 8, (d, sr) => {
+      let i = 0, rate = 120, target = 120, next = 0;
       while (i < d.length) {
-        i += Math.floor(sr * (-Math.log(1 - r()) / 70));
-        const a = Math.pow(r(), 2.2);                              // one-sided: shocks are compressions
-        const len = Math.floor(sr * (0.0008 + r() * 0.003));
-        for (let k = 0; k < len && i + k < d.length; k++) d[i + k] += a * Math.exp(-k / (len * 0.25));
+        if (i >= next) { target = 30 + 260 * Math.pow(r(), 1.6); next = i + Math.floor(sr * (0.08 + r() * 0.25)); }
+        rate += (target - rate) * 0.2;
+        i += Math.max(1, Math.floor(sr * (-Math.log(1 - r()) / rate)));
+        const a = Math.min(1, 0.12 / Math.pow(1 - r() * 0.985, 0.55));  // Pareto-like tail
+        const len = Math.floor(sr * (0.0006 + r() * 0.0022));
+        for (let k = 0; k < len && i + k < d.length; k++) d[i + k] += a * (1 - 1.9 * k / len);
         i += len;
       }
+      for (let k = 0; k < d.length; k++) d[k] = Math.max(-1, Math.min(1, d[k] * 0.8));
+    });
+    // Slow turbulence: the roar of a real jet swells and sags by a third, irregularly, over
+    // fractions of a second. Low-passed noise around zero, used to modulate a gain.
+    const flutter = buffer(ctx, 11, (d, sr) => {
+      let v = 0, w = 0;
+      for (let i = 0; i < d.length; i++) { v += 0.0009 * ((r() * 2 - 1) - v); w += 0.0009 * (v - w); d[i] = w * 22; }
     });
     const loop = (buf, rate = 1) => { const s = ctx.createBufferSource(); s.buffer = buf; s.loop = true; s.playbackRate.value = rate; s.start(); return s; };
 
@@ -106,18 +125,31 @@ export function createLaunchSound({ launch, camera }) {
       const panner = ctx.createPanner();
       panner.panningModel = 'HRTF'; panner.distanceModel = 'linear'; panner.rolloffFactor = 0;
       const air = ctx.createBiquadFilter(); air.type = 'lowpass'; air.frequency.value = 12000; air.Q.value = 0.5;
+      // Ground reflection. Near the ground every source is heard twice, directly and off the
+      // flats, a few milliseconds apart; as the vehicle climbs the gap changes and the comb of
+      // cancellations it makes sweeps down the spectrum — the phasing whoosh that is on every
+      // recording of a liftoff made from the ground. The delay is set per frame in update().
+      const refl = ctx.createDelay(0.1); refl.delayTime.value = 0.004;
+      const reflGain = ctx.createGain(); reflGain.gain.value = 0;
       const out = ctx.createGain(); out.gain.value = 1;
-      air.connect(out); out.connect(panner); panner.connect(master); out.connect(reverbIn);
-      const band = (node, type, f, q) => { const b = ctx.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; const g = ctx.createGain(); g.gain.value = 0; node.connect(b); b.connect(g); g.connect(air); return g; };
-      // Deep body (brown noise under 70 Hz), the roar (100–400 Hz), and the crackle.
+      air.connect(out); air.connect(refl); refl.connect(reflGain); reflGain.connect(out);
+      out.connect(panner); panner.connect(master); out.connect(reverbIn);
+      // Turbulence: every band passes through one gain that the flutter noise modulates.
+      const am = ctx.createGain(); am.gain.value = 1;
+      const fl = loop(flutter, 1 + 0.13 * k); const flDepth = ctx.createGain(); flDepth.gain.value = 1.2;
+      fl.connect(flDepth); flDepth.connect(am.gain); am.connect(air);
+      const band = (node, type, f, q) => { const b = ctx.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; const g = ctx.createGain(); g.gain.value = 0; node.connect(b); b.connect(g); g.connect(am); return g; };
+      // Deep body (brown noise under 70 Hz), the roar (peaking round 150 Hz for an engine
+      // cluster this size), the mid-band tearing, and the crackle.
       const rumble = band(loop(brown, 1 - 0.05 * k), 'lowpass', 70, 0.8);
-      const roar = band(loop(white, 1 + 0.03 * k), 'bandpass', 220, 0.45);
+      const roar = band(loop(white, 1 + 0.03 * k), 'bandpass', 160, 0.5);
+      const tear = band(loop(white, 0.93 + 0.04 * k), 'bandpass', 1100, 0.6);
       const cn = ctx.createBiquadFilter(); cn.type = 'bandpass'; cn.frequency.value = 900; cn.Q.value = 0.4;
       loop(white, 0.97 + 0.05 * k).connect(cn);
       const pre = ctx.createGain(); pre.gain.value = 2.2; cn.connect(pre); pre.connect(skew);
       const crackle = band(skew, 'highpass', 500, 0.7);
-      const imp = band(loop(spikes, 1 + 0.02 * k), 'highpass', 800, 0.7);
-      src.push({ panner, air, out, rumble, roar, crackle, imp });
+      const imp = band(loop(shocks, 1 + 0.02 * k), 'highpass', 250, 0.6);
+      src.push({ panner, air, out, refl, reflGain, rumble, roar, tear, crackle, imp });
     }
     // Pad sounds before ignition, from the stack's position: vent hiss and the deluge.
     const padPanner = ctx.createPanner(); padPanner.panningModel = 'HRTF'; padPanner.distanceModel = 'linear'; padPanner.rolloffFactor = 0;
@@ -134,6 +166,8 @@ export function createLaunchSound({ launch, camera }) {
     oneShots = {
       // Hot-staging: a hard crack with a short rough tail.
       crack: buffer(ctx, 1.6, (d, sr) => { const rr = rng(5); let lp = 0; for (let i = 0; i < d.length; i++) { const t = i / sr; lp += 0.35 * ((rr() * 2 - 1) - lp); d[i] = (t < 0.004 ? 1 : 0) + lp * Math.exp(-t / 0.25); } }),
+      // An engine group coming up: a low thump as the chambers light, then the roar building.
+      thump: buffer(ctx, 1.2, (d, sr) => { const rr = rng(9); let lp = 0; for (let i = 0; i < d.length; i++) { const t = i / sr; lp += 0.03 * ((rr() * 2 - 1) - lp); d[i] = Math.sin(2 * Math.PI * 38 * t) * Math.exp(-t / 0.18) * 0.9 + lp * 6 * Math.exp(-t / 0.35); } }),
       // Sonic boom: an N-wave (sharp rise, linear fall through zero, sharp return), 0,18 s.
       boom: buffer(ctx, 0.9, (d, sr) => { const T = 0.18; for (let i = 0; i < d.length; i++) { const t = i / sr; d[i] = t < T ? 1 - 2 * t / T : 0; } }),
     };
@@ -156,7 +190,7 @@ export function createLaunchSound({ launch, camera }) {
     if (!ctx) return;
     if (on) ctx.resume?.();
     else {
-      for (const s of src) for (const k of ['rumble', 'roar', 'crackle', 'imp']) s[k].gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+      for (const s of src) for (const k of ['rumble', 'roar', 'tear', 'crackle', 'imp', 'reflGain']) s[k].gain.setTargetAtTime(0, ctx.currentTime, 0.05);
       for (const g of [vent, deluge, wind]) g?.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
     }
   }
@@ -183,7 +217,7 @@ export function createLaunchSound({ launch, camera }) {
     const t = launch.state.t;
     wind.gain.setTargetAtTime(live ? 0.05 : 0, tc, 0.5);
     if (!live) {
-      for (const s of src) for (const k of ['rumble', 'roar', 'crackle', 'imp']) s[k].gain.setTargetAtTime(0, tc, 0.15);
+      for (const s of src) for (const k of ['rumble', 'roar', 'tear', 'crackle', 'imp', 'reflGain']) s[k].gain.setTargetAtTime(0, tc, 0.15);
       vent.gain.setTargetAtTime(0, tc, 0.2); deluge.gain.setTargetAtTime(0, tc, 0.2);
       lastHeard[0] = lastHeard[1] = null;
       return;
@@ -202,9 +236,19 @@ export function createLaunchSound({ launch, camera }) {
       const breathe = 0.85 + 0.15 * Math.sin(tc * 2.3 + i) * Math.sin(tc * 0.7 + 1.3 * i);
       const near = Math.min(1, REF_D * 3 / Math.max(d, 1));
       s.rumble.gain.setTargetAtTime(1.0 * Math.pow(k, 0.55) * breathe, tc, 0.1);
-      s.roar.gain.setTargetAtTime(0.42 * Math.pow(k, 0.75) * breathe * (0.35 + 0.65 * near), tc, 0.1);
-      s.crackle.gain.setTargetAtTime(0.55 * Math.pow(k, 0.8) * Math.min(1, near * 1.4), tc, 0.06);
-      s.imp.gain.setTargetAtTime(0.5 * Math.pow(k, 0.8) * near, tc, 0.06);
+      s.roar.gain.setTargetAtTime(0.5 * Math.pow(k, 0.7) * breathe * (0.4 + 0.6 * near), tc, 0.1);
+      s.tear.gain.setTargetAtTime(0.16 * Math.pow(k, 0.8) * near, tc, 0.1);
+      s.crackle.gain.setTargetAtTime(0.28 * Math.pow(k, 0.8) * Math.min(1, near * 1.4), tc, 0.06);
+      // The shock train is what carries: it is the crackle a crowd hears kilometres away.
+      s.imp.gain.setTargetAtTime(0.85 * Math.pow(k, 0.75) * Math.min(1, 0.35 + near), tc, 0.06);
+      // Ground reflection: path difference between the direct and the ground-bounced ray, for
+      // a source at height hs and a listener at hl over flat ground, horizontal distance dh.
+      // Faded out when the camera itself is off the ground (a chase view hears no bounce).
+      const hl = Math.max(camera.position.y, 1.2), hs = Math.max(h.pos.y, 0.5);
+      const dh = Math.hypot(camera.position.x - h.pos.x, camera.position.z - h.pos.z);
+      const diff = Math.hypot(dh, hs + hl) - Math.hypot(dh, hs - hl);
+      s.refl.delayTime.setTargetAtTime(Math.min(0.095, Math.max(0.0002, diff / C_SOUND)), tc, 0.05);
+      s.reflGain.gain.setTargetAtTime(0.75 * Math.exp(-(hl - 1.2) / 40), tc, 0.2);
       // Air absorption: the cut-off falls roughly as 1/distance.
       s.air.frequency.setTargetAtTime(Math.max(180, Math.min(15000, 15000 * 250 / Math.max(d, 250))), tc, 0.2);
 
@@ -214,6 +258,9 @@ export function createLaunchSound({ launch, camera }) {
         const cross = (te) => prev < te && th >= te;
         const lp = Math.max(200, Math.min(16000, 16000 * 250 / Math.max(d, 250)));
         const g = Math.min(1, REF_D / Math.max(d, 1));
+        if (i === 0) for (const [te, gt] of [[EVENTS.ignition, 0.5], [EVENTS.ignition + 0.9, 0.75], [EVENTS.ignition + 2, 1]]) {
+          if (cross(te)) play('thump', { gain: gt * Math.min(1, REF_D * 2 / Math.max(d, 1)), pan: s.panner, lowpass: lp });
+        }
         if (i === 1 && cross(EVENTS.separation - 1.2)) play('crack', { gain: 0.9 * g * p + 0.05, pan: s.panner, lowpass: lp });
         if (i === 0 && cross(BOOM_T)) {
           // A returning booster's boom arrives as two or three N-waves a fraction of a second

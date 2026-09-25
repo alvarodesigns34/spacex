@@ -1050,7 +1050,10 @@ async function main() {
     camera.getWorldDirection(_fwd);
     hud.setMapCamera(camera.position.x, camera.position.z, _fwd.x, _fwd.z);
     // Off above the pad (launch chase and orbit): the far plane opens up and nothing is close.
-    ao?.update(dist, camera.far < 20000 && !view.orbital && renderPass.camera === camera);
+    // Off for the whole launch sequence too: the steam, vapour and ground cloud write no depth,
+    // so the occlusion of the ground BEHIND them was multiplied over them, and the cloud wore a
+    // band across it wherever the horizon fell.
+    ao?.update(dist, camera.far < 20000 && !view.orbital && renderPass.camera === camera && !launch.running);
     updateLabelOcclusion();
     lod.update();
     composer.render();

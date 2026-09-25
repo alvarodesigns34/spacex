@@ -19,6 +19,7 @@
  * Everything here is additive and writes no depth, so plumes never occlude the vehicle.
  */
 import * as THREE from 'three';
+import { fbm } from '../materials/textures.js';
 
 const SCALE_HEIGHT = 7500;
 /** Ambient pressure as a fraction of sea level. */
@@ -55,7 +56,7 @@ const PLUME_VERT = /* glsl */`
   }`;
 const PLUME_FRAG = /* glsl */`
   uniform vec3 uHot, uWarm, uCool;
-  uniform float uAlpha, uFalloff, uDiamond, uOpacity, uDiamondN, uTime, uGain;
+  uniform float uAlpha, uFalloff, uDiamond, uOpacity, uDiamondN, uTime, uGain, uOcclude;
   varying float vAxis;
   varying float vFace;
   varying float vRad;
@@ -88,7 +89,10 @@ const PLUME_FRAG = /* glsl */`
     // Deterministic billow. uTime is mission time, so a seek reproduces the same frame.
     a *= 1.0 + 0.07 * sin(v * 46.0 + uTime * 6.0) * smoothstep(0.08, 0.35, v);
     if (a < 0.0015 || a != a) discard;
-    gl_FragColor = vec4(c * shock * throat * uGain, clamp(a, 0.0, 1.0));
+    a = clamp(a, 0.0, 1.0);
+    // Premultiplied: the colour is light the flame emits, the alpha is how much of what is
+    // behind it the flame hides. With uOcclude 0 this is plain additive blending.
+    gl_FragColor = vec4(c * shock * throat * uGain * a, a * uOcclude);
   }`;
 
 /**
@@ -106,10 +110,14 @@ function coneLayer({ hot, warm, cool, alpha, falloff }) {
       uAlpha: { value: alpha }, uFalloff: { value: falloff },
       uDiamond: { value: 0 }, uDiamondN: { value: 14.14 },
       uOpacity: { value: 1 }, uSpread: { value: 1 }, uTime: { value: 0 }, uGain: { value: 1 },
+      uOcclude: { value: 0 },
     },
     vertexShader: PLUME_VERT, fragmentShader: PLUME_FRAG,
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
-    blending: THREE.AdditiveBlending,
+    // Emission plus a share of occlusion (see uOcclude): purely additive, a sea-level plume
+    // over a bright sky could only lift it, and 33 Raptors read as a pale pink streak.
+    blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
+    blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor,
   });
   const mesh = new THREE.Mesh(g, m);
   mesh.frustumCulled = false;
@@ -132,16 +140,18 @@ export class Plume {
     // Bright shock core, then the wide envelope of afterburning around it.
     // The core ends in a dull orange, not blue: mixed with the warm band a blue tail went
     // lavender-pink, and no photograph of a Raptor landing burn shows a pink flame.
-    this.core = coneLayer({ hot: 0xfffaea, warm: 0xffa442, cool: 0xb4643a, alpha: 0.98, falloff: 0.55 });
-    this.shroud = coneLayer({ hot: 0xffe0b0, warm: 0xa86830, cool: 0x3d4038, alpha: 0.36, falloff: 1.05 });
+    // Golden-white at the engines to orange down the column, as the liftoff photographs show
+    // it; the old brown-pink tail went lavender over a blue sky.
+    this.core = coneLayer({ hot: 0xfff6e0, warm: 0xffb84a, cool: 0xf07a2c, alpha: 0.98, falloff: 0.6 });
+    this.shroud = coneLayer({ hot: 0xffe0b0, warm: 0xc8762e, cool: 0x4a4038, alpha: 0.36, falloff: 1.05 });
     // Outer density: soot and cooled exhaust. Wide, dim, and gone once the flow is
     // a vacuum bell. It does not write depth, so the vehicle stays visible through it.
     this.veil = coneLayer({ hot: 0xffe2c0, warm: 0x8a5a32, cool: 0x5c564e, alpha: 0.18, falloff: 1.2 });
     // The core is an emitter, not a tint: a sea-level Raptor column photographs saturated white
     // against a bright sky, and at 1.0 an additive layer over a pale sky only lifted it to a
     // pinkish cream. In HDR it clips to white and blooms, as in the photographs.
-    this.core.material.uniforms.uGain.value = 2.6;
-    this.shroud.material.uniforms.uGain.value = 1.4;
+    this.core.material.uniforms.uGain.value = 3.4;
+    this.shroud.material.uniforms.uGain.value = 1.5;
     this.group.add(this.veil, this.shroud, this.core);
     this.time = 0;
 
@@ -170,15 +180,19 @@ export class Plume {
     if (!on) { this.light.intensity = 0; return; }
     const p = pressureRatio(altitude);
     // Over-expanded and stubby at the pad; wide and long once there is nothing to push back.
-    const stretch = 1 + 3.4 * (1 - p);
+    // At 60 km a booster's plume is a translucent bell several hundred metres long and many
+    // times its own width (flight footage from the ascent's last minute).
+    const stretch = 1 + 4.2 * (1 - p);
     const t = 0.5 + 0.5 * throttle;
     const r = this.radius * spread;
     // Length follows the lit radius less than width does: fewer engines make a thinner column
     // before they make a shorter one.
     const len = this.baseLength * (0.55 + 0.45 * spread);
-    const rc = r * 0.82;
+    // The merged column leaves the cluster a little wider than the cluster: 33 jets side by
+    // side, each opening out as it leaves its bell.
+    const rc = r * 0.98;
     this.core.scale.set(rc, len * stretch * t, rc);
-    const rs = r * 1.34;
+    const rs = r * 1.55;
     this.shroud.scale.set(rs, len * stretch * 1.45 * t, rs);
     const rv = r * (1.7 + 1.4 * (1 - p));
     this.veil.scale.set(rv, len * stretch * 1.7 * t, rv);
@@ -186,13 +200,15 @@ export class Plume {
     this.veil.material.uniforms.uOpacity.value = 0.15 + 0.85 * p;
     for (const layer of [this.core, this.shroud, this.veil]) layer.material.uniforms.uTime.value = this.time;
     this.core.material.uniforms.uSpread.value = 1 + 2.4 * (1 - p);
-    this.shroud.material.uniforms.uSpread.value = 1 + 5.2 * (1 - p);
+    this.shroud.material.uniforms.uSpread.value = 1 + 6.4 * (1 - p);
     this.core.material.uniforms.uDiamond.value = 2.15 * p;
     // Node spacing follows the expansion: tight, repeated cells while the flow is squeezed
     // back by sea-level pressure, stretching out and dying as the atmosphere thins.
     this.core.material.uniforms.uDiamondN.value = 6.0 + 14.0 * p;
     // Dense and bright in the lower atmosphere, where the exhaust is still optically thick.
     this.core.material.uniforms.uOpacity.value = 0.78 + 0.22 * p;
+    // Optically thick low down, where it hides the sky behind it; a thin glow in vacuum.
+    this.core.material.uniforms.uOcclude.value = 0.62 * p;
     this.shroud.material.uniforms.uOpacity.value = 0.66 + 0.34 * (1 - p);
     // 8,240 tf lights the pad. The old value lit a room.
     this.light.intensity = 4200 * throttle * (0.35 + 0.65 * p);
@@ -325,87 +341,157 @@ export class EngineJets {
 }
 
 // -----------------------------------------------------------------------------------------
+//  Fireball glow
+// -----------------------------------------------------------------------------------------
+/**
+ * A camera-facing burst of light: the fireball where the ship's six engines light inside the
+ * vented ring at hot-staging, before the gap opens. The flame through the vents is jets; what
+ * the long lenses on the ground see is one blinding ball round the interstage, turbulent at its
+ * edge, that swells for a second and fades as the stages part. HDR and additive, so it blooms.
+ */
+const GLOW_VERT = /* glsl */`
+  uniform float uSize;
+  varying vec2 vUv;
+  void main() {
+    vUv = uv - 0.5;
+    vec4 c = modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+    gl_Position = projectionMatrix * vec4(c.xyz + vec3(position.xy * uSize, 0.0), 1.0);
+  }`;
+const GLOW_FRAG = /* glsl */`
+  uniform vec3 uColor, uEdge;
+  uniform float uIntensity, uTime;
+  varying vec2 vUv;
+  void main() {
+    float r = length(vUv) * 2.0;
+    float a = atan(vUv.y, vUv.x);
+    // Ragged edge: lobes that turn with time, so the ball boils rather than sits as a disc.
+    float edge = 0.78 + 0.1 * sin(a * 7.0 + uTime * 5.0) + 0.07 * sin(a * 13.0 - uTime * 8.0);
+    float k = 1.0 - smoothstep(0.0, edge, r);
+    float core = exp(-r * r * 9.0);
+    vec3 c = mix(uEdge, uColor, clamp(core * 1.4, 0.0, 1.0)) * (k * k + 2.5 * core);
+    float i = uIntensity * k;
+    if (i < 0.002) discard;
+    gl_FragColor = vec4(c * uIntensity, 1.0);
+  }`;
+
+export class Glow {
+  constructor({ color = 0xfff1d6, edge = 0xff7a26, name = 'glow' } = {}) {
+    const lin = (hex) => new THREE.Color(hex).convertSRGBToLinear();
+    this.material = new THREE.ShaderMaterial({
+      uniforms: { uColor: { value: lin(color) }, uEdge: { value: lin(edge) }, uIntensity: { value: 0 }, uSize: { value: 1 }, uTime: { value: 0 } },
+      vertexShader: GLOW_VERT, fragmentShader: GLOW_FRAG,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.material);
+    this.mesh.name = name;
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = 4;
+    this.mesh.visible = false;
+  }
+
+  /** @param intensity HDR multiplier, 0 hides it  @param size metres across  @param t mission s */
+  set(intensity, size, t) {
+    this.mesh.visible = intensity > 0.002;
+    this.material.uniforms.uIntensity.value = intensity;
+    this.material.uniforms.uSize.value = size;
+    this.material.uniforms.uTime.value = t;
+  }
+}
+
+// -----------------------------------------------------------------------------------------
 //  Ground cloud
 // -----------------------------------------------------------------------------------------
+/**
+ * Four cloud puffs in a 2 × 2 atlas, each a different cluster of lobes with a cauliflower
+ * edge. One smooth blob repeated a thousand times is what made the launch cloud read as cotton
+ * wool: a real steam cloud's outline breaks into rounded turrets at every scale. RGB is a
+ * tangent-space normal from the density, A the density itself.
+ */
 function puffTexture() {
-  const size = 256;
+  const cell = 256, size = cell * 2;
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const ctx = c.getContext('2d');
   const img = ctx.createImageData(size, size);
   const data = img.data;
-  const half = size / 2;
-
-  // Multi-lobed organic cumulus core: provides true billowing clumps rather than flat circles
-  const lobes = [
-    { x: 0.0, y: 0.0, r: 0.50, w: 1.0 },
-    { x: -0.22, y: -0.14, r: 0.38, w: 0.88 },
-    { x: 0.24, y: -0.12, r: 0.36, w: 0.85 },
-    { x: 0.20, y: 0.18, r: 0.35, w: 0.82 },
-    { x: -0.19, y: 0.20, r: 0.36, w: 0.80 },
-    { x: 0.02, y: 0.26, r: 0.33, w: 0.76 },
-    { x: -0.04, y: -0.26, r: 0.34, w: 0.78 },
-    { x: 0.30, y: 0.02, r: 0.32, w: 0.72 },
-  ];
-
-  const dens = new Float32Array(size * size);
-  for (let y = 0; y < size; y++) {
-    const ny = (y - half) / half;
-    for (let x = 0; x < size; x++) {
-      const nx = (x - half) / half;
-      const r = Math.hypot(nx, ny);
-      if (r >= 1.0) continue;
-
-      let d = 0;
-      for (let k = 0; k < lobes.length; k++) {
-        const lb = lobes[k];
-        const dist = Math.hypot(nx - lb.x, ny - lb.y);
-        if (dist < lb.r) {
-          const lAlpha = 1.0 - dist / lb.r;
-          d += lb.w * (lAlpha * lAlpha * (3.0 - 2.0 * lAlpha));
+  const rng = (() => { let x = 0x9e3779b9; return () => ((x = (x * 1664525 + 1013904223) >>> 0) / 4294967296); })();
+  const dens = new Float32Array(cell * cell);
+  // The relief the normals come from: the density before its edge is sharpened, blurred. Taken
+  // from the sharpened density, every contour became a steep step and the shading drew a dark
+  // crease along each one.
+  const relief = new Float32Array(cell * cell), tmp = new Float32Array(cell * cell);
+  for (let v = 0; v < 4; v++) {
+    const ox = (v % 2) * cell, oy = Math.floor(v / 2) * cell;
+    // A big central lobe and a ring of smaller ones, weighted to the lower half (a puff is
+    // flatter underneath, where it sits on air it has not yet mixed with).
+    const lobes = [{ x: 0, y: 0.04, r: 0.46, w: 1 }];
+    const n = 8 + v * 2;
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2 + rng() * 0.6, d = 0.2 + rng() * 0.26;
+      lobes.push({ x: Math.cos(a) * d, y: Math.sin(a) * d * 0.85 - 0.04, r: 0.16 + rng() * 0.2, w: 0.7 + rng() * 0.35 });
+    }
+    const seed = v * 37.1;
+    for (let y = 0; y < cell; y++) {
+      const ny = (y - cell / 2) / (cell / 2);
+      for (let x = 0; x < cell; x++) {
+        const nx = (x - cell / 2) / (cell / 2);
+        const r = Math.hypot(nx, ny);
+        let d = 0;
+        for (const lb of lobes) {
+          const q = Math.hypot(nx - lb.x, ny - lb.y) / lb.r;
+          if (q < 1) { const t = 1 - q; d += lb.w * t * t * (3 - 2 * t); }
         }
+        // Turrets: fractal noise pushes the edge in and out at three scales.
+        const turb = fbm(nx * 3.2 + seed, ny * 3.2 - seed, 5, 2.05, 0.55) - 0.5;
+        d = d * 1.15 + turb * 0.9;
+        const edge = 1 - THREE.MathUtils.smoothstep(r, 0.8, 0.99);
+        dens[y * cell + x] = THREE.MathUtils.clamp(THREE.MathUtils.smoothstep(d, 0.18, 0.62) * edge, 0, 1);
+        relief[y * cell + x] = THREE.MathUtils.clamp(d, 0, 1.4) * edge;
       }
-      d = Math.min(1.0, d);
-
-      // Multi-scale harmonic billow noise for fine steam filament turbulence
-      const a1 = Math.sin(x * 0.10 + Math.cos(y * 0.08) * 2.2);
-      const a2 = Math.sin(y * 0.16 + Math.cos(x * 0.13) * 1.8);
-      const a3 = Math.sin((x + y) * 0.22);
-      const noise = 0.80 + 0.12 * a1 + 0.06 * a2 + 0.02 * a3;
-
-      const edge = Math.max(0.0, 1.0 - r);
-      dens[y * size + x] = Math.min(1.0, Math.max(0.0, d * noise * Math.pow(edge, 1.2)));
+    }
+    // Two box-blur passes (±4 px), separable.
+    for (let pass = 0; pass < 2; pass++) {
+      for (let y = 0; y < cell; y++) for (let x = 0; x < cell; x++) {
+        let a = 0, n = 0;
+        for (let k = -4; k <= 4; k++) { const xx = x + k; if (xx >= 0 && xx < cell) { a += relief[y * cell + xx]; n++; } }
+        tmp[y * cell + x] = a / n;
+      }
+      for (let y = 0; y < cell; y++) for (let x = 0; x < cell; x++) {
+        let a = 0, n = 0;
+        for (let k = -4; k <= 4; k++) { const yy = y + k; if (yy >= 0 && yy < cell) { a += tmp[yy * cell + x]; n++; } }
+        relief[y * cell + x] = a / n;
+      }
+    }
+    for (let y = 0; y < cell; y++) {
+      const y0 = Math.max(0, y - 2), y1 = Math.min(cell - 1, y + 2);
+      for (let x = 0; x < cell; x++) {
+        const x0 = Math.max(0, x - 2), x1 = Math.min(cell - 1, x + 2);
+        const dx = (relief[y * cell + x1] - relief[y * cell + x0]) * 5.0;
+        const dy = (relief[y1 * cell + x] - relief[y0 * cell + x]) * 5.0;
+        const len = Math.hypot(dx, dy, 1);
+        const i = ((oy + y) * size + ox + x) * 4;
+        data[i] = Math.round((-dx / len * 0.5 + 0.5) * 255);
+        data[i + 1] = Math.round((-dy / len * 0.5 + 0.5) * 255);
+        data[i + 2] = Math.round(255 / len);
+        data[i + 3] = Math.round(dens[y * cell + x] * 255);
+      }
     }
   }
-
-  // Pre-bake tangent normal map (R, G, B) and volumetric density (A)
-  for (let y = 0; y < size; y++) {
-    const y0 = Math.max(0, y - 1), y1 = Math.min(size - 1, y + 1);
-    for (let x = 0; x < size; x++) {
-      const x0 = Math.max(0, x - 1), x1 = Math.min(size - 1, x + 1);
-      const dVal = dens[y * size + x];
-      const dx = (dens[y * size + x1] - dens[y * size + x0]) * 3.5;
-      const dy = (dens[y1 * size + x] - dens[y0 * size + x]) * 3.5;
-      const len = Math.hypot(dx, dy, 1.0);
-      const nx = -dx / len;
-      const ny = -dy / len;
-      const nz = 1.0 / len;
-
-      const idx = (y * size + x) * 4;
-      data[idx] = Math.round((nx * 0.5 + 0.5) * 255);
-      data[idx + 1] = Math.round((ny * 0.5 + 0.5) * 255);
-      data[idx + 2] = Math.round(nz * 255);
-      data[idx + 3] = Math.round(Math.min(1.0, dVal * 2.2) * 255);
-    }
-  }
-
   ctx.putImageData(img, 0, 0);
   const t = new THREE.CanvasTexture(c);
   t.needsUpdate = true;
   return t;
 }
 
+/** Picks one of the atlas's four puffs per instance, with a margin so mipmaps do not bleed. */
+const ATLAS_UV = /* glsl */`
+  vec2 atlasUv(vec2 uv, int id) {
+    float k = float(id - (id / 4) * 4);
+    return (vec2(mod(k, 2.0), floor(k / 2.0)) + 0.02 + uv * 0.96) * 0.5;
+  }`;
+
 const CLOUD_VERT = /* glsl */`
+  ${ATLAS_UV}
   attribute vec3 aOffset;
   attribute float aSize;
   attribute float aAlpha;
@@ -414,11 +500,20 @@ const CLOUD_VERT = /* glsl */`
   varying float vAlpha;
   varying float vFire;
   varying float vRot;
+  varying float vShade;
+  varying float vDust;
   uniform float uFlame;
 
   void main() {
-    vUv = uv;
+    vUv = atlasUv(uv, gl_InstanceID);
     vRot = aRot;
+    // Self-shadowing a billboard cannot compute: the lower a puff sits in the mass, the more
+    // cloud there is between it and the sky, so the base of a launch cloud is a darker blue-grey
+    // under sunlit turrets. And some of it is not steam: the blast lifts sand and dust off the
+    // flats, which tints part of the cloud tan (per puff, stable across seeks).
+    vShade = mix(0.58, 1.0, smoothstep(2.0, 55.0, aOffset.y + aSize * 0.2));
+    float h = fract(sin(float(gl_InstanceID) * 12.9898) * 43758.5453);
+    vDust = smoothstep(0.55, 1.0, h) * (1.0 - smoothstep(20.0, 90.0, aOffset.y));
     vec3 c = (modelViewMatrix * vec4(aOffset, 1.0)).xyz;
     float s = sin(aRot), k = cos(aRot);
     vec2 q = vec2(position.x * k - position.y * s, position.x * s + position.y * k) * aSize;
@@ -446,6 +541,8 @@ const CLOUD_FRAG = /* glsl */`
   varying float vAlpha;
   varying float vFire;
   varying float vRot;
+  varying float vShade;
+  varying float vDust;
 
   void main() {
     vec4 tex = texture2D(uMap, vUv);
@@ -464,9 +561,13 @@ const CLOUD_FRAG = /* glsl */`
     // Directional sunlight diffuse with wrap-around lighting for translucent water droplets
     float NdotL = dot(normView, uSunDir);
     float wrap = clamp((NdotL + 0.45) / 1.45, 0.0, 1.0);
+    // The thin fringe of a puff is lit through, not shaded: its normal is steep there, and
+    // taking it at face value drew a dark pen line round every turret.
+    wrap = mix(0.82, wrap, smoothstep(0.08, 0.55, tex.a));
 
     // Ambient skylight in crevice shadows to bright direct sunlight on outer lobes
-    vec3 steam = mix(uShadowColor, uSunColor, wrap);
+    vec3 steam = mix(uShadowColor, uSunColor, wrap * wrap * (3.0 - 2.0 * wrap)) * vShade;
+    steam = mix(steam, steam * vec3(0.9, 0.82, 0.7), vDust);
 
     // Warm incandescent amber/golden fire illumination from the 33 Raptors hitting the trench
     // Lit by the plume in HDR, so the near side of the cloud glows past white and blooms the
@@ -538,8 +639,8 @@ export class GroundCloud {
         uMap: { value: this.map },
         // Steam, not dust: the deluge turns the trench cloud into water vapour, sunlit white with
         // cool grey hollows. The old tan pair made it read as a sandstorm.
-        uSunColor: { value: new THREE.Color(0xf2f0ec) },
-        uShadowColor: { value: new THREE.Color(0x8c9199) },
+        uSunColor: { value: new THREE.Color(0xfbf9f4) },
+        uShadowColor: { value: new THREE.Color(0x707884) },
         uFireColor: { value: new THREE.Color(0xff8a2a) },
         uSunDir: { value: new THREE.Vector3(0.4, 0.7, 0.5).normalize() },
         uFlame: { value: 0.0 },
@@ -600,7 +701,9 @@ export class GroundCloud {
       const s = speed * (0.65 + r() * 0.70);
       // Confined horizontal jet blast along trench axis Z with realistic lateral plume dispersion
       this.vel[j] = dir[0] * s + (r() - 0.5) * speed * 0.32;
-      this.vel[j + 1] = dir[1] * s + r() * speed * 0.22 + 2.5;
+      // Mostly along the ground: the jet leaves the trench flat and only the buoyancy of the
+      // hot, wet mass lifts it, slowly, once it has slowed.
+      this.vel[j + 1] = dir[1] * s + r() * speed * 0.08 + 1.5;
       this.vel[j + 2] = dir[2] * s + (r() - 0.5) * speed * 0.12;
 
       this.age[i] = 0;
@@ -648,10 +751,12 @@ export class GroundCloud {
       if (pos[j + 1] < 1.2) pos[j + 1] = 1.2;
 
       // Ground friction and aerodynamic deceleration
-      const kH = Math.exp(-dt * 0.58);
+      // Drag on the jet, lighter than before so the cloud rolls out several hundred metres
+      // along the ground as it does on film, instead of standing up in two columns.
+      const kH = Math.exp(-dt * 0.42);
       vel[j] *= kH; vel[j + 2] *= kH;
-      // Thermal buoyancy: hot steam mushrooms up into the sky
-      vel[j + 1] = vel[j + 1] * Math.exp(-dt * 0.45) + 5.2 * dt;
+      // Buoyancy, gentle: the mass rises as a whole over tens of seconds.
+      vel[j + 1] = vel[j + 1] * Math.exp(-dt * 0.5) + 2.1 * dt;
 
       rot[i] += rotSpeed[i] * dt;
 
@@ -660,8 +765,10 @@ export class GroundCloud {
       size[i] = (base[i] + u * grow[i]) * (1.0 + (i % 5) * 0.18);
       // High volumetric density with smooth atmospheric decay
       const fadeIn = Math.min(1.0, u * 8.0);
-      const fadeOut = Math.pow(Math.max(0.0, 1.0 - u), 1.3);
-      alpha[i] = 0.88 * fadeIn * fadeOut;
+      // Dense for most of its life, then thinning: a launch cloud stays a solid mass for tens
+      // of seconds. Fading all the way from birth left the whole cloud a pale veil by T+20.
+      const fadeOut = 1.0 - THREE.MathUtils.smoothstep(u, 0.55, 1.0);
+      alpha[i] = 0.92 * fadeIn * fadeOut;
     }
     this.live = hi + 1;
     this.flush();
@@ -705,6 +812,7 @@ export class GroundCloud {
  *  - venting from the booster once it is back on the arms.
  */
 const VAPOR_VERT = /* glsl */`
+  ${ATLAS_UV}
   attribute vec3 aOrigin;
   attribute vec3 aVel;
   attribute vec4 aParams;   // phase 0..1, life s, start size m, growth m/s
@@ -714,7 +822,7 @@ const VAPOR_VERT = /* glsl */`
   varying vec2 vUv;
   varying float vAlpha, vRot;
   void main() {
-    vUv = uv;
+    vUv = atlasUv(uv, gl_InstanceID);
     float life = aParams.y;
     float age = mod(uTime - aWindow.x + aParams.x * life, life);
     float born = uTime - age;
@@ -744,6 +852,7 @@ const VAPOR_FRAG = /* glsl */`
     float s = sin(vRot), k = cos(vRot);
     vec3 n = normalize(vec3(n2.x * k - n2.y * s, n2.x * s + n2.y * k, max(t.b, 0.2)));
     float wrap = clamp((dot(n, uSunDir) + 0.5) / 1.5, 0.0, 1.0);
+    wrap = mix(0.82, wrap, smoothstep(0.08, 0.55, t.a));
     gl_FragColor = vec4(mix(uShade, uSun, wrap), clamp(a, 0.0, 1.0));
   }`;
 

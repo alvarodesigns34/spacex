@@ -227,7 +227,7 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
     side: THREE.DoubleSide,
   });
   M.concrete = new THREE.MeshStandardMaterial({
-    color: 0xd6d2ca,
+    color: 0xe2dccf,
     map: T.concrete.map, roughnessMap: T.concrete.roughnessMap, normalMap: T.concrete.normalMap,
     normalScale: new THREE.Vector2(0.6, 0.6), metalness: 0.0, roughness: 1.0, envMapIntensity: 0.55,
   });
@@ -282,7 +282,7 @@ float vcNoise(vec2 p) {
     vec2 vcUv3 = mat2(0.28, 0.96, -0.96, 0.28) * vMapUv * 6.7 + vec2(0.57, 0.11);
     float vcFine = dot(texture2D( map, vcUv3 ).rgb, vec3(0.3, 0.59, 0.11));
     float vcMean = dot(texture2D( map, vcUv3, 6.0 ).rgb, vec3(0.3, 0.59, 0.11));
-    sampledDiffuseColor.rgb *= mix(1.0, clamp(vcFine / max(vcMean, 0.02), 0.75, 1.3), vcNear * 0.35);
+    sampledDiffuseColor.rgb *= mix(1.0, clamp(vcFine / max(vcMean, 0.02), 0.62, 1.45), vcNear * 0.55);
   }
   diffuseColor *= sampledDiffuseColor;
 #endif`)
@@ -315,13 +315,21 @@ float vcNoise(vec2 p) {
     // Vegetation, in linear colour: green grass and dry straw by district, dark shrub clumps a
     // few metres across. The map's luminance is kept as grain so the grass is not flat paint.
     float lum = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11)) / 0.40;
-    float straw = smoothstep(0.35, 0.70, vcNoise(wp / 140.0 - 9.0) + warp.x * 0.3);
-    vec3 vegCol = mix(vec3(0.150, 0.165, 0.070), vec3(0.265, 0.225, 0.105), straw);
+    // More of it cured to straw, as the coastal prairie is for most of the year: seen at eye
+    // level the plain was one grey-green lawn to the horizon.
+    float straw = smoothstep(0.25, 0.64, vcNoise(wp / 140.0 - 9.0) + warp.x * 0.3);
+    vec3 vegCol = mix(vec3(0.160, 0.168, 0.072), vec3(0.300, 0.250, 0.118), straw);
     float clump = vcNoise(wp / 6.0 + warp * 3.0 + 41.0) * 0.6 + vcNoise(wp / 2.3 - 13.0) * 0.4;
     // Darker shrub clumps: soft-edged and lighter than they were. At 0.62–0.80 and 0.55 they
     // were crisp dark blobs that read, from the tower, as camouflage paint on the plain.
     vegCol = mix(vegCol, vec3(0.095, 0.112, 0.052), smoothstep(0.58, 0.92, clump) * 0.38);
     vegCol *= mix(0.8, 1.2, clamp(lum, 0.0, 1.5) / 1.5);
+    // Tussocks. At eye level a prairie is not one tone: every metre or two a clump of cured
+    // straw stands among the green, with shadowed ground between the stems. Averaged away from
+    // the tower; from a visitor's height it is what makes the ground read as grass.
+    float tussock = smoothstep(0.45, 0.85, vcNoise(wp / 1.7 + warp * 2.0 + 5.0));
+    vegCol = mix(vegCol, vec3(0.300, 0.250, 0.118) * (0.85 + 0.3 * lum), 0.45 * tussock);
+    vegCol *= 0.82 + 0.34 * vcNoise(wp / 0.55 - 3.0);
     // Thornscrub cover on the lomas and the small rises of the plain (terrain.js thicket, per
     // vertex), as a ground tone: a dark olive mottle with bare clay between, not grass.
     float thick = smoothstep(0.08, 0.7, vLand);
@@ -342,9 +350,20 @@ float vcNoise(vec2 p) {
   }`)
       // Wet sand holds a film of water and shines; dry sand does not.
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-  roughnessFactor = mix(roughnessFactor, 0.28, vShore.y * 0.8);`);
+  roughnessFactor = mix(roughnessFactor, 0.28, vShore.y * 0.8);`)
+      // Grass, scrub and dry soil are not a surface but a tangle of blades and grains: light
+      // that would glance off a smooth plane is trapped and scattered instead. As a microfacet
+      // surface, the Fresnel term at grazing angles laid a sheet of reflected sky over the plain,
+      // and from eye level every field read as one blue-grey lawn. Keep a third of it; keep all
+      // of it on the wet sand, which does shine.
+      .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+  {
+    float vcSheen = mix(0.3, 1.0, vShore.y);
+    reflectedLight.indirectSpecular *= vcSheen;
+    reflectedLight.directSpecular *= vcSheen;
+  }`);
   };
-  M.terrain.customProgramCacheKey = () => 'vc-terrain-macro-13';
+  M.terrain.customProgramCacheKey = () => 'vc-terrain-macro-16';
   // The Gulf beyond the beach. Water is a dielectric with a smooth surface: almost all of what
   // it shows is the sky it reflects, so the colour here is only the body tint of shallow,
   // silty coastal water, and the wave normals do the rest.
@@ -435,9 +454,10 @@ float vcNoise(vec2 p) {
   // every vehicle. Vertex colour now TINTS the concrete: near-white for the slab, dark for the
   // asphalt road, darker still for the swale, and the dashes stay paint-bright.
   M.campusGround = new THREE.MeshStandardMaterial({
-    vertexColors: true, map: T.concrete.map, roughnessMap: T.concrete.roughnessMap,
+    // Warm tint, as on the asphalt: a neutral slab went blue-grey under the skylight.
+    color: 0xfff6ea, vertexColors: true, map: T.concrete.map, roughnessMap: T.concrete.roughnessMap,
     normalMap: T.concrete.normalMap, normalScale: new THREE.Vector2(0.5, 0.5),
-    roughness: 1.0, metalness: 0, envMapIntensity: 0.5,
+    roughness: 1.0, metalness: 0, envMapIntensity: 0.32,
   });
   // Visitor road: aged asphalt with crack sealing and patches (makeAsphalt), darkened in the
   // wheel paths through vertex colour. Paint is its own worn thermoplastic map, tinted per line.

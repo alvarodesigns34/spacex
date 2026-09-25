@@ -314,12 +314,14 @@ function buildFlats(g, M) {
   pondMat.name = 'tidal-flat-water';
   // Centimetres deep over pale mud: the bottom shows through as a grey-olive, and the sky
   // it reflects lightens it further at a glancing angle. The old dark slate read as deep water.
-  pondMat.color.setHex(0x5c625a);
+  // Lighter again: seen from the tower the pools were navy, the deep-sky reflection over a
+  // dark body. Silty water a hand deep over pale mud is grey-brown seen from above.
+  pondMat.color.setHex(0x767a6c);
   pondMat.vertexColors = true;
   pondMat.transparent = true;
   pondMat.depthWrite = false;
   pondMat.roughness = 0.08;
-  pondMat.envMapIntensity = 0.7;
+  pondMat.envMapIntensity = 0.55;
   pondMat.normalScale.set(0.16, 0.16);
   // Wind ripples drifting across, no swell (library.js waveNormals).
   pondMat.onBeforeCompile = (sh) => waveNormals(sh, { tileSize: M.water.userData.tileSize ?? 420, calm: 0.15 });
@@ -433,7 +435,11 @@ export function dressCampus(scene, M, { stops = [], quality = 'high' } = {}) {
   // crosses the exhibit apron, which is paved to the road edge.
   const SHOULDER = 0xd4c8b0;
   const apron = [
-    painted(quad(-178, -18, 188, 20, 0.012), 0xe2dccf),
+    // The slab stops at the access road's edges instead of running under it: drawn with a
+    // polygon offset toward the camera, it covered the asphalt it crossed and left the road's
+    // markings floating on concrete.
+    painted(quad(-178, -18, 45.9, 20, 0.012), 0xf4eee4),
+    painted(quad(53.1, -18, 188, 20, 0.012), 0xf4eee4),
     painted(quad(-186, 22.8, 196, 24, 0.016), SHOULDER),
     painted(quad(-186, 31.2, 196, 32.4, 0.016), SHOULDER),
     ...[[-109, -18], [20, 22.8]].flatMap(([z0, z1]) => [

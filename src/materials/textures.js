@@ -545,9 +545,12 @@ export function makeConcrete({ size = 768, tile = 12.0 } = {}) {
     // 0.60 in sRGB is about 0.32 linear: weathered light-grey concrete. At 0.48 (0.2 linear),
     // times the material tint, the pad and the apron rendered as dark slate — darker than the
     // asphalt reads in photographs of Starbase, where the pads are pale.
-    let c = 0.60 + (n - 0.5) * 0.06 + fine - stain * 0.5 + slab;
+    // Lighter and a little warmer again: under the default 20° sun most of the light on a flat
+    // slab is blue skylight, and at 0.60 the apron still rendered slate blue-grey. Cured
+    // concrete in the Texas sun is a pale warm grey.
+    let c = 0.66 + (n - 0.5) * 0.06 + fine - stain * 0.5 + slab;
     c -= joint * 0.06 + sealant * 0.12;
-    return [clamp(c * 1.025 * 255), clamp(c * 255), clamp(c * 0.95 * 255)];
+    return [clamp(c * 1.04 * 255), clamp(c * 255), clamp(c * 0.92 * 255)];
   });
   shade(rough, (x, y, u, v) => {
     const du = Math.abs(((u * joints) % 1) - 0.5);
