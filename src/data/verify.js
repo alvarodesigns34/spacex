@@ -14,7 +14,7 @@ const TOL = 0.02;   // 2 % — enough slack for antennas, pins and hinge fairing
 /** Declared reference dimensions, keyed by vehicle id. Sources are cited in specs.js. */
 export const EXPECTED = {
   falcon1: { height: 21.984, footprint: 1.6805, note: 'Guía de usuario de Falcon 1 (2008), figura 2-5: 865,5 in de la tobera a la punta, Ø66,16 in' },
-  starship: { height: 124.4, footprint: 9, note: 'Altura del apilado (124,4 m = 72,3 + 52,1) y diámetro' },
+  starship: { height: 124.05, footprint: 9, note: 'Altura del apilado (407 ft = 124,05 m: 236 ft + 171 ft, spacex.com) y diámetro' },
   falcon9: { height: 70, footprint: 5.2, note: 'Altura total y diámetro de cofia (spacex.com)' },
   falconheavy: { height: 70, footprint: 12.2, note: 'Altura y anchura (spacex.com)' },
   dragon: { height: 8.1, footprint: 4, note: 'Altura con trunk y diámetro máximo (spacex.com)' },
@@ -331,8 +331,8 @@ export const EXPECTED_PAD = {
   towerH: { value: 144.5, label: 'torre · altura sobre la explanada', cited: true },
   armLen: { value: 36, label: 'brazo de captura · longitud', cited: true },
   deckTop: { value: 18, label: 'mesa · cota de la cubierta' },
-  padY: { value: 9, label: 'explanada · cota' },
-  trenchDepth: { value: 8.2, label: 'zanja de llamas · profundidad' },
+  padY: { value: 5, label: 'explanada · cota' },
+  trenchDepth: { value: 4.2, label: 'zanja de llamas · profundidad' },
   clamps: { value: 20, label: 'pinzas de sujeción', cited: true },
 };
 
@@ -552,7 +552,9 @@ export function verifyPad(complex, { log = true } = {}) {
   const seat = complex.getObjectByName('table-seat');
   if (seat) { seat.updateMatrixWorld(true); _box.setFromObject(seat); add('deckTop', _box.max.y - complex.position.y); }
 
-  const ground = complex.getObjectByName('pad-ground');
+  // The pad slab itself, not the whole ground group: the deflector's crest header stands a
+  // little proud of a pad this low, and the group's box measured that instead.
+  const ground = complex.getObjectByName('pad-surface') ?? complex.getObjectByName('pad-ground');
   let padY = NaN;
   if (ground) {
     ground.updateMatrixWorld(true);

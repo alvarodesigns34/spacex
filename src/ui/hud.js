@@ -358,7 +358,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       r.dots = [];
       for (const g of rings) {
         for (let i = 0; i < g.n; i++) {
-          const a = g.phase + (i / g.n) * Math.PI * 2;
+          const a = g.phase + (g.angles ? g.angles[i] : (i / g.n) * Math.PI * 2);
           const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
           c.setAttribute('cx', (Math.sin(a) * g.r * k).toFixed(2));
           c.setAttribute('cy', (Math.cos(a) * g.r * k).toFixed(2));

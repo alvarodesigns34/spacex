@@ -1,9 +1,10 @@
 /**
  * Starship (Version 3 / Block 3) — Super Heavy booster + Starship ship, stacked.
  *
- * Verified figures (spacex.com unless noted): stack 124.4 m (408 ft), diameter 9 m; booster
- * 72.3 m (Super Heavy Block 3, Wikipedia) and ship 52.1 m (Wikipedia; unchanged from Block 2),
- * which sum to the published 124.4 m; 33 Raptor on the booster (13 gimballing inner + 20 fixed outer, Wikipedia),
+ * Verified figures (spacex.com unless noted): stack 124 m / 407 ft, diameter 9 m; booster
+ * 72 m / 236 ft and ship 52 m / 171 ft. The feet are the finer figures and are used here:
+ * 71.93 + 52.12 = 124.05 m (407 ft). Wikipedia's 72.3 m for the Block 3 booster is not
+ * followed; 33 Raptor on the booster (13 gimballing inner + 20 fixed outer, Wikipedia),
  * 3 Raptor + 3 RVac on the ship, Raptor 1.3 m × 2.9 m, RVac 2.3 m × 4.4 m, steel rings
  * 1.83 m, 3 grid fins in a 90°/90°/180° layout ~1.5× the size of V1/V2 fins and integrated
  * with the catch pins (Wikipedia), 1.8 m vented hot-stage section, ≈18 000 hexagonal silica
@@ -24,8 +25,8 @@ const R = 4.5;                 // 9 m diameter (spacex.com)
 /** The hull radius the pad's clamps and seat have to meet. Exported so they can derive it. */
 export const BOOSTER_R = R;
 const RING = 1.83;             // steel ring height (Wikipedia)
-const BOOSTER_H = 72.3;        // Super Heavy Block 3 (Wikipedia)
-const SHIP_H = 52.1;           // Starship upper stage (Wikipedia); 72.3 + 52.1 = 124.4 m (408 ft)
+const BOOSTER_H = 236 * 0.3048;   // Super Heavy, 236 ft (spacex.com) = 71.93 m
+const SHIP_H = 171 * 0.3048;      // Starship, 171 ft (spacex.com) = 52.12 m; stack 407 ft = 124.05 m
 const rings = (n) => n * RING; // helper: express a station as a ring count
 // Leeward-side furniture, kept clear of each other (φ measured from the belly, +Z).
 const RACE_PHI = Math.PI * 0.78;
@@ -50,7 +51,19 @@ const TILE_T = 0.016;
  */
 export const STACK_YAW_DEG = 129.6;
 export const RAPTOR_EXIT_R = 0.62;
-export const BOOSTER_RINGS = [[3, 1.02, 0.45, Math.PI / 6], [10, 2.48, 0.35, 0], [20, 3.86, 0.25, Math.PI / 20]];
+// The centre three are not 120° apart on Block 3: they are clocked 108°–108°–144°, and the
+// inner ten were rotated, so that no engine fires straight onto the ridge of the pad's flame
+// diverter (NASASpaceflight, "Super Heavy Block 3", May 2026). The fifth entry, where present,
+// gives each engine's angle explicitly; the inner ring's new clocking is not published.
+const DEG = Math.PI / 180;
+export const BOOSTER_RINGS = [[3, 1.02, 0.45, Math.PI / 6, [0, 108 * DEG, 216 * DEG]], [10, 2.48, 0.35, 0], [20, 3.86, 0.25, Math.PI / 20]];
+/** Azimuth of engine i of a BOOSTER_RINGS entry. */
+export const ringAngle = (ring, i) => ring[3] + (ring[4] ? ring[4][i] : (i / ring[0]) * Math.PI * 2);
+/** ringLayout for a BOOSTER_RINGS entry, honouring explicit angles. */
+const boosterRingLayout = (ring) => Array.from({ length: ring[0] }, (_, i) => {
+  const a = ringAngle(ring, i);
+  return { position: [Math.sin(a) * ring[1], ring[2], Math.cos(a) * ring[1]], tilt: [0, 0], spin: a };
+});
 /** Radius the booster's engine bells actually reach. The pad derives its throat from this. */
 export const RAPTOR_ENVELOPE_R = Math.max(...BOOSTER_RINGS.map(([, r]) => r)) + RAPTOR_EXIT_R;
 
@@ -71,9 +84,24 @@ function gridFin(M, { span = 5.4, chord = 3.5, depth = 0.42, cells = [8, 5], web
   parts.push({ geometry: new THREE.BoxGeometry(frame, depth, chord), matrix: mat4([span - frame / 2, 0, 0]) });
   // Internal webs.
   for (let i = 1; i < cells[0]; i++) parts.push({ geometry: new THREE.BoxGeometry(web, depth, chord), matrix: mat4([(span * i) / cells[0], 0, 0]) });
-  for (let j = 1; j < cells[1]; j++) parts.push({ geometry: new THREE.BoxGeometry(span, depth * 0.94, web), matrix: mat4([span / 2, 0, -chord / 2 + (chord * j) / cells[1]]) });
+  // Block 3 cells are not rectangles: the webs running along the span are scalloped, each cell
+  // closed by an arch between two neighbouring webs — the fish-scale face every photograph of
+  // Boosters 18 and 19 shows. Each arch is a few straight segments.
+  const cw = span / cells[0], rise = cw * 0.42, SEGS = 5;
+  for (let j = 1; j <= cells[1]; j++) {
+    const z0 = -chord / 2 + (chord * j) / cells[1] - (j === cells[1] ? frame : 0);
+    for (let i = 0; i < cells[0]; i++) {
+      for (let k = 0; k < SEGS; k++) {
+        const t0 = k / SEGS, t1 = (k + 1) / SEGS;
+        const x0 = cw * (i + t0), x1 = cw * (i + t1);
+        const za = z0 - rise * Math.sin(Math.PI * t0), zb = z0 - rise * Math.sin(Math.PI * t1);
+        const len = Math.hypot(x1 - x0, zb - za);
+        parts.push({ geometry: new THREE.BoxGeometry(len + web * 0.5, depth * 0.94, web), matrix: mat4([(x0 + x1) / 2, 0, (za + zb) / 2], [0, -Math.atan2(zb - za, x1 - x0), 0]) });
+      }
+    }
+  }
   const g = new THREE.Group();
-  g.add(mesh(mergeAll(parts), M.steelWarm));
+  g.add(mesh(mergeAll(parts), M.gridFin ?? M.steelWarm));
   return g;
 }
 
@@ -234,56 +262,48 @@ function chine(M, { length = 22, width = 1.9, depth = 0.85 } = {}) {
 }
 
 /**
- * Vented hot-stage section: on Block 3 this is built into the top of the methane tank.
+ * Integrated hot-stage truss (Block 3). Boosters 9–16 carried a bolted-on vented ring; Block 3
+ * replaces it with an open truss in the style of the N1's interstage, and the ship's exhaust
+ * plays straight onto the booster's forward dome, which carries extra steel plating
+ * (NASASpaceflight, "Super Heavy Block 3", May 2026; SpaceX, "Introducing Starship V3").
  *
- * The ship lights its engines while still sitting on the booster, and this ring is where the
- * exhaust gets out: a row of openings through the hull, with deflecting louvres behind them.
- * It used to be a closed steel cylinder with 24 flat black plates stuck to its outside — from
- * any distance a collar of black bricks. Now the hull is actually cut: 24 openings between
- * structural columns, each with jambs that show the wall's depth, three angled louvres set
- * back inside, and a dark liner behind so the openings read as holes rather than paint.
- * Count and proportions are reconstructed from photographs; the 1.83 m height is one ring.
+ * Built from the photographs of Boosters 18 and 19: a zigzag of tubular struts, tapered at both
+ * ends, between a top ring the ship sits on and the top of the tank wall, each lower node
+ * landing in a dark bracket. Strut count (20 V pairs), tube size and the ~3 m height are read
+ * off those photographs and are approximate.
  */
-function hotStageSection(M, height = 1.83) {
+function hotStageSection(M, height = 3.0) {
   const g = new THREE.Group();
-  const n = 24;
-  const openW = 0.72, y0 = 0.38, y1 = 1.42, depth = 0.16;
-  const bay = (Math.PI * 2) / n, openA = openW / R;
-  // Full bands above and below the openings, and the columns between them.
-  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: y0 }], { segments: 160 }), M.steelSkirt));
-  g.add(mesh(lathe([{ r: R, y: y1 }, { r: R, y: height }], { segments: 160 }), M.steelSkirt));
-  const columns = [];
+  g.name = 'hot-stage-truss';
+  const n = 20;
+  const top = height - 0.35;          // underside of the top ring
+  const rT = R - 0.28, rB = R - 0.18; // strut end radii: inside the skin line
+  const struts = [];
+  const up = new THREE.Vector3(0, 1, 0), v = new THREE.Vector3();
+  const tube = (a, b, r0) => {
+    v.subVectors(b, a); const len = v.length();
+    // Tapered both ends, as the photographs show: a spindle, not a pipe.
+    const geo = new THREE.LatheGeometry([
+      new THREE.Vector2(0.001, -len / 2), new THREE.Vector2(r0 * 0.45, -len / 2 + 0.05), new THREE.Vector2(r0, -len / 2 + len * 0.22),
+      new THREE.Vector2(r0, len / 2 - len * 0.22), new THREE.Vector2(r0 * 0.45, len / 2 - 0.05), new THREE.Vector2(0.001, len / 2),
+    ], 10);
+    const q = new THREE.Quaternion().setFromUnitVectors(up, v.clone().normalize());
+    struts.push({ geometry: geo, matrix: new THREE.Matrix4().compose(a.clone().add(b).multiplyScalar(0.5), q, new THREE.Vector3(1, 1, 1)) });
+  };
+  const brackets = [];
   for (let i = 0; i < n; i++) {
-    const a = i * bay;
-    columns.push({ geometry: lathe([{ r: R, y: y0 }, { r: R, y: y1 }], {
-      segments: 6, phiStart: a + openA / 2, phiLength: bay - openA,
-    }) });
+    const aB = (i / n) * Math.PI * 2;                       // lower node
+    const aT0 = aB - Math.PI / n, aT1 = aB + Math.PI / n;   // the two upper nodes either side
+    const B = new THREE.Vector3(Math.sin(aB) * rB, 0.55, Math.cos(aB) * rB);
+    for (const aT of [aT0, aT1]) tube(B, new THREE.Vector3(Math.sin(aT) * rT, top, Math.cos(aT) * rT), 0.13);
+    // The dark bracket each lower node lands in, bolted to the top of the tank wall.
+    brackets.push({ geometry: new THREE.BoxGeometry(0.42, 0.95, 0.3), matrix: mat4([Math.sin(aB) * (R - 0.1), 0.35, Math.cos(aB) * (R - 0.1)], [0, aB, 0]) });
   }
-  g.add(mesh(mergeAll(columns), M.steelSkirt, { name: 'hot-stage-columns' }));
-  const jambs = [], louvres = [];
-  const h = y1 - y0;
-  for (let i = 0; i < n; i++) {
-    const a = i * bay;
-    // Side jambs, sill and lintel: the wall's thickness, seen round the edge of the hole.
-    for (const side of [-1, 1]) {
-      const b = a + side * openA / 2;
-      jambs.push({ geometry: new THREE.BoxGeometry(0.03, h, depth), matrix: mat4([Math.sin(b) * (R - depth / 2), y0 + h / 2, Math.cos(b) * (R - depth / 2)], [0, a, 0]) });
-    }
-    for (const y of [y0, y1]) {
-      jambs.push({ geometry: new THREE.BoxGeometry(openW, 0.03, depth), matrix: mat4([Math.sin(a) * (R - depth / 2), y, Math.cos(a) * (R - depth / 2)], [0, a, 0]) });
-    }
-    // Louvres, set back and tilted down-and-out: the exhaust leaves downward, clear of the ship.
-    for (let k = 0; k < 3; k++) {
-      const y = y0 + h * (0.22 + 0.28 * k);
-      louvres.push({ geometry: new THREE.BoxGeometry(openW - 0.04, 0.035, 0.2), matrix: mat4([Math.sin(a) * (R - 0.12), y, Math.cos(a) * (R - 0.12)], [0, a, 0]).multiply(new THREE.Matrix4().makeRotationX(0.55)) });
-    }
-  }
-  g.add(mesh(boxUV(mergeAll(jambs)), M.steelSkirt, { name: 'hot-stage-jambs' }));
-  g.add(mesh(boxUV(mergeAll(louvres)), M.darkMetal, { name: 'hot-stage-louvres' }));
-  // Dark liner behind the openings: what the eye meets through a hole into the vented bay.
-  g.add(mesh(lathe([{ r: R - 0.26, y: y0 - 0.02 }, { r: R - 0.26, y: y1 + 0.02 }], { segments: 96 }), M.blackMatte, { name: 'hot-stage-liner', castShadow: false }));
-  g.add(mesh(new THREE.TorusGeometry(R + 0.03, 0.08, 8, 160), M.darkMetal, { position: [0, height - 0.06, 0], rotation: [Math.PI / 2, 0, 0] }));
-  g.add(mesh(new THREE.TorusGeometry(R + 0.03, 0.06, 8, 160), M.darkMetal, { position: [0, 0.05, 0], rotation: [Math.PI / 2, 0, 0] }));
+  g.add(mesh(mergeAll(struts), M.steelWarm, { name: 'hot-stage-struts' }));
+  g.add(mesh(boxUV(mergeAll(brackets)), M.blackMatte, { name: 'hot-stage-brackets' }));
+  // Top ring the ship's aft skirt seats on, and the tank wall's top edge below.
+  g.add(mesh(lathe([{ r: R - 0.02, y: top }, { r: R, y: top + 0.05 }, { r: R, y: height }, { r: R - 0.5, y: height }, { r: R - 0.5, y: top }], { segments: 160 }), M.steelSkirt, { name: 'hot-stage-top-ring' }));
+  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: 0.12 }, { r: R - 0.3, y: 0.12 }], { segments: 160 }), M.steelSkirt));
   return g;
 }
 
@@ -295,13 +315,38 @@ export function buildSuperHeavy(M) {
   g.name = 'superheavy';
 
   const skirtTop = rings(3.5);            // 6.41 m engine/thrust section
-  const hotStageH = RING;                 // 1.83 m vented section at the top
-  const ringTop = BOOSTER_H - hotStageH;  // 70.47 m
+  const hotStageH = 3.0;                  // open hot-stage truss at the top (approximate)
+  const ringTop = BOOSTER_H - hotStageH;
   // Tank split from the published propellant loads at cryogenic density
   // (2 700 t LOX / 1 141 kg·m⁻³ vs 700 t LCH4 / 422 kg·m⁻³ ⇒ 59 % / 41 % by volume).
   const commonDome = skirtTop + (ringTop - skirtTop) * 0.59;
 
-  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: skirtTop }], { segments: 160 }), M.steelSkirt, { name: 'skirt' }));
+  // Aft section. On Block 3 the bottom of the skirt is a black-coated band carrying, on the
+  // outside, the commodity lines that used to run inside the engine shielding: several rings of
+  // pipe round the booster with junction boxes along them (NASASpaceflight, May 2026, and the
+  // Booster 19 aft photographs). Band height, pipe count and box spacing are read off those
+  // photographs and are approximate.
+  const AFT = 3.0;
+  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: AFT }], { segments: 160 }), M.aftBlack ?? M.steelSkirt, { name: 'skirt' }));
+  g.add(mesh(lathe([{ r: R, y: AFT }, { r: R, y: skirtTop }], { segments: 160 }), M.steelSkirt, { name: 'skirt-upper' }));
+  {
+    const pipes = [], boxes = [];
+    for (const [y, rr, tub] of [[0.55, R + 0.16, 0.07], [1.05, R + 0.2, 0.09], [1.55, R + 0.17, 0.06], [2.35, R + 0.22, 0.1], [2.75, R + 0.15, 0.06]]) {
+      pipes.push({ geometry: new THREE.TorusGeometry(rr, tub, 8, 128), matrix: mat4([0, y, 0], [Math.PI / 2, 0, 0]) });
+    }
+    for (let i = 0; i < 44; i++) {
+      const a = (i / 44) * Math.PI * 2 + 0.03;
+      const y = i % 2 ? 1.95 : 1.3;
+      boxes.push({ geometry: new THREE.BoxGeometry(0.34, 0.5, 0.26), matrix: mat4([Math.sin(a) * (R + 0.2), y, Math.cos(a) * (R + 0.2)], [0, a, 0]) });
+    }
+    // Short vertical risers from the rings into the tank section above.
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2 + 0.11;
+      boxes.push({ geometry: new THREE.BoxGeometry(0.1, 1.2, 0.1), matrix: mat4([Math.sin(a) * (R + 0.14), 3.2, Math.cos(a) * (R + 0.14)], [0, a, 0]) });
+    }
+    g.add(mesh(mergeAll(pipes), M.aftBlack ?? M.darkMetal, { name: 'aft-commodity-rings', castShadow: false }));
+    g.add(mesh(boxUV(mergeAll(boxes)), M.blackMatte, { name: 'aft-junction-boxes' }));
+  }
   g.add(mesh(lathe([{ r: R, y: skirtTop }, { r: R, y: ringTop }], { segments: 160 }), M.steel, { name: 'tanks' }));
   const hs = hotStageSection(M, hotStageH); hs.position.y = ringTop; g.add(hs);
   // The methane tank's forward dome, closing the top of the booster. Stacked, the ship hides
@@ -311,21 +356,22 @@ export function buildSuperHeavy(M) {
   // a steel shield that takes the ship's exhaust at hot-staging. Dome rise and shield size
   // reconstructed.
   {
-    const rise = 1.35, base = ringTop - 0.25, pts = [];
+    const rise = 1.6, base = ringTop - 0.1, pts = [];
     for (let i = 0; i <= 16; i++) {
       const a = (i / 16) * Math.PI / 2;
       pts.push({ r: Math.max(0.001, (R - 0.02) * Math.cos(a)), y: base + rise * Math.sin(a) });
     }
     g.add(mesh(lathe(pts, { segments: 96 }), M.steelInner, { name: 'forward-dome' }));
-    const shield = pts.filter(p => p.r < R * 0.78).map(p => ({ r: p.r, y: p.y + 0.06 }));
-    g.add(mesh(lathe(shield, { segments: 72 }), M.darkMetal, { name: 'forward-dome-shield', castShadow: false }));
-    // The top ring's inner face, so the rim of the tube reads as a wall, not a paper edge.
-    g.add(mesh(lathe([{ r: R - 0.05, y: ringTop + hotStageH - 0.3 }, { r: R - 0.05, y: ringTop + hotStageH }], { segments: 96, flip: true }), M.steelInner, { castShadow: false }));
+    // Block 3 plates the dome against the ship's exhaust: it photographs pale cream-grey
+    // through the open truss.
+    const shield = pts.map(p => ({ r: p.r, y: p.y + 0.04 }));
+    g.add(mesh(lathe(shield, { segments: 96 }), M.domePlate ?? M.darkMetal, { name: 'forward-dome-shield', castShadow: false }));
   }
 
   // Aft interior: skirt wall seen from below, thrust puck and engine-bay shielding.
   g.add(mesh(lathe([{ r: R - 0.03, y: 0.1 }, { r: R - 0.03, y: 4.3 }], { segments: 96, flip: true }), M.steelInner, { castShadow: false }));
-  g.add(mesh(new THREE.CylinderGeometry(R - 0.03, R - 0.03, 0.5, 96), M.darkMetal, { position: [0, 4.35, 0] }));
+  // The thrust plate the 33 engines hang from, covered by Block 3's new metallic tiles.
+  g.add(mesh(new THREE.CylinderGeometry(R - 0.03, R - 0.03, 0.5, 96), M.metalTile ?? M.darkMetal, { position: [0, 4.35, 0], name: 'thrust-plate' }));
   // Radial dividers between the outer engine bays (layout approximate). They were placed on
   // the outer ring's own azimuths, so each plate ran through the middle of an engine and
   // showed as a pale bar across every outer bell in the view from below. They belong in the
@@ -350,8 +396,9 @@ export function buildSuperHeavy(M) {
   const gimbal = raptorGeometry({ exitRadius: RAPTOR_EXIT_R, gimbal: true });
   const fixed = raptorGeometry({ exitRadius: RAPTOR_EXIT_R, gimbal: false });
   const [inner3, inner10, outer20] = BOOSTER_RINGS;
-  g.add(instanceEngines(gimbal, M, [inner3, inner10].flatMap(([n, r, y, phase]) => ringLayout(n, r, y, { phase }))));
-  g.add(instanceEngines(fixed, M, ringLayout(outer20[0], outer20[1], outer20[2], { phase: outer20[3] })));
+  const r3 = { bellMaterial: M.bellRaptor3 };
+  g.add(instanceEngines(gimbal, M, [inner3, inner10].flatMap(boosterRingLayout), r3));
+  g.add(instanceEngines(fixed, M, boosterRingLayout(outer20), r3));
 
   // Four chines low on the tank section. Block 3 spacing: the pair either side of the
   // raceway sits closer together and runs taller than the pair opposite it.
@@ -366,11 +413,15 @@ export function buildSuperHeavy(M) {
     g.add(c);
   }
 
-  // Raceway up the leeward side, clear of the grid fins.
-  const raceLen = ringTop - skirtTop - 1.2;
+  // Raceway down the leeward side. On Block 3 it runs from the top only about halfway down
+  // the booster, then goes inside and into one of the taller chines (NASASpaceflight, May 2026).
+  const raceTop = ringTop - 1.2, raceBottom = (skirtTop + ringTop) / 2;
+  const raceLen = raceTop - raceBottom;
   const race = raceway(M, raceLen, { width: 1.2, depth: 0.42 });
-  race.position.set(0, skirtTop + 0.6 + raceLen / 2, -(R - 0.02));
-  race.rotation.y = Math.PI;                                // local +Z → radially outward
+  // Over one of the two taller chines, which it feeds.
+  const racePhi = RACE_PHI + 0.5;
+  race.position.set(Math.sin(racePhi) * (R - 0.02), raceBottom + raceLen / 2, Math.cos(racePhi) * (R - 0.02));
+  race.rotation.y = racePhi;                                // local +Z → radially outward
   g.add(race);
 
   // Grid fins: 3 in a T, catch pins integrated into the opposite pair and the third a rudder
@@ -409,10 +460,10 @@ export function buildSuperHeavy(M) {
     { label: '33 Raptor 3 · 3 + 10 + 20', position: [0, -0.3, 6.5] },
     { label: 'Grid fin with catch pin (3 on V3, in a T)', position: [Math.sin(pinPhi) * (R + 6.4), finY + 0.6, Math.cos(pinPhi) * (R + 6.4)] },
     { label: 'Integrated catch pin', position: [Math.sin(pinPhi + Math.PI) * (R + 2.6), finY - 1.5, Math.cos(pinPhi + Math.PI) * (R + 2.6)] },
-    { label: 'Vented hot-staging section', position: [0, ringTop + 1.0, R + 0.8] },
+    { label: 'Integrated hot-stage truss', position: [0, ringTop + 1.6, R + 0.8] },
     { label: 'Booster · liquid oxygen tank', position: [0, (skirtTop + commonDome) / 2, R + 0.5] },
     { label: 'Booster · liquid methane tank', position: [0, (commonDome + ringTop) / 2, R + 0.5] },
-    { label: 'Raceway (plumbing and wiring)', position: [0, skirtTop + 8, -(R + 1.4)] },
+    { label: 'Raceway (plumbing and wiring)', position: [Math.sin(RACE_PHI + 0.5) * (R + 1.4), (skirtTop + ringTop) / 2 + 8, Math.cos(RACE_PHI + 0.5) * (R + 1.4)] },
   ];
   // Frost shells over the two loaded tanks, hidden on the display stand (an exhibit is dry)
   // and shown by the launch sequence. A clear band is left at the common dome, where the
@@ -454,7 +505,32 @@ export function buildShip(M) {
     ...nose.slice(1),
   ];
 
-  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: skirtTop }], { segments: 160 }), M.steelSkirt, { name: 'skirt' }));
+  // Aft section. On Block 3 the bottom of the skirt is a black-coated band carrying, on the
+  // outside, the commodity lines that used to run inside the engine shielding: several rings of
+  // pipe round the booster with junction boxes along them (NASASpaceflight, May 2026, and the
+  // Booster 19 aft photographs). Band height, pipe count and box spacing are read off those
+  // photographs and are approximate.
+  const AFT = 3.0;
+  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: AFT }], { segments: 160 }), M.aftBlack ?? M.steelSkirt, { name: 'skirt' }));
+  g.add(mesh(lathe([{ r: R, y: AFT }, { r: R, y: skirtTop }], { segments: 160 }), M.steelSkirt, { name: 'skirt-upper' }));
+  {
+    const pipes = [], boxes = [];
+    for (const [y, rr, tub] of [[0.55, R + 0.16, 0.07], [1.05, R + 0.2, 0.09], [1.55, R + 0.17, 0.06], [2.35, R + 0.22, 0.1], [2.75, R + 0.15, 0.06]]) {
+      pipes.push({ geometry: new THREE.TorusGeometry(rr, tub, 8, 128), matrix: mat4([0, y, 0], [Math.PI / 2, 0, 0]) });
+    }
+    for (let i = 0; i < 44; i++) {
+      const a = (i / 44) * Math.PI * 2 + 0.03;
+      const y = i % 2 ? 1.95 : 1.3;
+      boxes.push({ geometry: new THREE.BoxGeometry(0.34, 0.5, 0.26), matrix: mat4([Math.sin(a) * (R + 0.2), y, Math.cos(a) * (R + 0.2)], [0, a, 0]) });
+    }
+    // Short vertical risers from the rings into the tank section above.
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2 + 0.11;
+      boxes.push({ geometry: new THREE.BoxGeometry(0.1, 1.2, 0.1), matrix: mat4([Math.sin(a) * (R + 0.14), 3.2, Math.cos(a) * (R + 0.14)], [0, a, 0]) });
+    }
+    g.add(mesh(mergeAll(pipes), M.aftBlack ?? M.darkMetal, { name: 'aft-commodity-rings', castShadow: false }));
+    g.add(mesh(boxUV(mergeAll(boxes)), M.blackMatte, { name: 'aft-junction-boxes' }));
+  }
   g.add(mesh(lathe(profile.slice(1), { segments: 160 }), M.steel, { name: 'hull' }));
   // Aft termination of the tile field: skirt steel, ablator edge, then the engine bay.
   // The step is what separates those three at the distance of the engine preset.
@@ -465,7 +541,7 @@ export function buildShip(M) {
   g.add(mesh(new THREE.CylinderGeometry(R - 0.03, R - 0.03, 0.4, 96), M.darkMetal, { position: [0, 3.95, 0] }));
 
   // 3 Raptor (centre, gimballing) + 3 Raptor Vacuum (outer, fixed).
-  g.add(instanceEngines(raptorGeometry(), M, ringLayout(3, 0.95, 0.35, { phase: 0 })));
+  g.add(instanceEngines(raptorGeometry(), M, ringLayout(3, 0.95, 0.35, { phase: 0 }), { bellMaterial: M.bellRaptor3 }));
   g.add(instanceEngines(raptorVacGeometry(), M, ringLayout(3, 3.05, 0.25, { phase: Math.PI / 3 }), { bellMaterial: M.bellCool }));
 
   // ---- Thermal protection ------------------------------------------------------------
@@ -668,6 +744,31 @@ export function buildShip(M) {
     frame.push(arc(R + 0.012, doorY - doorH / 2, doorY + doorH / 2, DOOR_PHI + s * dPhi / 2 - 0.008, 0.016, 2));
   }
   for (const f of frame) g.add(mesh(f, M.blackMatte, { castShadow: false }));
+
+  // Docking drogues. V3 ships carry docking hardware on the leeward side for ship-to-ship
+  // propellant transfer (SpaceX, "Introducing Starship V3": four drogues). The pair modelled is
+  // the one photographed on Ship 39 (NSF, February 2026): two cup-shaped housings standing off
+  // the hull just below the nose join, either side of the leeward centreline, with a round port
+  // between them. Where the other two sit is not published, so they are left out. Sizes read
+  // off that photograph against the 9 m diameter.
+  {
+    const lee = Math.PI, yD = barrelTop - 0.9;
+    const cups = [], bores = [];
+    for (const s of [-1, 1]) {
+      const a = lee + s * 0.3;
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(Math.sin(a), 0, Math.cos(a)));
+      const at = (d) => new THREE.Vector3(Math.sin(a) * (R + d), yD, Math.cos(a) * (R + d));
+      // Housing: a short tube flaring to a lip, standing 0.5 m off the skin.
+      const housing = new THREE.LatheGeometry([
+        new THREE.Vector2(0.3, -0.25), new THREE.Vector2(0.32, 0.1), new THREE.Vector2(0.4, 0.22), new THREE.Vector2(0.37, 0.25), new THREE.Vector2(0.27, 0.2), new THREE.Vector2(0.24, -0.2),
+      ], 24);
+      cups.push({ geometry: housing, matrix: new THREE.Matrix4().compose(at(0.25), q, new THREE.Vector3(1, 1, 1)) });
+      bores.push({ geometry: new THREE.CircleGeometry(0.25, 20).rotateX(-Math.PI / 2), matrix: new THREE.Matrix4().compose(at(0.1), q, new THREE.Vector3(1, 1, 1)) });
+    }
+    g.add(mesh(mergeAll(cups), M.steelWarm, { name: 'docking-drogues' }));
+    g.add(mesh(mergeAll(bores), M.blackMatte, { castShadow: false, name: 'docking-drogue-bores' }));
+    g.add(mesh(new THREE.CircleGeometry(0.22, 20), M.darkMetal, { position: [Math.sin(lee) * (R + 0.01), yD + 0.05, Math.cos(lee) * (R + 0.01)], rotation: [0, lee, 0], castShadow: false, name: 'leeward-port' }));
+  }
 
   // Lift and catch points. On the V3 ship (Ship 39) the old pin sockets under the forward
   // flaps were deleted and new lift/catch points put on the nose cone, higher up (NSF, flight

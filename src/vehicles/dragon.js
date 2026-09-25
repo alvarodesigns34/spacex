@@ -321,7 +321,7 @@ export function buildDragon(M) {
   const noseProfile = [];
   for (let i = 0; i <= 24; i++) noseProfile.push(noseAt(i / 24));
   g.add(mesh(lathe(noseProfile, { segments: 128 }), M.whiteFresh, { name: 'nosecone' }));
-  g.add(mesh(new THREE.TorusGeometry(NOSE_R + 0.005, 0.02, 8, 96), M.blackMatte, { position: [0, NOSE_BASE + 0.02, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false }));
+  g.add(mesh(new THREE.TorusGeometry(NOSE_R + 0.005, 0.014, 8, 96), M.seamGrey ?? M.blackMatte, { position: [0, NOSE_BASE + 0.02, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false }));
   // The hinge it opens on, and the seam it opens along. A cone with neither reads as cast in
   // one piece, which is the opposite of the thing it is famous for doing.
   {
@@ -514,7 +514,7 @@ export function buildDragon(M) {
   const batches = [
     ['dragon-trim-white', fine.white, M.whiteFresh, 0.14],
     ['dragon-trim-dark', fine.dark, M.blackMatte, 0.14],
-    ['dragon-seams', fine.seam, M.alumDark, 0.12],
+    ['dragon-seams', fine.seam, M.seamGrey ?? M.alumDark, 0.12],
     ['dragon-trim-metal', fine.metal, M.darkMetal, 0.10],
     ['dragon-fasteners', fine.micro, M.aluminum, 0.018],
   ];

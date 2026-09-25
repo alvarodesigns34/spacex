@@ -148,6 +148,45 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
     // Plates are slightly dished between welds; the shading falls off towards each seam.
     vhaz[x] += 0.35 * Math.pow(Math.abs(u - 0.5) * 2, 2);
   }
+  const marks = new Float32Array(size * size);
+  {
+    const mr = seeded(9127);
+    const U = ring * 4;                       // metres across the tile
+    const pxU = size / U, pxV = size / ring;  // px per metre, each way
+    const dot = (cx, cy, rM) => {
+      const rx = rM * pxU, ry = rM * pxV;
+      for (let y = Math.floor(cy - ry - 1); y <= cy + ry + 1; y++) for (let x = Math.floor(cx - rx - 1); x <= cx + rx + 1; x++) {
+        if (x < 0 || y < 0 || x >= size || y >= size) continue;
+        const d = Math.hypot((x - cx) / rx, (y - cy) / ry);
+        if (d < 1.2) marks[y * size + x] = Math.max(marks[y * size + x], 0.55 * Math.min(1, (1.2 - d) * 5));
+      }
+    };
+    const dash = (cx, cy, lenM, hM) => {
+      for (let y = Math.floor(cy - hM * pxV); y <= cy + hM * pxV; y++) for (let x = Math.floor(cx - lenM * pxU / 2); x <= cx + lenM * pxU / 2; x++) {
+        if (x >= 0 && y >= 0 && x < size && y < size) marks[y * size + x] = Math.max(marks[y * size + x], 0.5);
+      }
+    };
+    // Kept clear of the ring weld (v = 0.5 in the tile).
+    const place = () => [mr() * size, (mr() < 0.5 ? 0.12 + mr() * 0.3 : 0.58 + mr() * 0.3) * size];
+    for (let k = 0; k < 7; k++) { const [x, y] = place(); dot(x, y, 0.012 + mr() * 0.008); }
+    for (let k = 0; k < 3; k++) { const [x, y] = place(); dash(x - 0.05 * pxU, y, 0.07, 0.006); dash(x + 0.05 * pxU, y, 0.07, 0.006); }
+    for (let k = 0; k < 2; k++) { const [x, y] = place(); for (let j = 0; j < 6; j++) dot(x + j * 0.035 * pxU, y, 0.006); }
+    // Stringer stitch welds. The Block 3 barrels are stiffened by stringers welded on the inside,
+    // and each stitch shows through the skin: vertical dotted lines about 30 cm apart, a dot
+    // every 6 cm, over the whole hull (Booster 18/19 and Ship 40 photographs, 2026). Spacing
+    // read off those photographs.
+    const lineGap = 0.3 * pxU, dotGap = 0.06 * pxV;
+    for (let lx = lineGap / 2; lx < size; lx += lineGap) {
+      for (let ly = dotGap / 2; ly < size; ly += dotGap) {
+        if (Math.abs(ly / size - 0.5) < 0.035) continue;      // not across the ring weld
+        const cx = Math.round(lx), cy = Math.round(ly);
+        for (let dy = -2; dy <= 2; dy++) for (let dx = 0; dx <= 1; dx++) {
+          const x = cx + dx, y = cy + dy;
+          if (x < size && y >= 0 && y < size) marks[y * size + x] = Math.max(marks[y * size + x], 0.22 * (1 - Math.abs(dy) / 3));
+        }
+      }
+    }
+  }
   shade(map, (x, y, u, v) => {
     const streak = (colStreak[x] - 0.5) * 0.16;
     const grain = (noise2(x * 0.6, y * 0.6) - 0.5) * 0.045;
@@ -156,10 +195,12 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
     // from the same coil, and the difference between neighbouring plates is clearly visible
     // in photographs — it is most of what stops a 70 m barrel reading as one extruded tube.
     // Keyed to the tile, so it varies by ring rather than washing across the whole vehicle.
-    const plate = (fbm(u * 1.7 + 31, v * 1.3 + 17, 2) - 0.5) * 0.085;
+    // Kept faint: in close photographs of a clean booster (BN4 in the High Bay, B7 on the
+    // mount) neighbouring plates differ far less than the reflections across them do.
+    const plate = (fbm(u * 1.7 + 31, v * 1.3 + 17, 2) - 0.5) * 0.03;
     // Mill-finish stainless is bright; the map is mostly reflectance modulation.
     // Mill-finish stainless photographs as a matte mid grey, not a mirror.
-    let base = 0.80 + streak * 0.7 + grain + blotch + plate - vhaz[x] * 0.04;
+    let base = 0.74 + streak * 0.7 + grain + blotch + plate - vhaz[x] * 0.04;
     let r = base, g = base, b = base;
     // Heat-affected zone next to each weld runs slightly straw/blue.
     const hazMix = haz[y] * (0.35 + 0.65 * fbm(u * 6 + 2, v * 4, 3));
@@ -179,13 +220,18 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
     const panel = (colStreak[x] - 0.5) * 0.05;
     // Ring welds read; the vertical plate seams are finer and, at 0.22, drew the hull as a
     // sheet of graph paper in every close view of the barrel.
-    const dark = bead[y] * 0.20 + vseam[x] * 0.07;
+    let dark = bead[y] * 0.20 + vseam[x] * 0.04;
+    // Stencilled marks and fastener dots the photographs show scattered over every ring: small
+    // dark dots, and pairs of short dashes (alignment and inspection marks), a few per plate.
+    dark = Math.max(dark, marks[y * size + x]);
     return [clamp((r + panel) * (1 - dark) * 255), clamp((g + panel) * (1 - dark) * 255), clamp((b + panel) * (1 - dark) * 255)];
   });
   shade(rough, (x, y, u, v) => {
     // Bright mill finish: low roughness on the panels, rough at the weld and where it is
     // sooted or heat-tinted, which is what makes the ring seams read at a distance.
-    const base = 0.48 + (colStreak[x] - 0.5) * 0.08 + (fbm(u * 7, v * 10, 3) - 0.5) * 0.06
+    // Mill-finish 304L off the coil is close to a mirror: the High Bay photographs of BN4 show
+    // the hangar and the sky in it with sharp edges. 0.48 made a satin tube.
+    const base = 0.33 + (colStreak[x] - 0.5) * 0.08 + (fbm(u * 7, v * 10, 3) - 0.5) * 0.06
       + bead[y] * 0.36 + haz[y] * 0.10 + vseam[x] * 0.14 + vhaz[x] * 0.06 + heat * 0.16 + soot * 0.34;
     const g = clamp(base * 255);
     return [g, g, g];

@@ -24,7 +24,7 @@
  */
 import * as THREE from 'three';
 import { Plume, GroundCloud, EngineJets, Vapor, CondensationCollar, FlightEarth, Glow } from './plume.js';
-import { BOOSTER_RINGS, RAPTOR_EXIT_R } from '../vehicles/starship.js';
+import { BOOSTER_RINGS, RAPTOR_EXIT_R, ringAngle } from '../vehicles/starship.js';
 import { seeded, monotoneSlopes, hermite } from '../geometry/utils.js';
 
 // ---- Cited event times (seconds from T-0) ------------------------------------------------
@@ -511,7 +511,7 @@ export const MILESTONES = [
 
 /** Engine layouts for the panel's engine dials, in lighting order. */
 export const ENGINE_LAYOUT = {
-  booster: BOOSTER_RINGS.map(([n, r, , phase]) => ({ n, r, phase, size: RAPTOR_EXIT_R })),
+  booster: BOOSTER_RINGS.map((ring) => ({ n: ring[0], r: ring[1], phase: ring[3], angles: ring[4] ?? null, size: RAPTOR_EXIT_R })),
   ship: [{ n: 3, r: 0.95, phase: 0, size: RAPTOR_EXIT_R }, { n: 3, r: 3.05, phase: Math.PI / 3, size: 1.15 }],
 };
 
@@ -641,7 +641,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   });
   const boosterJets = new EngineJets({
     name: 'jets-booster',
-    engines: BOOSTER_RINGS.flatMap(([n, r, y, phase]) => ringPositions(n, r, y, phase).map(position => ({ position, radius: RAPTOR_EXIT_R }))),
+    engines: BOOSTER_RINGS.flatMap((ring) => Array.from({ length: ring[0] }, (_, i) => { const a = ringAngle(ring, i); return { position: [Math.sin(a) * ring[1], ring[2], Math.cos(a) * ring[1]], radius: RAPTOR_EXIT_R }; })),
   });
   const shipJets = new EngineJets({
     name: 'jets-ship', seaLevelLength: 10,
@@ -728,7 +728,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   // After the catch the booster sits on the arms venting: off the top, round the upper tank,
   // and from the engine section. Attached to the booster, which no longer moves.
   const CATCH_WIN = [EVENTS.catch + 1.5, EVENTS.end + 60];
-  const BOOSTER_TOP = ex.model.userData.stations?.booster?.height ?? 72.3;
+  const BOOSTER_TOP = ex.model.userData.stations?.booster?.height ?? 71.93;
   const catchVent = new Vapor({
     name: 'vapor-caught', rng: seeded(23), accel: [0.9, -0.25, 0.35], tau: 1.6, opacity: 0.62,
     emitters: [
@@ -750,7 +750,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
 
   // Max-Q: a condensation collar off the hot-stage ring, trailing down the booster, through
   // the transonic climb and peak dynamic pressure. Timing follows the ascent's own Max-Q.
-  const collar = new CondensationCollar({ radius: 4.5, spread: 7.5, length: 30, y: (ex.model.userData.stations?.booster?.height ?? 72.3) - 0.8 });
+  const collar = new CondensationCollar({ radius: 4.5, spread: 7.5, length: 30, y: (ex.model.userData.stations?.booster?.height ?? 71.93) - 0.8 });
   booster.add(collar.mesh);
   const collarShip = new CondensationCollar({ radius: 4.5, spread: 5, length: 16, y: 12, name: 'condensation-collar-ship' });
   ship.add(collarShip.mesh);

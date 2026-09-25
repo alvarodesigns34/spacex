@@ -78,8 +78,8 @@ float vcPlateHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758
   float vcRing = floor(vMapUv.y);
   vec2 vcSteelUv = vec2(vMapUv.x + vcPlateHash(vec2(vcRing, 3.1)), vMapUv.y);
   float vcPlate = floor(vcSteelUv.x + 0.5);
-  float vcTone = 1.0 + (vcPlateHash(vec2(vcRing, vcPlate + 17.0)) - 0.5) * 0.11;
-  float vcSheen = 1.0 + (vcPlateHash(vec2(vcPlate - 5.0, vcRing + 41.0)) - 0.5) * 0.36;`)
+  float vcTone = 1.0 + (vcPlateHash(vec2(vcRing, vcPlate + 17.0)) - 0.5) * 0.035;
+  float vcSheen = 1.0 + (vcPlateHash(vec2(vcPlate - 5.0, vcRing + 41.0)) - 0.5) * 0.18;`)
       .replace('#include <map_fragment>', `${THREE.ShaderChunk.map_fragment.replace(/vMapUv/g, 'vcSteelUv')}
   diffuseColor.rgb *= vcTone;`)
       .replace('#include <roughnessmap_fragment>', `${THREE.ShaderChunk.roughnessmap_fragment.replace(/vRoughnessMapUv/g, 'vcSteelUv')}
@@ -87,7 +87,7 @@ float vcPlateHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758
       .replace('#include <normal_fragment_maps>', THREE.ShaderChunk.normal_fragment_maps.replace(/vNormalMapUv/g, 'vcSteelUv'));
   };
   const key = m.customProgramCacheKey?.bind(m);
-  m.customProgramCacheKey = () => `vc-steel-plates-1${key ? key() : ''}`;
+  m.customProgramCacheKey = () => `vc-steel-plates-2${key ? key() : ''}`;
 }
 
 export async function createMaterials(onProgress = () => {}, pause = null) {
@@ -159,6 +159,24 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
     normalMap: T.steel.normalMap, normalScale: new THREE.Vector2(0.35, 0.35), envMapIntensity: 0.45,
   });
   M.steelInner = new THREE.MeshStandardMaterial({ color: 0x7d8085, metalness: 0.9, roughness: 0.55 });
+  // ---- Starship V3 finishes, read off SpaceX's and NASASpaceflight's 2026 photographs ------
+  // Raptor 3 nozzle: a dark slate-grey matte coat, not bare metal (SpaceX's Raptor 3 portrait,
+  // and every Booster 18/19 aft close-up, where the 33 bells read near-black with white
+  // stencilled serials).
+  M.bellRaptor3 = new THREE.MeshStandardMaterial({ name: 'raptor3-bell', color: 0x30343a, metalness: 0.3, roughness: 0.58, envMapIntensity: 0.75 });
+  // Block 3 grid fins photograph charcoal black, the arched cells of the lattice included.
+  M.gridFin = new THREE.MeshStandardMaterial({ name: 'grid-fin', color: 0x2a2b2e, metalness: 0.55, roughness: 0.5, envMapIntensity: 0.7 });
+  // The aft section of a Block 3 booster: black-coated skirt and the ring of commodity pipes
+  // and junction boxes round it.
+  M.aftBlack = new THREE.MeshStandardMaterial({ name: 'booster-aft-black', color: 0x1c1d20, metalness: 0.2, roughness: 0.66, envMapIntensity: 0.6 });
+  // Plating over the booster's forward dome, which takes the ship's exhaust at hot-staging:
+  // it photographs a pale cream-grey inside the open truss.
+  M.domePlate = new THREE.MeshStandardMaterial({ name: 'forward-dome-plate', color: 0xc9c0ad, metalness: 0.45, roughness: 0.5, envMapIntensity: 0.7 });
+  // The metallic tiles over the tapered thrust plate between the engines: a speckled bronze.
+  // Panel seams on a white spacecraft: in SpaceX's Crew Dragon pad photographs (Demo-2, LC-39A)
+  // they are fine light-grey lines with rows of fasteners, not black strokes.
+  M.seamGrey = new THREE.MeshStandardMaterial({ name: 'panel-seam', color: 0x8d9197, metalness: 0.1, roughness: 0.55, envMapIntensity: 0.6 });
+  M.metalTile = new THREE.MeshStandardMaterial({ name: 'thrust-plate-tile', color: 0x5a4f42, metalness: 0.7, roughness: 0.55, envMapIntensity: 0.7 });
 
   // ---- Thermal protection ------------------------------------------------------------
   // Silica tiles are matte black and barely reflective; instanceColor supplies the

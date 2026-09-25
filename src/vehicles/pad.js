@@ -30,13 +30,19 @@ import { RAPTOR_ENVELOPE_R, BOOSTER_R } from './starship.js';
 export const PAD = {
   // Ground
   gradeY: 0,
-  bermY: 3.0,             // outer berm top
-  padY: 9.0,              // pad surface the tower and the mount stand on
+  // The site stands only a few metres proud of the flats. Every ground-level photograph of
+  // the finished pad (SpaceX's Booster 19 static fire, April 2026; NSF's stacking shots from
+  // the road) shows the mount rising some 13 m straight out of it, trucks parked at its
+  // foot, where a 9 m pad hid the mount behind a concrete wall from anywhere on the ground.
+  // 5 m is as low as it goes: the trench floor must stay above grade (the ground plane would
+  // cut it) and the deflector crest needs its 4.2 m.
+  bermY: 2.5,             // outer berm top
+  padY: 5.0,              // pad surface the tower and the mount stand on
   trenchFloorY: 0.8,      // trench floor: kept above grade so the ground plane never cuts it
   trenchHalfW: 11.0,      // 22 m clear width
   trenchHalfL: 44.0,      // 88 m of trench inside the pad, open at both ends
   // Launch mount
-  deckTop: 18.0,          // 9 m above the pad surface
+  deckTop: 18.0,          // 13 m above the pad surface (≈, from the photographs)
   deckThick: 2.4,
   mountHalf: 13.0,        // 26 m square
   openingR: 5.5,          // ø 11 m engine opening
@@ -68,7 +74,7 @@ export const PAD = {
   farmX: 150.0,
 };
 PAD.towerH = PAD.section * PAD.sections + PAD.mast;   // 144,5 m
-PAD.trenchDepth = PAD.padY - PAD.trenchFloorY;        // 8,2 m
+PAD.trenchDepth = PAD.padY - PAD.trenchFloorY;        // 4,2 m
 
 const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 /**
@@ -100,7 +106,7 @@ function buildGround(M) {
   }
   // Trench floor, a slab sitting just proud of grade so the ground plane cannot z-fight it.
   concrete.push(block(-tw, tw, trenchFloorY - 0.6, trenchFloorY, -52, 52));
-  g.add(mesh(boxUV(mergeAll(concrete)), M.concrete));
+  g.add(mesh(boxUV(mergeAll(concrete)), M.concrete, { name: 'pad-surface' }));
 
   // Earth embankment round the outer berm. The berm was a 3.5 m concrete plinth with vertical
   // sides standing on the plain — a box set down on a table — where a graded pad site runs out
@@ -214,7 +220,7 @@ function buildGround(M) {
 }
 
 // =========================================================================================
-//  Launch mount: square water-cooled deck on four piers, spanning the trench
+//  Launch mount: square water-cooled deck on four piers and sloped buttresses, over the trench
 // =========================================================================================
 function buildMountTable(M) {
   const g = new THREE.Group();
@@ -249,6 +255,36 @@ function buildMountTable(M) {
   g.add(mesh(boxUV(mergeAll(plinths)), M.concrete));
   g.add(mesh(boxUV(mergeAll(baseplates)), M.darkMetal, { name: 'mount-baseplates' }));
 
+  // Sloped buttress walls either side of the trench. Every photograph of the finished mount —
+  // the Booster 19 static fire (SpaceX, April 2026), the stacking shots from the road (NSF,
+  // 2026) — shows it as a massive clad block whose sides fall away in steep slopes to the pad,
+  // the trench passing through it as a portal: from the trench end it is a trapezoid with the
+  // opening in the middle, from the side a trapezoid with the fluid bunker's doors at its foot.
+  // NSF's construction photographs (August 2025) show the slopes built as raking buttresses
+  // under the deck. The slope and the base spread are read off those photographs (about 60°)
+  // and are approximate; they stop short of the trench, whose 22 m clear width is kept.
+  {
+    const inner = PAD.trenchHalfW + 0.5, topOut = h + 0.3, baseOut = h + 4.2, yTop = deckBottom - 0.15;
+    const shape = new THREE.Shape();
+    shape.moveTo(inner, padY); shape.lineTo(baseOut, padY); shape.lineTo(topOut, yTop); shape.lineTo(inner, yTop); shape.closePath();
+    const wall = new THREE.ExtrudeGeometry(shape, { depth: 2 * h + 1.6, bevelEnabled: false });
+    wall.translate(0, 0, -h - 0.8);
+    const mirrored = wall.clone();
+    mirrored.applyMatrix4(new THREE.Matrix4().makeScale(-1, 1, 1));
+    // Mirroring turns the faces inside out; put the winding back.
+    const idx = mirrored.index ? mirrored.index.array : null;
+    if (idx) for (let i = 0; i < idx.length; i += 3) { const t = idx[i + 1]; idx[i + 1] = idx[i + 2]; idx[i + 2] = t; }
+    else {
+      const pos = mirrored.attributes.position;
+      for (let i = 0; i < pos.count; i += 3) for (const attr of Object.values(mirrored.attributes)) {
+        const k = attr.itemSize;
+        for (let c = 0; c < k; c++) { const a = attr.array[(i + 1) * k + c]; attr.array[(i + 1) * k + c] = attr.array[(i + 2) * k + c]; attr.array[(i + 2) * k + c] = a; }
+      }
+    }
+    mirrored.computeVertexNormals();
+    g.add(mesh(boxUV(mergeAll([{ geometry: wall }, { geometry: mirrored }])), M.concrete, { name: 'mount-buttresses' }));
+  }
+
   // Girders under the deck, spanning pier to pier both ways.
   for (const s of [-1, 1]) {
     steel.push(block(-pierAt, pierAt, deckBottom - 1.6, deckBottom, s * pierAt - 0.7, s * pierAt + 0.7));
@@ -271,14 +307,15 @@ function buildMountTable(M) {
   }
   g.add(mesh(boxUV(mergeAll(steel)), (M.towerSteel ?? M.mount)));
 
-  // Intermediate service mezzanine catwalk under the table (Y = 13.5 m)
+  // Intermediate service mezzanine catwalk under the table, 2.1 m below the deck's underside.
   const catwalk = [];
   const catwalkRail = [];
   for (const s of [-1, 1]) {
-    catwalk.push(block(-pierAt + pierHalf, pierAt - pierHalf, 13.5, 13.62, s * pierAt - 1.2, s * pierAt + 1.2));
-    catwalk.push(block(s * pierAt - 1.2, s * pierAt + 1.2, 13.5, 13.62, -pierAt + pierHalf, pierAt - pierHalf));
-    catwalkRail.push(block(-pierAt + pierHalf, pierAt - pierHalf, 14.65, 14.75, s * (pierAt - 1.25) - 0.04, s * (pierAt - 1.25) + 0.04));
-    catwalkRail.push(block(s * (pierAt - 1.25) - 0.04, s * (pierAt - 1.25) + 0.04, 14.65, 14.75, -pierAt + pierHalf, pierAt - pierHalf));
+    const cy = deckBottom - 2.1;
+    catwalk.push(block(-pierAt + pierHalf, pierAt - pierHalf, cy, cy + 0.12, s * pierAt - 1.2, s * pierAt + 1.2));
+    catwalk.push(block(s * pierAt - 1.2, s * pierAt + 1.2, cy, cy + 0.12, -pierAt + pierHalf, pierAt - pierHalf));
+    catwalkRail.push(block(-pierAt + pierHalf, pierAt - pierHalf, cy + 1.15, cy + 1.25, s * (pierAt - 1.25) - 0.04, s * (pierAt - 1.25) + 0.04));
+    catwalkRail.push(block(s * (pierAt - 1.25) - 0.04, s * (pierAt - 1.25) + 0.04, cy + 1.15, cy + 1.25, -pierAt + pierHalf, pierAt - pierHalf));
   }
   g.add(mesh(boxUV(mergeAll(catwalk)), M.steelGrating || M.mount, { name: 'mount-catwalk' }));
   g.add(mesh(boxUV(mergeAll(catwalkRail)), M.mount, { castShadow: false, name: 'mount-catwalk-rail' }));
