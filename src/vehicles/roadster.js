@@ -1767,7 +1767,10 @@ function buildBodyShell(mats, M) {
       slot.computeVertexNormals();
       slots.push({ geometry: boxUV(slot) });
     }
-    g.add(mesh(mergeAll(blades), mats.cherryRed, { name: 'bonnet-louvres' }));
+    // Carbon, not paint: SpaceX's own photograph of the car in orbit, looking back at Starman
+    // over the bonnet, shows the stepped louvre panel as bare woven carbon between the red
+    // fenders.
+    g.add(mesh(mergeAll(blades), mats.carbonFiber, { name: 'bonnet-louvres' }));
     g.add(mesh(mergeAll(slots), mats.satinBlack, { name: 'bonnet-louvre-slots', castShadow: false }));
 
     // Frunk lid shut line. The lid is the panel every front view of the car is organised

@@ -197,6 +197,10 @@ Con un navegador real (Chromium) se leyeron las páginas que cargan su contenido
 
 **Dragon.** Las juntas de los paneles de la cápsula son líneas **gris claro mate**, como en las fotos de la Demo-2 en la 39A, y no trazos negros.
 
+**Tanques de la granja criogénica.** La cúpula de cada tanque vertical era un casquete del radio del propio tanque cortado a 58°, con la base de 3,8 m de radio sobre un cilindro de 4,5 m. Quedaba un hueco de 70 cm alrededor, y el cilindro, abierto y de una sola cara, parecía cortado en diagonal. Ahora la esfera de la cabeza tiene el tamaño justo para que su borde coincida con el del cilindro, y el cilindro tiene cara interior.
+
+**Roadster.** Las láminas escalonadas del capó son de **fibra de carbono**, no rojas. Así aparecen en la foto oficial del coche en órbita tomada desde delante, mirando a Starman por encima del capó.
+
 ### Auditoría externa
 
 En septiembre de 2026 una auditoría de solo lectura hecha con otro modelo (Grok) revisó el código y la simulación. Cada hallazgo se contrastó con el código y, cuando era posible, con su fuente antes de aplicarlo.

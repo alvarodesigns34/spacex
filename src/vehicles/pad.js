@@ -759,7 +759,13 @@ function buildField(M) {
   for (let i = 0; i < 6; i++) {
     const z = -32 + i * 13;
     shells.push({ geometry: new THREE.CylinderGeometry(R, R, H, 40, 1, true), matrix: mat4([fx, y0 + H / 2, z]) });
-    shells.push({ geometry: new THREE.SphereGeometry(R, 40, 10, 0, Math.PI * 2, 0, Math.PI * 0.32), matrix: mat4([fx, y0 + H - R * Math.cos(Math.PI * 0.32) + 0.02, z]) });
+    // Domed head. It was a cap of the shell's own radius cut at 58°, whose rim is only 3.8 m
+    // across a 4.5 m shell: a 70 cm gap round the top, through which the open cylinder showed
+    // its missing back wall. The head's sphere is now sized so its rim IS the shell's rim.
+    const TH = Math.PI * 0.32, RS = R / Math.sin(TH);
+    shells.push({ geometry: new THREE.SphereGeometry(RS, 40, 10, 0, Math.PI * 2, 0, TH), matrix: mat4([fx, y0 + H - RS * Math.cos(TH), z]) });
+    // The shell's inside, so an open end never shows as a missing wall.
+    shells.push({ geometry: new THREE.CylinderGeometry(R - 0.02, R - 0.02, H, 40, 1, true).scale(-1, 1, 1), matrix: mat4([fx, y0 + H / 2, z]) });
     for (let y = y0 + 2.5; y < y0 + H; y += 3.1) {
       rings.push({ geometry: new THREE.TorusGeometry(R + 0.06, 0.09, 6, 48), matrix: mat4([fx, y, z], [Math.PI / 2, 0, 0]) });
     }
