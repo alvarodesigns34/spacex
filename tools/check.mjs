@@ -690,12 +690,17 @@ try {
     // the 900×620 it had been resized to a moment earlier. The wait now includes the thing
     // being asserted, which also makes the assertion stronger: the app must actually update
     // the camera on resize, rather than happening to have done so before we looked.
-    await page.waitForFunction(() => !window.__vc.rig.transition
-      && Math.abs(window.__vc.camera.aspect - window.innerWidth / window.innerHeight) < 1e-6,
-    null, { timeout: 30000 });
+    // The ratio of what is ON SCREEN. With the rail shifting the projection centre
+    // (setViewOffset), three sets camera.aspect to the wider virtual frame; the part drawn is
+    // camera.view.width × height, and that is what must match the window.
+    await page.waitForFunction(() => {
+      const c = window.__vc.camera;
+      const shown = c.view?.enabled ? c.view.width / c.view.height : c.aspect;
+      return !window.__vc.rig.transition && Math.abs(shown - window.innerWidth / window.innerHeight) < 1e-6;
+    }, null, { timeout: 30000 });
     const afterResize = await page.evaluate(() => ({
       finite: window.__vc.camera.position.toArray().every(Number.isFinite),
-      aspect: +window.__vc.camera.aspect.toFixed(3),
+      aspect: +(window.__vc.camera.view?.enabled ? window.__vc.camera.view.width / window.__vc.camera.view.height : window.__vc.camera.aspect).toFixed(3),
       transition: !!window.__vc.rig.transition,
       preset: window.__vc.viewState().preset,
     }));

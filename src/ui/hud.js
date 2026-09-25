@@ -502,7 +502,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     if (seen) return;
     coach.classList.remove('hidden');
     if (ms) coachTimer = setTimeout(hideCoach, ms);
-    const onScene = (e) => { if (e.target === document.getElementById('scene')) hideCoach(); };
+    const onScene = (e) => { if (!coach.contains(e.target)) hideCoach(); };
     const onKey = (e) => { if (!e.ctrlKey && !e.metaKey && !e.altKey) hideCoach(); };
     coachListeners.push(['pointerdown', onScene], ['wheel', onScene], ['keydown', onKey]);
     for (const [t, f] of coachListeners) window.addEventListener(t, f, true);
