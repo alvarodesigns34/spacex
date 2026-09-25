@@ -11,7 +11,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { createAO } from './core/ao.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
-import { createMaterials } from './materials/library.js';
+import { createMaterials, WAVE_TIME } from './materials/library.js';
 import { createEnvironment } from './core/environment.js';
 import { dressCampus } from './core/campus.js';
 import { CameraRig } from './core/cameraRig.js';
@@ -32,7 +32,8 @@ import { buildLaunchMount, buildPedestal, buildHumanCrowd } from './vehicles/com
 import { seeded, mergeAll } from './geometry/utils.js';
 import { buildLaunchComplex, PAD } from './vehicles/pad.js';
 import { verifyExhibits, verifyScene, verifyPad, verifyInterfaces } from './data/verify.js';
-import { createLaunch, EVENTS, altitudeAt, boosterAltAt } from './sim/launch.js';
+import { createLaunch, EVENTS, MILESTONES, ENGINE_LAYOUT, altitudeAt, boosterAltAt } from './sim/launch.js';
+import { createLaunchSound } from './sim/sound.js';
 
 // Exhibit layout (world X, metres). Mount heights are presentation choices.
 // `yaw` turns an exhibit on its mount. Starship is asymmetric — heat shield on the belly,
@@ -167,6 +168,7 @@ async function main() {
 
   // ---- HUD ----
   let sunRaf = 0, pendingSun = 42;
+  let sound = null;
   const hud = createHUD({
     vehicles: VEHICLES,
     onSelect: (id) => select(id),
@@ -186,6 +188,7 @@ async function main() {
     onLaunch: () => toggleLaunch(),
     onLaunchAbort: () => launch?.reset(),
     onLaunchSpeed: (k) => launch?.setSpeed(k),
+    onLaunchSound: (on) => sound?.setEnabled(on),
   });
   rig.onModeChange = (m) => hud.setMode(m);
   hud.setMode('orbit');
@@ -489,14 +492,16 @@ async function main() {
     onFinish: () => goPreset('starship', 'site'),
   });
   launch.setVisibilityHook((flying) => view.setFlying(flying));
+  // Opt-in engine sound. Assigned here, after the HUD that toggles it, hence `let` above.
+  sound = createLaunchSound({ launch, camera });
   {
     const samples = (f, a, b) => Array.from({ length: 220 }, (_, i) => { const t = a + (b - a) * i / 219; return [t, f(t)]; });
     hud.setTrajectory({
       t0: EVENTS.start, t1: EVENTS.end,
       ship: samples(altitudeAt, EVENTS.start, EVENTS.end),
       booster: samples(boosterAltAt, EVENTS.separation, EVENTS.end),
-      events: [[EVENTS.liftoff, 'Liftoff'], [EVENTS.maxQ, 'Max-Q'], [EVENTS.meco, 'MECO'], [EVENTS.separation, 'Hot-staging'],
-        [EVENTS.boostbackStart, 'Boostback'], [EVENTS.boostbackEnd, 'Boostback end'], [EVENTS.landingBurn, 'Landing burn'], [EVENTS.catch, 'Catch']],
+      events: MILESTONES.map(m => [m.t, m.label]),
+      engines: ENGINE_LAYOUT,
     });
   }
 
@@ -512,19 +517,29 @@ async function main() {
   // real scene into a 1 × 1 target with only one part visible (and nothing culled) does that
   // same work for that part, with the lights and shadows it will actually be drawn with.
   {
-    const parts = scene.children.filter(o => !o.isLight && o.visible);
+    // Hidden top-level parts too: the curved Earth under the flight is a scene child that stays
+    // hidden until 9 km up, and left out here it compiled its two programs at T+62.
+    const parts = scene.children.filter(o => !o.isLight);
+    const shown = parts.map(p => p.visible);
     const warmRT = new THREE.WebGLRenderTarget(1, 1);
     const culled = [];
     scene.traverse(o => { if (o.frustumCulled) { culled.push(o); o.frustumCulled = false; } });
     const prevTarget = renderer.getRenderTarget();
     for (let i = 0; i < parts.length; i++) {
       for (const p of parts) p.visible = p === parts[i];
+      // Everything under this part is drawn, not only what shows at rest: the launch
+      // effects (plumes, engine jets, vapour, the ground cloud, the curved Earth) and the
+      // detail the LOD is holding back. Hidden, they were compiled the first time they
+      // appeared — 27 programs at the moment of ignition, a stall right at liftoff.
+      const hidden = [];
+      parts[i].traverse(o => { if (!o.visible && o !== parts[i]) { hidden.push(o); o.visible = true; } });
       renderer.setRenderTarget(warmRT);
       renderer.render(scene, camera);
+      for (const o of hidden) o.visible = false;
       hud.setProgress('Preparing the scene…', 0.95 + 0.05 * (i + 1) / parts.length);
       await nextFrame();
     }
-    for (const p of parts) p.visible = true;
+    parts.forEach((p, i) => { p.visible = shown[i]; });
     for (const o of culled) o.frustumCulled = true;
     renderer.setRenderTarget(prevTarget);
     warmRT.dispose();
@@ -700,6 +715,9 @@ async function main() {
 
   function toggleLaunch() {
     if (launch.running) { launch.reset(); return; }
+    // A visitor who turned the sound on last time gets it again; this is a click or a key
+    // press, which is what lets the page start audio.
+    if (hud.soundWanted() && !sound.enabled) sound.setEnabled(true);
     view.select('starship', 'launch');
     hud.setActive('starship');
     launch.start();
@@ -1005,6 +1023,9 @@ async function main() {
     const dt = Math.min(clock.getDelta(), 0.05);
     rig.update(dt);
     launch.update(dt);
+    sound?.update();
+    // Water keeps moving whatever the camera or the launch is doing.
+    WAVE_TIME.value += dt;
     // The sky is a finite box; centring it on the viewer is what lets it survive an ascent.
     env.followCamera(camera);
     const target = rig.mode === 'fly' ? tmp.copy(camera.position).addScaledVector(camera.getWorldDirection(_fwd), 25) : rig.target;

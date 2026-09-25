@@ -270,10 +270,39 @@ body:has(.mission:not(.hidden)) #dock { display: none !important; }
 .mission-head { display: flex; align-items: baseline; gap: 14px; }
 .mission-clock { font-family: var(--font-mono); font-size: 1.28rem; font-variant-numeric: tabular-nums; color: var(--ink); letter-spacing: 0.02em; }
 .mission-phase { font-size: 0.84rem; color: var(--accent); letter-spacing: 0.03em; }
-.mission-telemetry { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.mission-telemetry div { display: flex; flex-direction: column; gap: 2px; }
-.mission-telemetry span { font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); }
-.mission-telemetry b { font-family: var(--font-mono); font-size: 0.94rem; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink); }
+.mission-head { flex-wrap: wrap; row-gap: 2px; }
+.mission-next { flex-basis: 100%; font-size: 0.7rem; letter-spacing: 0.04em; color: var(--ink-muted); font-variant-numeric: tabular-nums; min-height: 1em; }
+/* Two vehicles side by side, as the webcast carries them: engine dial, name, speed, altitude. */
+.mission-telemetry { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mt-veh { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.mt-engines { width: 46px; height: 46px; flex: none; }
+.mt-engines circle { fill: rgba(236, 233, 226, 0.08); stroke: rgba(236, 233, 226, 0.34); stroke-width: 0.12; transition: fill 0.12s; }
+.mt-engines circle.on { fill: #ffd28a; stroke: #fff1d6; }
+.mt-read { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.mt-name { font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; }
+.mt-name em { font-style: normal; color: var(--accent); letter-spacing: 0.02em; margin-left: 4px; text-transform: none; }
+.mt-row { display: flex; align-items: baseline; gap: 6px; }
+.mt-row i { font-style: normal; font-size: 0.62rem; color: var(--ink-faint); width: 4.6em; flex: none; }
+.mt-row b { font-family: var(--font-mono); font-size: 0.9rem; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.mission-sound { font-size: 0.78rem; padding: 5px 12px; cursor: pointer; background: transparent; color: var(--ink-muted); border: 1px solid var(--surface-line); border-radius: 999px; margin-left: auto; }
+.mission-sound.active { color: var(--ink); border-color: var(--accent); }
+/* Milestone callout: a caption over the picture as each event is reached, then gone. */
+.callout {
+  position: absolute; left: 50%; top: 16vh; transform: translate(-50%, -6px);
+  padding: 6px 16px; border-radius: 999px; pointer-events: none;
+  font-size: 0.86rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink);
+  background: color-mix(in srgb, var(--surface-solid) 78%, transparent); border: 1px solid var(--surface-line);
+  opacity: 0; transition: opacity 0.35s, transform 0.35s; white-space: nowrap; z-index: 5;
+}
+.callout.is-on { opacity: 1; transform: translate(-50%, 0); }
+@media (prefers-reduced-motion: reduce) { .callout { transition: none; } }
+@media (max-width: 520px) {
+  .mt-veh { gap: 6px; }
+  .mt-engines { width: 34px; height: 34px; }
+  .mt-row i { display: none; }
+  .mt-row b { font-size: 0.82rem; }
+  .callout { font-size: 0.74rem; letter-spacing: 0.12em; top: 14vh; }
+}
 .mission-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .mission-speeds { display: inline-flex; gap: 2px; }
 .mission-speeds button {

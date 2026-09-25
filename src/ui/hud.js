@@ -7,7 +7,7 @@ import { SOURCES, SOURCE_LABEL } from '../data/specs.js';
 const fmtHeight = (h) => `${h >= 10 ? Math.round(h) : h} m`;
 const THREE_DEG20 = Math.PI / 9;
 
-export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSun, onReset, onLaunch, onLaunchAbort, onLaunchSpeed, onTour, onHelp }) {
+export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSun, onReset, onLaunch, onLaunchAbort, onLaunchSpeed, onLaunchSound, onTour, onHelp }) {
   const root = document.getElementById('hud');
   root.innerHTML = `
     <header class="hud-header">
@@ -60,14 +60,27 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
 
     <div class="mission hidden" id="mission">
       <div class="mission-head">
-        <span class="mission-clock" id="mission-clock">T−00:00:12</span>
-        <span class="mission-phase" id="mission-phase">Countdown</span>
+        <span class="mission-clock" id="mission-clock">T−00:00:40</span>
+        <span class="mission-phase" id="mission-phase">Terminal count</span>
+        <span class="mission-next" id="mission-next"></span>
       </div>
       <div class="mission-telemetry">
-        <div><span>Altitude</span><b id="m-alt">0 m</b></div>
-        <div><span>Speed</span><b id="m-vel">0 km/h</b></div>
-        <div><span>Downrange</span><b id="m-down">0 m</b></div>
-        <div><span>Thrust</span><b id="m-thr">0 %</b></div>
+        <div class="mt-veh mt-booster">
+          <svg class="mt-engines" id="mt-engines-booster" viewBox="-5 -5 10 10" aria-hidden="true"></svg>
+          <div class="mt-read">
+            <span class="mt-name">Super Heavy <em id="mb-lit"></em></span>
+            <span class="mt-row"><i>Speed</i><b id="mb-vel">0 km/h</b></span>
+            <span class="mt-row"><i>Altitude</i><b id="mb-alt">0 m</b></span>
+          </div>
+        </div>
+        <div class="mt-veh mt-ship">
+          <svg class="mt-engines" id="mt-engines-ship" viewBox="-5 -5 10 10" aria-hidden="true"></svg>
+          <div class="mt-read">
+            <span class="mt-name">Starship <em id="ms-lit"></em></span>
+            <span class="mt-row"><i>Speed</i><b id="ms-vel">0 km/h</b></span>
+            <span class="mt-row"><i>Altitude</i><b id="ms-alt">0 m</b></span>
+          </div>
+        </div>
       </div>
       <figure class="mission-plot" aria-label="Altitude profile of the flight">
         <svg id="mission-plot" viewBox="0 0 400 74" preserveAspectRatio="none"></svg>
@@ -77,10 +90,12 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
         <div class="mission-speeds" id="mission-speeds">
           <button data-k="1" class="active">×1</button><button data-k="2">×2</button><button data-k="5">×5</button><button data-k="10">×10</button>
         </div>
+        <button class="mission-sound" id="mission-sound" aria-pressed="false" title="Engine sound, delayed by distance at the speed of sound">Sound off</button>
         <button class="mission-abort" id="mission-abort">End</button>
       </div>
-      <details class="mission-note"><summary>Composite demonstration · sources and limits</summary><p><b>Not a reconstruction of one flight.</b> The vehicle and the pad are the V3 / Pad 2 configuration that debuted on flight 12 (22 May 2026), but that flight did <i>not</i> attempt a catch: booster 19 was sent to the Gulf and its landing burn failed to relight. So the ascent milestones are flight 7's (liftoff T+0:02 · Max-Q 1:02 · MECO 2:32 · hot-staging 2:40) and the return milestones are flight 5's, the flight on which a booster was first caught (boostback 2:45–3:41, landing burn 6:30, caught 6:54). Between the milestones, the ascent's speed curve, gravity turn and separation speed are authored. The booster's return is <i>computed</i> from that state with gravity, drag and two burns whose size and direction are solved so the cited times are met, then eased into the arms over the last 7.5 s. Mass, drag and the resulting apogee (≈ 90 km) are assumptions and results, not flight data.</p></details>
+      <details class="mission-note"><summary>Composite demonstration · sources and limits</summary><p><b>Not a reconstruction of one flight.</b> The vehicle and the pad are the V3 / Pad 2 configuration that debuted on flight 12 (22 May 2026), but that flight did <i>not</i> attempt a catch: booster 19 was sent to the Gulf and its landing burn failed to relight. So the terminal count and the ascent milestones are flight 7's (GO for launch T−0:30 · flame deflector T−0:10 · ignition T−0:03 · liftoff T+0:02 · Max-Q 1:02 · MECO 2:32 · hot-staging 2:40) and the return milestones are flight 5's, the flight on which a booster was first caught (boostback 2:45–3:41, landing burn 6:30, caught 6:54). Between the milestones, the ascent's speed curve, gravity turn and separation speed are authored. The booster's return is <i>computed</i> from that state with gravity, drag and two burns whose size and direction are solved so the cited times are met, then eased into the arms over the last 7.5 s. Mass, drag and the resulting apogee (≈ 90 km) are assumptions and results, not flight data. Tower clear, supersonic, booster apogee and booster transonic are read off this model, not cited; flight 7 called its booster transonic at T+6:26, before the landing burn, and this model's booster is still supersonic when its burn lights. The sound, when on, is synthesised: a rumble and crackle that reach the camera at 343 m/s.</p></details>
     </div>
+    <div class="callout" id="callout" aria-live="polite"></div>
 
     <div class="scale" id="scale">
       <div class="scale-bar"><span id="scale-label">10 m</span></div>
@@ -304,11 +319,65 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
   const mission = el('#mission');
   const launchBtn = el('#launch-btn');
   new ResizeObserver(() => root.style.setProperty('--mission-height', `${mission.getBoundingClientRect().height}px`)).observe(mission);
-  const mClock = el('#mission-clock'), mPhase = el('#mission-phase');
-  const mAlt = el('#m-alt'), mVel = el('#m-vel'), mDown = el('#m-down'), mThr = el('#m-thr');
+  const mClock = el('#mission-clock'), mPhase = el('#mission-phase'), mNext = el('#mission-next');
+  const readout = {
+    booster: { vel: el('#mb-vel'), alt: el('#mb-alt'), lit: el('#mb-lit'), dial: el('#mt-engines-booster'), dots: [], last: -1 },
+    ship: { vel: el('#ms-vel'), alt: el('#ms-alt'), lit: el('#ms-lit'), dial: el('#mt-engines-ship'), dots: [], last: -1 },
+  };
+  const callout = el('#callout');
+  const soundBtn = el('#mission-sound');
   const speeds = [...root.querySelectorAll('#mission-speeds button')];
   launchBtn.addEventListener('click', () => onLaunch?.());
   el('#mission-abort').addEventListener('click', () => onLaunchAbort?.());
+  // Sound is opt-in: nothing plays until this is pressed, and the choice is remembered.
+  function setSound(on) {
+    soundBtn.setAttribute('aria-pressed', String(on));
+    soundBtn.textContent = on ? 'Sound on' : 'Sound off';
+    soundBtn.classList.toggle('active', on);
+  }
+  soundBtn.addEventListener('click', () => {
+    const on = soundBtn.getAttribute('aria-pressed') !== 'true';
+    setSound(on);
+    try { localStorage.setItem('vc-sound-1', on ? '1' : '0'); } catch { /* storage unavailable */ }
+    onLaunchSound?.(on);
+  });
+  const soundWanted = () => { try { return localStorage.getItem('vc-sound-1') === '1'; } catch { return false; } };
+  setSound(soundWanted());
+
+  /**
+   * Engine dials, the way the webcast shows them: one circle per engine, seen from below,
+   * lit in the order the engines start. Built once from the layout the simulation exports.
+   */
+  function setEngines(layout) {
+    for (const [key, rings] of Object.entries(layout)) {
+      const r = readout[key];
+      if (!r) continue;
+      const outer = Math.max(...rings.map(g => g.r + g.size));
+      const k = 4.6 / outer;
+      r.dial.innerHTML = '';
+      r.dots = [];
+      for (const g of rings) {
+        for (let i = 0; i < g.n; i++) {
+          const a = g.phase + (i / g.n) * Math.PI * 2;
+          const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          c.setAttribute('cx', (Math.sin(a) * g.r * k).toFixed(2));
+          c.setAttribute('cy', (Math.cos(a) * g.r * k).toFixed(2));
+          c.setAttribute('r', (g.size * k * 0.92).toFixed(2));
+          r.dial.appendChild(c);
+          r.dots.push(c);
+        }
+      }
+      r.last = -1;
+    }
+  }
+  let lastT = null, calloutTimer = 0;
+  function showCallout(text) {
+    callout.textContent = text;
+    callout.classList.add('is-on');
+    clearTimeout(calloutTimer);
+    calloutTimer = setTimeout(() => callout.classList.remove('is-on'), 3200);
+  }
+  let milestones = [];
   // The buttons only ask; which one is lit is read back from the simulation in setMission,
   // so the panel cannot claim a multiplier the clock is not actually using.
   for (const b of speeds) b.addEventListener('click', () => onLaunchSpeed?.(Number(b.dataset.k)));
@@ -324,8 +393,10 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
   const plot = el('#mission-plot');
   let plotSpan = null;
   const PLOT_NS = 'http://www.w3.org/2000/svg';
-  function setTrajectory({ t0, t1, ship, booster, events }) {
+  function setTrajectory({ t0, t1, ship, booster, events, engines }) {
     plotSpan = { t0, t1 };
+    milestones = events;
+    if (engines) setEngines(engines);
     const top = Math.max(...ship.map(p => p[1]), ...booster.map(p => p[1]));
     const X = (t) => ((t - t0) / (t1 - t0)) * 400;
     const Y = (h) => 70 - Math.sqrt(Math.max(0, h) / top) * 64;
@@ -353,6 +424,8 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       mission.classList.add('hidden');
       document.body.classList.remove('is-flying');
       launchBtn.classList.remove('is-live');
+      callout.classList.remove('is-on');
+      lastT = null;
       return;
     }
     mission.classList.remove('hidden');
@@ -361,10 +434,27 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     launchBtn.classList.add('is-live');
     mClock.textContent = clockText(st.t);
     mPhase.textContent = st.phase;
-    mAlt.textContent = dist(st.altitude);
-    mVel.textContent = `${Math.round(st.velocity * 3.6).toLocaleString('en-US')} km/h`;
-    mDown.textContent = dist(st.downrange);
-    mThr.textContent = `${Math.round(st.throttle * 100)} %`;
+    // "T+01:02", without the hours the main clock carries.
+    const short = st.next && clockText(st.next.t);
+    mNext.textContent = short ? `Next · ${st.next.label} ${short.slice(0, 2)}${short.slice(5)}` : '';
+    for (const key of ['booster', 'ship']) {
+      const r = readout[key], v = st[key];
+      if (!v) continue;
+      r.vel.textContent = `${Math.round(v.velocity * 3.6).toLocaleString('en-US')} km/h`;
+      r.alt.textContent = dist(v.altitude);
+      if (v.lit !== r.last) {
+        r.last = v.lit;
+        r.dots.forEach((d, i) => d.classList.toggle('on', i < v.lit));
+        r.lit.textContent = v.lit ? `${v.lit} lit` : '';
+      }
+    }
+    // Callouts only on playback, as a milestone is crossed: a seek or a jump across the
+    // timeline is not the moment an event happens.
+    if (lastT !== null && st.t > lastT && st.t - lastT < 5) {
+      const hit = milestones.filter(([t]) => t > lastT && t <= st.t).pop();
+      if (hit) showCallout(hit[1]);
+    }
+    lastT = st.t;
     for (const b of speeds) b.classList.toggle('active', Number(b.dataset.k) === st.speed);
     const cur = plotSpan && plot.querySelector('#mp-cursor');
     if (cur) {
@@ -509,5 +599,5 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
   };
   root.querySelector('#coach-close').addEventListener('click', hideCoach);
 
-  return { setActive, setPreset, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setTrajectory, setTour, showHelp, setMap, setMapCamera, showCoach, hideCoach };
+  return { setActive, setPreset, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setTrajectory, setTour, showHelp, setMap, setMapCamera, showCoach, hideCoach, soundWanted };
 }

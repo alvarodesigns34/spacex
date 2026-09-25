@@ -5,20 +5,17 @@ import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { mesh, mergeAll, mat4, chunkedInstances } from '../geometry/utils.js';
 import { noise2 } from '../materials/textures.js';
+import { waveNormals } from '../materials/library.js';
 import { createClouds } from './clouds.js';
+import { shoreZ, terrainHeight, thicket } from './terrain.js';
 
 /**
  * The Gulf shore. Starbase stands on the coast at Boca Chica, and the plain runs out into a
- * beach and the sea; every wide view here ended instead in the same flat khaki to the horizon.
- * This is a PLAUSIBLE shore, not a survey: a gently wandering line with the water about 450 m
- * beyond the pad's mount (world z) — the launch site stands "a few hundred yards" off Boca Chica
- * Beach, and the old 1.1 km put a kilometre of plain between them. A dry beach, a wet margin,
- * and the ground sloping away under the water surface.
- * @returns the shore's world z at world x
+ * beach and the sea. A PLAUSIBLE shore, not a survey: a gently wandering line with the water
+ * about 450 m beyond the pad's mount. Defined with the rest of the land's shape in terrain.js,
+ * re-exported here for the modules that have always imported it from this one.
  */
-export function shoreZ(x) {
-  return -670 + 0.22 * x + 46 * (noise2(x / 280 + 3.1, 7.7) - 0.5) + 18 * (noise2(x / 90, 1.3) - 0.5);
-}
+export { shoreZ };
 
 /** Disc in the XY plane (rotated flat later) with a large-scale coastal tint. */
 function coastalDisc(radius, rings, segs) {
@@ -27,6 +24,7 @@ function coastalDisc(radius, rings, segs) {
   const uv = new Float32Array(count * 2);
   const col = new Float32Array(count * 3);
   const shore = new Float32Array(count * 2);     // [dry sand, wet sand], read by the terrain shader
+  const land = new Float32Array(count);          // woody cover (terrain.js thicket), read by the shader
   const idx = [];
   let k = 0;
   const push = (x, y) => {
@@ -35,6 +33,9 @@ function coastalDisc(radius, rings, segs) {
     // Local y is world −z once the disc is laid flat; local z becomes height.
     const past = shoreZ(x) - -y;                 // metres seaward of the shoreline
     pos[k * 3 + 2] = past > 0 ? -9 * THREE.MathUtils.smoothstep(past, 0, 180) : 0.35 * THREE.MathUtils.smoothstep(-past, 0, 60) * (1 - THREE.MathUtils.smoothstep(-past, 60, 160));
+    // The lomas and the plain's micro-relief (terrain.js), zero on the site and the beach.
+    pos[k * 3 + 2] += terrainHeight(x, -y);
+    land[k] = thicket(x, -y);
     const broad = noise2(x / 110, y / 110);
     const patch = noise2(x / 42 + 19, y / 42 - 7);
     const salt = Math.max(0, broad - 0.46);
@@ -43,10 +44,13 @@ function coastalDisc(radius, rings, segs) {
     // Beach, measured from where the water actually is. The sea surface sits 0.9 m down, and
     // the ground only reaches that depth ~35 m seaward of shoreZ, so a beach keyed to shoreZ
     // itself left 35 m of grassy slope running down into the water. `wl` is metres from the
-    // real waterline (negative inland): dry sand for ~90 m, a wet margin at the water, and
+    // real waterline (negative inland): dry sand back to the dunes, a wet margin at the water, and
     // sand under the shallows.
     const wl = past - WATERLINE;
-    const dry = THREE.MathUtils.smoothstep(wl, -105, -70) * (1 - THREE.MathUtils.smoothstep(wl, -20, -8));
+    // The dry beach runs back to the foot of the foredune (its seaward toe is ~160 m from the
+    // waterline): a strip of grass plain between the two, which this used to leave, is not
+    // what this coast looks like.
+    const dry = THREE.MathUtils.smoothstep(wl, -175, -150) * (1 - THREE.MathUtils.smoothstep(wl, -20, -8));
     const wet = THREE.MathUtils.smoothstep(wl, -20, -6);
     shore[k * 2] = dry;
     shore[k * 2 + 1] = wet;
@@ -78,6 +82,7 @@ function coastalDisc(radius, rings, segs) {
   g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   g.setAttribute('aShore', new THREE.BufferAttribute(shore, 2));
+  g.setAttribute('aLand', new THREE.BufferAttribute(land, 1));
   g.setIndex(idx);
   g.computeVertexNormals();
   return g;
@@ -119,21 +124,32 @@ float seaNoise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 
     vec3 body = mix(surfWater, shelf, smoothstep(10.0, 70.0, d));
     body = mix(body, diffuseColor.rgb, smoothstep(150.0, 700.0, d));
     diffuseColor.rgb = body;
-    // Surf: broken white lines over the inner and outer bars, never a solid ribbon.
+    // Surf: broken white lines over the inner and outer bars, never a solid ribbon. It moves:
+    // the swash runs up the sand and back on a period of about nine seconds, out of step along
+    // the beach; the breaking patches on the bars travel along them, the way a wave peels;
+    // and faint lines of broken water roll in between the bars toward the shore.
     float along = vSeaXY.x;
-    float brk = seaNoise(vec2(along / 14.0, 3.0)) * 0.6 + seaNoise(vec2(along / 4.0, 9.0)) * 0.4;
-    float l1 = 1.0 - smoothstep(0.0, 2.2, abs(d - 3.0));
-    float l2 = (1.0 - smoothstep(0.0, 3.0, abs(d - 18.0 - 3.0 * seaNoise(vec2(along / 60.0, 1.0))))) * smoothstep(0.45, 0.7, brk);
-    float l3 = (1.0 - smoothstep(0.0, 4.0, abs(d - 42.0 - 6.0 * seaNoise(vec2(along / 90.0, 5.0))))) * smoothstep(0.6, 0.8, brk);
-    float foam = clamp(l1 * 0.9 + l2 * 0.75 + l3 * 0.5, 0.0, 1.0) * (0.75 + 0.25 * seaNoise(vSeaXY / 2.5));
+    float tt = uWaveTime;
+    // Three scales, so the breaking stretches come in irregular lengths, not as a dashed line.
+    float brk = seaNoise(vec2(along / 41.0 - tt * 0.12, 3.0)) * 0.45 + seaNoise(vec2(along / 13.0 - tt * 0.35, 7.0)) * 0.35 + seaNoise(vec2(along / 4.0 + tt * 0.2, 9.0)) * 0.2;
+    float bw = 0.7 + 0.6 * seaNoise(vec2(along / 23.0, 11.0));
+    float swash = 2.0 + 4.0 * (0.5 + 0.5 * sin(tt * 0.70 + along / 37.0 + 2.0 * seaNoise(vec2(along / 120.0, 4.0))));
+    float l1 = 1.0 - smoothstep(0.0, 1.6 + 0.8 * seaNoise(vec2(along / 6.0, tt * 0.1)), abs(d - swash));
+    float wetFilm = (1.0 - smoothstep(swash, swash + 6.0, d)) * 0.25;
+    float l2 = (1.0 - smoothstep(0.0, 3.0 * bw, abs(d - 18.0 - 3.0 * seaNoise(vec2(along / 60.0, 1.0))))) * smoothstep(0.42, 0.72, brk);
+    float l3 = (1.0 - smoothstep(0.0, 4.0 * bw, abs(d - 42.0 - 6.0 * seaNoise(vec2(along / 90.0, 5.0))))) * smoothstep(0.55, 0.8, brk);
+    float roll = fract(d / 23.0 + tt * 0.11);
+    float l4 = smoothstep(0.9, 0.98, roll) * (1.0 - smoothstep(0.98, 1.0, roll)) * (1.0 - smoothstep(10.0, 60.0, d)) * smoothstep(0.4, 0.75, brk);
+    float foam = clamp(l1 * 0.9 + wetFilm + l2 * 0.75 + l3 * 0.5 + l4 * 0.45, 0.0, 1.0) * (0.75 + 0.25 * seaNoise(vSeaXY / 2.5 + tt * 0.05));
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.78, 0.80, 0.80), foam);
     vSeaFoam = foam;
   }`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
   roughnessFactor = mix(roughnessFactor, 0.85, vSeaFoam);`)
       .replace('void main() {', 'float vSeaFoam = 0.0;\nvoid main() {');
+    waveNormals(sh, { tileSize: base.userData.tileSize ?? 420 });
   };
-  m.customProgramCacheKey = () => 'vc-sea-1';
+  m.customProgramCacheKey = () => 'vc-sea-2';
   return m;
 }
 
@@ -205,7 +221,8 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   // geometry are the ground plane.
   // Denser than the old 28 × 72: the beach is tens of metres wide, and 100 m cells a kilometre
   // out would smear it into a blur or miss it.
-  const groundGeo = coastalDisc(GROUND_R, 64, 180);
+  // Denser again for the lomas: a clay dune 150 m across needs more than three vertices over it.
+  const groundGeo = coastalDisc(GROUND_R, 110, 256);
   const ground = new THREE.Mesh(groundGeo, M.terrain || M.concrete);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
@@ -296,7 +313,9 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
         duv.push(x, wz * -1);
         const lift = 1 + 0.12 * bump(d);
         dcol.push(lift, lift, lift * 0.97);
-        dshore.push(d > 4 ? THREE.MathUtils.smoothstep(d, 4, 16) : 0, 0);
+        // Seaward face bare dry sand; the crest and back slope sand held by sparse grass, not a
+        // lawn: about half sand, thinning to the plain's own cover at the landward toe.
+        dshore.push(Math.max(d > 4 ? THREE.MathUtils.smoothstep(d, 4, 16) : 0, 0.5 * THREE.MathUtils.smoothstep(bump(d), 0.05, 0.5)), 0);
       }
       // Beach grass on the crest and the back slope, thinning towards the edges.
       for (let k = 0; k < 11; k++) {
@@ -355,8 +374,11 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
         dm.scale.set(1.6 * s, 1.6 * s, 1.3 * s * (0.8 + 0.5 * s));
         dm.rotation.set(0, 0, s * 9);
         dm.updateMatrix();
+        // Sea oats vary from fresh green to bleached, by stretch of dune and by plant.
+        const dry = THREE.MathUtils.smoothstep(noise2(x / 60 + 2, y / 60 - 3), 0.3, 0.75), j = (noise2(x * 2.1, y * 2.1) - 0.5) * 0.16;
+        const color = [0.88 + 0.2 * dry + j, 0.95 + 0.07 * dry + j, 0.76 + 0.1 * dry + j];
         // Binned on the ground's own plane (its local x/y; z is up in this frame).
-        return { x, z: y, matrix: dm.matrix.clone() };
+        return { x, z: y, matrix: dm.matrix.clone(), color };
       });
       // 4,6 km of dune in 150 m chunks: culled when off screen, thinned with distance.
       ground.add(chunkedInstances(tuft, M.duneGrass, placements, { cell: 150, name: 'dune-grass', feature: 1.0 }));

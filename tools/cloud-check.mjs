@@ -90,7 +90,7 @@ for (const t of [0, 6, 36, 45, 100, 407, 424]) {
   launch.seek(t); assert.deepEqual(snapshot(), expected, `repeat seek ${t} must be deterministic`);
   for (const [speed, dt] of [[1, 1 / 60], [10, 1 / 30], [4, 1 / 24]]) {
     launch.reset(false); launch.start(); launch.setSpeed(speed);
-    const frames = Math.floor((t + 12) / (dt * speed));
+    const frames = Math.floor((t - EVENTS.start) / (dt * speed));
     for (let i = 0; i < frames; i++) launch.update(dt);
     const remaining = t - launch.state.t;
     if (remaining > 1e-8) launch.update(remaining / speed);

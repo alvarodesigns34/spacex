@@ -20,6 +20,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mesh, mergeAll, mat4, boxUV, chunkedInstances } from '../geometry/utils.js';
 import { noise2, canvas, toTexture } from '../materials/textures.js';
+import { POOL_SPEC, poolStretch, terrainHeight } from './terrain.js';
+import { waveNormals } from '../materials/library.js';
 
 function quad(x0, z0, x1, z1, y) {
   const g = new THREE.PlaneGeometry(Math.abs(x1 - x0), Math.abs(z1 - z0));
@@ -233,36 +235,56 @@ function buildRoads(g, M) {
  * such pools, placed clear of the exhibits, the roads and the pad. Positions and outlines are
  * plausible, not surveyed.
  */
-function buildFlats(g, M, avoid) {
-  const spec = [
-    // x, z, mean radius (m), seed
-    [-340, -170, 65, 1], [260, -240, 55, 2], [-170, 200, 50, 3], [310, 210, 75, 4],
-    [-430, 60, 60, 5], [110, 270, 42, 6], [410, -70, 50, 7], [-250, -340, 60, 8],
-  ].filter(([x, z, r]) => avoid(x, z, r));
+function buildFlats(g, M) {
+  // x, z, mean radius (m), seed — the layout lives in terrain.js, which holds the land flat
+  // round each pool.
+  const spec = POOL_SPEC;
   const water = [], rims = [];
-  const N = 64;
+  const N = 144;
   for (const [cx, cz, R, seed] of spec) {
+    // Three scales of wander on the outline: the pool's overall lobes, bays tens of metres
+    // across, and the ragged few-metre edge that wind-driven water leaves on a flat.
     const rad = (a) => R * (0.72 + 0.55 * noise2(Math.cos(a) * 1.3 + seed * 7.1, Math.sin(a) * 1.3 + seed * 3.3)
-      + 0.12 * noise2(Math.cos(a) * 4 + seed, Math.sin(a) * 4 - seed));
+      + 0.12 * noise2(Math.cos(a) * 4 + seed, Math.sin(a) * 4 - seed)
+      + 0.05 * noise2(Math.cos(a) * 13 + seed * 2.3, Math.sin(a) * 13 + seed)
+      + 0.02 * noise2(Math.cos(a) * 37 - seed, Math.sin(a) * 37 + seed * 1.7));
     // Wind-tidal pools are long and shallow, drawn out along the direction the water drains,
     // not round: each one is stretched 1,5–2,3 × along its own axis (area kept). Round ponds
     // read as decals from the air.
-    const stretch = 1.5 + 0.8 * noise2(seed * 3.7, 0.5), axis = noise2(seed * 1.9, 2.5) * Math.PI;
+    const stretch = poolStretch(seed), axis = noise2(seed * 1.9, 2.5) * Math.PI;
     const ca = Math.cos(axis), sa = Math.sin(axis), sx = Math.sqrt(stretch), sz = 1 / Math.sqrt(stretch);
     const shape = (a, r, k = 1) => {
       const lx = Math.cos(a) * r * k * sx, lz = Math.sin(a) * r * k * sz;
       return [cx + lx * ca - lz * sa, cz + lx * sa + lz * ca];
     };
     const ring = Array.from({ length: N }, (_, i) => { const a = (i / N) * Math.PI * 2; return [a, rad(a)]; });
-    // Water: a fan from the centre, 6 cm above the flat ground.
+    // Water: rings in from the shore to the centre, 6 cm above the flat ground. The colour is
+    // graded by depth: at the edge a film over the pale mud, which shows through warm and
+    // light; towards the middle, where there are a few centimetres more, the green-grey of the
+    // water itself. (Colours plausible, not measured.)
     {
-      const pos = [cx, 0.06, cz], uv = [cx, -cz], idx = [];
-      ring.forEach(([a, r]) => { const [x, z] = shape(a, r); pos.push(x, 0.06, z); uv.push(x, -z); });
-      for (let i = 0; i < N; i++) idx.push(0, 1 + ((i + 1) % N), 1 + i);
+      const K = [1, 0.93, 0.8, 0.6, 0.35];
+      // Alpha too: the last few metres are a film the mud shows through, so the water fades
+      // in over the shallows instead of ending on a drawn line.
+      const tone = (k) => { const e = THREE.MathUtils.smoothstep(k, 0.72, 1); return [0.78 + 0.34 * e, 0.84 + 0.26 * e, 0.84 + 0.12 * e, 1 - 0.7 * THREE.MathUtils.smoothstep(k, 0.86, 1)]; };
+      const pos = [], uv = [], col = [], idx = [];
+      for (const k of K) ring.forEach(([a, r]) => {
+        const [x, z] = shape(a, r, k); pos.push(x, 0.06, z); uv.push(x, -z); col.push(...tone(k));
+      });
+      pos.push(cx, 0.06, cz); uv.push(cx, -cz); col.push(...tone(0));
+      const C = K.length * N;
+      for (let b = 0; b < K.length - 1; b++) for (let i = 0; i < N; i++) {
+        const p = b * N + i, q = b * N + ((i + 1) % N);
+        idx.push(p, p + N, q, q, p + N, q + N);
+      }
+      for (let i = 0; i < N; i++) idx.push(C, (K.length - 1) * N + ((i + 1) % N), (K.length - 1) * N + i);
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
       geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-      geo.setIndex(idx); geo.computeVertexNormals();
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 4));
+      geo.setIndex(idx);
+      const nrm = new Float32Array(pos.length); for (let i = 1; i < nrm.length; i += 3) nrm[i] = 1;
+      geo.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
       water.push(geo);
     }
     // Rim: dark wet mud at the water's edge, fading into the flat within ~20 % of R. There was
@@ -293,9 +315,15 @@ function buildFlats(g, M, avoid) {
   // Centimetres deep over pale mud: the bottom shows through as a grey-olive, and the sky
   // it reflects lightens it further at a glancing angle. The old dark slate read as deep water.
   pondMat.color.setHex(0x5c625a);
-  pondMat.roughness = 0.1;
-  pondMat.envMapIntensity = 0.65;
-  pondMat.normalScale.set(0.12, 0.12);
+  pondMat.vertexColors = true;
+  pondMat.transparent = true;
+  pondMat.depthWrite = false;
+  pondMat.roughness = 0.08;
+  pondMat.envMapIntensity = 0.7;
+  pondMat.normalScale.set(0.16, 0.16);
+  // Wind ripples drifting across, no swell (library.js waveNormals).
+  pondMat.onBeforeCompile = (sh) => waveNormals(sh, { tileSize: M.water.userData.tileSize ?? 420, calm: 0.15 });
+  pondMat.customProgramCacheKey = () => 'vc-pond-1';
   pondMat.polygonOffset = true; pondMat.polygonOffsetFactor = -4; pondMat.polygonOffsetUnits = -4;
   const rimMat = new THREE.MeshStandardMaterial({
     name: 'tidal-flat-rim', vertexColors: true, transparent: true, depthWrite: false, roughness: 0.9, metalness: 0, envMapIntensity: 0.25,
@@ -304,7 +332,7 @@ function buildFlats(g, M, avoid) {
   g.add(mesh(mergeGeometries(rims, false), rimMat, { name: 'tidal-flat-rims', castShadow: false }));
   g.add(mesh(mergeGeometries(water, false), pondMat, { name: 'tidal-flat-water', castShadow: false }));
   // The long axis reaches ~1,3 R × √stretch; callers keeping grass out of the water use this.
-  return spec.map(([x, z, r, seed]) => [x, z, r * 1.3 * Math.sqrt(1.5 + 0.8 * noise2(seed * 3.7, 0.5))]);
+  return spec.map(([x, z, r, seed]) => [x, z, r * 1.3 * Math.sqrt(poolStretch(seed))]);
 }
 
 /**
@@ -423,13 +451,7 @@ export function dressCampus(scene, M, { stops = [], quality = 'high' } = {}) {
 
   buildRoads(g, M);
   buildSiteFurniture(g, M, stops);
-  const ponds = buildFlats(g, M, (x, z, r) => {
-    const R = r * 1.4;
-    if (Math.abs(z) < 75 + R && x > -230 - R && x < 240 + R) return false;       // exhibit row and road
-    if (x > 25 - R && x < 75 + R && z > -135 - R && z < 40 + R) return false;       // access road
-    if (Math.hypot(x, z + 185) < R + 165) return false;                              // Pad 2 and its berm
-    return z - R > -470;                                                             // clear of the dunes and beach
-  });
+  const ponds = buildFlats(g, M);
 
   // Low dunes. They were flattened spheres standing on their bottom pole: the widest part of
   // each sat a third of a metre ABOVE the ground with a dark lip under it, in a flat khaki of
@@ -567,7 +589,7 @@ export function dressCampus(scene, M, { stops = [], quality = 'high' } = {}) {
   const dummy = new THREE.Object3D();
   for (let i = 0; i < spots.length; i += 3) {
     const s = 0.6 + spots[i + 2] * 1.9;
-    dummy.position.set(spots[i], 0, spots[i + 1]);
+    dummy.position.set(spots[i], terrainHeight(spots[i], spots[i + 1]), spots[i + 1]);
     dummy.scale.set(s * (0.9 + spots[i + 2] * 0.5), s * (0.8 + spots[i + 2] * 0.4), s);
     dummy.rotation.y = spots[i + 2] * 6;
     dummy.updateMatrix();
@@ -606,12 +628,18 @@ export function dressCampus(scene, M, { stops = [], quality = 'high' } = {}) {
     }
     const dm = new THREE.Object3D();
     const placements = at.map(([x, z, k]) => {
-      dm.position.set(x, 0, z);
+      dm.position.set(x, terrainHeight(x, z) - 0.02, z);
       dm.rotation.set(0, k * 9, 0);
       const sc = 0.7 + k * 0.6;
       dm.scale.set(sc, sc * (0.55 + k * 0.35), sc);
       dm.updateMatrix();
-      return { x, z, matrix: dm.matrix.clone() };
+      // Tussocks are not one colour: greener in the damper districts, bleached straw on the
+      // drier ones, the odd grey dead clump — by a broad field plus a little per plant.
+      const dry = THREE.MathUtils.smoothstep(noise2(x / 70 - 4, z / 70 + 9), 0.3, 0.75);
+      const j = (noise2(x * 1.7, z * 1.7) - 0.5) * 0.18;
+      const dead = k > 0.93 ? 0.35 : 0;
+      const color = [0.86 + 0.22 * dry + j, 0.94 + 0.08 * dry + j, 0.72 + 0.1 * dry + j].map(c => c * (1 - dead) + 0.9 * dead);
+      return { x, z, matrix: dm.matrix.clone(), color };
     });
     // Binned into 110 m chunks so the field is frustum-culled and thinned with distance
     // instead of being one always-drawn mesh (chunkedInstances). A tussock is ~0,7 m across.

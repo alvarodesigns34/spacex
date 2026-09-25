@@ -29,8 +29,14 @@ import { seeded, monotoneSlopes, hermite } from '../geometry/utils.js';
 
 // ---- Cited event times (seconds from T-0) ------------------------------------------------
 export const EVENTS = {
-  start: -12,
-  ignition: -3,        // Raptor ignition sequence, derived from the T-0/liftoff interval
+  // The terminal count, from the same flight 7 timeline (Wikipedia, Starship flight test 7):
+  // the flight director's GO for launch at T−00:00:30, the flame deflector's water at
+  // T−00:00:10 and Super Heavy engine ignition at T−00:00:03. The sequence opens ten seconds
+  // before the GO, with the stack fuelled and venting.
+  start: -40,
+  goForLaunch: -30,    // cited: "Flight director verifies go for launch"
+  deflector: -10,      // cited: "Flame deflector activation"
+  ignition: -3,        // cited: "Super Heavy engine ignition"
   liftoff: 2,          // cited
   towerClear: 0,       // derived below from the integrated altitude (the base clears the tower top)
   maxQ: 62,            // cited
@@ -431,9 +437,74 @@ function shipThrottle(t) {
   return THREE.MathUtils.smoothstep(t, EVENTS.separation - 1.5, EVENTS.separation + 1.5);
 }
 
+/** Ship engines running: none until hot-staging, then its three sea-level Raptors and three
+ *  vacuum Raptors together (flight 7: "Starship engine ignition and stage separation"). */
+const shipLit = (t) => (shipThrottle(t) > 0.01 ? 6 : 0);
+
+/**
+ * Local speed of sound on the 1976 US Standard Atmosphere's temperature profile (troposphere
+ * lapse, the isothermal tropopause, the two stratospheric gradients), a = √(γ·R·T).
+ */
+export function soundSpeedAt(h) {
+  const T = h < 11000 ? 288.15 - 0.0065 * h
+    : h < 20000 ? 216.65
+    : h < 32000 ? 216.65 + 0.001 * (h - 20000)
+    : h < 47000 ? 228.65 + 0.0028 * (h - 32000) : 270.65;
+  return Math.sqrt(1.4 * 287.05 * T);
+}
+
+/**
+ * Two moments the webcast calls that are not inputs here but consequences of the model, found
+ * by scanning it: the stack going supersonic on the way up, and the booster falling back
+ * through Mach 1 on the way down. Flight 7's timeline puts the second at T+06:26, five seconds
+ * before its landing burn; this model's lands where its own trajectory puts it, and the sheet
+ * says it is derived.
+ */
+const DERIVED = (() => {
+  let supersonic = null, transonic = null;
+  for (let t = EVENTS.liftoff; t < EVENTS.meco; t += 0.05) {
+    if (speedAt(t) >= soundSpeedAt(altitudeAt(t))) { supersonic = Math.round(t * 10) / 10; break; }
+  }
+  for (let t = RETURN.reentryPeak.t; t < EVENTS.catch; t += 0.05) {
+    if (boosterSpeedAt(t) < soundSpeedAt(boosterAltAt(t))) { transonic = Math.round(t * 10) / 10; break; }
+  }
+  return { supersonic, transonic, apogee: Math.round(RETURN.apogee.t) };
+})();
+export const derivedEvents = () => ({ ...DERIVED });
+
+/**
+ * Every milestone the panel calls out, in order. `src` says where the time comes from: a cited
+ * timeline ('f7', 'f5') or this model ('model').
+ */
+export const MILESTONES = [
+  { t: EVENTS.goForLaunch, label: 'GO for launch', src: 'f7' },
+  { t: EVENTS.deflector, label: 'Flame deflector active', src: 'f7' },
+  { t: EVENTS.ignition, label: 'Super Heavy ignition', src: 'f7' },
+  { t: EVENTS.liftoff, label: 'Liftoff', src: 'f7' },
+  { t: EVENTS.towerClear, label: 'Tower cleared', src: 'model' },
+  ...(DERIVED.supersonic ? [{ t: DERIVED.supersonic, label: 'Supersonic', src: 'model' }] : []),
+  { t: EVENTS.maxQ, label: 'Max-Q', src: 'f7' },
+  { t: EVENTS.meco, label: 'MECO', src: 'f7' },
+  { t: EVENTS.separation, label: 'Hot-staging', src: 'f7' },
+  { t: EVENTS.boostbackStart, label: 'Boostback burn', src: 'f5' },
+  { t: EVENTS.boostbackEnd, label: 'Boostback shutdown', src: 'f5' },
+  { t: DERIVED.apogee, label: 'Booster apogee', src: 'model' },
+  ...(DERIVED.transonic ? [{ t: DERIVED.transonic, label: 'Booster transonic', src: 'model' }] : []),
+  { t: EVENTS.landingBurn, label: 'Landing burn', src: 'f5' },
+  { t: EVENTS.catch, label: 'Booster caught', src: 'f5' },
+].sort((a, b) => a.t - b.t);
+
+/** Engine layouts for the panel's engine dials, in lighting order. */
+export const ENGINE_LAYOUT = {
+  booster: BOOSTER_RINGS.map(([n, r, , phase]) => ({ n, r, phase, size: RAPTOR_EXIT_R })),
+  ship: [{ n: 3, r: 0.95, phase: 0, size: RAPTOR_EXIT_R }, { n: 3, r: 3.05, phase: Math.PI / 3, size: 1.15 }],
+};
+
 const PHASES = [
-  [EVENTS.ignition, 'Countdown'],
-  [EVENTS.liftoff, '33 Raptor ignition'],
+  [EVENTS.goForLaunch, 'Terminal count'],
+  [EVENTS.deflector, 'GO for launch'],
+  [EVENTS.ignition, 'Flame deflector active'],
+  [EVENTS.liftoff, 'Super Heavy ignition'],
   [EVENTS.towerClear, 'Liftoff'],
   [EVENTS.maxQ - 6, 'Ascent · tower cleared'],
   [EVENTS.maxQ + 8, 'Max-Q · peak dynamic pressure'],
@@ -553,6 +624,21 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   });
   booster.add(boosterJets.mesh);
   ship.add(shipJets.mesh);
+  // Hot-staging: the ship lights its six engines while still sitting on the booster, and the
+  // exhaust has nowhere to go but out through the 24 openings of the vented section at the top
+  // of the booster (starship.js, hotStageSection), turned down and out by the louvres. A ring
+  // of fire round the interstage for the second or two before the stages part, then the gap
+  // opens and the ship's plume plays straight onto the booster's dome instead.
+  const HS_STATION = (ex.model.userData.stations?.booster?.ringTop ?? 70.17) + 0.9;
+  const hotStageVents = new EngineJets({
+    name: 'jets-hot-stage', seaLevelLength: 9,
+    engines: Array.from({ length: 24 }, (_, i) => {
+      const a = (i / 24) * Math.PI * 2;
+      return { position: [Math.sin(a) * 4.45, HS_STATION, Math.cos(a) * 4.45], radius: 0.42, direction: [Math.sin(a), -0.45, Math.cos(a)] };
+    }),
+  });
+  booster.add(hotStageVents.mesh);
+  const ventAt = (t) => shipThrottle(t) * (1 - THREE.MathUtils.smoothstep(t, EVENTS.separation + 0.4, EVENTS.separation + 2.6));
 
   // ---- Vapour: venting in the count, the deluge at ignition, venting after the catch -------
   // Emitters are placed in the stack's rest frame (booster base at the mount deck, y up),
@@ -585,7 +671,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     name: 'vapor-deluge', rng: seeded(22), accel: [0.4, -2.2, 0.2], tau: 0.9, opacity: 0.62,
     emitters: Array.from({ length: 12 }, (_, i) => {
       const a = (i / 12) * Math.PI * 2 + 0.13;
-      return { at: around(6.6, -0.6, a), dir: out(a, 3.2), speed: 24, spread: 0.22, count: nv(33), life: 4.16, size: 5.28, grow: 8.4, jitter: 1.2, window: [EVENTS.ignition - 2, EVENTS.liftoff + 10] };
+      return { at: around(6.6, -0.6, a), dir: out(a, 3.2), speed: 24, spread: 0.22, count: nv(33), life: 4.16, size: 5.28, grow: 8.4, jitter: 1.2, window: [EVENTS.deflector, EVENTS.liftoff + 10] };
     }),
   });
   // Landing: the last seconds of the burn blast the mount deck, and the exhaust and deck water
@@ -661,6 +747,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   const state = {
     running: false, armed: false, t: EVENTS.start, speed: 1,
     phase: 'On the pad', altitude: 0, velocity: 0, throttle: 0, downrange: 0,
+    ship: { altitude: 0, velocity: 0, lit: 0 }, booster: { altitude: 0, velocity: 0, lit: 0 }, next: null,
   };
   let visibilityHook = null;   // set by main.js: hides labels, rulers and figures while flying
 
@@ -695,24 +782,43 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   }
 
   /** Shot list. Each writes a world position and look-at target for the mission time. */
+  // The terminal count and the liftoff are cut the way a launch broadcast cuts them: a few
+  // held shots with hard cuts between, each moving slowly, rather than one camera flying
+  // between positions. A fast dolly between two pad positions (it used to cross 130 m in
+  // 1,6 s at T+6) reads as a glitch, not as a cut.
+  const ease = (t, a, b) => THREE.MathUtils.smoothstep(t, a, b);
   const SHOTS = [
-    { until: EVENTS.liftoff + 4, blend: 0, shot: (t, pos, tgt) => {
-      // The classic pad camera: low, off the corner of the mount, looking up past the deck.
-      // Off the plateau on both axes: standing on it puts the camera at deck level, where
-      // the concrete fills the frame, and standing straight down the trench puts the smoke
-      // into the lens.
-      pos.set(S.x + 118, 13, S.z + 118);
-      tgt.set(S.x, 24 + altitudeAt(t) * 0.7, S.z);
+    { until: -24, blend: 0, shot: (t, pos, tgt) => {
+      // Establishing: the whole site from 800 m out, low over the flats, drifting in.
+      const u = ease(t, EVENTS.start, -24);
+      pos.set(S.x + THREE.MathUtils.lerp(780, 690, u), 10, S.z + THREE.MathUtils.lerp(330, 270, u));
+      tgt.set(S.x, THREE.MathUtils.lerp(64, 70, u), S.z);
     } },
-    { until: 15, blend: 1.6, shot: (t, pos, tgt) => {
-      // Stays on the ground while the stack climbs past the tower, and keeps the pad in the
-      // bottom of the frame: the tower is the only thing in shot whose size the viewer
-      // already knows, so letting it slide away would throw the sense of scale out.
-      pos.set(S.x + 210, 18, S.z + 210);
-      vehicleAt(t, tgt);
-      tgt.lerp(_pad.set(S.x, ex.lay.mount + 8, S.z), 0.42);
+    { until: -12, blend: 0, shot: (t, pos, tgt) => {
+      // The fuelled stack from the tower's height: frost on the tanks and boil-off venting
+      // from the booster and the ship, sinking down the hull. Square to the tower-stack line
+      // (down the trench axis, harmless before ignition) so the tower stands beside the
+      // vehicle rather than behind it.
+      const u = ease(t, -24, -12);
+      pos.set(S.x + THREE.MathUtils.lerp(28, 14, u), THREE.MathUtils.lerp(100, 90, u), S.z + THREE.MathUtils.lerp(152, 136, u));
+      tgt.set(S.x, ex.lay.mount + THREE.MathUtils.lerp(74, 62, u), S.z);
     } },
-    { until: 48, blend: 2.0, shot: (t, pos, tgt) => {
+    { until: EVENTS.ignition + 1.2, blend: 0, shot: (t, pos, tgt) => {
+      // The mount: the deflector's water coming up at T−10, the quick disconnect swinging
+      // clear, and the first engines lighting under the skirt.
+      const u = ease(t, -12, EVENTS.ignition + 1.2);
+      pos.set(S.x + THREE.MathUtils.lerp(64, 58, u), THREE.MathUtils.lerp(15, 13, u), S.z + THREE.MathUtils.lerp(40, 50, u));
+      tgt.set(S.x, ex.lay.mount + THREE.MathUtils.lerp(10, 12, u), S.z);
+    } },
+    { until: 14, blend: 0, shot: (t, pos, tgt) => {
+      // Liftoff from the ground, 350 m off to the east-south-east: the tower and the whole
+      // stack in frame, the steam going out of both trench mouths across the picture, and the
+      // camera tilting to keep the vehicle as it climbs past the tower top.
+      pos.set(S.x + 318, 4, S.z + 152);
+      const alt = altitudeAt(t);
+      tgt.set(S.x + downrangeAt(t) * 0.8, ex.lay.mount + 60 + alt * 0.86, S.z);
+    } },
+    { until: 48, blend: 3.0, shot: (t, pos, tgt) => {
       // Picks the vehicle up and holds it against the pad, which is now well below.
       vehicleAt(t, tgt);
       const d = 300;
@@ -779,9 +885,33 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
         _q.lerpVectors(_q2, _q, e);
       }
     }
+    shake(t, _p, _q);
     camera.position.copy(_p);
     rig.target.copy(_q);
     camera.lookAt(_q);
+  }
+
+  /**
+   * Ground shake near the pad, as the camera would feel it: it arrives with the sound, at
+   * 343 m/s from the engines, so a camera 350 m out starts shaking 1 s after the light does,
+   * and it falls off with distance and with the booster's height. Deterministic in mission
+   * time, so a seek reproduces it. Off when the visitor asks the system for reduced motion.
+   */
+  const reduceMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function shake(t, pos, tgt) {
+    if (reduceMotion || t < EVENTS.ignition || t > EVENTS.liftoff + 40) return;
+    const src = _pad.set(S.x + downrangeAt(t), ex.lay.mount + altitudeAt(t), S.z);
+    const d = pos.distanceTo(src);
+    const heard = t - d / 343;
+    const k = boosterThrottle(heard) * Math.min(1, 380 / Math.max(d, 1)) * (1 - THREE.MathUtils.smoothstep(altitudeAt(heard), 400, 2500));
+    if (k < 0.01) return;
+    // Angular jitter in radians, a few hundredths of a degree at full strength: a tripod on
+    // shaking ground, not a handheld.
+    const amp = 0.0016 * k * pos.distanceTo(tgt);
+    const n = (a, b, c) => Math.sin(t * a + c) * 0.55 + Math.sin(t * b + c * 1.7) * 0.45;
+    tgt.x += amp * n(37.1, 61.7, 0.3);
+    tgt.y += amp * n(43.3, 71.9, 1.1);
+    tgt.z += amp * n(29.9, 53.3, 2.3);
   }
 
   // ---- Pad hardware ---------------------------------------------------------------------
@@ -846,13 +976,13 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
       }
       return;
     }
-    if (t < -6.0 || t >= CLOUD_UNTIL) return;
+    if (t < EVENTS.deflector || t >= CLOUD_UNTIL) return;
 
-    // 1. Water deluge pre-ignition activation (T-6 to T-3)
-    // Water floods the plate and dense cold white mist rushes out both mouths (<- ->)
+    // 1. Flame deflector activation (cited T−10) to ignition: water floods the steel plate and
+    // a cold white mist rolls out of both mouths (<- ->), thickening as the flow comes up.
     if (t < EVENTS.ignition) {
-      const deluge = THREE.MathUtils.smoothstep(t, -6.0, -3.0);
-      const nWater = deluge * 44 * dt;
+      const deluge = 0.35 + 0.65 * THREE.MathUtils.smoothstep(t, EVENTS.deflector, EVENTS.ignition);
+      const nWater = deluge * THREE.MathUtils.smoothstep(t, EVENTS.deflector, EVENTS.deflector + 1.5) * 30 * dt;
       if (nWater < 0.05) return;
       const m = Math.max(1, Math.round(nWater * 0.5));
       // North mouth (+Z)
@@ -887,13 +1017,15 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     // on one side and clean air everywhere else — the pad looked like nothing was happening.
     // Small, short-lived and low: deluge steam, not a second thunderhead. At the trench's
     // own growth rate these puffs reached ninety metres across in a few seconds and buried
-    // the whole 124 m stack.
-    const near = Math.max(1, Math.round(n * 0.30));
+    // the whole 124 m stack. They were still thrown upward at 11 m/s on top of the cloud's
+    // buoyancy, which stood them up into a grey sheath round the climbing vehicle; the steam
+    // off a deck rolls outward over its edge, so it leaves nearly flat.
+    const near = Math.max(1, Math.round(n * 0.26));
     for (const [px, pz] of [[16, 11], [-16, 11], [16, -11], [-16, -11]]) {
       const r = Math.hypot(px, pz);
-      cloud.emit(Math.max(1, Math.round(near / 4)), [px, 19.0, pz],
-        [px / r * 0.5, 0.5, pz / r * 0.5], 22, 12,
-        { size0: 10, grow: 48, life0: 5, lifeVar: 5 });
+      cloud.emit(Math.max(1, Math.round(near / 4)), [px, 18.5, pz],
+        [px / r * 0.95, 0.08, pz / r * 0.95], 24, 10,
+        { size0: 8, grow: 30, life0: 3.5, lifeVar: 3.5 });
     }
   }
 
@@ -944,6 +1076,9 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     boosterJets.setState(lit ? Math.min(1, bThrottle / (lit / 33)) : 0, bAlt, lit);
     shipJets.setTime(t);
     shipJets.setState(st, alt, 6);
+    const vent = ventAt(t);
+    hotStageVents.setTime(t);
+    hotStageVents.setState(vent, alt, vent > 0.01 ? 24 : 0);
     for (const vp of vapors) vp.update(t, camera, env.sun);
     collar.set(collarAt(t), t);
     collarShip.set(collarAt(t) * 0.8, t);
@@ -958,7 +1093,13 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     // The near/far plane and the shadows follow whichever vehicle the camera is on, so the
     // pad comes back into shadow range as the booster returns to it.
     const camAlt = t < EVENTS.boostbackStart ? alt : bAlt;
-    env.sun.castShadow = home.shadows && camAlt < 1800;
+    // The shadow map stops being REDRAWN up there, but the light keeps casting: whether a
+    // light casts shadows is part of every lit material's program, so switching castShadow
+    // off at 1,8 km and on again for the landing recompiled every visible material twice in
+    // flight — 12 programs on the way up, 26 on the way down, each a stall on a real GPU.
+    const shadowLive = home.shadows && camAlt < 1800;
+    if (shadowLive && !env.sun.shadow.autoUpdate) env.sun.shadow.needsUpdate = true;
+    env.sun.shadow.autoUpdate = shadowLive;
     // Far plane out to past the geometric horizon, sqrt(2·R·h), with the limb shell on top.
     camera.near = camAlt > 20000 ? 2 : camAlt > 900 ? 0.8 : PAD_NEAR;
     camera.far = camAlt > 900 ? Math.max(260000, Math.sqrt(2 * 6371000 * camAlt) * 1.3 + 60000) : home.far;
@@ -978,7 +1119,13 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     state.velocity = onBooster ? boosterSpeedAt(t) : speedAt(t);
     state.downrange = onBooster ? boosterDownAt(t) : downrangeAt(t);
     state.throttle = onBooster ? bThrottle : Math.max(bt, st);
-    state.phase = t < EVENTS.ignition ? 'Countdown' : phaseAt(t);
+    state.phase = phaseAt(t);
+    // Both vehicles, the way the webcast carries them: identical until they part.
+    state.ship.altitude = alt; state.ship.velocity = speedAt(t); state.ship.lit = shipLit(t);
+    state.booster.altitude = bAlt; state.booster.velocity = boosterSpeedAt(t);
+    state.booster.lit = t >= EVENTS.separation ? (returnThrottle(t) > 0.001 ? boosterLit(t) : 0) : boosterLit(t);
+    const next = MILESTONES.find(m => m.t > t);
+    state.next = next ?? null;
   }
 
   // ---- Public API -------------------------------------------------------------------
@@ -1016,6 +1163,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     boosterPlume.setThrottle(0, 0);
     boosterJets.setState(0, 0, 0);
     shipJets.setState(0, 0, 0);
+    hotStageVents.setState(0, 0, 0);
     for (const vp of vapors) vp.hide();
     collar.set(0, 0);
     collarShip.set(0, 0);
@@ -1033,11 +1181,14 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     boosterFlight.rotation.z = 0;
     detachBooster(false);
     env.sun.castShadow = home.shadows;
+    env.sun.shadow.autoUpdate = true; env.sun.shadow.needsUpdate = true;
     camera.near = home.near; camera.far = home.far;
     camera.updateProjectionMatrix();
     applyFrost(0, false);
     visibilityHook?.(false);
-    Object.assign(state, { phase: 'On the pad', altitude: 0, velocity: 0, throttle: 0, downrange: 0 });
+    Object.assign(state, { phase: 'On the pad', altitude: 0, velocity: 0, throttle: 0, downrange: 0, next: null });
+    Object.assign(state.ship, { altitude: 0, velocity: 0, lit: 0 });
+    Object.assign(state.booster, { altitude: 0, velocity: 0, lit: 0 });
     onState(state);
     // The sequence ends 60 km up and 80 km downrange; leaving the viewer there would be a
     // trap, so control comes back looking at the pad the vehicle left.
@@ -1079,6 +1230,20 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     setSpeed: (k) => { state.speed = k; },
     setVisibilityHook: (fn) => { visibilityHook = fn; },
     events: EVENTS,
+    /**
+     * Where the noise comes from at mission time t, for the sound: the booster's engines and
+     * the ship's, in world space, with the throttle each was at and its altitude.
+     */
+    sources(t, out = [{ pos: new THREE.Vector3() }, { pos: new THREE.Vector3() }]) {
+      const b = out[0], s = out[1];
+      b.pos.set(S.x + boosterDownAt(t), ex.lay.mount + boosterAltAt(t), S.z);
+      b.throttle = t < EVENTS.separation ? boosterThrottle(t) : returnThrottle(t);
+      b.altitude = boosterAltAt(t);
+      s.pos.set(S.x + downrangeAt(t), ex.lay.mount + altitudeAt(t), S.z);
+      s.throttle = shipThrottle(t);
+      s.altitude = altitudeAt(t);
+      return out;
+    },
     start, reset, seek, update,
     /** Used by verify(): measuring the vehicle mid-flight would measure the wrong thing. */
     get atRest() { return !state.running; },

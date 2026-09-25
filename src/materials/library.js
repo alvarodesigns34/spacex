@@ -9,6 +9,40 @@
 import * as THREE from 'three';
 import * as TX from './textures.js';
 
+/**
+ * Moving water. One wave-normal map (textures.js makeWater, a 420 m tile) sampled four times,
+ * at four scales, each rotated and drifting its own way at its own speed: the long swell, the
+ * wind waves on it, a chop, and ripples a few metres across that fade out with distance before
+ * they can shimmer. Four scales of one map are what keep a surface from reading as a tiled
+ * picture, and the drift is what makes it water rather than glass. Speeds are the phase speeds
+ * of waves of about those lengths in deep water, √(gλ/2π), rounded: a few metres a second for
+ * the swell, well under one for ripples.
+ *
+ * `calm` scales the two long layers: a pool a few centimetres deep on a flat carries ripples
+ * and no swell. The clock is WAVE_TIME, advanced by the render loop.
+ */
+export const WAVE_TIME = { value: 0 };
+export function waveNormals(sh, { tileSize = 420, calm = 1 } = {}) {
+  sh.uniforms.uWaveTime = WAVE_TIME;
+  // [scale, rotation (rad), speed (m/s), weight, fade in from (m), fade out by (m)]
+  const L = [[1, 0.6, 4.5, 0.55 * calm, 0, 0], [5.3, 1.25, 2.6, 0.45 * calm, 0, 0], [23, 2.1, 1.4, 0.4, 700, 60], [97, 2.9, 0.7, 0.34, 140, 10]];
+  const f = (x) => x.toFixed(5);
+  const layers = L.map(([s, a, v, w, far, near]) => {
+    const c = Math.cos(a), sn = Math.sin(a), d = (v / tileSize) * s;
+    const fade = far ? ` * (1.0 - smoothstep(${f(near)}, ${f(far)}, vcWaveDist))` : '';
+    return `  vcWave += (texture2D(normalMap, mat2(${f(c)}, ${f(sn)}, ${f(-sn)}, ${f(c)}) * vNormalMapUv * ${f(s)} + uWaveTime * vec2(${f(d * 0.8)}, ${f(d * 0.6)})).xy * 2.0 - 1.0) * ${f(w)}${fade};`;
+  }).join('\n');
+  sh.fragmentShader = sh.fragmentShader
+    .replace('#include <common>', '#include <common>\nuniform float uWaveTime;')
+    // The include is expanded here, because onBeforeCompile sees the #include line, not its text.
+    .replace('#include <normal_fragment_maps>', THREE.ShaderChunk.normal_fragment_maps
+      .replace('vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;', `
+  float vcWaveDist = length(vViewPosition);
+  vec2 vcWave = vec2(0.0);
+${layers}
+  vec3 mapN = vec3(vcWave, 1.0);`));
+}
+
 export async function createMaterials(onProgress = () => {}, pause = null) {
   const T = {};
   const steps = [
@@ -165,11 +199,12 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
   // Cheap: five noise evaluations and one extra texture fetch per ground fragment.
   M.terrain.onBeforeCompile = (sh) => {
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vVcWorld;\nattribute vec2 aShore;\nvarying vec2 vShore;')
-      .replace('#include <project_vertex>', '#include <project_vertex>\nvVcWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvShore = aShore;');
+      .replace('#include <common>', '#include <common>\nvarying vec3 vVcWorld;\nattribute vec2 aShore;\nvarying vec2 vShore;\nattribute float aLand;\nvarying float vLand;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvVcWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvShore = aShore;\nvLand = aLand;');
     const NOISE = `
 varying vec3 vVcWorld;
 varying vec2 vShore;
+varying float vLand;
 float vcHash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float vcNoise(vec2 p) {
   vec2 i = floor(p), f = fract(p);
@@ -186,6 +221,16 @@ float vcNoise(vec2 p) {
   vec4 vcAlt = texture2D( map, vcUv2 );
   float vcMix = smoothstep(0.3, 0.7, vcNoise(vVcWorld.xz / 57.0 + vec2(3.7, -1.9)));
   sampledDiffuseColor = mix( sampledDiffuseColor, vcAlt, vcMix );
+  // Close up, a third lookup 6,7 × finer and turned again, applied as contrast only (its own
+  // value over its own blurred mean, read from a coarse mip): grain a few millimetres across
+  // under a visitor's feet, fading out by 45 m where the base map already holds.
+  float vcNear = 1.0 - smoothstep(8.0, 45.0, length(vViewPosition));
+  if (vcNear > 0.0) {
+    vec2 vcUv3 = mat2(0.28, 0.96, -0.96, 0.28) * vMapUv * 6.7 + vec2(0.57, 0.11);
+    float vcFine = dot(texture2D( map, vcUv3 ).rgb, vec3(0.3, 0.59, 0.11));
+    float vcMean = dot(texture2D( map, vcUv3, 6.0 ).rgb, vec3(0.3, 0.59, 0.11));
+    sampledDiffuseColor.rgb *= mix(1.0, clamp(vcFine / max(vcMean, 0.02), 0.55, 1.5), vcNear * 0.55);
+  }
   diffuseColor *= sampledDiffuseColor;
 #endif`)
       .replace('#include <color_fragment>', `#include <color_fragment>
@@ -220,6 +265,12 @@ float vcNoise(vec2 p) {
     float clump = vcNoise(wp / 6.0 + warp * 3.0 + 41.0) * 0.6 + vcNoise(wp / 2.3 - 13.0) * 0.4;
     vegCol = mix(vegCol, vec3(0.085, 0.105, 0.045), smoothstep(0.62, 0.80, clump) * 0.55);
     vegCol *= mix(0.8, 1.2, clamp(lum, 0.0, 1.5) / 1.5);
+    // Thornscrub cover on the lomas and the small rises of the plain (terrain.js thicket, per
+    // vertex), as a ground tone: a dark olive mottle with bare clay between, not grass.
+    float thick = smoothstep(0.08, 0.7, vLand);
+    veg = max(veg, thick);
+    vec3 scrubCol = mix(vec3(0.050, 0.064, 0.030), vec3(0.120, 0.112, 0.062), smoothstep(0.35, 0.75, clump));
+    vegCol = mix(vegCol, scrubCol, thick * 0.85);
     // The fringe between the two is sparse: grass thinning out over bare ground.
     float fringe = smoothstep(0.0, 1.0, veg) * smoothstep(0.35, 0.65, clump + veg * 0.6);
     diffuseColor.rgb = mix(bare, vegCol, max(fringe, smoothstep(0.7, 1.0, veg)));
@@ -231,9 +282,12 @@ float vcNoise(vec2 p) {
     // wet sand ≈ sRGB (0.52, 0.46, 0.37). Warm on purpose: the low sky light cools it.
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.70, 0.48, 0.21) * grain, vShore.x * 0.92);
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.26, 0.19, 0.10) * grain, vShore.y * 0.85);
-  }`);
+  }`)
+      // Wet sand holds a film of water and shines; dry sand does not.
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+  roughnessFactor = mix(roughnessFactor, 0.28, vShore.y * 0.8);`);
   };
-  M.terrain.customProgramCacheKey = () => 'vc-terrain-macro-9';
+  M.terrain.customProgramCacheKey = () => 'vc-terrain-macro-11';
   // The Gulf beyond the beach. Water is a dielectric with a smooth surface: almost all of what
   // it shows is the sky it reflects, so the colour here is only the body tint of shallow,
   // silty coastal water, and the wave normals do the rest.
@@ -241,6 +295,7 @@ float vcNoise(vec2 p) {
     color: 0x2c4a55, roughness: 0.12, metalness: 0.0, envMapIntensity: 1.2,
     normalMap: T.water.normalMap, normalScale: new THREE.Vector2(0.55, 0.55),
   });
+  M.water.userData.tileSize = T.water.tileSize;
   M.trenchArmor = new THREE.MeshStandardMaterial({
     map: T.trenchArmor.map, roughnessMap: T.trenchArmor.roughnessMap, normalMap: T.trenchArmor.normalMap,
     normalScale: new THREE.Vector2(0.9, 0.9), metalness: 0.82, roughness: 0.48, envMapIntensity: 0.72,

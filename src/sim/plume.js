@@ -128,7 +128,6 @@ export class Plume {
     this.baseLength = seaLevelLength * radius;
     this.group = new THREE.Group();
     this.group.name = name;
-    this.group.visible = false;
 
     // Bright shock core, then the wide envelope of afterburning around it.
     // The core ends in a dull orange, not blue: mixed with the warm band a blue tail went
@@ -163,7 +162,11 @@ export class Plume {
    */
   setThrottle(throttle, altitude, spread = 1) {
     const on = throttle > 0.001;
-    this.group.visible = on;
+    // The group stays visible and only the cones hide: the light has to be in the scene all
+    // the time, at zero when the engines are off. How many lights a scene has is part of
+    // every lit material's shader, so a light that appeared with the group at ignition made
+    // all of them recompile at once — 25 programs, a stall at the moment of liftoff.
+    for (const layer of [this.core, this.shroud, this.veil]) layer.visible = on;
     if (!on) { this.light.intensity = 0; return; }
     const p = pressureRatio(altitude);
     // Over-expanded and stubby at the pad; wide and long once there is nothing to push back.
@@ -283,8 +286,12 @@ export class EngineJets {
     const m = new THREE.Matrix4();
     engines.forEach((e, i) => {
       // Unit length along the jet; the shader stretches it, so all jets share one length
-      // measured in the cluster's mean exit radius.
-      m.compose(new THREE.Vector3(...e.position), new THREE.Quaternion(), new THREE.Vector3(e.radius, 1, e.radius));
+      // measured in the cluster's mean exit radius. A jet hangs down −Y unless `direction`
+      // points it elsewhere (the hot-stage vents blow out sideways).
+      const q = e.direction
+        ? new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), new THREE.Vector3(...e.direction).normalize())
+        : new THREE.Quaternion();
+      m.compose(new THREE.Vector3(...e.position), q, new THREE.Vector3(e.radius, 1, e.radius));
       this.mesh.setMatrixAt(i, m);
     });
     this.mesh.instanceMatrix.needsUpdate = true;
@@ -543,7 +550,11 @@ export class GroundCloud {
     this.points = new THREE.Mesh(geo, mat);
     this.points.name = 'ground-cloud';
     this.points.frustumCulled = false;
-    this.points.renderOrder = 3;
+    // Before the plumes, not after. Neither writes depth, so whichever draws last wins where
+    // they overlap: drawn after, puffs BEHIND the column painted over it and the 33 Raptors
+    // vanished into their own steam from T+0 to T+10. Drawn first, the additive column adds on
+    // top, which is also what the eye sees — a flame glowing through the cloud round its base.
+    this.points.renderOrder = 1;
     this.reset();
   }
 
@@ -786,7 +797,9 @@ export class Vapor {
     this.mesh = new THREE.Mesh(geo, this.material);
     this.mesh.name = name;
     this.mesh.frustumCulled = false;
-    this.mesh.renderOrder = 3;
+    // Under the plumes, like the ground cloud: the deluge spray round the engines would
+    // otherwise paint over the jets it surrounds.
+    this.mesh.renderOrder = 1;
     this.windows = emitters.map(e => e.window);
     this.maxLife = Math.max(...emitters.map(e => e.life * 1.2));
   }

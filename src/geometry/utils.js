@@ -582,7 +582,8 @@ export function radial(n, fn, offset = 0) {
  * carries `userData.lodFeature` so the LOD manager can stop drawing chunks whose tussocks are
  * under a pixel, instead of drawing a hundred thousand sub-pixel triangles as speckle.
  *
- * @param placements [{ x, z, matrix }] — x/z in the frame the chunks are added to
+ * @param placements [{ x, z, matrix, color? }] — x/z in the frame the chunks are added to;
+ *        `color` an optional [r, g, b] multiplier for that instance
  * @returns a Group holding the chunk meshes
  */
 export function chunkedInstances(geometry, material, placements, { cell = 120, name = 'instances', feature = 0.6, castShadow = false, receiveShadow = true } = {}) {
@@ -590,14 +591,19 @@ export function chunkedInstances(geometry, material, placements, { cell = 120, n
   for (const p of placements) {
     const key = `${Math.floor(p.x / cell)},${Math.floor(p.z / cell)}`;
     if (!bins.has(key)) bins.set(key, []);
-    bins.get(key).push(p.matrix);
+    bins.get(key).push(p);
   }
   const group = new THREE.Group();
   group.name = name;
-  for (const [key, mats] of bins) {
-    const im = new THREE.InstancedMesh(geometry, material, mats.length);
+  const tint = new THREE.Color();
+  for (const [key, list] of bins) {
+    const im = new THREE.InstancedMesh(geometry, material, list.length);
     im.name = `${name}-${key}`;
-    mats.forEach((m, i) => im.setMatrixAt(i, m));
+    list.forEach((p, i) => {
+      im.setMatrixAt(i, p.matrix);
+      // Optional per-instance colour, multiplied into the material's.
+      if (p.color) im.setColorAt(i, tint.setRGB(p.color[0], p.color[1], p.color[2]));
+    });
     im.instanceMatrix.needsUpdate = true;
     im.computeBoundingSphere();
     im.computeBoundingBox();
