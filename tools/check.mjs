@@ -551,7 +551,9 @@ try {
     const caught = await at(415);
     const rose = apogee.y > 85000 && apogee.x > 60000;
     const home = Math.abs(caught.x) < 60 && caught.y < 60;
-    const closed = caught.arms.every(a => Math.abs(a) < 0.16) && caught.chop > 80;
+    // Closed means well in from the ±42° open position; how far in is measured below against
+    // the hull, since closing too far is as wrong as not closing (the arms went through it).
+    const closed = caught.arms.every(a => Math.abs(a) < 0.3) && caught.chop > 80;
     const descending = mid.y < apogee.y && Math.abs(mid.x) < Math.abs(apogee.x);
     const ok = rose && home && closed && descending;
     report(ok, 'el propulsor vuelve y la torre lo atrapa',
@@ -560,7 +562,9 @@ try {
 
     // ...and it catches it BY THE PINS. "chop > 80" only says the carriage went up; it passed
     // happily while the arms closed 6,8 m below the hardware, around the methane tank. Measure
-    // the pin's world height against the carriage's load pads instead.
+    // the pin's world height against the top of the rail it lands on, and every vertex of the
+    // arms against the hull: the arms must close up to it (bumper pads within 0,6 m) without
+    // entering it, which they once did by 1,9 m.
     const grip = await page.evaluate((tt) => {
       const v = window.__vc;
       v.launch.seek(tt);
@@ -570,15 +574,34 @@ try {
       const chop = v.complex.userData.parts.chopsticks;
       if (!p) return null;
       v.scene.updateMatrixWorld(true);
-      // World translation straight out of the matrix, so this needs no THREE in page scope.
-      return { pin: p.matrixWorld.elements[13], carriage: chop.matrixWorld.elements[13] };
+      // World positions straight out of the matrices, so this needs no THREE in page scope.
+      const ax = v.exhibits.starship.boosterFlight.matrixWorld.elements;
+      const cx = ax[12], cz = ax[14];
+      let clear = Infinity;
+      for (const arm of chop.children.filter(c => c.name.startsWith('arm-'))) {
+        arm.traverse(o => {
+          const pos = o.geometry?.attributes?.position;
+          if (!o.isMesh || !pos) return;
+          const e = o.matrixWorld.elements;
+          for (let i = 0; i < pos.count; i++) {
+            const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+            const wx = e[0] * x + e[4] * y + e[8] * z + e[12];
+            const wz = e[2] * x + e[6] * y + e[10] * z + e[14];
+            clear = Math.min(clear, Math.hypot(wx - cx, wz - cz));
+          }
+        });
+      }
+      const railTop = chop.userData.catchGeometry?.railTop ?? 2.3;
+      return { pin: p.matrixWorld.elements[13], rail: chop.matrixWorld.elements[13] + railTop, clear };
     }, 415);
     if (grip) {
-      const off = grip.pin - grip.carriage;
-      report(Math.abs(off) <= 1.6, 'los brazos cierran a la altura de los pines',
-        `pin a ${grip.pin.toFixed(2)} m, carro a ${grip.carriage.toFixed(2)} m (desfase ${off.toFixed(2)} m)`);
+      const off = grip.pin - grip.rail;
+      report(off >= 0 && off <= 0.8, 'los pines descansan sobre el carril de los brazos',
+        `pin a ${grip.pin.toFixed(2)} m, carril a ${grip.rail.toFixed(2)} m (desfase ${off.toFixed(2)} m)`);
+      report(grip.clear >= 4.45 && grip.clear <= 5.1, 'los brazos cierran junto al casco sin atravesarlo',
+        `parte del brazo más cercana a ${grip.clear.toFixed(2)} m del eje; casco de 4,5 m de radio`);
     } else {
-      report(false, 'los brazos cierran a la altura de los pines', 'no se encontró la malla catch-pin');
+      report(false, 'los pines descansan sobre el carril de los brazos', 'no se encontró la malla catch-pin');
     }
 
     // ...and over the arms, not just at their height. The arms run out from the tower along
