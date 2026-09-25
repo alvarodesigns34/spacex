@@ -1028,19 +1028,18 @@ function createRoadsterMaterials(M) {
   const brakeCaliper = new THREE.MeshStandardMaterial({ color: 0xb00d1a, metalness: 0.35, roughness: 0.26 });
   const amberReflector = new THREE.MeshPhysicalMaterial({
     color: 0xe08b12, metalness: 0.0, roughness: 0.16, clearcoat: 1.0, clearcoatRoughness: 0.04,
-    transmission: 0.35, ior: 1.5, thickness: 0.02,
   });
 
-  // Four surfaces on the car transmit: this windscreen and the Arch quartz disc fully, the
-  // amber reflector and the tail lenses at around a third, where the effect wanted is a tint
-  // rather than a view through. Everything else that looks like glass — the headlight covers
-  // most of all — fakes it with clearcoat, because Three renders the scene again for each
-  // transmissive material and the car cannot afford a pass per lamp.
-  // Mixing opacity with transmission is what left the old windscreen looking like a milky
-  // slab; transmission alone, front-facing, refracts.
+  // No surface on the car uses transmission. Three renders every opaque object in the scene
+  // a second time, into a mipmapped target, on every frame in which any transmissive
+  // material is on screen — so a 6 mm windscreen, a reflector and a 12 cm quartz disc were
+  // doubling the cost of every Roadster view. Thin flat glass barely displaces what is behind
+  // it; what it shows is the sky it reflects and a faint tint, which is what this does. The
+  // windscreen is a low-opacity film with a clear coat, as the headlight covers already were,
+  // and writes no depth so the cockpit behind it is not clipped.
   const windshieldGlass = new THREE.MeshPhysicalMaterial({
-    color: 0xdceaf2, metalness: 0.0, roughness: 0.02, transmission: 0.94, ior: 1.52,
-    thickness: 0.006, envMapIntensity: 1.0,
+    color: 0xdceaf2, metalness: 0.0, roughness: 0.02, clearcoat: 1.0, clearcoatRoughness: 0.02,
+    transparent: true, opacity: 0.14, depthWrite: false, envMapIntensity: 1.0,
   });
 
   // Lens glass without transmission: clear coat over the chrome bowl behind it does the work,
@@ -1086,7 +1085,8 @@ function createRoadsterMaterials(M) {
   });
 
   const quartzDisc = new THREE.MeshPhysicalMaterial({
-    color: 0xdfeef8, metalness: 0.0, roughness: 0.03, transmission: 0.92, ior: 1.46, thickness: 0.002,
+    color: 0xdfeef8, metalness: 0.0, roughness: 0.03, clearcoat: 1.0, clearcoatRoughness: 0.02,
+    transparent: true, opacity: 0.22, depthWrite: false,
   });
 
   // Radiator matrix seen through the grille: dark, matt, and never bright enough to read as a
