@@ -1226,7 +1226,29 @@ function buildBodyShell(mats, M) {
   // Deliberately NOT welded with mergeVertices: soldering across panel boundaries at a 6 mm
   // threshold is what averages the character line away. Panels share vertices by construction
   // where they should and stay separate where the car separates them.
-  g.add(mesh(mergeAll(panels), mats.cherryRed, { name: 'body-paint' }));
+  const bodyPaint = mesh(mergeAll(panels), mats.cherryRed, { name: 'body-paint' });
+  g.add(bodyPaint);
+
+  // Far stand-in for the paint: the same master surface, the same three panels and the same
+  // open cockpit, swept on a coarse grid (≈3 k triangles against 162 k) with no lamp or fascia
+  // cuts. Nothing about the silhouette is invented — it is bodyPoint() sampled less often.
+  // Worst chord error is ~2 cm on the shoulder radius, under half a pixel at the ~40 m where
+  // the LOD swaps it in (feature 0,12 m at 3,5 px), so the switch is not visible. The lamps
+  // and the other fittings shed their own detail by then.
+  {
+    const zF = stations(Z_COWL, Z_NOSE, 16), zR = stations(Z_TAIL, Z_BULK, 16), zD = stations(Z_BULK, Z_COWL, 6);
+    const tF = params(T_SILL_L, T_SILL_R, 22);
+    const tDL = params(T_SILL_L, T_SHOULDER_L, 5), tDR = params(T_SHOULDER_R, T_SILL_R, 5);
+    const far = mesh(mergeAll([
+      { geometry: sweep(zF, tF) }, { geometry: sweep(zR, tF) },
+      { geometry: sweep(zD, tDL) }, { geometry: sweep(zD, tDR) },
+      { geometry: endCap(ringAt(Z_NOSE, tF), 1, CAP_NOSE, 0.30, 2) },
+      { geometry: endCap(ringAt(Z_TAIL, tF), -1, CAP_TAIL, 0.85, 2) },
+    ]), mats.cherryRed, { name: 'body-paint-far' });
+    far.visible = false;
+    g.add(far);
+    bodyPaint.userData.lod = { name: 'body', near: [bodyPaint], far, feature: 0.12 };
+  }
 
   // Rolled arch lips, following the cut the arches make in the rocker line.
   const archLips = [];

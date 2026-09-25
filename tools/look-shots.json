@@ -1,0 +1,107 @@
+[
+ {
+  "name": "look-overview-18.jpg",
+  "jump": [
+   null
+  ],
+  "sun": 18,
+  "labels": false,
+  "ruler": false,
+  "hud": false,
+  "wait": 900
+ },
+ {
+  "name": "look-overview-42.jpg",
+  "jump": [
+   null
+  ],
+  "sun": 42,
+  "labels": false,
+  "ruler": false,
+  "hud": false,
+  "wait": 900
+ },
+ {
+  "name": "look-overview-70.jpg",
+  "jump": [
+   null
+  ],
+  "sun": 70,
+  "labels": false,
+  "ruler": false,
+  "hud": false,
+  "wait": 900
+ },
+ {
+  "name": "look-beach-18.jpg",
+  "pos": [
+   120,
+   4,
+   -640
+  ],
+  "target": [
+   0,
+   50,
+   -185
+  ],
+  "sun": 18,
+  "labels": false,
+  "ruler": false,
+  "hud": false,
+  "wait": 900
+ },
+ {
+  "name": "look-aerial-42.jpg",
+  "pos": [
+   520,
+   420,
+   260
+  ],
+  "target": [
+   0,
+   0,
+   -220
+  ],
+  "sun": 42,
+  "labels": false,
+  "ruler": false,
+  "hud": false,
+  "wait": 900
+ },
+ {
+  "name": "look-plain-18.jpg",
+  "pos": [
+   -260,
+   6,
+   120
+  ],
+  "target": [
+   0,
+   30,
+   -185
+  ],
+  "sun": 18,
+  "labels": false,
+  "ruler": false,
+  "hud": false,
+  "wait": 900
+ },
+ {
+  "name": "look-surf-42.jpg",
+  "pos": [
+   80,
+   14,
+   -560
+  ],
+  "target": [
+   -220,
+   0,
+   -780
+  ],
+  "sun": 42,
+  "labels": false,
+  "ruler": false,
+  "hud": false,
+  "wait": 900
+ }
+]

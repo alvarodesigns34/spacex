@@ -188,45 +188,38 @@ float vcNoise(vec2 p) {
       .replace('#include <color_fragment>', `#include <color_fragment>
   {
     vec2 wp = vVcWorld.xz;
-    float macro = vcNoise(wp / 190.0) * 0.55 + vcNoise(wp / 63.0 + 17.3) * 0.30 + vcNoise(wp / 21.0 - 5.1) * 0.15;
-    float salt = smoothstep(0.55, 0.80, macro);
-    float damp = smoothstep(0.42, 0.18, macro);
-    diffuseColor.rgb *= mix(1.0, 1.16, salt) * mix(1.0, 0.78, damp);
-    diffuseColor.rgb *= mix(vec3(1.0), vec3(0.97, 0.97, 0.90), damp * 0.7);
-    // Sparse low scrub: clumps of a few metres, thicker in the damp hollows, none on the salt
-    // crust. Without it the plain read as one sheet of felt at any distance.
-    // Domain-warped: patches with ragged, drawn-out edges rather than the round blobs plain
-    // value noise makes, which were most of why the plain read as a procedural pattern.
+    float beach = max(vShore.x, vShore.y);
+    // Land cover, the way the ISS photographs of the Boca Chica plain show it: a blanket of
+    // olive grass and scrub, broken by pale bare flats — salt crust and dry sand — in large
+    // irregular districts, with darker damp ground where the flats are lowest. The old
+    // version did the opposite (a pale tan plain with small green specks), which read as a
+    // sandbox from the overview. Every field is domain-warped so the edges are ragged and
+    // drawn out rather than the round blobs plain value noise makes.
     vec2 wq = wp / 23.0;
     vec2 warp = vec2(vcNoise(wq + 7.1), vcNoise(wq - 3.3)) - 0.5;
-    float veg = vcNoise(wp / 9.0 + warp * 3.0 + 41.0) * 0.6 + vcNoise(wp / 3.1 - 13.0) * 0.4;
-    float beach = max(vShore.x, vShore.y);
-    float scrub = smoothstep(0.60, 0.76, veg + damp * 0.10) * (1.0 - salt) * (1.0 - beach);
-    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.62, 0.70, 0.46), scrub * 0.75);
-    // Tidal drainage. Every aerial photograph of the flats round Boca Chica is laced with
-    // sinuous channels a metre or two wide, where the wind tides drain back to the lagoon:
-    // darker, wet, bare of scrub. Drawn as the 0,5 contour of a warped field — a line that
-    // meanders and branches but never ends in the open — and only in some districts, not as
-    // a lattice over the whole plain. fwidth keeps it one antialiased line at any distance.
-    {
-      vec2 cq = wp / 150.0;
-      vec2 cw = vec2(vcNoise(cq * 2.1 + 5.3), vcNoise(cq * 2.1 - 8.7)) - 0.5;
-      float cn = vcNoise(cq + cw * 0.9) * 0.7 + vcNoise(cq * 3.3 + cw * 1.6 + 2.0) * 0.3;
-      float cd = abs(cn - 0.5), fw = max(fwidth(cn), 1e-6);
-      float cwidth = 0.0035 + 0.0035 * vcNoise(wp / 40.0 + 9.0);
-      // Coverage, not a fixed-width line: once a channel is narrower than a pixel it only
-      // darkens the pixel by the share it covers. Held at a pixel's width instead, the far
-      // channels turned into black lines of constant weight, like roads drawn on a map.
-      float cover = clamp(cwidth / fw, 0.0, 1.0);
-      float chan = (1.0 - smoothstep(cwidth, cwidth + fw, cd)) * cover;
-      float district = smoothstep(0.45, 0.62, vcNoise(wp / 420.0 + 17.0));
-      float bank = (1.0 - smoothstep(cwidth, cwidth * 4.0 + fw, cd)) * clamp(cwidth * 4.0 / fw, 0.0, 1.0);
-      bank *= district * (1.0 - beach);
-      chan *= district * (1.0 - beach);
-      // Wet mud margins, then the water-darkened bed.
-      diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.80, 0.78, 0.72), bank * 0.5);
-      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.16, 0.155, 0.13), chan * 0.6);
-    }
+    vec2 bw = vec2(vcNoise(wp / 310.0 + 4.2), vcNoise(wp / 310.0 - 6.6)) - 0.5;
+    float cover = vcNoise(wp / 260.0 + bw * 1.4 + 11.0) * 0.6
+                + vcNoise(wp / 85.0 + bw * 2.0 - 3.0) * 0.3
+                + vcNoise(wp / 27.0 + warp * 2.0) * 0.1;
+    float veg = smoothstep(0.31, 0.45, cover) * (1.0 - beach);
+    // Bare flats: the map's own sand-and-salt grain, paler on the crust, darker and greyer in
+    // the damp lows.
+    float low = smoothstep(0.30, 0.18, cover);
+    // Grey-tan, not yellow: half-way to the map's own luminance, which is what sun-bleached
+    // salt crust and dry sand look like beside grass.
+    vec3 bareBase = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), 0.22);
+    vec3 bare = bareBase * mix(vec3(0.93, 0.91, 0.87), vec3(0.68, 0.66, 0.61), low);
+    // Vegetation, in linear colour: green grass and dry straw by district, dark shrub clumps a
+    // few metres across. The map's luminance is kept as grain so the grass is not flat paint.
+    float lum = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11)) / 0.40;
+    float straw = smoothstep(0.35, 0.70, vcNoise(wp / 140.0 - 9.0) + warp.x * 0.3);
+    vec3 vegCol = mix(vec3(0.150, 0.165, 0.070), vec3(0.265, 0.225, 0.105), straw);
+    float clump = vcNoise(wp / 6.0 + warp * 3.0 + 41.0) * 0.6 + vcNoise(wp / 2.3 - 13.0) * 0.4;
+    vegCol = mix(vegCol, vec3(0.085, 0.105, 0.045), smoothstep(0.62, 0.80, clump) * 0.55);
+    vegCol *= mix(0.8, 1.2, clamp(lum, 0.0, 1.5) / 1.5);
+    // The fringe between the two is sparse: grass thinning out over bare ground.
+    float fringe = smoothstep(0.0, 1.0, veg) * smoothstep(0.35, 0.65, clump + veg * 0.6);
+    diffuseColor.rgb = mix(bare, vegCol, max(fringe, smoothstep(0.7, 1.0, veg)));
     // The beach (ground mesh only; other meshes on this material have no aShore and read 0):
     // pale quartz sand with a faint ripple of tone, darkening to wet sand at the water. A beach
     // tinted from the plain's olive map stayed grass-coloured all the way into the sea.
@@ -237,7 +230,7 @@ float vcNoise(vec2 p) {
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.26, 0.19, 0.10) * grain, vShore.y * 0.85);
   }`);
   };
-  M.terrain.customProgramCacheKey = () => 'vc-terrain-macro-6';
+  M.terrain.customProgramCacheKey = () => 'vc-terrain-macro-9';
   // The Gulf beyond the beach. Water is a dielectric with a smooth surface: almost all of what
   // it shows is the sky it reflects, so the colour here is only the body tint of shallow,
   // silty coastal water, and the wave normals do the rest.

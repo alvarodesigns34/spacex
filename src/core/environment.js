@@ -89,6 +89,54 @@ const WATERLINE = 35.3;
 /** Radius of the apron disc at ground level, before the ascent stretches it. */
 const GROUND_R = 2500;
 
+/**
+ * The Gulf graded by distance offshore, from the ISS photographs of this coast (NASA,
+ * iss072e220043) and any view from the beach: surf breaking in two or three white lines over
+ * the bar, a band of sandy, green-grey shallow water a few hundred metres wide, then the
+ * darker open water. The sea was one flat slate tint right up to the sand. Colours are
+ * plausible, not measured; the wave normals and the reflected sky do the rest.
+ */
+function seaMaterial(base) {
+  const m = base.clone();
+  m.name = 'sea';
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float aSea;\nvarying float vSea;\nvarying vec2 vSeaXY;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSea = aSea;\nvSeaXY = position.xy;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying float vSea;
+varying vec2 vSeaXY;
+float seaHash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float seaNoise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(seaHash(i), seaHash(i + vec2(1, 0)), u.x), mix(seaHash(i + vec2(0, 1)), seaHash(i + vec2(1, 1)), u.x), u.y); }`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+  {
+    float d = max(vSea, 0.0);
+    // Linear body tints: churned sandy green in the surf, green-grey over the shelf, then the
+    // open Gulf's own colour (the material's).
+    vec3 surfWater = vec3(0.20, 0.22, 0.17), shelf = vec3(0.075, 0.13, 0.12);
+    vec3 body = mix(surfWater, shelf, smoothstep(10.0, 70.0, d));
+    body = mix(body, diffuseColor.rgb, smoothstep(150.0, 700.0, d));
+    diffuseColor.rgb = body;
+    // Surf: broken white lines over the inner and outer bars, never a solid ribbon.
+    float along = vSeaXY.x;
+    float brk = seaNoise(vec2(along / 14.0, 3.0)) * 0.6 + seaNoise(vec2(along / 4.0, 9.0)) * 0.4;
+    float l1 = 1.0 - smoothstep(0.0, 2.2, abs(d - 3.0));
+    float l2 = (1.0 - smoothstep(0.0, 3.0, abs(d - 18.0 - 3.0 * seaNoise(vec2(along / 60.0, 1.0))))) * smoothstep(0.45, 0.7, brk);
+    float l3 = (1.0 - smoothstep(0.0, 4.0, abs(d - 42.0 - 6.0 * seaNoise(vec2(along / 90.0, 5.0))))) * smoothstep(0.6, 0.8, brk);
+    float foam = clamp(l1 * 0.9 + l2 * 0.75 + l3 * 0.5, 0.0, 1.0) * (0.75 + 0.25 * seaNoise(vSeaXY / 2.5));
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.78, 0.80, 0.80), foam);
+    vSeaFoam = foam;
+  }`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+  roughnessFactor = mix(roughnessFactor, 0.85, vSeaFoam);`)
+      .replace('void main() {', 'float vSeaFoam = 0.0;\nvoid main() {');
+  };
+  m.customProgramCacheKey = () => 'vc-sea-1';
+  return m;
+}
+
 export function createEnvironment(renderer, scene, M, quality = {}) {
   const sunDir = new THREE.Vector3();
 
@@ -169,22 +217,41 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   // nine metres down within 180 m of the waterline, which keeps the two surfaces far enough
   // apart for the depth buffer a couple of kilometres out.
   {
-    const shape = new THREE.Shape();
+    // A strip that follows the coast, rows at growing distances from the waterline, instead
+    // of one polygon triangulated into kilometre-long slivers: every vertex carries its exact
+    // distance offshore (aSea), so the shallow shelf and the surf can be graded by it. Rows
+    // past the edge of the disc are pulled back onto the circle.
+    const SEA_ROWS = [-5, 0, 4, 9, 15, 22, 30, 40, 55, 75, 100, 140, 200, 300, 450, 700, 1000, 1500, 2200, 3200, 4600];
     const xs = [];
-    for (let x = -GROUND_R; x <= GROUND_R; x += 25) xs.push(x);
-    // Seaward boundary: the arc of the disc; landward: 30 m inside the waterline.
-    const pts = xs.map((x) => [x, -(shoreZ(x) - 30)]).filter(([x, y]) => Math.hypot(x, y) < GROUND_R);
-    shape.moveTo(pts[0][0], pts[0][1]);
-    for (const [x, y] of pts.slice(1)) shape.lineTo(x, y);
-    const a1 = Math.atan2(pts[pts.length - 1][1], pts[pts.length - 1][0]), a0 = Math.atan2(pts[0][1], pts[0][0]);
-    shape.absarc(0, 0, GROUND_R, a1, a0 < a1 ? a0 + Math.PI * 2 : a0, false);
-    const waterGeo = new THREE.ShapeGeometry(shape, 64);
+    for (let x = -GROUND_R; x <= GROUND_R; x += 20) xs.push(x);
+    const wpos = [], wsea = [], widx = [];
+    for (const d of SEA_ROWS) for (const x of xs) {
+      let px = x, py = -shoreZ(x) + WATERLINE + d;
+      const r = Math.hypot(px, py);
+      if (r > GROUND_R) { px *= GROUND_R / r; py *= GROUND_R / r; }
+      wpos.push(px, py, -0.9); wsea.push(d);
+    }
+    const nx = xs.length;
+    for (let j = 0; j < SEA_ROWS.length - 1; j++) for (let i = 0; i < nx - 1; i++) {
+      const a0 = j * nx + i, b0 = a0 + nx;
+      // Counter-clockwise seen from above (+z here), by construction: x grows along a row and
+      // the rows run seaward in +y. A check on one vertex's normal is not enough — the rows
+      // pulled onto the disc's edge make degenerate triangles there, and it guessed wrong.
+      widx.push(a0, a0 + 1, b0, a0 + 1, b0 + 1, b0);
+    }
+    const waterGeo = new THREE.BufferGeometry();
+    waterGeo.setAttribute('position', new THREE.Float32BufferAttribute(wpos, 3));
+    waterGeo.setAttribute('aSea', new THREE.Float32BufferAttribute(wsea, 1));
+    waterGeo.setIndex(widx);
+    // A flat sea: every normal is straight up, degenerate edge triangles included.
+    const wn = new Float32Array(wpos.length);
+    for (let i = 2; i < wn.length; i += 3) wn[i] = 1;
+    waterGeo.setAttribute('normal', new THREE.BufferAttribute(wn, 3));
     // Metric UVs for the wave normals.
     const wp = waterGeo.attributes.position, wuv = new Float32Array(wp.count * 2);
     for (let i = 0; i < wp.count; i++) { wuv[i * 2] = wp.getX(i); wuv[i * 2 + 1] = wp.getY(i); }
     waterGeo.setAttribute('uv', new THREE.BufferAttribute(wuv, 2));
-    waterGeo.translate(0, 0, -0.9);
-    const water = new THREE.Mesh(waterGeo, M.water ?? new THREE.MeshStandardMaterial({ color: 0x2f5160, roughness: 0.15 }));
+    const water = new THREE.Mesh(waterGeo, seaMaterial(M.water ?? new THREE.MeshStandardMaterial({ color: 0x2f5160, roughness: 0.15 })));
     water.name = 'sea';
     water.receiveShadow = false;
     ground.add(water);

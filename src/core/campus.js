@@ -244,11 +244,20 @@ function buildFlats(g, M, avoid) {
   for (const [cx, cz, R, seed] of spec) {
     const rad = (a) => R * (0.72 + 0.55 * noise2(Math.cos(a) * 1.3 + seed * 7.1, Math.sin(a) * 1.3 + seed * 3.3)
       + 0.12 * noise2(Math.cos(a) * 4 + seed, Math.sin(a) * 4 - seed));
+    // Wind-tidal pools are long and shallow, drawn out along the direction the water drains,
+    // not round: each one is stretched 1,5–2,3 × along its own axis (area kept). Round ponds
+    // read as decals from the air.
+    const stretch = 1.5 + 0.8 * noise2(seed * 3.7, 0.5), axis = noise2(seed * 1.9, 2.5) * Math.PI;
+    const ca = Math.cos(axis), sa = Math.sin(axis), sx = Math.sqrt(stretch), sz = 1 / Math.sqrt(stretch);
+    const shape = (a, r, k = 1) => {
+      const lx = Math.cos(a) * r * k * sx, lz = Math.sin(a) * r * k * sz;
+      return [cx + lx * ca - lz * sa, cz + lx * sa + lz * ca];
+    };
     const ring = Array.from({ length: N }, (_, i) => { const a = (i / N) * Math.PI * 2; return [a, rad(a)]; });
     // Water: a fan from the centre, 6 cm above the flat ground.
     {
       const pos = [cx, 0.06, cz], uv = [cx, -cz], idx = [];
-      ring.forEach(([a, r]) => { const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r; pos.push(x, 0.06, z); uv.push(x, -z); });
+      ring.forEach(([a, r]) => { const [x, z] = shape(a, r); pos.push(x, 0.06, z); uv.push(x, -z); });
       for (let i = 0; i < N; i++) idx.push(0, 1 + ((i + 1) % N), 1 + i);
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -256,12 +265,15 @@ function buildFlats(g, M, avoid) {
       geo.setIndex(idx); geo.computeVertexNormals();
       water.push(geo);
     }
-    // Rim: wet mud at the water's edge, fading out through drier silt over ~30 % of R.
+    // Rim: dark wet mud at the water's edge, fading into the flat within ~20 % of R. There was
+    // a pale salt band outside it too, and from any height it read as a white halo round every
+    // pool; the pale crust now comes from the terrain's own bare-flat colouring instead.
     {
       const pos = [], col = [], idx = [];
-      const bands = [[0.98, [0.2, 0.18, 0.15], 1], [1.06, [0.3, 0.27, 0.22], 0.8], [1.16, [0.56, 0.53, 0.46], 0.3], [1.3, [0.6, 0.57, 0.5], 0]];
+      const bands = [[0.97, [0.12, 0.11, 0.09], 0.9], [1.06, [0.2, 0.18, 0.15], 0.55], [1.2, [0.24, 0.22, 0.18], 0]];
       for (const [k, c, alpha] of bands) ring.forEach(([a, r]) => {
-        pos.push(cx + Math.cos(a) * r * k, 0.035, cz + Math.sin(a) * r * k);
+        const [x, z] = shape(a, r, k);
+        pos.push(x, 0.035, z);
         col.push(c[0], c[1], c[2], alpha);
       });
       for (let b = 0; b < bands.length - 1; b++) for (let i = 0; i < N; i++) {
@@ -278,9 +290,11 @@ function buildFlats(g, M, avoid) {
   if (!water.length) return [];
   const pondMat = M.water.clone();
   pondMat.name = 'tidal-flat-water';
-  pondMat.color.setHex(0x3a4442);
-  pondMat.roughness = 0.08;
-  pondMat.envMapIntensity = 0.75;
+  // Centimetres deep over pale mud: the bottom shows through as a grey-olive, and the sky
+  // it reflects lightens it further at a glancing angle. The old dark slate read as deep water.
+  pondMat.color.setHex(0x5c625a);
+  pondMat.roughness = 0.1;
+  pondMat.envMapIntensity = 0.65;
   pondMat.normalScale.set(0.12, 0.12);
   pondMat.polygonOffset = true; pondMat.polygonOffsetFactor = -4; pondMat.polygonOffsetUnits = -4;
   const rimMat = new THREE.MeshStandardMaterial({
@@ -289,7 +303,8 @@ function buildFlats(g, M, avoid) {
   });
   g.add(mesh(mergeGeometries(rims, false), rimMat, { name: 'tidal-flat-rims', castShadow: false }));
   g.add(mesh(mergeGeometries(water, false), pondMat, { name: 'tidal-flat-water', castShadow: false }));
-  return spec.map(([x, z, r]) => [x, z, r]);
+  // The long axis reaches ~1,3 R × √stretch; callers keeping grass out of the water use this.
+  return spec.map(([x, z, r, seed]) => [x, z, r * 1.3 * Math.sqrt(1.5 + 0.8 * noise2(seed * 3.7, 0.5))]);
 }
 
 /**
@@ -584,7 +599,7 @@ export function dressCampus(scene, M, { stops = [], quality = 'high' } = {}) {
       if (x > 40 && x < 60 && z > -125 && z < 40) continue;            // access road
       if (Math.hypot(x, z + 185) < 175) continue;                      // pad and berm
       if (z < -440) continue;                                          // dunes and beach
-      if (ponds.some(([px, pz, pr]) => Math.hypot(x - px, z - pz) < pr * 1.4)) continue;
+      if (ponds.some(([px, pz, pr]) => Math.hypot(x - px, z - pz) < pr * 1.1)) continue;
       // Patchy, not uniform: keep a point only where a low-frequency field says grass.
       if (noise2(x / 60 + 3, z / 60 - 5) < 0.38) continue;
       at.push([x, z, r2()]);
