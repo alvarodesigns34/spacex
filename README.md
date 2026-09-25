@@ -199,6 +199,8 @@ Con un navegador real (Chromium) se leyeron las páginas que cargan su contenido
 
 **Tanques de la granja criogénica.** La cúpula de cada tanque vertical era un casquete del radio del propio tanque cortado a 58°, con la base de 3,8 m de radio sobre un cilindro de 4,5 m. Quedaba un hueco de 70 cm alrededor, y el cilindro, abierto y de una sola cara, parecía cortado en diagonal. Ahora la esfera de la cabeza tiene el tamaño justo para que su borde coincida con el del cilindro, y el cilindro tiene cara interior.
 
+**Cofia del Falcon.** Lleva la única **puerta de acceso circular de 610 mm (24 in)** que la guía de usuario de Falcon de 2025 (§4.1.3) da para la cofia estándar. Su posición y orientación dependen de cada misión y no se publican, así que va en la parte baja del cilindro, del lado que mira el visitante. La línea entre las dos mitades es una junta gris clara, no negra.
+
 **Roadster.** Las láminas escalonadas del capó son de **fibra de carbono**, no rojas. Así aparecen en la foto oficial del coche en órbita tomada desde delante, mirando a Starman por encima del capó.
 
 ### Auditoría externa

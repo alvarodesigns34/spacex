@@ -311,7 +311,18 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
   ]), seamMat(M), { name: 'fairing-frames', castShadow: false }));
   // Split line between the halves.
   for (const phi of [Math.PI / 2, -Math.PI / 2]) {
-    g.add(mesh(lathe(fProf.map(p => ({ r: p.r + 0.014, y: p.y })), { segments: 2, phiStart: phi - 0.005, phiLength: 0.01 }), M.blackMatte, { castShadow: false }));
+    g.add(mesh(lathe(fProf.map(p => ({ r: p.r + 0.014, y: p.y })), { segments: 2, phiStart: phi - 0.005, phiLength: 0.01 }), seamMat(M), { castShadow: false }));
+  }
+  // The standard fairing's single payload access door: circular, 610 mm (24 in) across, in the
+  // cylindrical portion (Falcon User's Guide 2025, §4.1.3). Its exact station and clocking are
+  // mission-specific and not given; placed low on the cylinder, facing the viewing side.
+  {
+    const DOOR_R = 0.305, doorY = FAIRING_BASE + 3.0, phi = 0;
+    const ring = new THREE.TorusGeometry(DOOR_R, 0.012, 6, 40);
+    g.add(mesh(ring, seamMat(M), {
+      position: [Math.sin(phi) * (FAIRING_R + 0.024), doorY, Math.cos(phi) * (FAIRING_R + 0.024)],
+      rotation: [0, phi, 0], castShadow: false, name: 'fairing-access-door',
+    }));
   }
   g.add(mesh(new THREE.TorusGeometry(R + 0.02, 0.055, 6, 96), M.darkMetal, { position: [0, FAIRING_BASE + 0.06, 0], rotation: [Math.PI / 2, 0, 0] }));
   g.userData.top = TOTAL_H;
