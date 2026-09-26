@@ -16,6 +16,10 @@
  *
  *   node tools/lod-pop.mjs [--quality high]
  *
+ * Part of `npm run check`. It also fails if the scene registers a swap this file has no
+ * camera for — a new swap cannot slip in unmeasured — and it runs one negative control: the
+ * far picture of the first swap brightened by a third must be caught.
+ *
  * Reports, per switch, at its own threshold distance:
  *   changed   share of pixels that differ at all
  *   mean|Δ|   average luminance change over those pixels, 0-255
@@ -41,6 +45,8 @@ const argOf = (f) => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : 
 /** Each swap, with a camera bearing that puts the affected surface across the frame. */
 const CASES = [
   { entry: 'starship-tps', exhibit: 'starship', at: [0, 95, 0], dir: [0.36, 0.11, 0.93] },
+  // The Roadster's paint: 162 k triangles near, ≈3 k far, swept from the same surface.
+  { entry: 'roadster-body', exhibit: 'roadster', at: [0, 0.6, 0], dir: [0.62, 0.3, 0.72] },
 ];
 
 const server = createServer(staticHandler(ROOT, TYPES));
@@ -55,8 +61,14 @@ await bootAtQuality(page, `http://127.0.0.1:${PORT}/`, argOf('--quality') ?? 'hi
 await page.evaluate(() => ['labels', 'ruler', 'humans'].forEach(t => window.__vc.setToggle(t, false)));
 
 let worst = 0;
-for (const c of CASES) {
-  const r = await page.evaluate((c) => {
+let failed = 0;
+// Coverage: every swap the scene registers must have a case here.
+const swaps = await page.evaluate(() => window.__vc.lod.entries.filter(e => e.far).map(e => e.name));
+const missing = swaps.filter(n => !CASES.some(c => c.entry === n));
+console.log(`${missing.length ? ' FAIL ' : '  ok  '} cada intercambio de detalle tiene su encuadre — ${swaps.length} registrados${missing.length ? `, sin encuadre: ${missing.join(', ')}` : ''}`);
+if (missing.length) failed++;
+
+const measure = (c, mutate = false) => page.evaluate(([c, mutate]) => {
     const v = window.__vc;
     const e = v.exhibits[c.exhibit];
     const ox = e.lay.x + c.at[0], oy = e.model.position.y + c.at[1], oz = e.lay.z + c.at[2];
@@ -81,7 +93,14 @@ for (const c of CASES) {
       ctx.drawImage(v.renderer.domElement, 0, 0);
       return ctx.getImageData(0, 0, cv.width, cv.height).data;
     };
+    // The negative control brightens the far picture by a third, the kind of mismatch between
+    // the two states that reads as the whole surface flashing when the switch fires.
+    const farMats = [];
+    if (mutate) {
+      entry.far.traverse(o => { if (o.material?.color) { farMats.push([o.material, o.material.color.clone()]); o.material.color.multiplyScalar(1.33); } });
+    }
     const A = grab(false), B = grab(true);
+    for (const [m, col] of farMats) m.color.copy(col);
     v.lod.pin(c.entry, null);
 
     let changed = 0, sum = 0, outline = 0, signed = 0;
@@ -103,20 +122,31 @@ for (const c of CASES) {
       signedDelta: +(signed / Math.max(changed, 1)).toFixed(1),
       outlinePct: +(100 * outline / n).toFixed(3),
     };
-  }, c);
+  }, [c, mutate]);
 
-  if (r.error) { console.log(` FAIL  ${c.entry}: ${r.error}`); worst = 99; continue; }
+for (const c of CASES) {
+  const r = await measure(c);
+  if (r.error) { console.log(` FAIL  ${c.entry}: ${r.error}`); failed++; continue; }
   // What a visitor SEES as a pop is the surface changing tone or shape, not its fine pattern
   // changing phase. A mosaic swapped for a baked picture of the same mosaic will always differ
   // pixel by pixel — that is the point of it — so |Δ| is reported and the gate is on the two
   // things that read as a switch: the mean SIGNED change, which is the whole surface getting
   // lighter or darker at once, and any change of outline at all.
   const ok = Math.abs(r.signedDelta) <= 6 && r.outlinePct <= 0.05;
+  if (!ok) failed++;
   worst = Math.max(worst, Math.abs(r.signedDelta));
   console.log(`${ok ? '  ok  ' : ' FAIL '} ${c.entry} a ${r.d} m — ${r.changedPct} % de píxeles cambian, `
-    + `|Δ| medio ${r.meanDelta}/255 (losetas ${r.signedDelta > 0 ? 'más claras' : 'más oscuras'} en ${Math.abs(r.signedDelta)}), silueta ${r.outlinePct} %`);
+    + `|Δ| medio ${r.meanDelta}/255 (detalle ${r.signedDelta > 0 ? 'más claro' : 'más oscuro'} en ${Math.abs(r.signedDelta)}), silueta ${r.outlinePct} %`);
+}
+
+// Negative control: the same measurement must reject a far picture a third too bright.
+{
+  const r = await measure(CASES[0], true);
+  const caught = !r.error && (Math.abs(r.signedDelta) > 6 || r.outlinePct > 0.05);
+  console.log(`${caught ? '  ok  ' : ' FAIL '} control negativo: mosaico lejano un 33 % más claro — Δ con signo ${r.signedDelta}/255`);
+  if (!caught) failed++;
 }
 
 await browser.close();
 server.close();
-process.exit(worst > 6 ? 1 : 0);
+process.exit(failed ? 1 : 0);

@@ -196,11 +196,13 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
   // visible change of material rather than a change of detail.
   M.tpsShell = new THREE.MeshStandardMaterial({
     map: T.tps.map, roughnessMap: T.tps.roughnessMap, normalMap: T.tps.normalMap,
-    // The baked map is darker than the mosaic it stands in for, because it averages the tile
-    // faces together with the grooves between them while the real field is mostly tile face.
-    // The lift is measured, not guessed: tools/lod-pop.mjs renders both states from the switch
-    // distance and reports the signed luminance difference, which was +18/255 before this.
-    color: new THREE.Color(2.0, 2.0, 2.07),
+    // Scaled to the tile field, measured rather than guessed: tools/lod-pop.mjs renders both
+    // states from the switch distance and gates on the signed luminance difference. It was
+    // once +18/255 with the map at 1.0, and 2.0 fixed that; then the tiles went charcoal
+    // (Ship 39 close-ups) and nothing re-measured the shell, which was left 16/255 lighter
+    // than the tiles it hands over to — the whole windward face darkening as the visitor
+    // walked in. 0.46 brings the band to within 1/255 (43 against 42 in the test frame).
+    color: new THREE.Color(0.46, 0.46, 0.476),
     normalScale: new THREE.Vector2(0.5, 0.5), roughness: 0.84, metalness: 0.0, envMapIntensity: 0.9,
     // It sits a couple of centimetres off the hull it covers; at a few hundred metres that is
     // inside the depth buffer's precision, so bias it forward as well.

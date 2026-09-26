@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "serve": "python3 -m http.server 8080",
-    "check": "node tools/provenance-check.mjs && node tools/cloud-check.mjs && node tools/hardware-check.mjs && node tools/check.mjs && node tools/ux-check.mjs",
+    "check": "node tools/provenance-check.mjs && node tools/cloud-check.mjs && node tools/hardware-check.mjs && node tools/check.mjs && node tools/ux-check.mjs && node tools/lod-pop.mjs",
     "profile": "node tools/profile.mjs",
     "shots": "node tools/shot.mjs docs/screenshots tools/docs-shots.json && node tools/shot.mjs docs/screenshots tools/launch-shots.json && node tools/shot.mjs docs/screenshots tools/roadster-shots.json",
     "check:scene": "node tools/check.mjs",
