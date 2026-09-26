@@ -268,26 +268,30 @@ function buildMountTable(M) {
   // NSF's construction photographs (August 2025) show the slopes built as raking buttresses
   // under the deck. The slope and the base spread are read off those photographs (about 60°)
   // and are approximate; they stop short of the trench, whose 22 m clear width is kept.
+  // The ends fall away too. They were vertical cuts, and from the side opposite the tower the
+  // mount read as a box; in the B19 static fire photograph, taken from that side, it is a
+  // trapezoid whose flanks run down to the trench mouths. Their run (≈7 m over the 13 m, about
+  // 62°) is scaled off that frame on the fluid bunker's doors and is approximate.
   {
     const inner = PAD.trenchHalfW + 0.5, topOut = h + 0.3, baseOut = h + 4.2, yTop = deckBottom - 0.15;
-    const shape = new THREE.Shape();
-    shape.moveTo(inner, padY); shape.lineTo(baseOut, padY); shape.lineTo(topOut, yTop); shape.lineTo(inner, yTop); shape.closePath();
-    const wall = new THREE.ExtrudeGeometry(shape, { depth: 2 * h + 1.6, bevelEnabled: false });
-    wall.translate(0, 0, -h - 0.8);
-    const mirrored = wall.clone();
-    mirrored.applyMatrix4(new THREE.Matrix4().makeScale(-1, 1, 1));
-    // Mirroring turns the faces inside out; put the winding back.
-    const idx = mirrored.index ? mirrored.index.array : null;
-    if (idx) for (let i = 0; i < idx.length; i += 3) { const t = idx[i + 1]; idx[i + 1] = idx[i + 2]; idx[i + 2] = t; }
-    else {
-      const pos = mirrored.attributes.position;
-      for (let i = 0; i < pos.count; i += 3) for (const attr of Object.values(mirrored.attributes)) {
-        const k = attr.itemSize;
-        for (let c = 0; c < k; c++) { const a = attr.array[(i + 1) * k + c]; attr.array[(i + 1) * k + c] = attr.array[(i + 2) * k + c]; attr.array[(i + 2) * k + c] = a; }
+    const zTop = h + 0.8, zBase = zTop + 7.0;
+    const walls = [];
+    for (const s of [-1, 1]) {
+      // A box whose eight corners are moved onto the hipped block: every face stays planar, and
+      // the box's own winding is kept by sending its -x corners outboard on the -x side.
+      const box = new THREE.BoxGeometry(1, 1, 1);
+      const p = box.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        const top = p.getY(i) > 0, out = (p.getX(i) > 0) === (s > 0);
+        p.setXYZ(i,
+          s * (out ? (top ? topOut : baseOut) : inner),
+          top ? yTop : padY,
+          Math.sign(p.getZ(i)) * (top ? zTop : zBase));
       }
+      box.computeVertexNormals();
+      walls.push({ geometry: box });
     }
-    mirrored.computeVertexNormals();
-    g.add(mesh(boxUV(mergeAll([{ geometry: wall }, { geometry: mirrored }])), M.concrete, { name: 'mount-buttresses' }));
+    g.add(mesh(boxUV(mergeAll(walls)), M.concrete, { name: 'mount-buttresses' }));
   }
 
   // Girders under the deck, spanning pier to pier both ways.
@@ -674,29 +678,45 @@ function buildChopsticks(M) {
     arm.name = `arm-${s < 0 ? 'north' : 'south'}`;
     arm.position.set(face + 1.2, 0, s * 2.2);
     arm.rotation.y = -s * open;
-    // A box truss in the envelope the solid beam had (3.4 m × 2.7 m section, so the catch
-    // geometry the gate measures is unchanged): four chords, a post every 3 m, a diagonal
-    // per bay on the two vertical faces and on the bottom, and a closed deck on top that
-    // carries the rail the booster's pins land on. Member sizes are reconstructed.
-    const A = PAD.armLen, hy = 1.7, hz = 1.35, k = 0.24;
+    // A tubular space frame, as SpaceX's photographs of B19 on Pad 2 show it (the lift onto
+    // the mount, 8 March 2026, and the static fire of 15 April): an inverted triangle in
+    // section — two round top chords under the deck and one bottom chord on the centreline —
+    // with round posts and diagonals on the two sloping faces. It used to be a 3.4 m box of
+    // square members, which read as a bridge girder. Scaled on the 9 m booster in the same
+    // frames: ≈4.5 m deep overall, near constant along the arm; a post with a raking strut
+    // stands over the root, and a strut hangs under the tip. Tube sizes, node spacing and
+    // those two struts' lengths are reconstructed. The deck, the rail and the pads keep the
+    // envelope they had, so the catch geometry the gate measures is unchanged.
+    const A = PAD.armLen, hy = 1.7, hz = 1.35;
+    const topY = hy - 0.62, topZ = hz - 0.5, rTop = 0.42;   // top chords, under the deck
+    const botY = -2.4, rBot = 0.4;                           // bottom chord, on the centreline
     const parts = [];
-    for (const y of [-hy + k, hy - k]) for (const z of [-hz + k, hz - k]) {
-      parts.push(block(0, A, y - k, y + k, z - k, z + k));
-    }
-    const bays = 12, bay = A / bays;
+    for (const z of [-topZ, topZ]) parts.push(rod([0, topY, z], [A, topY, z], rTop, 14));
+    parts.push(rod([0, botY, 0], [A - 0.6, botY, 0], rBot, 14));
+    // Nodes start a post's radius out from the hinge, so no member reaches behind x = 0 and the
+    // arm's measured length stays its 26 m.
+    const x0n = 0.35, bays = 8, bay = (A - 0.6 - x0n) / bays;
     for (let i = 0; i <= bays; i++) {
-      const x = Math.min(A - k, Math.max(k, i * bay));
-      for (const z of [-hz + k, hz - k]) parts.push(block(x - 0.16, x + 0.16, -hy, hy, z - 0.16, z + 0.16));
-      parts.push(block(x - 0.16, x + 0.16, -hy + 0.1, -hy + 0.4, -hz, hz));
+      const x = x0n + i * bay;
+      // A V post at every node: each top chord down to the bottom chord, and a strut across.
+      for (const z of [-topZ, topZ]) parts.push(rod([x, topY, z], [x, botY, 0], 0.24, 10));
+      parts.push(rod([x, topY, -topZ], [x, topY, topZ], 0.16, 8));
       if (i === bays) break;
-      const x0 = i * bay, x1 = x0 + bay, up = i % 2 === 0 ? 1 : -1;
-      for (const z of [-hz + k, hz - k]) parts.push(rod([x0, -up * (hy - k), z], [x1, up * (hy - k), z], 0.13));
-      parts.push(rod([x0, -hy + k, -up * (hz - k)], [x1, -hy + k, up * (hz - k)], 0.1));
+      // One diagonal per bay on each sloping face, alternating, from the top chord down.
+      const x0 = x, x1 = x0 + bay;
+      for (const z of [-topZ, topZ]) {
+        parts.push(i % 2 === 0 ? rod([x0, topY, z], [x1, botY, 0], 0.22, 10) : rod([x0, botY, 0], [x1, topY, z], 0.22, 10));
+      }
     }
+    // Over the root, the post and its raking strut; under the tip, the hanging strut.
+    parts.push(rod([1.4, hy, 0], [1.4, hy + 3.0, 0], 0.34, 12));
+    parts.push(rod([1.4, hy + 3.0, 0], [7.5, hy, 0], 0.28, 12));
+    parts.push(rod([A - 0.9, botY, 0], [A - 0.9, botY - 2.2, 0], 0.26, 10));
+    parts.push(rod([A - 0.9 - 2 * bay, botY, 0], [A - 0.9, botY - 2.2, 0], 0.22, 10));
     parts.push(block(0.6, A - 0.6, hy - 0.2, hy, -hz, hz));                 // top deck
     parts.push(block(2, A - 2, hy, 2.3, -1.0, 1.0));                          // catch rail
-    // Root: a solid plated section where the arm meets its hinge on the carriage.
-    parts.push(block(0, 3.2, -hy, hy, -hz, hz));
+    // Root: a plated section where the arm meets its hinge on the carriage.
+    parts.push(block(0, 2.4, botY - rBot, hy, -hz, hz));
     // Bumper pads on the inboard face: they close against the hull and centre the booster,
     // they do not carry it. The weight goes through the booster's pins onto the rail on top.
     for (let x = 8; x + 2.4 <= A - 0.6; x += 7) {
