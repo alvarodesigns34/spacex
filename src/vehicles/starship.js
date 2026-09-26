@@ -33,7 +33,7 @@ const RACE_PHI = Math.PI * 0.78;
 const DOOR_PHI = Math.PI * 1.18;
 
 // Tile geometry: reported ≈12 in (0.305 m) point to point → circumradius ≈0.152 m,
-// ≈0.264 m across the flats. Instanced; 13 132 of them cover the ship (userData.tileCount).
+// ≈0.264 m across the flats. Instanced; 13 361 of them cover the ship (userData.tileCount, checked by verify.js).
 const TILE_R = 0.152;
 const TILE_T = 0.016;
 
@@ -494,38 +494,44 @@ export function buildShip(M) {
     ...nose.slice(1),
   ];
 
-  // Aft section. On Block 3 the bottom of the skirt is a black-coated band carrying, on the
-  // outside, the commodity lines that used to run inside the engine shielding: several rings of
-  // pipe round the booster with junction boxes along them (NASASpaceflight, May 2026, and the
-  // Booster 19 aft photographs). Band height, pipe count and box spacing are read off those
-  // photographs and are approximate.
-  const AFT = 3.0;
-  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: AFT }], { segments: 160 }), M.aftBlack ?? M.steelSkirt, { name: 'skirt' }));
-  g.add(mesh(lathe([{ r: R, y: AFT }, { r: R, y: skirtTop }], { segments: 160 }), M.steelSkirt, { name: 'skirt-upper' }));
+  // Aft section: the ship's skirt is bare stainless ribbed with external stringers on the lee
+  // side and tiled down to its bottom edge on the windward side. SpaceX's own photographs
+  // show both faces: Ship 39's six-engine static fire (spacex.com, April 2026) has the
+  // hexagons running to the very edge of the skirt between the aft flaps, and the 11 May
+  // 2026 wet dress rehearsal on Pad 2 shows the lee side as bare, fluted steel up to the LOX
+  // dome ring, with a row of small ports under it. The ship used to carry the Block 3
+  // BOOSTER's black commodity band — rings of pipe and junction boxes — copied across with
+  // its comment, wrapped round the ship over its own tiles.
+  // The same bright steel as the tanks above it: in the wet-dress photograph the skirt is only
+  // told apart by its stringers.
+  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: skirtTop }], { segments: 160 }), M.steel, { name: 'skirt' }));
   {
-    const pipes = [], boxes = [];
-    for (const [y, rr, tub] of [[0.55, R + 0.16, 0.07], [1.05, R + 0.2, 0.09], [1.55, R + 0.17, 0.06], [2.35, R + 0.22, 0.1], [2.75, R + 0.15, 0.06]]) {
-      pipes.push({ geometry: new THREE.TorusGeometry(rr, tub, 8, 128), matrix: mat4([0, y, 0], [Math.PI / 2, 0, 0]) });
+    // Stringers every ≈0.45 m round the bare arc, stopping short of the tile field; and the
+    // row of ports under the dome ring. Pitch and port size read off the wet-dress photograph
+    // against the 9 m diameter: approximate.
+    const ribs = [], ports = [];
+    const bare0 = THREE.MathUtils.degToRad(97) + 0.06;       // the tile field's half-width, plus a margin
+    const nRib = Math.round(((Math.PI - bare0) * 2 * R) / 0.45);
+    for (let i = 0; i <= nRib; i++) {
+      const a = bare0 + (i / nRib) * (Math.PI - bare0) * 2;
+      ribs.push({ geometry: new THREE.BoxGeometry(0.07, skirtTop - 0.55, 0.05), matrix: mat4([Math.sin(a) * (R + 0.02), (skirtTop - 0.55) / 2 + 0.1, Math.cos(a) * (R + 0.02)], [0, a, 0]) });
     }
-    for (let i = 0; i < 44; i++) {
-      const a = (i / 44) * Math.PI * 2 + 0.03;
-      const y = i % 2 ? 1.95 : 1.3;
-      boxes.push({ geometry: new THREE.BoxGeometry(0.34, 0.5, 0.26), matrix: mat4([Math.sin(a) * (R + 0.2), y, Math.cos(a) * (R + 0.2)], [0, a, 0]) });
+    const nPort = Math.round(((Math.PI - bare0) * 2 * R) / 0.32);
+    for (let i = 0; i < nPort; i++) {
+      const a = bare0 + ((i + 0.5) / nPort) * (Math.PI - bare0) * 2;
+      // Radial: the disc's axis turned onto the hull normal at its azimuth.
+      const m = new THREE.Matrix4().makeRotationY(a).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
+      m.setPosition(Math.sin(a) * (R + 0.004), skirtTop - 0.3, Math.cos(a) * (R + 0.004));
+      ports.push({ geometry: new THREE.CylinderGeometry(0.05, 0.05, 0.02, 10), matrix: m });
     }
-    // Short vertical risers from the rings into the tank section above.
-    for (let i = 0; i < 16; i++) {
-      const a = (i / 16) * Math.PI * 2 + 0.11;
-      boxes.push({ geometry: new THREE.BoxGeometry(0.1, 1.2, 0.1), matrix: mat4([Math.sin(a) * (R + 0.14), 3.2, Math.cos(a) * (R + 0.14)], [0, a, 0]) });
-    }
-    g.add(mesh(mergeAll(pipes), M.aftBlack ?? M.darkMetal, { name: 'aft-commodity-rings', castShadow: false }));
-    g.add(mesh(boxUV(mergeAll(boxes)), M.blackMatte, { name: 'aft-junction-boxes' }));
+    const ribMesh = mesh(boxUV(mergeAll(ribs)), M.steelSkirt, { name: 'aft-stringers', castShadow: false });
+    ribMesh.userData.lodFeature = 0.07;
+    g.add(ribMesh);
+    const portMesh = mesh(mergeAll(ports), M.blackMatte, { name: 'aft-ports', castShadow: false });
+    portMesh.userData.lodFeature = 0.1;
+    g.add(portMesh);
   }
   g.add(mesh(lathe(profile.slice(1), { segments: 160 }), M.steel, { name: 'hull' }));
-  // Aft termination of the tile field: skirt steel, ablator edge, then the engine bay.
-  // The step is what separates those three at the distance of the engine preset.
-  g.add(mesh(new THREE.TorusGeometry(R + 0.018, 0.032, 6, 80), M.darkMetal, {
-    position: [0, skirtTop, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false, name: 'tps-termination',
-  }));
   g.add(mesh(lathe([{ r: R - 0.03, y: 0.1 }, { r: R - 0.03, y: 3.9 }], { segments: 96, flip: true }), M.steelInner, { castShadow: false }));
   g.add(mesh(new THREE.CylinderGeometry(R - 0.03, R - 0.03, 0.4, 96), M.darkMetal, { position: [0, 3.95, 0] }));
 
@@ -579,7 +585,8 @@ export function buildShip(M) {
   // It is allowed to stand proud by one tile circumradius, and no more: a tile whose centre
   // sits on the edge of the window overhangs by exactly that much, and backing narrower than
   // that would leave the outermost tiles lipping over bare steel.
-  const tileBase = 1.0;
+  // To the bottom edge of the skirt, as on Ship 39 (spacex.com static-fire photograph).
+  const tileBase = 0.1;
   const backCoverage = (y) => {
     const r = profileAt(profile, y)?.r ?? 1;
     return Math.min(Math.PI, coverage(y) + TILE_R / r);
@@ -789,7 +796,7 @@ export function buildShip(M) {
 
   g.userData.annotations = [
     { label: '3 Raptor + 3 Raptor Vacuum', position: [0, -0.4, 5.0] },
-    { label: 'Heat shield · 13,132 hexagonal tiles modelled', position: [0, 18, R + 0.7] },
+    { label: 'Heat shield · 13,361 hexagonal tiles modelled', position: [0, 18, R + 0.7] },
     { label: 'Aft flap', position: [R + 4.4, rings(1) + 3.5, 1.2] },
     { label: 'Forward flap (leeward side)', position: [Math.sin(fwdPhi) * (R + 2.4), fwdBase + 3.2, Math.cos(fwdPhi) * (R + 2.4)] },
     { label: 'Payload bay', position: [0, doorY, -(R + 0.9)] },
@@ -825,7 +832,8 @@ export function buildStarship(M) {
     ...ship.userData.annotations.map(a => ({ label: a.label, position: [a.position[0], a.position[1] + BOOSTER_H, a.position[2]] })),
   ];
   g.userData.height = BOOSTER_H + SHIP_H;
-  g.userData.tileCount = ship.userData.tileCount;
+  // The tile count lives on the ship alone: verify.js sums a count over every descendant, and a
+  // copy here counted every tile twice.
   g.userData.stations = { booster: booster.userData.stations, ship: ship.userData.stations };
   return g;
 }

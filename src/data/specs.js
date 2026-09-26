@@ -42,6 +42,8 @@ export const SOURCES = {
   spacex_v3: { label: 'spacex.com — Introducing Starship V3 (May 2026 update)', url: 'https://www.spacex.com/updates/' },
   space_tiles: { label: 'Space.com — hexagonal Starship heat shield tiles', url: 'https://www.space.com/spacex-starship-hexagon-heat-shield-tile-test.html' },
   wiki_dragon_crew: { label: 'Wikipedia — Crew Dragon (capsule dimensions)', url: 'https://en.wikipedia.org/wiki/Dragon_2' },
+  spacex_s39_static: { label: 'SpaceX — Ship 39 six-engine static fire (photograph, April 2026)', url: 'https://sxcontent9668.azureedge.us/cms-assets/assets/S39_6_Engine_Static_Fire_04142600114_d9f1acc588.jpg' },
+  spacex_v3_wdr: { label: 'SpaceX — Starship V3 wet dress rehearsal on Pad 2 (photograph, 11 May 2026)', url: 'https://sxcontent9668.azureedge.us/cms-assets/assets/20260511_Wet_Dress_Actual_2_259bcb3ae9.jpg' },
   nasa_crew1_recovery: { label: 'NASA — Crew Dragon Resilience on the recovery ship, hatch side square-on (NHQ202105020016)', url: 'https://images.nasa.gov/details/NHQ202105020016' },
   nasa_crew4_recovery: { label: 'NASA — Crew Dragon Freedom on the recovery ship, hatch side (NHQ202210140028)', url: 'https://images.nasa.gov/details/NHQ202210140028' },
   nasa_ax3_approach: { label: 'NASA — Crew Dragon Freedom nose-on, cone open, on approach to the ISS (iss070e075419)', url: 'https://images.nasa.gov/details/iss070e075419' },
@@ -83,7 +85,7 @@ export const VEHICLES = [
       { label: 'Raptor · diameter / height', value: '1.3 m / 2.9 m · 250 tf', source: 'spacex', ref: 'spacex_starship' },
       { label: 'RVac · diameter / height', value: '2.3 m / 4.4 m · 275 tf', source: 'spacex', ref: 'spacex_starship' },
       { label: 'Steel rings', value: '1.83 m tall · 3.97 mm thick', source: 'wiki', ref: 'wiki_superheavy' },
-      { label: 'Heat shield', value: '≈18,000 hexagonal silica tiles (1,400 °C) on the real ship; 13,132 modelled (see approximations)', source: 'wiki', ref: 'wiki_starship' },
+      { label: 'Heat shield', value: '≈18,000 hexagonal silica tiles (1,400 °C) on the real ship; 13,361 modelled (see approximations)', source: 'wiki', ref: 'wiki_starship' },
       { label: 'V3 aft-flap actuation', value: 'One actuator with three motors per aft flap; internal detail is not reconstructed', source: 'spacex', ref: 'spacex_v3' },
       { label: 'Pad 2 · booster servicing', value: 'Separate methane and oxygen QDs opposite the tower; divided hardened bunker', source: 'spacex', ref: 'spacex_v3' },
       { label: 'Flaps', value: '2 forward (leeward) + 2 aft', source: 'wiki', ref: 'wiki_starship' },
@@ -110,8 +112,9 @@ export const VEHICLES = [
     approximations: [
       'Pad 2 QD housings, bunker dimensions and pipe routing are reconstructed; the separation of methane and oxygen mechanisms is documented by SpaceX.',
       'Nose cone length, flap planform, grid fin and chine sizes, and external plumbing: reconstructed from photographs; the number and function of the chines is documented, their dimensions are not.',
+      'Ship aft skirt, from SpaceX photographs: tiled to its bottom edge on the windward side (Ship 39 static fire) and bare fluted steel on the lee side, with a row of small ports under the LOX dome ring (V3 wet dress rehearsal). Stringer pitch and port size are read off the photograph and approximate.',
       'Radial layout of the 33 Raptors (rings of 3 / 10 / 20): the arrangement is documented, the radii were tuned so the outer nozzles stay inside the 9 m skirt.',
-      'Tiles: the published count (~18,000, Wikipedia) and the published size (≈12 in across vertices) do not agree exactly; the model follows the size and covers 13,132 tiles over the exposed half, the nose and the flaps.',
+      'Tiles: the published count (~18,000, Wikipedia) and the published size (≈12 in across vertices) do not agree exactly; the model follows the size and covers 13,361 tiles over the exposed half — down to the bottom edge of the aft skirt, as on Ship 39 — the nose and the flaps.',
       'Internal stations (skirt, common dome, nose base, payload bay) are not public: they are derived from the 1.83 m ring and the published propellant masses.',
       'Campus, plausible context: the salt-flat colour, low dunes and scrub match the coastal plain in kind only. Their positions are not surveyed.',
       'Campus, non-structural dressing: the gravel terrace, visitor road, drainage swale and three service trucks are scale furniture. They are not roads or vehicles at Starbase.',
@@ -119,7 +122,7 @@ export const VEHICLES = [
       'Closeout lamps under the Pad 2 deck, and the cool point that stands in for bounce off the water-cooled steel, are reconstructed service lighting. They are not sunlight and they are not a published lighting plan.',
       'The booster\'s return is integrated, not drawn: one 2-D flight from the stack\'s own state at separation to the arms, with gravity, drag and two burns, so position, speed and attitude are continuous and agree with each other. Cited: only the four flight 5 times (boostback T+2:45–3:41, landing burn T+6:30, catch T+6:54). Assumed: 250 t for drag, Cd ≈ 0.9 end-on over the 9 m disc, an exponential atmosphere (1.225 kg/m³, 8.5 km scale height), a boostback of constant thrust and direction, a landing burn of constant thrust against the velocity. Solved at load, not chosen: the boostback (≈ 39 m/s², 7° above horizontal, back towards the pad) and landing-burn thrust (≈ 41 m/s²) that bring the booster to 12 m/s, 45 m over the catch height, at T+6:46.5, when 13 engines give way to 3. Interpolated: only those last 7.5 s, a cubic matching position and velocity at both ends. The results — apogee ≈ 90 km at T+4:13, re-entry peak ≈ 4,400 km/h, ≈ 2,700 km/h at 5 km when the landing burn lights — are consequences of these assumptions, not flight data; no public source gives Super Heavy\'s trajectory second by second.',
     ],
-    sources: ['spacex_starship', 'spacex_v3', 'wiki_starship', 'wiki_starbase', 'wiki_superheavy', 'wiki_raptor', 'space_tiles', 'nsf_sh_block3', 'nsf_flight12', 'wiki_ft5', 'wiki_ft12'],
+    sources: ['spacex_starship', 'spacex_v3', 'spacex_s39_static', 'spacex_v3_wdr', 'wiki_starship', 'wiki_starbase', 'wiki_superheavy', 'wiki_raptor', 'space_tiles', 'nsf_sh_block3', 'nsf_flight12', 'wiki_ft5', 'wiki_ft12'],
     presets: [
       { id: 'overview', label: 'Overview', pos: [150, 70, 190], target: [0, 58, 0] },
       // Site frame, standing in the open trench and looking back at the cluster.

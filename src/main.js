@@ -264,7 +264,7 @@ async function main() {
 
   const builders = {
     falcon1: [buildFalcon1, 'Falcon 1 · historical exhibit…'],
-    starship: [buildStarship, 'Starship and Super Heavy · 13,132 instanced tiles…'],
+    starship: [buildStarship, 'Starship and Super Heavy · 13,361 instanced tiles…'],
     falcon9: [buildFalcon9, 'Falcon 9…'],
     falconheavy: [buildFalconHeavy, 'Falcon Heavy…'],
     dragon: [buildDragon, 'Dragon…'],
@@ -394,7 +394,7 @@ async function main() {
     }
     // ---- Level of detail ------------------------------------------------------------
     // Two ways a vehicle takes part. A builder may publish a near/far PAIR — Starship's heat
-    // shield does, swapping 13,132 instanced hexagons for one textured shell — or it may
+    // shield does, swapping 13,361 instanced hexagons for one textured shell — or it may
     // simply name groups that stop being worth drawing below a pixel threshold. Both are
     // registered against the exhibit's live position, because a vehicle in flight is not
     // where its mount is.

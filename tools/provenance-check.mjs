@@ -9,7 +9,8 @@
  *    Wikipedia, and a reconstructed one cannot be shown without ≈;
  *  - every figure must be stated in the sheet, and every graded figure must cite a source that
  *    exists (a reconstruction must say what it was reconstructed from);
- *  - the vehicle table at the top of the README must state each figure it is meant to.
+ *  - the vehicle table at the top of the README must state each figure it is meant to;
+ *  - a part count the sheet states (the modelled tiles) must be the count the check enforces.
  *
  * Mutations of the inputs must fail, so the gate cannot pass by checking nothing.
  */
@@ -94,7 +95,13 @@ export function audit({ figures, pad, counts, vehicles, sources, readme }) {
     if (fig.sheet && !rows.some(r => r.label === fig.sheet)) bad(`pad.${key}: la fila «${fig.sheet}» no la enuncia`);
     for (const row of rows) rowAgrees(`pad.${key}`, row, fig);
   }
-  for (const [id, list] of Object.entries(counts)) for (const c of list) graded(`${id}.${c.key}`, c);
+  for (const [id, list] of Object.entries(counts)) for (const c of list) {
+    graded(`${id}.${c.key}`, c);
+    if (!c.sheet) continue;
+    const row = vehicles.find(x => x.id === id)?.specs.find(r => r.label === c.sheet);
+    if (!row) bad(`${id}.${c.key}: no hay fila «${c.sheet}» en la ficha`);
+    else if (!states(row.value, c.want)) bad(`${id}.${c.key}: la fila «${c.sheet}» dice «${row.value}», que no enuncia ${c.want}`);
+  }
 
   const table = readmeTable(readme);
   if (table.length !== vehicles.length) bad(`README: la tabla tiene ${table.length} filas y hay ${vehicles.length} expositores`);
@@ -131,6 +138,7 @@ const mutants = [
   ['fila del pad con la zanja antigua', withVehicles(v => { const r = v.find(x => x.id === 'starship').specs.find(x => (x.pad ?? []).includes('trenchDepth')); r.value = r.value.replace('4.2 m deep', '8.2 m deep'); })],
   ['cabecera de la ficha escrita a mano', withVehicles(v => { v.find(x => x.id === 'falcon9').footprint = 3.7; })],
   ['cifra sin fila en la ficha', withVehicles(v => { for (const r of v.find(x => x.id === 'engines').specs) delete r.fig; })],
+  ['recuento de losetas antiguo en la ficha', withVehicles(v => { const r = v.find(x => x.id === 'starship').specs.find(x => x.label === 'Heat shield'); r.value = r.value.replace('13,361', '13,132'); })],
   ['fuente inexistente', { ...base, figures: { ...FIGURES, dragon: { ...FIGURES.dragon, height: { ...FIGURES.dragon.height, ref: 'no_such_source' } } } }],
 ];
 for (const [name, input] of mutants) {
