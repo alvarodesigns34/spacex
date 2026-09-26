@@ -142,7 +142,9 @@ export class Plume {
     // lavender-pink, and no photograph of a Raptor landing burn shows a pink flame.
     // Golden-white at the engines to orange down the column, as the liftoff photographs show
     // it; the old brown-pink tail went lavender over a blue sky.
-    this.core = coneLayer({ hot: 0xfff6e0, warm: 0xffb84a, cool: 0xf07a2c, alpha: 0.98, falloff: 0.6 });
+    // Warm and tail went further to yellow: under ACES at the scene's exposure the old 0xffb84a
+    // column came out salmon-pink, where every liftoff photograph has it yellow-white.
+    this.core = coneLayer({ hot: 0xfff6e0, warm: 0xffd98a, cool: 0xffa24a, alpha: 0.98, falloff: 0.6 });
     this.shroud = coneLayer({ hot: 0xffe0b0, warm: 0xc8762e, cool: 0x4a4038, alpha: 0.36, falloff: 1.05 });
     // Outer density: soot and cooled exhaust. Wide, dim, and gone once the flow is
     // a vacuum bell. It does not write depth, so the vehicle stays visible through it.
@@ -209,6 +211,10 @@ export class Plume {
     this.core.material.uniforms.uOpacity.value = 0.78 + 0.22 * p;
     // Optically thick low down, where it hides the sky behind it; a thin glow in vacuum.
     this.core.material.uniforms.uOcclude.value = 0.62 * p;
+    // Brightest where the exhaust is optically thick: at sea level the column clips to white
+    // against the sky; in vacuum the same gain would turn a faint bell into a searchlight.
+    this.core.material.uniforms.uGain.value = 3.4 + 3.6 * p;
+    this.shroud.material.uniforms.uGain.value = 1.5 + 0.9 * p;
     this.shroud.material.uniforms.uOpacity.value = 0.66 + 0.34 * (1 - p);
     // 8,240 tf lights the pad. The old value lit a room.
     this.light.intensity = 4200 * throttle * (0.35 + 0.65 * p);

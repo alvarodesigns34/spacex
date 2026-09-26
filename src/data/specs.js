@@ -120,7 +120,9 @@ export const VEHICLES = [
       // looking at — where the mosaic stops and the bare steel starts — was round the side.
       // Coverage runs to ±97° from the belly, so the camera stands at that azimuth.
       { id: 'tiles', label: 'Heat shield', pos: [34, 97, -5], target: [0, 100, 1] },
-      { id: 'flaps', label: 'Flaps and nose', pos: [26, 124, 30], target: [0, 112, 0] },
+      // From below and to the side of the hinge line, against the sky: the forward flap stands
+      // in profile off the nose. From above and in front it was a dark sliver behind the hull.
+      { id: 'flaps', label: 'Flaps and nose', pos: [34, 108, 18], target: [1, 113, -1] },
       { id: 'lee', label: 'Leeward side', pos: [10, 96, -48], target: [0, 96, 0] },
       { id: 'gridfins', label: 'Grid fins and pins', pos: [-35.5, 76, -6.0], target: [0, 70, 0] },
       { id: 'site', label: 'Launch complex', frame: 'site', pos: [268, 118, 286], target: [4, 62, 0] },

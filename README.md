@@ -153,6 +153,7 @@ Sin cambios de forma, con motivo: el perfil de la cápsula Dragon (se midió con
 - **Fuego por la zanja.** De las dos bocas de la zanja, a 44 m a cada lado de la mesa, sale fuego durante los primeros segundos: tres chorros turbulentos por boca, que se apagan a medida que el vehículo sube.
 - **Llama de Super Heavy.** Va de blanco dorado junto a los motores a naranja en la columna; antes acababa en un marrón que sobre el cielo azul se volvía rosa. La columna es algo más ancha que el grupo de motores. Además de emitir luz, ahora tapa parte del cielo que tiene detrás, así que a nivel del mar deja de ser un trazo pálido.
 - **Pluma en altura.** Con la altitud se abre en una campana más ancha y más larga que antes.
+- **Color y brillo del núcleo (ronda 6).** Con el mapeo tonal ACES de la escena, el naranja de la columna salía color salmón, casi rosa, y en las fotos del despegue es blanco amarillento. Ahora los tonos medios y la cola son más amarillos, y el brillo del núcleo depende de la presión: a nivel del mar, donde el chorro es ópticamente denso, satura a blanco contra el cielo; en el vacío baja, para que la campana tenue no se convierta en un foco.
 
 **Separación en caliente y regreso.**
 - **Corona de fuego.** Los 24 respiraderos del anillo expulsan lenguas de fuego que se abren en abanico, como una corona alrededor de la interetapa, y hay una bola de fuego desde que la nave enciende hasta que las etapas se separan.
