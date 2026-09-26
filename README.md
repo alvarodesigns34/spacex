@@ -191,6 +191,21 @@ Con un navegador real (Chromium) se leyeron las páginas que cargan su contenido
 
 **Losetas (ronda 6).** En el primer plano de NSF del escudo del Ship 39 (mayo de 2026), las losetas son **carbón** y cada una está rodeada por una **línea blanquecina**. En el modelo eran gris pizarra, reflejaban el cielo en azulado y sus juntas eran surcos oscuros. Ahora el tono base es más oscuro, refleja menos cielo, y el bisel de cada loseta (unos 7 mm) es claro, de modo que de cerca se dibuja una red fina y clara sobre negro. Se probó a aclarar la capa de debajo de las losetas, pero a partir de unos 30 m se imponía a las caras y aclaraba todo el escudo, así que se descartó. El mosaico de lejos se ajustó al mismo tono (|Δ| medio de 20/255 frente a 24, medido con `tools/lod-pop.mjs`). Aun así, ese |Δ| medía la diferencia de dibujo y no la de tono: con signo, el mosaico de lejos seguía 16/255 más claro que las losetas, y la cara de barlovento se oscurecía de golpe al acercarse. Al meter la prueba en `npm run check` (ver *Puerta de validación en CI*) saltó el fallo. El factor del mosaico, fijado en 2,0 cuando las losetas eran gris pizarra, pasa a 0,46, y la diferencia queda en +1,7/255.
 
+**El escudo estaba enterrado bajo su propio respaldo.** Una revisión externa apuntó a una cuenta que resultó exacta:
+- las losetas miden 16 mm y se asentaban 10 mm dentro del casco, así que su cara quedaba a +6 mm;
+- la capa oscura continua del respaldo iba a +8 mm, **2 mm por encima de las caras**.
+
+Renderizando por capas se ve: con el respaldo, el escudo es una piel casi negra con astillas claras. Esas astillas deberían ser las esquinas de cada hexágono, que es lo único que asoma porque una cara plana se separa de la curvatura del casco unos 2,6 mm en las esquinas. Sin el respaldo aparece el mosaico. La comprobación de interfaz miraba solo el ángulo que cubre el respaldo, no su altura, y por eso pasaba.
+
+Ahora:
+- las losetas se asientan 2 mm, con la cara a +14 mm;
+- el respaldo va a +5 mm, de modo que solo se ve en las juntas;
+- `verifyInterfaces` mide sobre la geometría construida la altura de la cara más baja del cañón frente al respaldo y exige al menos 3 mm. Da 9,0 mm y, sobre la versión anterior, −2,0 mm.
+
+**Las aletas tenían el mismo problema.** Sus losetas iban en un plano fijo a 0,21 m del plano medio, pero la aleta mide 0,62 m de grosor en la raíz y se afina hacia la punta. El mosaico quedaba dentro de la aleta en casi toda la envergadura y solo asomaba una franja junto a la punta. Ahora cada loseta, y la placa del mosaico lejano, siguen la superficie real de la aleta.
+
+Con las losetas visibles, el mosaico lejano vuelve a necesitar su factor de brillo: pasa de 0,46 a 1,75, porque el 0,46 se había calibrado contra el escudo enterrado. El salto al cambiar de nivel de detalle queda en +1,2/255, sin cambio de silueta. El hexágono se distingue a 5 m y a 15 m, y el mosaico lejano conserva el dibujo a 40 m.
+
 **Popa de la nave.** La nave llevaba en su faldón de popa la banda negra del propulsor Block 3: anillos de tuberías y 44 cajas de conexiones, copiados con su propio comentario («alrededor del propulsor») y enrollados alrededor de la nave, **por encima de sus losetas**. Dos fotos de spacex.com lo desmienten:
 - el **encendido estático de seis motores del Ship 39** (abril de 2026), en el que las losetas bajan hasta el mismo borde del faldón, entre las aletas de popa;
 - el **ensayo general del 11 de mayo de 2026** en el Pad 2, donde el costado de sotavento es acero desnudo acanalado hasta el anillo del domo de oxígeno, con una fila de orificios pequeños debajo.

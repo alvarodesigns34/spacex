@@ -592,11 +592,13 @@ export function buildShip(M) {
     return Math.min(Math.PI, coverage(y) + TILE_R / r);
   };
   const backing = mesh(
-    // 8 mm proud of the hull: half a tile's thickness. At 2 mm the shell's facets and the
-    // hull's (both chords of the same curve, 96 and 160 segments round) crossed each other on
-    // the nose, and the bright steel poked through between the tiles as white specks and
-    // zig-zags, coming and going with the zoom.
-    coverageShell(profile, backCoverage, tileBase, SHIP_H - 0.02, 0.008, 180, 128),
+    // 5 mm proud of the hull, and 9 mm UNDER the tile faces. At 2 mm the shell's facets and
+    // the hull's (both chords of the same curve) crossed on the nose and bright steel poked
+    // through between the tiles; the fix for that went to 8 mm — while the tiles were seated
+    // 10 mm deep with their faces at +6 mm, so the backing covered them and the shield
+    // rendered as a near-black skin with slivers of tile corner showing through it.
+    // verifyInterfaces now measures the face-to-backing height on the built geometry.
+    coverageShell(profile, backCoverage, tileBase, SHIP_H - 0.02, 0.005, 180, 128),
     M.tileUnder, { castShadow: false });
   backing.name = 'tps-backing';
   g.add(backing);
@@ -604,6 +606,9 @@ export function buildShip(M) {
   let count = tileSurfaceOfRevolution(tiles, profile, {
     y0: tileBase + 0.15, y1: SHIP_H - 0.3, phiCenter: 0, phiHalf: coverage,
     circumradius: TILE_R, rng, minRadius: TILE_R * 0.75,
+    // 2 mm into the hull, so the 16 mm tile stands 14 mm proud: faces well clear of the
+    // backing (+5 mm), which then reads only in the joints, as the filler does on the ship.
+    seat: 0.002,
   });
 
   // ---- Flaps -------------------------------------------------------------------------
@@ -616,10 +621,8 @@ export function buildShip(M) {
    */
   const makeFlap = (outline, phi, yBase, rootOffset, opts = {}) => {
     const xs = outline.map(p => p[0]);
-    const geo = aeroPlate(outline, FLAP_T, {
-      edge: FLAP_T * 0.16,
-      taper: spanTaper(Math.min(...xs), Math.max(...xs), opts.tipScale ?? 0.4),
-    });
+    const taper = spanTaper(Math.min(...xs), Math.max(...xs), opts.tipScale ?? 0.4);
+    const geo = aeroPlate(outline, FLAP_T, { edge: FLAP_T * 0.16, taper });
     const e1 = new THREE.Vector3(Math.sin(phi), 0, Math.cos(phi));
     const e2 = new THREE.Vector3(0, 1, 0);
     const e3 = new THREE.Vector3().crossVectors(e1, e2);   // flap face normal
@@ -639,16 +642,29 @@ export function buildShip(M) {
     // Tiles on whichever face looks into the airstream (+Z, the belly side). The tile itself
     // is turned to face −Z when needed; rotating the frame would mirror the planform and lay
     // the patch out somewhere it does not belong.
-    const off = windwardIsPlusE3 ? FLAP_T * 0.34 : -FLAP_T * 0.34;
-    const faceM = m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, off));
+    //
+    // Each tile sits ON that face, which is not a plane: the flap is 0.62 m thick at the root
+    // and thins towards the tip (the taper above), so the face is FLAP_T/2 × taper(x) off the
+    // mid-plane. The tiles used to be laid on one plane 0.21 m out, which is inside the flap
+    // for most of its span: only a strip near the tip, where the flap has thinned below that,
+    // ever showed, and the broad windward face of every flap rendered as bare dark steel.
+    const side = windwardIsPlusE3 ? 1 : -1;
+    const faceZ = (x) => side * (FLAP_T / 2) * taper(x);
+    const faceM = m.clone();
     count = tilePolygon(tiles, outline, faceM, {
       circumradius: TILE_R, startIndex: count, rng, inset: 0.02, flip: !windwardIsPlusE3,
+      zAt: (x) => faceZ(x) - side * 0.002,
     });
-    // ExtrudeGeometry's cap UVs are already in metres, which is what the mosaic map expects.
-    flapFaces.push({
-      geometry: plate(outline, 0.03),
-      matrix: faceM.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, windwardIsPlusE3 ? 0.01 : -0.01)),
-    });
+    // The far stand-in follows the same face, a few millimetres proud of it. ExtrudeGeometry's
+    // cap UVs are already in metres, which is what the mosaic map expects.
+    const farFace = plate(outline, 0.01);
+    {
+      const pos = farFace.attributes.position;
+      for (let i = 0; i < pos.count; i++) pos.setZ(i, pos.getZ(i) + faceZ(pos.getX(i)) + side * 0.012);
+      pos.needsUpdate = true;
+      farFace.computeVertexNormals();
+    }
+    flapFaces.push({ geometry: farFace, matrix: faceM });
 
     // Hinge fairing blended into the hull along the root, capped so the ends do not read as
     // bright spheres against the tiled hull.

@@ -486,6 +486,34 @@ export function verifyInterfaces(exhibits, complex, { log = true } = {}) {
       const over = deg(backHalf - tileHalf);
       add('TPS backing stays under the tiles', over <= 4 && tileHalf > 0,
         `entre ${y0} y ${y1} m: losetas hasta ±${deg(tileHalf).toFixed(1)}°, respaldo hasta ±${deg(backHalf).toFixed(1)}° (sobresale ${over.toFixed(1)}°)`);
+
+      // And UNDER them radially. The check above looked only at the angle, and for as long as
+      // it passed the backing stood 2 mm ABOVE the tile faces: 16 mm tiles seated 10 mm into
+      // the hull put their faces at +6 mm, the dark backing sat at +8 mm, and all that showed
+      // of 13 000 hexagons were the corners of each flat face where it parts from the curve —
+      // a near-black shield with slivers on it. Face height is measured on the built instances
+      // (position plus the prism's own thickness along its normal), not taken from constants.
+      tiles.geometry.computeBoundingBox();
+      const thick = tiles.geometry.boundingBox.max.z;
+      const m = new THREE.Matrix4(), p = new THREE.Vector3(), n = new THREE.Vector3();
+      let faceMin = Infinity;
+      for (let i = 0; i < tiles.count; i++) {
+        tiles.getMatrixAt(i, m);
+        p.setFromMatrixPosition(m);
+        if (p.y < y0 || p.y > y1 || Math.abs(Math.hypot(p.x, p.z) - HULL_R) > 0.6) continue;
+        n.setFromMatrixColumn(m, 2).normalize();
+        faceMin = Math.min(faceMin, Math.hypot(p.x + n.x * thick, p.z + n.z * thick));
+      }
+      let backMax = 0;
+      const bp = backing.geometry.attributes.position;
+      for (let i = 0; i < bp.count; i++) {
+        const y = bp.getY(i);
+        if (y < y0 || y > y1) continue;
+        backMax = Math.max(backMax, Math.hypot(bp.getX(i), bp.getZ(i)));
+      }
+      const clear = (faceMin - backMax) * 1000;
+      add('TPS tile faces stand above the backing', clear >= 3,
+        `cara de loseta más baja a ${faceMin.toFixed(4)} m del eje, respaldo hasta ${backMax.toFixed(4)} m: ${clear.toFixed(1)} mm de resalte`);
     }
   }
 
