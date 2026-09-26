@@ -184,7 +184,8 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
   // tile-to-tile variation, so the material itself stays white.
   // Silica tiles photograph as a mottled charcoal mosaic, not as a black void: they need
   // enough ambient response to show the form of the hull underneath.
-  M.tile = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.82, metalness: 0.0, envMapIntensity: 0.62 });
+  // vertexColors: the tile prism lights its chamfer pale (hexPrism's edgeShade).
+  M.tile = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.82, metalness: 0.0, envMapIntensity: 0.5, vertexColors: true });
   M.tileUnder = new THREE.MeshStandardMaterial({ color: 0x24242a, roughness: 0.98, envMapIntensity: 0.15 });
   // Distant stand-in for the instanced tiles: the same mosaic baked into a map, so the shield
   // reads as one clean panel instead of dissolving into sub-pixel sparkle.

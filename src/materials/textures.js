@@ -470,9 +470,12 @@ export function makeTpsPattern({ size = 512, circumradius = 0.152, gap = 1.012, 
   const seamWidth = circumradius * 0.09;
   shade(map, (px, py, u, v) => {
     const { seam, ca, cb } = cell(u * W, v * H);
-    const tone = 0.155 + (hash(ca, cb) - 0.5) * 0.05 + (fbm(u * 2.5, v * 2.5, 3) - 0.5) * 0.035;
+    const tone = 0.131 + (hash(ca, cb) - 0.5) * 0.045 + (fbm(u * 2.5, v * 2.5, 3) - 0.5) * 0.03;
     const g = Math.min(1, seam / seamWidth);            // 0 on the seam, 1 in the tile
-    const c = tone * (0.42 + 0.58 * g);
+    // The joints are pale (the instanced tiles' chamfered edges), but the baked seam is
+    // several times wider than a real 3 mm joint, so it is only lifted a little: at the switch
+    // distance a joint is a fraction of a pixel and only its share of the average survives.
+    const c = tone * (g + 1.35 * (1 - g));
     return [clamp(c * 246), clamp(c * 250), clamp(c * 262)];
   });
   shade(rough, (px, py, u, v) => {

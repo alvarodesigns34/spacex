@@ -554,7 +554,12 @@ export function buildShip(M) {
     const t = THREE.MathUtils.clamp((y - y0) / (y1 - y0), 0, 1);
     return COVER_BARREL + t * (COVER_NOSE - COVER_BARREL);
   };
-  const tiles = new THREE.InstancedMesh(hexPrism(TILE_R, TILE_T), M.tile, 17000);
+    // The chamfer round each tile's face is lit pale: in NSF's close-up of Ship 39's shield (May
+  // 2026) every joint is a thin off-white line round a charcoal tile. The joint itself is a
+  // few millimetres of filler under the tiles; a pale layer there was out-voted by the tile
+  // faces' depth at a distance and turned the whole shield light grey, where a 3 mm edge on
+  // the tile adds a few per cent at most.
+  const tiles = new THREE.InstancedMesh(hexPrism(TILE_R, TILE_T, 0.045, 3.0), M.tile, 17000);
   tiles.name = 'tps';
   // The tiles are a skin a couple of centimetres thick: at any shadow-map resolution that
   // covers a 124 m vehicle, letting them cast shadows only produces per-tile acne that reads

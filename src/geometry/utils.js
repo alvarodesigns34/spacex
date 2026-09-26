@@ -257,7 +257,7 @@ export function mat4(position = [0, 0, 0], rotation = [0, 0, 0], scale = [1, 1, 
  * always seated against a hull, so the back face is never visible. 28 triangles instead of the
  * ~48 an ExtrudeGeometry bevel costs, and the chamfer gives the edge a specular catch.
  */
-export function hexPrism(circumradius, thickness, chamfer = 0.022) {
+export function hexPrism(circumradius, thickness, chamfer = 0.022, edgeShade = 1) {
   const c = Math.min(circumradius * chamfer, thickness * 0.6);
   const rings = [
     { r: circumradius - c, z: thickness, n: [0, 0, 1] },        // top face
@@ -267,7 +267,7 @@ export function hexPrism(circumradius, thickness, chamfer = 0.022) {
     { r: circumradius, z: 0, n: null },                         // side bottom
   ];
   const N = 6;
-  const pos = [], nor = [], uv = [], idx = [];
+  const pos = [], nor = [], uv = [], idx = [], col = [];
   const ang = (i) => Math.PI / 6 + (i / N) * Math.PI * 2;
   // Ring vertices (N+1 columns so the seam has distinct UVs).
   for (let ri = 0; ri < rings.length; ri++) {
@@ -280,6 +280,10 @@ export function hexPrism(circumradius, thickness, chamfer = 0.022) {
       else if (ri <= 2) { const l = Math.SQRT1_2; nor.push(ca * l, sa * l, l); }  // chamfer ≈45°
       else nor.push(ca, sa, 0);
       uv.push(0.5 + 0.5 * ca, 0.5 + 0.5 * sa);
+      // Vertex colour multiplies the instance colour: `edgeShade` on the chamfer round the face
+      // (rings 1 and 2), 1 on the face and the side walls.
+      const k = ri === 1 || ri === 2 ? edgeShade : 1;
+      col.push(k, k, k);
     }
   }
   const row = N + 1;
@@ -296,6 +300,7 @@ export function hexPrism(circumradius, thickness, chamfer = 0.022) {
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  if (edgeShade !== 1) g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.setIndex(idx);
   g.computeBoundingSphere();
   return g;
@@ -329,7 +334,7 @@ export function profileAt(profile, y) {
 export function tileSurfaceOfRevolution(mesh, profile, opts) {
   const {
     y0, y1, phiCenter = 0, phiHalf = Math.PI / 2, circumradius, startIndex = 0,
-    colorJitter = 0.018, patchAmount = 0.022, patchScale = 2.4, base = new THREE.Color(0x41424a), rowOffsetY = 0, maskFn = null,
+    colorJitter = 0.018, patchAmount = 0.022, patchScale = 2.4, base = new THREE.Color(0x37383d), rowOffsetY = 0, maskFn = null,
     rng = Math.random, gap = 1.012, seat = 0.010, minRadius = null,
   } = opts;
   const halfAt = typeof phiHalf === 'function' ? phiHalf : () => phiHalf;
@@ -390,7 +395,7 @@ export function tileSurfaceOfRevolution(mesh, profile, opts) {
 export function tilePolygon(mesh, polygon, matrix, opts) {
   const {
     circumradius, startIndex = 0, colorJitter = 0.018, patchAmount = 0.022, patchScale = 2.4,
-    base = new THREE.Color(0x41424a), rng = Math.random, gap = 1.012, inset = 0, flip = false,
+    base = new THREE.Color(0x37383d), rng = Math.random, gap = 1.012, inset = 0, flip = false,
   } = opts;
   const w = Math.sqrt(3) * circumradius * gap;
   const dy = 1.5 * circumradius * gap;
