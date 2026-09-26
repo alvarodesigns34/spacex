@@ -51,6 +51,11 @@ const TILE_T = 0.016;
  */
 export const STACK_YAW_DEG = 129.6;
 export const RAPTOR_EXIT_R = 0.62;
+// Block 3 has no skirt round its engines: all 33 hang in the open below the black thrust
+// ring, powerheads and plumbing on show (NASASpaceflight, Booster 18/19 photographs, May 2026).
+// The ring's lower edge — what the pad's clamps hold — is therefore one Raptor 3 height
+// (2.9 m, spacex.com) plus the outer engines' exit-plane offset above the bells' exits.
+export const BOOSTER_AFT = 3.15;
 // The centre three are not 120° apart on Block 3: they are clocked 108°–108°–144°, and the
 // inner ten were rotated, so that no engine fires straight onto the ridge of the pad's flame
 // diverter (NASASpaceflight, "Super Heavy Block 3", May 2026). The fifth entry, where present,
@@ -326,23 +331,23 @@ export function buildSuperHeavy(M) {
   // pipe round the booster with junction boxes along them (NASASpaceflight, May 2026, and the
   // Booster 19 aft photographs). Band height, pipe count and box spacing are read off those
   // photographs and are approximate.
-  const AFT = 3.0;
-  g.add(mesh(lathe([{ r: R, y: 0 }, { r: R, y: AFT }], { segments: 160 }), M.aftBlack ?? M.steelSkirt, { name: 'skirt' }));
+  const A0 = BOOSTER_AFT, AFT = A0 + 3.0;
+  g.add(mesh(lathe([{ r: R, y: A0 }, { r: R, y: AFT }], { segments: 160 }), M.aftBlack ?? M.steelSkirt, { name: 'skirt' }));
   g.add(mesh(lathe([{ r: R, y: AFT }, { r: R, y: skirtTop }], { segments: 160 }), M.steelSkirt, { name: 'skirt-upper' }));
   {
     const pipes = [], boxes = [];
     for (const [y, rr, tub] of [[0.55, R + 0.16, 0.07], [1.05, R + 0.2, 0.09], [1.55, R + 0.17, 0.06], [2.35, R + 0.22, 0.1], [2.75, R + 0.15, 0.06]]) {
-      pipes.push({ geometry: new THREE.TorusGeometry(rr, tub, 8, 128), matrix: mat4([0, y, 0], [Math.PI / 2, 0, 0]) });
+      pipes.push({ geometry: new THREE.TorusGeometry(rr, tub, 8, 128), matrix: mat4([0, A0 + y, 0], [Math.PI / 2, 0, 0]) });
     }
     for (let i = 0; i < 44; i++) {
       const a = (i / 44) * Math.PI * 2 + 0.03;
       const y = i % 2 ? 1.95 : 1.3;
-      boxes.push({ geometry: new THREE.BoxGeometry(0.34, 0.5, 0.26), matrix: mat4([Math.sin(a) * (R + 0.2), y, Math.cos(a) * (R + 0.2)], [0, a, 0]) });
+      boxes.push({ geometry: new THREE.BoxGeometry(0.34, 0.5, 0.26), matrix: mat4([Math.sin(a) * (R + 0.2), A0 + y, Math.cos(a) * (R + 0.2)], [0, a, 0]) });
     }
     // Short vertical risers from the rings into the tank section above.
     for (let i = 0; i < 16; i++) {
       const a = (i / 16) * Math.PI * 2 + 0.11;
-      boxes.push({ geometry: new THREE.BoxGeometry(0.1, 1.2, 0.1), matrix: mat4([Math.sin(a) * (R + 0.14), 3.2, Math.cos(a) * (R + 0.14)], [0, a, 0]) });
+      boxes.push({ geometry: new THREE.BoxGeometry(0.1, 1.2, 0.1), matrix: mat4([Math.sin(a) * (R + 0.14), A0 + 3.2, Math.cos(a) * (R + 0.14)], [0, a, 0]) });
     }
     g.add(mesh(mergeAll(pipes), M.aftBlack ?? M.darkMetal, { name: 'aft-commodity-rings', castShadow: false }));
     g.add(mesh(boxUV(mergeAll(boxes)), M.blackMatte, { name: 'aft-junction-boxes' }));
@@ -368,27 +373,11 @@ export function buildSuperHeavy(M) {
     g.add(mesh(lathe(shield, { segments: 96 }), M.domePlate ?? M.darkMetal, { name: 'forward-dome-shield', castShadow: false }));
   }
 
-  // Aft interior: skirt wall seen from below, thrust puck and engine-bay shielding.
-  g.add(mesh(lathe([{ r: R - 0.03, y: 0.1 }, { r: R - 0.03, y: 4.3 }], { segments: 96, flip: true }), M.steelInner, { castShadow: false }));
-  // The thrust plate the 33 engines hang from, covered by Block 3's new metallic tiles.
-  g.add(mesh(new THREE.CylinderGeometry(R - 0.03, R - 0.03, 0.5, 96), M.metalTile ?? M.darkMetal, { position: [0, 4.35, 0], name: 'thrust-plate' }));
-  // Radial dividers between the outer engine bays (layout approximate). They were placed on
-  // the outer ring's own azimuths, so each plate ran through the middle of an engine and
-  // showed as a pale bar across every outer bell in the view from below. They belong in the
-  // gaps, half a pitch round, and they start above the bells' widest part: two neighbouring
-  // exit rims leave no gap at all at the exit plane, so a plate that reached down there would
-  // cut both. At y = 1.0 m the bell is 0.46 m in radius and the plate clears it by 8 cm.
-  const [, , outerRing] = BOOSTER_RINGS;
-  const BAY_Y0 = 1.0, BAY_Y1 = 4.1;
-  const bays = [];
-  for (let i = 0; i < outerRing[0]; i++) {
-    const a = outerRing[3] + ((i + 0.5) / outerRing[0]) * Math.PI * 2;
-    bays.push({
-      geometry: new THREE.BoxGeometry(0.12, BAY_Y1 - BAY_Y0, 1.15),
-      matrix: mat4([Math.sin(a) * 3.88, (BAY_Y0 + BAY_Y1) / 2, Math.cos(a) * 3.88], [0, a, 0]),
-    });
-  }
-  g.add(mesh(boxUV(mergeAll(bays)), M.darkMetal, { name: 'engine-bay-dividers' }));
+  // The thrust plate the 33 engines hang from, flush with the ring's lower edge and covered
+  // by Block 3's metallic tiles: from below, the bronze field between the powerheads. Block 3
+  // has no engine bays to divide: the radial plates that used to stand between the outer
+  // bells went with the skirt.
+  g.add(mesh(new THREE.CylinderGeometry(R - 0.03, R - 0.03, 0.5, 96), M.metalTile ?? M.darkMetal, { position: [0, A0 + 0.25, 0], name: 'thrust-plate' }));
 
   // 33 Raptor 3: 3 + 10 gimballing on the thrust puck, 20 fixed on the outer ring.
   // Inner 13 gimbal. The outer 20 are fixed: no actuator rods, so the cluster
@@ -475,7 +464,7 @@ export function buildSuperHeavy(M) {
     frost.add(mesh(lathe([{ r: R + 0.014, y: y0 }, { r: R + 0.014, y: y1 }], { segments: 128 }), M.frost, { castShadow: false, name: 'frost-shell' }));
   }
   g.add(frost);
-  g.userData.stations = { skirtTop, commonDome, ringTop, finY, pinY: finY - PIN_DROP, height: BOOSTER_H };
+  g.userData.stations = { aft: BOOSTER_AFT, skirtTop, commonDome, ringTop, finY, pinY: finY - PIN_DROP, height: BOOSTER_H };
   return g;
 }
 

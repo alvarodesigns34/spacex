@@ -25,7 +25,7 @@
 import * as THREE from 'three';
 import { mesh, mergeAll, mat4, boxUV, tube, radial } from '../geometry/utils.js';
 import { dressPad } from './padDressing.js';
-import { RAPTOR_ENVELOPE_R, BOOSTER_R } from './starship.js';
+import { RAPTOR_ENVELOPE_R, BOOSTER_R, BOOSTER_AFT } from './starship.js';
 
 // ---- Dimensions -------------------------------------------------------------------------
 export const PAD = {
@@ -71,7 +71,9 @@ export const PAD = {
   // Pad 2's chopsticks are about 10 m shorter than Pad 1's ≈36 m (NASASpaceflight, "Starbase
   // Pad 2: Design Advancements from Pad 1", August 2025; Wikipedia: "a new shorter design").
   armLen: 26.0,
-  qdY: 96.0,              // ship quick-disconnect arm
+  // Ship quick-disconnect arm: at the ship's QD panel, which moved down with the stack when
+  // Block 3's booster came to stand on its thrust ring with the engines in the mount.
+  qdY: 96.0 - BOOSTER_AFT,
   qdLen: 18.5,
   // Field
   farmX: 150.0,
@@ -477,7 +479,41 @@ function buildTower(M) {
   const { padY, towerHalf: h, section, sections, mast } = PAD;
   const base = padY, top = base + section * sections;
 
-  g.add(mesh(boxUV(mergeAll([block(-9, 9, PAD.bermY, padY + 1.2, -9, 9)])), M.concrete));
+  // Tower base. NSF (Pad 2 design article, August 2025): a stainless steel framework filled
+  // with concrete, ~1.5 m taller than Pad 1's, with a substantially larger housing at the rear
+  // and large openings into it on the ground and first floors. The finished pad (NSF, May 2026,
+  // side-on from the highway) shows it as a clad block about 9 m tall that runs some 6.5 m
+  // behind the tower's rear face, flush with its front, its roof rising in a slope to the
+  // tower. Those proportions are measured on that photograph against the 12.2 m tower, and are
+  // approximations; the depth across the pad is not visible in it and is assumed.
+  {
+    const clad = M.towerClad ?? M.concrete;
+    const B0 = padY, B1 = padY + 6.0, B2 = padY + 9.4;        // floors, eaves, crown of the slope
+    const xr = -h - 6.5, xf = h + 0.3, zB = h + 1.9;          // rear, front, half-depth
+    const xs = -h - 1.0;                                      // where the slope meets the flat
+    const prof = new THREE.Shape();
+    prof.moveTo(xr, B0); prof.lineTo(xf, B0); prof.lineTo(xf, B2); prof.lineTo(xs, B2);
+    prof.lineTo(xr, B1); prof.closePath();
+    const body = new THREE.ExtrudeGeometry(prof, { depth: 2 * zB, bevelEnabled: false });
+    body.translate(0, 0, -zB);
+    g.add(mesh(boxUV(body), clad, { name: 'tower-base' }));
+    // The openings: two floors of wide dark bays in the rear housing's three free faces, and a
+    // walkway rail along the first floor. Recessed panels, 0.3 m deep.
+    const bays = [], rails = [];
+    const floors = [[B0 + 0.4, B0 + 2.7], [B0 + 3.2, B1 - 0.4]];
+    for (const [y0, y1] of floors) {
+      bays.push(block(xr - 0.02, xr + 0.3, y0, y1, -zB + 1.2, zB - 1.2));        // rear face
+      for (const s of [-1, 1]) bays.push(block(xr + 1.0, -h - 0.8, y0, y1, s * (zB + 0.02), s * (zB - 0.3)));
+    }
+    for (const s of [-1, 1]) {
+      rails.push(block(xr + 1.0, -h - 0.8, B0 + 4.1, B0 + 4.16, s * (zB + 0.35), s * (zB + 0.41)));
+      rails.push(block(xr + 1.0, -h - 0.8, B0 + 3.1, B0 + 3.2, s * (zB), s * (zB + 0.45)));   // walkway
+    }
+    rails.push(block(xr - 0.45, xr, B0 + 3.1, B0 + 3.2, -zB + 1.2, zB - 1.2));
+    rails.push(block(xr - 0.41, xr - 0.35, B0 + 4.1, B0 + 4.16, -zB + 1.2, zB - 1.2));
+    g.add(mesh(boxUV(mergeAll(bays)), M.blackMatte, { name: 'tower-base-openings', castShadow: false }));
+    g.add(mesh(boxUV(mergeAll(rails)), M.mount, { name: 'tower-base-walkway', castShadow: false }));
+  }
 
   // The tower is a lattice you can see the sky through. It used to carry a solid 5.2 m box
   // up its middle as the "service core", which turned the whole 122 m into a dark slab at
@@ -537,7 +573,7 @@ function buildTower(M) {
   for (const y of [PAD.qdY - 1.6, top - 0.2]) decks.push(block(-c, c, y - 0.1, y + 0.1, -c, c));
   // Carriage rails on the pad face.
   for (const s of [-1, 1]) steel.push(block(h - 0.35, h + 0.45, base, top, s * 3.4 - 0.45, s * 3.4 + 0.45));
-  g.add(mesh(boxUV(mergeAll(steel)), (M.towerSteel ?? M.mount), { name: 'tower-truss' }));
+  g.add(mesh(boxUV(mergeAll(steel)), (M.towerClad ?? M.towerSteel ?? M.mount), { name: 'tower-truss' }));
   g.add(mesh(boxUV(mergeAll(light)), M.steelGrating, { name: 'tower-core', castShadow: true }));
   g.add(mesh(boxUV(mergeAll(decks)), M.steelGrating, { name: 'tower-decks' }));
 
@@ -574,7 +610,9 @@ function buildTower(M) {
     sheaves.push({ geometry: new THREE.CylinderGeometry(0.22, 0.22, 4.6, 12), matrix: mat4([face + 0.2, sheaveY, 0], [Math.PI / 2, 0, 0]) });
   }
   // Winch skid on the landward side of the foot, and the return falls up inside the truss.
-  const hx = -h - 5.5;
+  // Behind the base housing, which now fills the ground under the tower's rear; the rope
+  // enters the tower above the base (on Pad 2 at least a section higher than on Pad 1, NSF).
+  const hx = -h - 11.0;
   hoist.push(block(hx - 3.5, hx + 3.5, padY, padY + 0.6, -5, 5));                  // skid
   for (const z of [-2.4, 2.4]) {
     sheaves.push({ geometry: new THREE.CylinderGeometry(1.25, 1.25, 2.4, 32), matrix: mat4([hx, padY + 2.2, z], [Math.PI / 2, 0, 0]) });
@@ -583,11 +621,11 @@ function buildTower(M) {
   }
   const cable = [];
   for (const z of [-1.5, 1.5]) {
-    cable.push(rod([hx, padY + 3.4, z * 1.6], [-h + 1.2, padY + 6, z], 0.06, 6));
-    cable.push(rod([-h + 1.2, padY + 6, z], [-h + 1.2, sheaveY + 1.0, z], 0.06, 6));
+    cable.push(rod([hx, padY + 3.4, z * 1.6], [-h + 1.2, padY + 14, z], 0.06, 6));
+    cable.push(rod([-h + 1.2, padY + 14, z], [-h + 1.2, sheaveY + 1.0, z], 0.06, 6));
     cable.push(rod([-h + 1.2, sheaveY + 1.0, z], [face - 0.9, sheaveY + 1.0, z], 0.06, 6));
   }
-  g.add(mesh(boxUV(mergeAll(hoist)), (M.towerSteel ?? M.mount), { name: 'hoist-frame' }));
+  g.add(mesh(boxUV(mergeAll(hoist)), (M.towerClad ?? M.towerSteel ?? M.mount), { name: 'hoist-frame' }));
   g.add(mesh(boxUV(mergeAll(sheaves)), M.darkMetal, { name: 'hoist-sheaves' }));
   g.add(mesh(boxUV(mergeAll(cable)), M.darkMetal, { name: 'hoist-cable-return', castShadow: false }));
   // The two falls from the sheaves to the carriage: unit-length rods hung from the sheave,

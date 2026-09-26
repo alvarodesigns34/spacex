@@ -114,7 +114,7 @@ export const VEHICLES = [
       // The old camera sat on the centreline under the throat, where the vehicle and
       // the deck eclipse the sun at 18°. This one keeps every bell in frame and lets
       // trench daylight plus the mount's closeout lamps reach the hardware.
-      { id: 'engines', label: '33 Raptors', frame: 'site', pos: [3.6, 11.2, 4.4], target: [0, 20.4, 0] },
+      { id: 'engines', label: '33 Raptors', frame: 'site', pos: [3.6, 11.2, 4.4], target: [0, 17.3, 0] },
       // Framed on the TILE LINE, not on the tiles. At [6, 100, 24] the camera sat 14° off the
       // belly and 25 m out, so the frame was hull from edge to edge and the one thing worth
       // looking at — where the mosaic stops and the bare steel starts — was round the side.

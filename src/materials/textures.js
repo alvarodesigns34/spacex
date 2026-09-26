@@ -1054,3 +1054,45 @@ export function makeWeatheredSteel({ size = 512, tile = 4.0 } = {}) {
     tileSize: tile,
   };
 }
+
+/**
+ * Pad 2's tower cladding: bare light-grey steel plate, as the ground and aerial photographs of
+ * the finished pad show it (NASASpaceflight, 2025–2026) — not the dark painted steel of the
+ * arms. Plate-to-plate tone steps, faint grime streaks running down from the joints, and a
+ * satin sheen. Metric UVs; one tile is `tile` metres.
+ */
+export function makeTowerClad({ size = 512, tile = 4.0 } = {}) {
+  const map = canvas(size, size), rough = canvas(size, size), height = canvas(size, size);
+  const field = (x, y, u, v) => {
+    // Plates of 1 m × 2 m: each its own shade, a few per cent either side.
+    const pu = Math.floor(u * 4), pv = Math.floor(v * 2);
+    const plate = (noise2(pu * 7.3 + 1.1, pv * 5.9 + 3.7) - 0.5) * 0.07;
+    const mottle = (fbm(u * 9 + 5, v * 9 + 1, 4) - 0.5) * 0.05;
+    // Grime runs down from each plate's upper edge, narrow and fading.
+    const col = fbm(u * 44 + 2, 7.1, 2);
+    const run = Math.max(0, col - 0.58) * 2.4 * (1 - ((v * 2) % 1));
+    const seam = Math.min(1, Math.max(smoothstep(0.985, 1.0, (u * 4) % 1), smoothstep(0.99, 1.0, (v * 2) % 1)));
+    return { plate, mottle, run: Math.min(1, run), seam };
+  };
+  shade(map, (x, y, u, v) => {
+    const { plate, mottle, run, seam } = field(x, y, u, v);
+    let g = 0.6 + plate + mottle - run * 0.12 - seam * 0.18;
+    return [clamp(g * 255), clamp((g + 0.006) * 255), clamp((g + 0.014) * 255)];
+  });
+  shade(rough, (x, y, u, v) => {
+    const { plate, run } = field(x, y, u, v);
+    const g = clamp((0.5 + plate * 1.5 + run * 0.18 + (fbm(u * 24, v * 24, 3) - 0.5) * 0.08) * 255);
+    return [g, g, g];
+  });
+  shade(height, (x, y, u, v) => {
+    const { seam } = field(x, y, u, v);
+    const g = clamp((0.5 - seam * 0.3 + (noise2(x * 0.9, y * 0.9) - 0.5) * 0.03) * 255);
+    return [g, g, g];
+  });
+  return {
+    map: toTexture(map, { srgb: true, tileSize: tile }),
+    roughnessMap: toTexture(rough, { tileSize: tile }),
+    normalMap: toTexture(heightToNormal(height, 1.0), { tileSize: tile }),
+    tileSize: tile,
+  };
+}

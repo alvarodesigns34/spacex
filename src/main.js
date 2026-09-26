@@ -20,7 +20,7 @@ import { pickQuality, applyQuality } from './core/quality.js';
 import { LODManager } from './core/lod.js';
 import { createHUD } from './ui/hud.js';
 import { VEHICLES } from './data/specs.js';
-import { buildStarship, STACK_YAW_DEG } from './vehicles/starship.js';
+import { buildStarship, STACK_YAW_DEG, BOOSTER_AFT } from './vehicles/starship.js';
 import { buildFalcon9, buildFalconHeavy } from './vehicles/falcon.js';
 import { buildFalcon1, buildFalcon1GroundEquipment } from './vehicles/falcon1.js';
 import { buildDragon } from './vehicles/dragon.js';
@@ -83,7 +83,9 @@ const LAYOUT = {
     },
   },
   starship: {
-    x: 0, z: -185, mount: PAD.deckTop, yaw: STACK_YAW_DEG, pad: true,
+    // The stack's origin is the engines' exit plane; the deck carries the thrust ring's edge,
+    // BOOSTER_AFT above it, with the 33 Raptors hanging down into the mount's throat.
+    x: 0, z: -185, mount: PAD.deckTop - BOOSTER_AFT, yaw: STACK_YAW_DEG, pad: true,
     people: [[26, PAD.padY, 16, 0.8], [30, PAD.padY, -10, -1.6], [-19, PAD.padY, 24, 2.4]],
   },
   dragon: { x: 18, z: 0, mount: 1.6, people: [[3.4, 0, 1.6, 0.6], [-2.8, 0, 2.6, -0.8]] },

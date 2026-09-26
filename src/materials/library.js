@@ -121,6 +121,7 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
     ['bellCool', () => TX.makeEngineBell({ copper: 0.12 })],
     ['greyDark', () => TX.makeGreyMetal({ tone: 0.28 })],
     ['weatheredSteel', () => TX.makeWeatheredSteel()],
+    ['towerClad', () => TX.makeTowerClad()],
     ['water', () => TX.makeWater()],
   ];
   // One texture, then a frame: the generators are the longest stretch of the start-up, and
@@ -453,6 +454,14 @@ float vcNoise(vec2 p) {
     name: 'tower-steel', map: T.weatheredSteel.map, roughnessMap: T.weatheredSteel.roughnessMap,
     normalMap: T.weatheredSteel.normalMap, normalScale: new THREE.Vector2(0.6, 0.6),
     color: 0xffffff, metalness: 0.2, roughness: 1.0, envMapIntensity: 0.5,
+  });
+  // The tower itself is bare light-grey steel, clad at the corners in flat plate: in every
+  // photograph of the finished Pad 2 it stands pale against the sky, where the arms, the
+  // carriage and the QD arm are dark. Metric UVs only.
+  M.towerClad = new THREE.MeshStandardMaterial({
+    name: 'tower-clad', map: T.towerClad.map, roughnessMap: T.towerClad.roughnessMap,
+    normalMap: T.towerClad.normalMap, normalScale: new THREE.Vector2(0.5, 0.5),
+    color: 0xffffff, metalness: 0.5, roughness: 1.0, envMapIntensity: 0.75,
   });
   // Exhibit plinths: a satin graphite drum under a matte deck. The drum was the same
   // 60 %-metallic grey as the mount steel, and at that metalness it took its colour from the

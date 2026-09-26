@@ -24,7 +24,7 @@
  */
 import * as THREE from 'three';
 import { Plume, GroundCloud, EngineJets, Vapor, CondensationCollar, FlightEarth, Glow } from './plume.js';
-import { BOOSTER_RINGS, RAPTOR_EXIT_R, ringAngle } from '../vehicles/starship.js';
+import { BOOSTER_RINGS, RAPTOR_EXIT_R, ringAngle, BOOSTER_AFT } from '../vehicles/starship.js';
 import { seeded, monotoneSlopes, hermite } from '../geometry/utils.js';
 
 // ---- Cited event times (seconds from T-0) ------------------------------------------------
@@ -411,10 +411,11 @@ export const downrangeAt = (t) => (t <= 0 ? 0 : sampleC1(PROFILE.down, Math.sin,
 export const pitchAt = (t) => (t <= 0 ? 0 : sample(PROFILE.pit, t));
 
 // The moment the stack clears the tower is read off the integrated climb, not authored: the
-// base has to rise from the mount deck (9 m above the pad) past the 144,5 m tower top, 135,5 m.
-// It was a fixed T+12, by which time the curve already has the stack ~300 m up.
+// engines' exit plane has to rise from where it rests — BOOSTER_AFT under the deck, and the
+// deck 13 m above the pad — past the 144,5 m tower top. It was a fixed T+12, by which time
+// the curve already has the stack ~300 m up.
 {
-  const CLIMB = 144.5 - 9;
+  const CLIMB = 144.5 - (13 - BOOSTER_AFT);
   let t = EVENTS.liftoff;
   while (altitudeAt(t) < CLIMB && t < 60) t += 0.05;
   EVENTS.towerClear = Math.round(t * 10) / 10;
@@ -682,7 +683,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   };
 
   // ---- Vapour: venting in the count, the deluge at ignition, venting after the catch -------
-  // Emitters are placed in the stack's rest frame (booster base at the mount deck, y up),
+  // Emitters are placed in the stack's rest frame (engine exits BOOSTER_AFT under the deck, y up),
   // under a group that stays on the pad, so puffs born before liftoff do not ride up with the
   // vehicle. Stations are reconstructed: where a fuelled Starship is seen venting from, not a
   // plumbing diagram. Fewer puffs on the lower tiers.
@@ -703,7 +704,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
       ...[1.4, 4.2].map(a => ({ at: around(4.6, 69, a), dir: out(a, 0.1), speed: 2.8, spread: 0.3, count: nv(30), life: 7.8, size: 3.36, grow: 2, window: COUNT_WIN })),
       ...[2.2, 5.3].map(a => ({ at: around(4.6, 76, a), dir: out(a, -0.1), speed: 2.4, spread: 0.3, count: nv(27), life: 7.8, size: 3.12, grow: 2, window: COUNT_WIN })),
       { at: around(3.0, 116, 3.1), dir: out(3.1, 0.3), speed: 2, spread: 0.3, count: nv(21), life: 6.5, size: 2.4, grow: 1.8, window: COUNT_WIN },
-      ...[0.9, 3.9].map(a => ({ at: around(4.4, 2.5, a), dir: out(a, -0.3), speed: 3, spread: 0.4, count: nv(30), life: 6.5, size: 4.32, grow: 2.8, window: COUNT_WIN })),
+      ...[0.9, 3.9].map(a => ({ at: around(4.4, BOOSTER_AFT + 1.2, a), dir: out(a, -0.3), speed: 3, spread: 0.4, count: nv(30), life: 6.5, size: 4.32, grow: 2.8, window: COUNT_WIN })),
     ],
   });
   // Deluge: water driven up through the mount's plate round the engines, from a couple of
@@ -712,7 +713,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     name: 'vapor-deluge', rng: seeded(22), accel: [0.4, -2.2, 0.2], tau: 0.9, opacity: 0.62,
     emitters: Array.from({ length: 12 }, (_, i) => {
       const a = (i / 12) * Math.PI * 2 + 0.13;
-      return { at: around(6.6, -0.6, a), dir: out(a, 3.2), speed: 24, spread: 0.22, count: nv(33), life: 4.16, size: 5.28, grow: 8.4, jitter: 1.2, window: [EVENTS.deflector, EVENTS.liftoff + 10] };
+      return { at: around(6.6, BOOSTER_AFT - 0.6, a), dir: out(a, 3.2), speed: 24, spread: 0.22, count: nv(33), life: 4.16, size: 5.28, grow: 8.4, jitter: 1.2, window: [EVENTS.deflector, EVENTS.liftoff + 10] };
     }),
   });
   // Landing: the last seconds of the burn blast the mount deck, and the exhaust and deck water
@@ -721,7 +722,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     name: 'vapor-landing', rng: seeded(24), accel: [0.5, 0.8, 0.2], tau: 1.4, opacity: 0.38,
     emitters: Array.from({ length: 10 }, (_, i) => {
       const a = (i / 10) * Math.PI * 2 + 0.2;
-      return { at: around(5.5, 0.5, a), dir: out(a, 0.08), speed: 22, spread: 0.25, count: nv(10), life: 4.5, size: 7, grow: 9, jitter: 1.5, window: [BURN_THREE - 1, EVENTS.catch - 0.5] };
+      return { at: around(5.5, BOOSTER_AFT + 0.5, a), dir: out(a, 0.08), speed: 22, spread: 0.25, count: nv(10), life: 4.5, size: 7, grow: 9, jitter: 1.5, window: [BURN_THREE - 1, EVENTS.catch - 0.5] };
     }),
   });
   rest.add(countdownVent.mesh, deluge.mesh, landingSpray.mesh);
@@ -734,7 +735,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     emitters: [
       { at: [0, BOOSTER_TOP - 0.8, 0], dir: [0.1, 1, 0], speed: 3.5, spread: 0.4, count: nv(39), life: 9.1, size: 4.32, grow: 2.6, jitter: 2, window: CATCH_WIN },
       ...[1.0, 3.6].map(a => ({ at: around(4.6, 58, a), dir: out(a, 0), speed: 2.4, spread: 0.35, count: nv(27), life: 7.8, size: 3.36, grow: 2.2, window: CATCH_WIN })),
-      ...[0.3, 3.3].map(a => ({ at: around(4.3, 2, a), dir: out(a, -0.3), speed: 2.6, spread: 0.4, count: nv(24), life: 6.5, size: 3.84, grow: 2.4, window: CATCH_WIN })),
+      ...[0.3, 3.3].map(a => ({ at: around(4.3, BOOSTER_AFT + 1.2, a), dir: out(a, -0.3), speed: 2.6, spread: 0.4, count: nv(24), life: 6.5, size: 3.84, grow: 2.4, window: CATCH_WIN })),
     ],
   });
   booster.add(catchVent.mesh);

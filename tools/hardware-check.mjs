@@ -33,7 +33,6 @@ if (mutant === 'lod-path') paths.userData.lodFeature = 0.14;
 if (mutant === 'lod-side') delete sides[0].getObjectByName('heat-shield-boots').userData.lodFeature;
 if (mutant === 'f1-fairing') f1.getObjectByName('falcon1-fairing').scale.y = 0.8;
 if (mutant === 'shield-hole') f9.getObjectByName('base-heat-shield').rotation.y = Math.PI / 8;
-if (mutant === 'bay-phase') booster.getObjectByName('engine-bay-dividers').rotation.y = Math.PI / 20;
 if (mutant === 'shield-skin') f9.getObjectByName('base-heat-shield').scale.set(1.2, 1, 1.2);
 if (mutant === 'f1-engine') f1.getObjectByName('falcon1-merlin1c-turbopump').removeFromParent();
 for (const root of [f1, f9, fh, pad, booster]) root.updateMatrixWorld(true);
@@ -162,18 +161,16 @@ for (const core of [f9.children.find(o => o.name === 'falcon-core-f9'), ...sides
   assert.ok(reach <= 1.831, `base heat shield stays inside the 3.66 m skin (${reach.toFixed(3)} m)`);
 }
 {
+  // Block 3 has no skirt and no engine bays: the twenty outer Raptors hang in the open below
+  // the thrust ring, which is what the pad's clamps hold.
   const outer = engineAxes(booster, 3.5);
   assert.equal(outer.length, 20, 'twenty outer Raptor axes');
-  const dividers = booster.getObjectByName('engine-bay-dividers');
-  let worst = Infinity;
-  for (const p of surfaceSamples(dividers, 10)) {
-    // Raptor bell radius at this height, from the engine's own profile; the exit plane is at y = 0.25.
-    const local = p.y - outer[0].y;
-    if (local > 2.2) continue;
-    const bellR = local < 0.45 ? 0.62 - (0.62 - 0.533) * (local / 0.45) : 0.533 - (0.533 - 0.434) * Math.min(1, (local - 0.45) / 0.4);
-    for (const e of outer) worst = Math.min(worst, Math.hypot(p.x - e.x, p.z - e.z) - bellR);
-  }
-  assert.ok(worst > 0, `Super Heavy bay dividers stay outside every outer bell (${worst.toFixed(3)} m)`);
+  assert.equal(booster.getObjectByName('engine-bay-dividers'), undefined, 'no engine-bay dividers on Block 3');
+  const skirt = bounds(booster.getObjectByName('skirt'));
+  const plate = bounds(booster.getObjectByName('thrust-plate'));
+  const bells = bounds(booster.getObjectByName('engines'));
+  assert.ok(skirt.min.y > bells.min.y + 2.8, `thrust ring edge stands a Raptor's height above the exits (${(skirt.min.y - bells.min.y).toFixed(2)} m)`);
+  assert.ok(Math.abs(plate.min.y - skirt.min.y) < 0.02, 'thrust plate flush with the ring edge');
 }
 
 const tower = world(pad.getObjectByName('olit'));
@@ -198,7 +195,7 @@ for (const actuator of actuators) actuator.traverse(o => {
   for (let i = 0; i < a.count; i++) { p.fromBufferAttribute(a, i).applyMatrix4(o.matrixWorld); assert.ok(Math.hypot(p.x, p.z) < 4.5, 'every V3 actuator vertex lies inside booster hull'); }
 });
 console.log('PASS hardware: stage release counts, FH contacts/orientation/LOD, dual QDs, separate bunker rooms, internal V3 actuators');
-if (!mutant) for (const name of ['raceway', 'rod', 'pusher', 'qd', 'actuator', 'lod-path', 'lod-side', 'f1-fairing', 'f1-engine', 'shield-hole', 'bay-phase', 'shield-skin']) {
+if (!mutant) for (const name of ['raceway', 'rod', 'pusher', 'qd', 'actuator', 'lod-path', 'lod-side', 'f1-fairing', 'f1-engine', 'shield-hole', 'shield-skin']) {
   const run = spawnSync(process.execPath, [fileURLToPath(import.meta.url), `--mutant=${name}`], { encoding: 'utf8' });
   assert.notEqual(run.status, 0, `must detect sabotage ${name}`);
   assert.match(run.stderr, /AssertionError/, `sabotage ${name} must fail an assertion`);
