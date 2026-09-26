@@ -47,6 +47,10 @@ const bounds = () => page.evaluate(() => {
 // A DPR-2 frame of a wide view in software rendering can take longer than Playwright's 30 s
 // default on a shared runner; the check is about layout, not frame time (profile-check is).
 const SHOT_MS = 120000;
+// The same holds for clicks: Playwright waits for the target to be stable over two animation
+// frames, and the first frames after the 1920×1080 → 390×844 resize are that slow. On the
+// runner the dock click took 29.6 s in a passing run and timed out at 30 s in the next.
+page.setDefaultTimeout(SHOT_MS);
 try {
   console.log('Loading once at medium quality, DPR 2');
   await page.goto(`http://127.0.0.1:${PORT}/?quality=medium`, { waitUntil: 'load', timeout: 120000 });
