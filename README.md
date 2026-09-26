@@ -138,6 +138,37 @@ Sin cambios de forma, con motivo: el perfil de la cápsula Dragon (se midió con
 - **Luz por defecto:** el sol arranca a 20° (ver *Controles*).
 - **Sonido** del lanzamiento y del resto de fases de Starship, rehecho (ver *El complejo de lanzamiento y la secuencia*).
 
+### Nube de lanzamiento contra el vuelo 12
+
+Se comparó la nube con dos fotos del despegue del vuelo 12, el primero desde el Pad 2 (22 de mayo de 2026): la de NSF desde la carretera y el dron de SpaceX publicado en spacex.com. Solo se usaron como referencia visual; no están en el repositorio. Las fotos muestran:
+- dos masas, una por cada boca de la zanja, que **crecen en altura** como cúmulos;
+- bordes hechos de cientos de torretas pequeñas;
+- cimas blancas al sol e interior gris pardo;
+- una **bruma parda de polvo** a ras de suelo, debajo y entre las dos masas.
+
+Una revisión externa describía el código de la nube: pocas variantes de bocanada, un tamaño con patrón periódico y mucha opacidad. Todo eso se confirmó:
+- el atlas tenía 4 variantes;
+- cada bocanada se escalaba por `1 + (i % 5) · 0,18`, según su posición en el búfer, así que a lo largo de cada chorro se repetía un patrón de tamaños;
+- la opacidad era 0,92 para todas;
+- el giro era aleatorio, así que las torretas quedaban a veces hacia abajo;
+- el polvo era solo un tinte sobre el 45 % de las bocanadas.
+
+Ahora:
+- **16 variantes** (atlas de 4×4), cada una con una masa central, un anillo de lóbulos medianos y entre 10 y 24 torretas pequeñas, más ruido fractal a dos escalas. Cada bocanada toma su variante de un hash de su identificador, no de su posición en el búfer. La textura se genera una sola vez y la comparten la nube y el vapor, así que cuesta lo mismo que antes, cuando se generaba dos veces.
+- **Tamaño, opacidad y proporción por bocanada**, sorteados al emitirla con el generador con semilla (el `seek` los reproduce igual). El giro está casi vertical, para que la parte plana y en sombra quede abajo.
+- **Erosión con la edad:** el umbral de densidad sube con la edad de cada bocanada, así que se deshace de fuera hacia dentro, por las torretas finas, en lugar de desvanecerse entera.
+- **Turbulencia:** un campo suave y determinista de la posición, que desvía cada bocanada a escala de decenas de metros.
+- **Dos familias:**
+  - *vapor*: blanco, con flotación, que sube en torres;
+  - *polvo*: pardo, pesado, translúcido y aplanado, que sale de las bocas de la zanja y del borde del pad durante el despegue.
+- **Luz:** más contraste entre la cima y la base de la masa y dentro de cada bocanada, y una sombra cálida.
+
+Por el camino hubo dos pasos atrás, corregidos antes de confirmar el cambio:
+- con la proporción vertical, las bocanadas salían como **globos** que subían sueltos;
+- con la erosión fuerte, la masa **encogía** al envejecer.
+
+El número de partículas no cambia por nivel de calidad; el polvo suma un 20 % de emisiones dentro del mismo búfer circular.
+
 ### Lanzamiento, sonido y entorno: ronda 5
 
 **Bug de la explanada.** La losa de hormigón de los expositores pasaba por debajo de la carretera de acceso. Como se dibuja adelantada en profundidad (*polygon offset*), tapaba el asfalto y dejaba las marcas viales flotando sobre el hormigón. Ahora la losa se corta en los bordes de la carretera, y el asfalto la cruza entero.

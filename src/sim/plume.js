@@ -408,13 +408,20 @@ export class Glow {
 //  Ground cloud
 // -----------------------------------------------------------------------------------------
 /**
- * Four cloud puffs in a 2 × 2 atlas, each a different cluster of lobes with a cauliflower
- * edge. One smooth blob repeated a thousand times is what made the launch cloud read as cotton
- * wool: a real steam cloud's outline breaks into rounded turrets at every scale. RGB is a
- * tangent-space normal from the density, A the density itself.
+ * Sixteen cloud puffs in a 4 × 4 atlas, each a different cluster of lobes with a cauliflower
+ * edge. With four variants, drawn a thousand times, the launch cloud read as a repeating
+ * cartoon: the same four outlines turning over each other. A real steam cloud's outline
+ * breaks into rounded turrets at every scale — the Flight 12 liftoff photographs from Pad 2
+ * show towers built of hundreds of small ones — so each puff here is a main mass, a ring of
+ * mid-sized lobes and a crowd of small ones, with fractal noise pushing the edge in and out
+ * below that. Variants differ in how many lobes they have, where, and how lopsided they are.
+ * RGB is a tangent-space normal from the density, A the density itself.
  */
-function puffTexture() {
-  const cell = 256, size = cell * 2;
+let _puffTex = null;
+/** Built once and shared by the ground cloud and the vapour: it is the most expensive texture here. */
+function puffTexture() { return (_puffTex ??= buildPuffTexture()); }
+function buildPuffTexture() {
+  const cell = 192, cells = 4, size = cell * cells;
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const ctx = c.getContext('2d');
@@ -426,19 +433,29 @@ function puffTexture() {
   // from the sharpened density, every contour became a steep step and the shading drew a dark
   // crease along each one.
   const relief = new Float32Array(cell * cell), tmp = new Float32Array(cell * cell);
-  for (let v = 0; v < 4; v++) {
-    const ox = (v % 2) * cell, oy = Math.floor(v / 2) * cell;
-    // A big central lobe and a ring of smaller ones, weighted to the lower half (a puff is
-    // flatter underneath, where it sits on air it has not yet mixed with).
-    const lobes = [{ x: 0, y: 0.04, r: 0.46, w: 1 }];
-    const n = 8 + v * 2;
-    for (let k = 0; k < n; k++) {
-      const a = (k / n) * Math.PI * 2 + rng() * 0.6, d = 0.2 + rng() * 0.26;
-      lobes.push({ x: Math.cos(a) * d, y: Math.sin(a) * d * 0.85 - 0.04, r: 0.16 + rng() * 0.2, w: 0.7 + rng() * 0.35 });
+  for (let v = 0; v < cells * cells; v++) {
+    const ox = (v % cells) * cell, oy = Math.floor(v / cells) * cell;
+    // A main mass, off centre by a little, then mid lobes and small turrets, weighted to the
+    // upper half (the sunlit top of a puff is where it boils; underneath it is flatter).
+    const lean = (rng() - 0.5) * 0.16;
+    const lobes = [{ x: lean, y: 0.0, r: 0.4 + rng() * 0.06, w: 0.85 }];
+    const mid = 9 + Math.floor(rng() * 6);
+    for (let k = 0; k < mid; k++) {
+      const a = rng() * Math.PI * 2, d = 0.26 + rng() * 0.24;
+      lobes.push({ x: Math.cos(a) * d + lean, y: Math.sin(a) * d * 0.9 + 0.04, r: 0.2 + rng() * 0.14, w: 0.8 + rng() * 0.3 });
+    }
+    const small = 10 + Math.floor(rng() * 14);
+    for (let k = 0; k < small; k++) {
+      const a = rng() * Math.PI * 2, d = 0.44 + rng() * 0.26;
+      // Turrets cluster on the upper edge.
+      const yy = Math.sin(a) * d;
+      if (yy < -0.2 && rng() < 0.6) continue;
+      lobes.push({ x: Math.cos(a) * d * 0.95 + lean, y: yy, r: 0.07 + rng() * 0.08, w: 0.8 + rng() * 0.3 });
     }
     const seed = v * 37.1;
     for (let y = 0; y < cell; y++) {
-      const ny = (y - cell / 2) / (cell / 2);
+      // Canvas y runs down; the puff is built with +y up so "top" means the sunlit side.
+      const ny = -(y - cell / 2) / (cell / 2);
       for (let x = 0; x < cell; x++) {
         const nx = (x - cell / 2) / (cell / 2);
         const r = Math.hypot(nx, ny);
@@ -447,24 +464,25 @@ function puffTexture() {
           const q = Math.hypot(nx - lb.x, ny - lb.y) / lb.r;
           if (q < 1) { const t = 1 - q; d += lb.w * t * t * (3 - 2 * t); }
         }
-        // Turrets: fractal noise pushes the edge in and out at three scales.
-        const turb = fbm(nx * 3.2 + seed, ny * 3.2 - seed, 5, 2.05, 0.55) - 0.5;
-        d = d * 1.15 + turb * 0.9;
-        const edge = 1 - THREE.MathUtils.smoothstep(r, 0.8, 0.99);
-        dens[y * cell + x] = THREE.MathUtils.clamp(THREE.MathUtils.smoothstep(d, 0.18, 0.62) * edge, 0, 1);
+        // Turrets below the lobe scale: fractal noise at two frequencies.
+        const turb = (fbm(nx * 4.2 + seed, ny * 4.2 - seed, 5, 2.1, 0.55) - 0.5)
+          + 0.25 * (fbm(nx * 11 - seed, ny * 11 + seed, 3, 2.0, 0.5) - 0.5);
+        d = d * 1.2 + turb * 0.8;
+        const edge = 1 - THREE.MathUtils.smoothstep(r, 0.82, 0.99);
+        dens[y * cell + x] = THREE.MathUtils.clamp(THREE.MathUtils.smoothstep(d, 0.12, 0.5) * edge, 0, 1);
         relief[y * cell + x] = THREE.MathUtils.clamp(d, 0, 1.4) * edge;
       }
     }
-    // Two box-blur passes (±4 px), separable.
+    // Two box-blur passes (±3 px), separable.
     for (let pass = 0; pass < 2; pass++) {
       for (let y = 0; y < cell; y++) for (let x = 0; x < cell; x++) {
         let a = 0, n = 0;
-        for (let k = -4; k <= 4; k++) { const xx = x + k; if (xx >= 0 && xx < cell) { a += relief[y * cell + xx]; n++; } }
+        for (let k = -3; k <= 3; k++) { const xx = x + k; if (xx >= 0 && xx < cell) { a += relief[y * cell + xx]; n++; } }
         tmp[y * cell + x] = a / n;
       }
       for (let y = 0; y < cell; y++) for (let x = 0; x < cell; x++) {
         let a = 0, n = 0;
-        for (let k = -4; k <= 4; k++) { const yy = y + k; if (yy >= 0 && yy < cell) { a += tmp[yy * cell + x]; n++; } }
+        for (let k = -3; k <= 3; k++) { const yy = y + k; if (yy >= 0 && yy < cell) { a += tmp[yy * cell + x]; n++; } }
         relief[y * cell + x] = a / n;
       }
     }
@@ -472,8 +490,8 @@ function puffTexture() {
       const y0 = Math.max(0, y - 2), y1 = Math.min(cell - 1, y + 2);
       for (let x = 0; x < cell; x++) {
         const x0 = Math.max(0, x - 2), x1 = Math.min(cell - 1, x + 2);
-        const dx = (relief[y * cell + x1] - relief[y * cell + x0]) * 5.0;
-        const dy = (relief[y1 * cell + x] - relief[y0 * cell + x]) * 5.0;
+        const dx = (relief[y * cell + x1] - relief[y * cell + x0]) * 3.0;
+        const dy = (relief[y1 * cell + x] - relief[y0 * cell + x]) * 3.0;
         const len = Math.hypot(dx, dy, 1);
         const i = ((oy + y) * size + ox + x) * 4;
         data[i] = Math.round((-dx / len * 0.5 + 0.5) * 255);
@@ -489,11 +507,16 @@ function puffTexture() {
   return t;
 }
 
-/** Picks one of the atlas's four puffs per instance, with a margin so mipmaps do not bleed. */
+/**
+ * Picks one of the atlas's sixteen puffs per instance, by a hash of the instance rather than
+ * its slot order: the ring buffer hands out consecutive slots, and `id % n` laid the variants
+ * out in sequence along each jet. A margin keeps mipmaps from bleeding between cells.
+ */
 const ATLAS_UV = /* glsl */`
+  float puffHash(float n) { return fract(sin(n * 12.9898 + 4.1414) * 43758.5453); }
   vec2 atlasUv(vec2 uv, int id) {
-    float k = float(id - (id / 4) * 4);
-    return (vec2(mod(k, 2.0), floor(k / 2.0)) + 0.02 + uv * 0.96) * 0.5;
+    float k = floor(puffHash(float(id)) * 16.0);
+    return (vec2(mod(k, 4.0), floor(k / 4.0)) + 0.02 + uv * 0.96) * 0.25;
   }`;
 
 const CLOUD_VERT = /* glsl */`
@@ -502,32 +525,36 @@ const CLOUD_VERT = /* glsl */`
   attribute float aSize;
   attribute float aAlpha;
   attribute float aRot;
+  attribute vec3 aExtra;          // age fraction, kind (0 steam, 1 dust), aspect
   varying vec2 vUv;
+  varying vec2 vLocal;
   varying float vAlpha;
   varying float vFire;
   varying float vRot;
   varying float vShade;
   varying float vDust;
+  varying float vAge;
   uniform float uFlame;
 
   void main() {
     vUv = atlasUv(uv, gl_InstanceID);
+    vLocal = uv;
     vRot = aRot;
+    vAge = aExtra.x;
+    vDust = aExtra.y;
     // Self-shadowing a billboard cannot compute: the lower a puff sits in the mass, the more
-    // cloud there is between it and the sky, so the base of a launch cloud is a darker blue-grey
-    // under sunlit turrets. And some of it is not steam: the blast lifts sand and dust off the
-    // flats, which tints part of the cloud tan (per puff, stable across seeks).
-    vShade = mix(0.58, 1.0, smoothstep(2.0, 55.0, aOffset.y + aSize * 0.2));
-    float h = fract(sin(float(gl_InstanceID) * 12.9898) * 43758.5453);
-    vDust = smoothstep(0.55, 1.0, h) * (1.0 - smoothstep(20.0, 90.0, aOffset.y));
+    // cloud there is between it and the sky, so the base of a launch cloud is a darker grey
+    // under sunlit turrets — the contrast that makes the Flight 12 clouds read as towers.
+    vShade = mix(0.42, 1.08, smoothstep(4.0, 90.0, aOffset.y + aSize * 0.3));
     vec3 c = (modelViewMatrix * vec4(aOffset, 1.0)).xyz;
     float s = sin(aRot), k = cos(aRot);
-    vec2 q = vec2(position.x * k - position.y * s, position.x * s + position.y * k) * aSize;
+    // Aspect, area-preserving: steam a little taller than wide, dust spread flat.
+    vec2 p = position.xy * vec2(sqrt(aExtra.z), 1.0 / sqrt(aExtra.z));
+    vec2 q = vec2(p.x * k - p.y * s, p.x * s + p.y * k) * aSize;
 
     // Soft camera fade so nearby puffs never clip into the near frustum
     vAlpha = aAlpha * smoothstep(1.5, 16.0, -c.z);
 
-    // Fire illumination: intense strictly near the two bidirectional trench mouths (|Z| ~ 44m, Y < 18m)
     // The plume lights the whole near side of the cloud, not only the mouths: in photographs of
     // a Starship liftoff the lower cloud glows yellow-orange for a couple of hundred metres.
     float dFlame = length(vec3(aOffset.x * 1.2, max(0.0, aOffset.y - 3.0) * 1.1, max(0.0, abs(aOffset.z) - 38.0) * 0.55));
@@ -544,45 +571,49 @@ const CLOUD_FRAG = /* glsl */`
   uniform vec3 uFireColor;
   uniform vec3 uSunDir;
   varying vec2 vUv;
+  varying vec2 vLocal;
   varying float vAlpha;
   varying float vFire;
   varying float vRot;
   varying float vShade;
   varying float vDust;
+  varying float vAge;
 
   void main() {
     vec4 tex = texture2D(uMap, vUv);
-    float a = tex.a * vAlpha;
+    // The edge is eaten away as the puff ages: the density threshold rises, so the thin
+    // turrets go first and the puff frays into wisps, instead of every outline fading evenly.
+    float th = 0.02 + 0.28 * pow(vAge, 2.5);
+    float dens = smoothstep(th, th + 0.42, tex.a);
+    float a = dens * vAlpha;
     if (a < 0.003) discard;
 
-    // Unpack normal map from RG channels
     vec2 rawNorm = tex.rg * 2.0 - 1.0;
     float nz = tex.b;
-
-    // Rotate normal by billow rotation vRot
     float s = sin(vRot), k = cos(vRot);
     vec2 rotatedNorm = vec2(rawNorm.x * k - rawNorm.y * s, rawNorm.x * s + rawNorm.y * k);
     vec3 normView = normalize(vec3(rotatedNorm, nz));
 
-    // Directional sunlight diffuse with wrap-around lighting for translucent water droplets
+    // Wrapped diffuse for a translucent mass.
     float NdotL = dot(normView, uSunDir);
-    float wrap = clamp((NdotL + 0.45) / 1.45, 0.0, 1.0);
+    float wrap = clamp((NdotL + 0.25) / 1.25, 0.0, 1.0);
     // The thin fringe of a puff is lit through, not shaded: its normal is steep there, and
     // taking it at face value drew a dark pen line round every turret.
-    wrap = mix(0.82, wrap, smoothstep(0.08, 0.55, tex.a));
+    wrap = mix(0.8, wrap, smoothstep(0.08, 0.55, tex.a));
+    // Underside of each puff darker than its top, within the puff as well as across the mass.
+    float under = mix(0.72, 1.0, smoothstep(0.15, 0.75, vLocal.y));
 
-    // Ambient skylight in crevice shadows to bright direct sunlight on outer lobes
-    vec3 steam = mix(uShadowColor, uSunColor, wrap * wrap * (3.0 - 2.0 * wrap)) * vShade;
-    steam = mix(steam, steam * vec3(0.9, 0.82, 0.7), vDust);
+    vec3 steam = mix(uShadowColor, uSunColor, wrap * wrap * (3.0 - 2.0 * wrap)) * vShade * under;
+    // Dust: the brown haze the blast raises off the pad and the flats, which in the Flight 12
+    // photographs spreads low between and under the two white steam towers. Duller, browner,
+    // and less lit by the sun (it is optically thin: the sky shows through it).
+    vec3 dust = mix(vec3(0.34, 0.29, 0.24), vec3(0.72, 0.62, 0.5), wrap) * mix(0.85, 1.0, vShade);
+    vec3 base = mix(steam, dust, vDust);
 
-    // Warm incandescent amber/golden fire illumination from the 33 Raptors hitting the trench
-    // Lit by the plume in HDR, so the near side of the cloud glows past white and blooms the
-    // way it does in photographs of the liftoff, instead of settling on beige.
-    // Graded, not flat: the glow falls off with vFire squared, so the cloud goes from lit
-    // orange low down to its own sunlit grey-white above, as in photographs, instead of one
-    // saturated yellow wall.
+    // Lit by the plume in HDR, graded so the cloud goes from orange low down to its own
+    // sunlit colour above, as in photographs, instead of one saturated wall.
     vec3 fireGlow = uFireColor * (1.25 + 0.4 * wrap);
-    vec3 col = mix(steam, fireGlow, clamp(vFire * vFire * 1.2, 0.0, 1.0));
+    vec3 col = mix(base, fireGlow, clamp(vFire * vFire * 1.2, 0.0, 1.0));
     col += uFireColor * (vFire * vFire * vFire * 0.9);
 
     gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
@@ -616,6 +647,14 @@ export class GroundCloud {
     // smaller steam boiling off the deck.
     this.grow = new Float32Array(count);
     this.base = new Float32Array(count);
+    // Per puff, drawn at emission and fixed for its life: a size factor (the old
+    // `(i % 5) * 0.18` gave every fifth slot the same size, a pattern the eye picks up along a
+    // jet), an opacity, and what it is made of — 0 steam, 1 dust.
+    this.sizeK = new Float32Array(count);
+    this.opac = new Float32Array(count);
+    this.kind = new Float32Array(count);
+    // Shader inputs that change: age fraction, kind, and the puff's aspect (width/height).
+    this.extra = new Float32Array(count * 3);
     this.next = 0;
     this.live = 0;
 
@@ -636,6 +675,8 @@ export class GroundCloud {
     geo.setAttribute('aSize', this.aSize);
     geo.setAttribute('aAlpha', this.aAlpha);
     geo.setAttribute('aRot', this.aRot);
+    this.aExtra = new THREE.InstancedBufferAttribute(this.extra, 3);
+    geo.setAttribute('aExtra', this.aExtra);
     geo.instanceCount = count;
     geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e4);
 
@@ -646,7 +687,7 @@ export class GroundCloud {
         // Steam, not dust: the deluge turns the trench cloud into water vapour, sunlit white with
         // cool grey hollows. The old tan pair made it read as a sandstorm.
         uSunColor: { value: new THREE.Color(0xfbf9f4) },
-        uShadowColor: { value: new THREE.Color(0x707884) },
+        uShadowColor: { value: new THREE.Color(0x67635c) },
         uFireColor: { value: new THREE.Color(0xff8a2a) },
         uSunDir: { value: new THREE.Vector3(0.4, 0.7, 0.5).normalize() },
         uFlame: { value: 0.0 },
@@ -675,6 +716,8 @@ export class GroundCloud {
       this.age[i] = 1; this.life[i] = 1; this.alpha[i] = 0; this.size[i] = 0;
       this.pos[i * 3] = 0; this.pos[i * 3 + 1] = -9999; this.pos[i * 3 + 2] = 0;
       this.rotSpeed[i] = 0; this.grow[i] = 0; this.base[i] = 0;
+      this.sizeK[i] = 1; this.opac[i] = 0; this.kind[i] = 0;
+      this.extra[i * 3] = 1; this.extra[i * 3 + 1] = 0; this.extra[i * 3 + 2] = 1;
     }
     this.points.material.uniforms.uFlame.value = 0.0;
     this.next = 0;
@@ -694,7 +737,7 @@ export class GroundCloud {
    * deluge water flashing to steam, and it stays much smaller and closer. Emitting both at
    * the trench's scale buried the entire 124 m stack at T+6.
    */
-  emit(n, origin, dir, speed, spread, { size0 = 14, grow = 85, life0 = 8, lifeVar = 12 } = {}) {
+  emit(n, origin, dir, speed, spread, { size0 = 14, grow = 85, life0 = 8, lifeVar = 12, kind = 0 } = {}) {
     const r = this.rng;
     for (let k = 0; k < n; k++) {
       const i = this.next; this.next = (this.next + 1) % this.count;
@@ -717,8 +760,18 @@ export class GroundCloud {
       this.size[i] = size0 + r() * (size0 * 0.7);
       this.grow[i] = grow;
       this.base[i] = size0;
-      this.rot[i] = r() * Math.PI * 2;
-      this.rotSpeed[i] = (r() - 0.5) * 0.35;
+      // Nearly upright, not spun at random: each puff is built with its flat, shaded side down
+      // and its turrets up, and rolling it over put turrets underneath and stood puffs on
+      // their heads — part of what made the cloud read as tumbling cotton wool.
+      this.rot[i] = (r() - 0.5) * 0.5;
+      this.rotSpeed[i] = (r() - 0.5) * 0.08;
+      this.sizeK[i] = 1.0 + r() * 0.6;
+      this.kind[i] = kind;
+      // Steam: mostly dense, some thin. Dust: a translucent haze, which is how the brown sheet
+      // between the two trench clouds reads in the Flight 12 photographs.
+      this.opac[i] = kind === 1 ? 0.3 + r() * 0.2 : 0.78 + r() * 0.2;
+      // Width over height. Steam near round (stretched tall, puffs read as balloons); dust flat.
+      this.extra[i * 3 + 2] = kind === 1 ? 1.5 + r() * 0.9 : 0.92 + r() * 0.3;
       if (i + 1 > (this.live ?? 0)) this.live = i + 1;
     }
   }
@@ -733,7 +786,7 @@ export class GroundCloud {
       _sunDir.transformDirection(camera.matrixWorldInverse);
       this.points.material.uniforms.uSunDir.value.copy(_sunDir);
     }
-    const { pos, vel, age, life, size, alpha, rot, rotSpeed, grow, base } = this;
+    const { pos, vel, age, life, size, alpha, rot, rotSpeed, grow, base, sizeK, opac, kind, extra } = this;
     // Highest slot holding a live puff. At the most expensive moment in the scene — liftoff,
     // where this cloud is transparent, overlapping and full-screen — the ring is mostly empty
     // for the first few seconds, and both the upload and the draw were paying for all 860
@@ -759,22 +812,35 @@ export class GroundCloud {
       // Ground friction and aerodynamic deceleration
       // Drag on the jet, lighter than before so the cloud rolls out several hundred metres
       // along the ground as it does on film, instead of standing up in two columns.
-      const kH = Math.exp(-dt * 0.42);
+      const dust = kind[i] === 1;
+      const kH = Math.exp(-dt * (dust ? 0.3 : 0.42));
       vel[j] *= kH; vel[j + 2] *= kH;
-      // Buoyancy, gentle: the mass rises as a whole over tens of seconds.
-      vel[j + 1] = vel[j + 1] * Math.exp(-dt * 0.5) + 2.1 * dt;
+      // Buoyancy: hot, wet steam rises as a whole over tens of seconds and builds into towers,
+      // as the Flight 12 clouds do; dust is heavy and hugs the ground.
+      vel[j + 1] = vel[j + 1] * Math.exp(-dt * 0.5) + (dust ? 0.25 : 2.5) * dt;
+      // Turbulence: a smooth, deterministic field of position (so a seek replays it exactly),
+      // stirring each puff sideways and up and down at a few tens of metres' scale. Without it
+      // every puff flew a straight line from its trench mouth and the cloud moved as a block.
+      const x = pos[j], y = pos[j + 1], z = pos[j + 2];
+      const tu = 1.6 * dt;
+      vel[j] += tu * (Math.sin(y * 0.047 + z * 0.021) + 0.6 * Math.sin(z * 0.083 + x * 0.03 + 1.7));
+      vel[j + 1] += tu * 0.55 * (Math.sin(x * 0.061 + z * 0.037 + 0.4) + 0.5 * Math.sin(y * 0.09 + 2.1));
+      vel[j + 2] += tu * (Math.cos(x * 0.052 + y * 0.029) + 0.6 * Math.cos(y * 0.071 + z * 0.018 + 0.9));
 
       rot[i] += rotSpeed[i] * dt;
 
       const u = age[i] / life[i];
-      // Billowing expansion, at the rate this puff was emitted with.
-      size[i] = (base[i] + u * grow[i]) * (1.0 + (i % 5) * 0.18);
-      // High volumetric density with smooth atmospheric decay
+      // Billowing expansion, at the rate this puff was emitted with, scaled by its own factor.
+      size[i] = (base[i] + u * grow[i]) * sizeK[i];
       const fadeIn = Math.min(1.0, u * 8.0);
       // Dense for most of its life, then thinning: a launch cloud stays a solid mass for tens
       // of seconds. Fading all the way from birth left the whole cloud a pale veil by T+20.
-      const fadeOut = 1.0 - THREE.MathUtils.smoothstep(u, 0.55, 1.0);
-      alpha[i] = 0.92 * fadeIn * fadeOut;
+      // The shader also eats the edge away as the puff ages (aExtra.x), so it thins from the
+      // outside in rather than fading evenly like a slide dissolve.
+      const fadeOut = 1.0 - THREE.MathUtils.smoothstep(u, 0.6, 1.0);
+      alpha[i] = opac[i] * fadeIn * fadeOut;
+      extra[i * 3] = u;
+      extra[i * 3 + 1] = kind[i];
     }
     this.live = hi + 1;
     this.flush();
@@ -787,7 +853,7 @@ export class GroundCloud {
    */
   flush() {
     const n = this.live ?? this.count;
-    for (const a of [this.aOffset, this.aSize, this.aAlpha, this.aRot]) {
+    for (const a of [this.aOffset, this.aSize, this.aAlpha, this.aRot, this.aExtra]) {
       a.clearUpdateRanges();
       if (n > 0) a.addUpdateRange(0, n * a.itemSize);
       a.needsUpdate = true;

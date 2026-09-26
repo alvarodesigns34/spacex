@@ -1086,10 +1086,24 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
 
     // Exactly 50% North (+Z) and 50% South (-Z). Fewer, larger puffs than before, each living
     // its whole life (see CLOUD_RATE), overlapping into one mass.
-    const trenchCount = Math.max(1, Math.round(n * 0.50));
+    const trenchCount = Math.max(1, Math.round(n * 0.5));
     const big = { size0: 24 * CLOUD_SIZE, grow: 175 * CLOUD_SIZE, life0: 12, lifeVar: 14 };
     cloud.emit(trenchCount, [0, 2.6, 44], [0, 0.10, 1.0], 125, 22, big);
     cloud.emit(trenchCount, [0, 2.6, -44], [0, 0.10, -1.0], 125, 22, big);
+    // Dust. The blast scours the flats beyond each mouth and the pad itself, and in the Flight 12
+    // photographs from Pad 2 a low brown haze spreads along the ground under and between the two
+    // steam towers. Slower, wider, heavy (it barely rises) and translucent; it is what joins the
+    // two clouds into one scene instead of two separate cotton balls.
+    const dustCount = Math.max(1, Math.round(n * 0.1));
+    const haze = { size0: 20 * CLOUD_SIZE, grow: 150 * CLOUD_SIZE, life0: 14, lifeVar: 12, kind: 1 };
+    cloud.emit(dustCount, [0, 2.0, 50], [0, 0.02, 1.0], 70, 40, haze);
+    cloud.emit(dustCount, [0, 2.0, -50], [0, 0.02, -1.0], 70, 40, haze);
+    if (t > EVENTS.liftoff - 1 && t < EVENTS.liftoff + 8) {
+      // Sideways off the pad as the vehicle clears the mount: the exhaust spills over the deck.
+      for (const [dx, dz] of [[1, 0], [-1, 0]]) {
+        cloud.emit(Math.max(1, Math.round(dustCount * 0.5)), [dx * 20, 5.5, dz], [dx, 0.02, 0], 40, 30, haze);
+      }
+    }
 
     // ...but not all of it. The trench takes the exhaust; the deluge does not go with it.
     // Thousands of litres a second flash to steam ON the deck and boil up around the mount,
