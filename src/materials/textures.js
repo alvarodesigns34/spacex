@@ -863,20 +863,16 @@ export function makeEngineBell({ size = 384, copper = 0.5 } = {}) {
     r = lerp(r, 0.55, heat * band); g = lerp(g, 0.32, heat * band); b = lerp(b, 0.22, heat * band);
     const blue = Math.max(0, 0.5 - Math.abs(v - 0.55) * 3) * copper * 0.7;
     r = lerp(r, 0.25, blue * (1 - band)); g = lerp(g, 0.28, blue * (1 - band)); b = lerp(b, 0.40, blue * (1 - band));
-    // cooling channel ribs (regenerative cooling tubes)
-    const rib = Math.sin(u * Math.PI * 2 * 90) * 0.5 + 0.5;
-    const ribMix = 0.05 * (1 - v * 0.5);
-    r += (rib - 0.5) * ribMix; g += (rib - 0.5) * ribMix; b += (rib - 0.5) * ribMix;
+    // No painted cooling ribs: the channels of a regeneratively cooled wall are inside it, and
+    // the skins photograph smooth (NASA, Falcon Heavy Merlins in the hangar, 2023).
     return [clamp(r * 255), clamp(g * 255), clamp(b * 255)];
   });
   shade(rough, (x, y, u, v) => { const g = clamp((0.42 + (fbm(u * 12, v * 12, 3) - 0.5) * 0.2 + (1 - v) * 0.1) * 255); return [g, g, g]; });
   shade(height, (x, y, u, v) => {
-    // Regenerative channels as relief, so a raking sun picks them out of the metal
-    // instead of a painted stripe. One wrap of the bell, matching the colour map.
-    const rib = Math.sin(u * Math.PI * 2 * 64) * 0.5 + 0.5;
+    // Smooth skin with a faint hammered unevenness and the rolled lip at the exit; no tube
+    // relief (see above).
     const lip = Math.max(0, 1 - v * 10);
-    // A few tenths of a millimetre of tube relief, not a corrugated sheet.
-    const g = clamp((0.48 + rib * 0.14 * (1 - v * 0.45) + lip * 0.1) * 255);
+    const g = clamp((0.5 + (fbm(u * 18, v * 18, 3) - 0.5) * 0.06 + lip * 0.1) * 255);
     return [g, g, g];
   });
   return {

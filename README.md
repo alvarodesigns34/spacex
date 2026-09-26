@@ -142,6 +142,13 @@ Sin cambios de forma, con motivo: el perfil de la cápsula Dragon (se midió con
 
 El panel de misión explicaba en una nota plegable que la secuencia no es un vuelo concreto, pero cerrada pasaba inadvertida. Ahora, bajo el reloj, una línea siempre visible lo resume: demostración compuesta, V3 en el Pad 2, cuenta atrás y ascenso con los tiempos del vuelo 7, captura con los del vuelo 5, y retorno calculado. La nota sigue debajo, con las fuentes y los límites. Se comprobó en escritorio (1280 × 800) y en móvil (390 × 844) que no se solapa con nada.
 
+### Motores contra las fotos
+
+**Motores.** Se compararon los motores con dos fotos. La primera es de la NASA: los 27 Merlin del Falcon Heavy en el hangar antes del encendido estático de Psyche (KSC-20230927-PH-SPX01_0006). La segunda, de NSF: los 33 Raptor 3 del Booster 19 (mayo de 2026).
+- Las toberas son **lisas** por fuera: los canales de refrigeración van dentro de la pared. En la fila de motores, el Merlin y el Raptor 3 llevaban 60 y 96 estrías en relieve, y la textura de tobera tenía además nervios pintados y en relieve. Se quitan las estrías y los nervios.
+- El Merlin tenía un tinte cobrizo de calentamiento fuerte. Los motores expuestos están limpios, sin volar, como los Falcon, y en la foto se ven gris metálico oscuro, así que el tinte baja al mínimo.
+- El Raptor 3 se veía gris azulado y satinado, porque reflejaba el cielo. La foto lo muestra casi negro y mate: se baja la metalicidad y el reflejo, y se sube la rugosidad.
+
 ### Nube de lanzamiento contra el vuelo 12
 
 Se comparó la nube con dos fotos del despegue del vuelo 12, el primero desde el Pad 2 (22 de mayo de 2026): la de NSF desde la carretera y el dron de SpaceX publicado en spacex.com. Solo se usaron como referencia visual; no están en el repositorio. Las fotos muestran:

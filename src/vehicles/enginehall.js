@@ -59,8 +59,13 @@ function flutedLathe(profile, { segments = 160, flutes = 84, amp = 0.004 } = {})
 }
 
 const STANDS = [
-  { id: 'merlin', x: -4.15, geo: () => merlinGeometry(), exitR: 0.46, flutes: 60, hoops: [] },
-  { id: 'raptor', x: -1.75, geo: () => raptorGeometry(), exitR: 0.65, flutes: 96, hoops: [] },
+  // No fluting on either. The cooling channels of a regeneratively cooled wall are inside it:
+  // NASA's close-up of Falcon Heavy's 27 Merlins in the hangar (KSC-20230927-PH-SPX01_0006)
+  // shows smooth, thin, dark nozzle skins, scuffed, and NASASpaceflight's Booster 19 aft
+  // close-up shows the 33 Raptor 3 bells smooth and matte. The ridges this row used to carry
+  // (60 and 96 of them) were an idea of what a cooled bell looks like, not what one does.
+  { id: 'merlin', x: -4.15, geo: () => merlinGeometry(), exitR: 0.46, flutes: 0, hoops: [] },
+  { id: 'raptor', x: -1.75, geo: () => raptorGeometry(), exitR: 0.65, flutes: 0, hoops: [] },
   // The vacuum bell's extension is radiatively cooled sheet, not a channel wall: it is smooth,
   // and carries stiffening hoops instead.
   { id: 'rvac', x: 1.55, geo: () => raptorVacGeometry(), exitR: 1.15, flutes: 0, hoops: [0.65, 1.4, 2.25] },

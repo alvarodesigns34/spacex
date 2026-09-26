@@ -117,7 +117,8 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
     ['frost', () => TX.makeFrost()],
     ['tps', () => TX.makeTpsPattern()],
     ['pica', () => TX.makePica()],
-    ['bell', () => TX.makeEngineBell({ copper: 0.6 })],
+    // Clean, unflown engines, as the Falcons are shown: gunmetal with barely a heat tint.
+    ['bell', () => TX.makeEngineBell({ copper: 0.12 })],
     ['bellCool', () => TX.makeEngineBell({ copper: 0.12 })],
     ['greyDark', () => TX.makeGreyMetal({ tone: 0.28 })],
     ['weatheredSteel', () => TX.makeWeatheredSteel()],
@@ -164,7 +165,10 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
   // Raptor 3 nozzle: a dark slate-grey matte coat, not bare metal (SpaceX's Raptor 3 portrait,
   // and every Booster 18/19 aft close-up, where the 33 bells read near-black with white
   // stencilled serials).
-  M.bellRaptor3 = new THREE.MeshStandardMaterial({ name: 'raptor3-bell', color: 0x30343a, metalness: 0.3, roughness: 0.58, envMapIntensity: 0.75 });
+  // It rendered blue-grey and satin: at 0.3 metalness and 0.58 roughness the bells mirrored
+  // the sky. NASASpaceflight's Booster 19 close-up (May 2026) has them near-black and matte,
+  // with only a soft sheen along each bell.
+  M.bellRaptor3 = new THREE.MeshStandardMaterial({ name: 'raptor3-bell', color: 0x28292c, metalness: 0.12, roughness: 0.8, envMapIntensity: 0.45 });
   // Block 3 grid fins photograph charcoal black, the arched cells of the lattice included.
   M.gridFin = new THREE.MeshStandardMaterial({ name: 'grid-fin', color: 0x2a2b2e, metalness: 0.55, roughness: 0.5, envMapIntensity: 0.7 });
   // The aft section of a Block 3 booster: black-coated skirt and the ring of commodity pipes
