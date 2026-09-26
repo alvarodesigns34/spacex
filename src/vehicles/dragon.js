@@ -10,11 +10,13 @@
  * 4.4 m of capsule.
  *
  * WHAT IS RECONSTRUCTED. SpaceX publishes no drawing, so everything below the level of those
- * figures is read off photographs and is approximate: the wall angle, where the windows and
- * the hatch sit, the shape of the SuperDraco fairings, the panel seams, the parachute-bay
- * doors, the Draco groupings, and the trunk's stringer and radiator layout. The data sheet
- * says so. What is NOT approximate is the count of things there are eight or sixteen of, and
- * verify.js measures those.
+ * figures is read off photographs and is approximate: the wall angle, the sizes and heights
+ * of the windows, hatch, SuperDraco recesses and Draco panels, the panel seams, and the
+ * trunk's stringer and radiator layout. The data sheet says so. What the NASA photographs
+ * settle outright is the ARRANGEMENT — two windows, both beside the hatch; fins in line with
+ * the hatch; the nose cone hinged opposite it; radiators behind it — and the layout note
+ * below cites them. What is NOT approximate is the count of things there are eight or
+ * sixteen of, and verify.js measures those.
  *
  * WHY THERE IS SO MUCH OF IT. A capsule is a smooth white cone, and a smooth white cone with
  * nothing on it reads as a plastic toy at any distance — which is exactly how this one
@@ -62,6 +64,33 @@ const wallR = (y) => {
 };
 /** Wall slope at the top, which the nose cone has to continue without a kink. */
 const TOP_SLOPE = (CAP_R - NOSE_R) * (0.45 + 0.55 * 2.2) / SPAN;   // dr/dy, ≈0.42 → 23°
+
+// ---- Where things sit round the capsule, measured from NASA photographs ------------------
+// Everything on the shell is placed relative to the side hatch, because every photograph that
+// shows the hatch shows the rest in the same arrangement. Read off four NASA images of three
+// capsules — Crew-1 Resilience and Crew-4 Freedom square-on to the hatch on the recovery ship
+// (NHQ202105020016, NHQ202210140028), Endeavour docked to the station (iss071e264174), and
+// Freedom seen nose-on on approach with the nose cone open (iss070e075419):
+//
+//   hatch              the reference; a trunk fin stands directly under it (nose-on view)
+//   nose-cone hinge    opposite the hatch (nose-on view)
+//   windows            TWO, one each side of the hatch, ≈31° off its centre line, level with
+//                      its middle. None anywhere else on the shell, and none in the hatch
+//                      itself — every clean view of the door shows only its handle. The model
+//                      used to carry four, plus a porthole in the hatch.
+//   Draco panels       one square panel of two thrusters and one single below it, directly
+//                      under each window (≈30°), and the same pair of groups on the hinge side
+//   SuperDraco         four recesses at ≈62° either side of the hatch and of the hinge — two
+//                      pairs, each pair centred on a side fin
+//
+// Angles are proportional readings off perspective photographs: good to about ±5°. Heights
+// are fractions of the capsule's own 3.6 m from the heat shield to the nose-cone ring, read
+// the same way, and are approximate to about ±0.15 m.
+const HATCH = Math.PI / 2;           // the +X side, which the default views look at
+const HINGE = HATCH + Math.PI;
+const WIN_PSI = 0.54;                // ≈31°
+const DRACO_PSI = 0.52;              // ≈30°
+const POD_PSI = 1.08;                // ≈62°
 
 /**
  * The closed nose cone, as a cubic Bézier in (r, y) from the rim to the tip: leaving the rim
@@ -132,6 +161,68 @@ function wallFrame(phi, y, w, h, bar, out) {
   return parts;
 }
 
+/**
+ * Any flat outline laid ON the capsule wall: `shape` is drawn in metres, x round the wall and
+ * y up it, with (0, 0) at (phi, y). The outline is triangulated flat, then every triangle is
+ * split until no edge is longer than `maxEdge` and each vertex is wrapped onto the measured
+ * profile `out` metres proud — the same reason as `wallPatch`: a flat 0.9 m panel on this
+ * shell stands 2 cm off it at the edges. Normals are the wall's own, so a patch shades as
+ * part of the shell rather than as a faceted card; UVs are metric.
+ */
+function wallShape(shape, phi, y, out, maxEdge = 0.05) {
+  const flat = new THREE.ShapeGeometry(shape, 12).toNonIndexed();
+  const src = flat.attributes.position;
+  const tris = [];
+  for (let i = 0; i < src.count; i += 3) {
+    tris.push([0, 1, 2].map(k => [src.getX(i + k), src.getY(i + k)]));
+  }
+  const out2 = [];
+  while (tris.length) {
+    const t = tris.pop();
+    const d = [0, 1, 2].map(k => Math.hypot(t[k][0] - t[(k + 1) % 3][0], t[k][1] - t[(k + 1) % 3][1]));
+    const k = d.indexOf(Math.max(...d));
+    if (d[k] <= maxEdge) { out2.push(t); continue; }
+    const a = t[k], b = t[(k + 1) % 3], c = t[(k + 2) % 3];
+    const m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    tris.push([a, m, c], [m, b, c]);
+  }
+  const pos = new Float32Array(out2.length * 9), nor = new Float32Array(out2.length * 9), uv = new Float32Array(out2.length * 6);
+  let p = 0, q = 0;
+  for (const t of out2) {
+    for (const [s, v] of t) {
+      const yy = y + v;
+      const r = wallR(yy) + out;
+      const ph = phi + s / r;
+      const wa = wallAngle(yy);
+      pos.set([Math.sin(ph) * r, yy, Math.cos(ph) * r], p);
+      nor.set([Math.sin(ph) * Math.cos(wa), Math.sin(wa), Math.cos(ph) * Math.cos(wa)], p);
+      uv.set([s, v], q);
+      p += 3; q += 2;
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  return g;
+}
+
+/** A rounded rectangle, or a trapezoid with rounded corners, centred on the origin. */
+function roundedOutline(wTop, wBot, h, rTop, rBot) {
+  const s = new THREE.Shape();
+  const x0 = wBot / 2, x1 = wTop / 2, y0 = -h / 2, y1 = h / 2;
+  s.moveTo(-x0 + rBot, y0);
+  s.lineTo(x0 - rBot, y0);
+  s.quadraticCurveTo(x0, y0, x0, y0 + rBot);
+  s.lineTo(x1, y1 - rTop);
+  s.quadraticCurveTo(x1, y1, x1 - rTop, y1);
+  s.lineTo(-x1 + rTop, y1);
+  s.quadraticCurveTo(-x1, y1, -x1, y1 - rTop);
+  s.lineTo(-x0, y0 + rBot);
+  s.quadraticCurveTo(-x0, y0, -x0 + rBot, y0);
+  return s;
+}
+
 export function buildDragon(M) {
   const g = new THREE.Group();
   g.name = 'dragon';
@@ -149,10 +240,12 @@ export function buildDragon(M) {
   const fine = { white: [], dark: [], seam: [], metal: [], micro: [] };
 
   // ---- Trunk -------------------------------------------------------------------------
-  // Solar cells wrap one half (+X); the other half (−X) carries the radiator panels. The split
-  // is turned so the default view, from the front-right, sees both halves and the boundary
-  // between them; it used to look square at the radiators and the trunk read as a white drum.
-  const RAD0 = Math.PI;                     // radiator half: φ ∈ [π, 2π]
+  // Solar cells wrap one half; the other half carries the radiator panels. Which half is which
+  // is photographed: docked at the station (iss071e264174) the trunk behind the side hatch is
+  // the white, fluted radiator, and seen from the hinge side after undocking (iss069e085578)
+  // it is the dark array. So the radiators are centred on the hatch (+X) and the cells on the
+  // hinge (−X), split at the side fins. The model had them the other way round.
+  const RAD0 = 0;                           // radiator half: φ ∈ [0, π], centred on the hatch
   g.add(mesh(lathe([{ r: TRUNK_R, y: 0 }, { r: TRUNK_R, y: TRUNK_H }], { segments: 128, phiStart: RAD0, phiLength: Math.PI }), M.radiator, { name: 'trunk-radiator' }));
   const bays = 5;
   for (let i = 0; i < bays; i++) {
@@ -168,13 +261,15 @@ export function buildDragon(M) {
   // be laid out over the wrong half, so half the plumbing ran straight across the solar cells:
   // black hoops and white bars caging the one face of the trunk that should be a continuous
   // dark array. (Torus arcs here are in the x = cos θ, z = sin θ convention; the radiator half
-  // φ ∈ [π, 2π] of the lathe is x ≤ 0, i.e. θ ∈ [π/2, 3π/2].)
+  // φ ∈ [0, π] of the lathe is x ≥ 0, i.e. θ ∈ [−π/2, π/2]. `ARC0` rotates an arc starting at
+  // θ = 0 to start just past the radiator half's first edge.)
+  const ARC0 = -Math.PI / 2 + Math.PI * 0.03;
   {
     const pipes = [];
     for (const yy of [0.55, TRUNK_H - 0.55]) {
       pipes.push({
         geometry: new THREE.TorusGeometry(TRUNK_R + 0.035, 0.038, 6, 48, Math.PI * 0.94),
-        matrix: mat4([0, yy, 0], [Math.PI / 2, 0, Math.PI * 0.53]),
+        matrix: mat4([0, yy, 0], [Math.PI / 2, 0, ARC0]),
       });
     }
     for (let i = 0; i < 7; i++) {
@@ -195,9 +290,11 @@ export function buildDragon(M) {
     }
     pipes.push({
       geometry: new THREE.TorusGeometry(TRUNK_R + 0.02, 0.012, 6, 40, Math.PI * 0.9),
-      matrix: mat4([0, TRUNK_H * 0.45, 0], [Math.PI / 2, 0, Math.PI * 0.55]),
+      matrix: mat4([0, TRUNK_H * 0.45, 0], [Math.PI / 2, 0, ARC0 + Math.PI * 0.02]),
     });
-    fine.metal.push(...pipes);
+    // White, like the panels they run over: docked at the station (iss071e264174) the
+    // radiator half is white and fluted, with nothing dark on it.
+    fine.white.push(...pipes);
   }
   // External stringers under the skin, every 15°, on the radiator half only: shallow ridges
   // that catch the light and stop the white drum reading as a paper tube. They went all the
@@ -236,9 +333,13 @@ export function buildDragon(M) {
   // trapezoid centred on the trunk — four boards standing out of the middle of the drum,
   // the least rocket-like thing on the vehicle. Span and sweep are read off the drawing and
   // are approximate; the count and the Crew-only fitment are not.
+  // In line with the hatch and the hinge, not between them: nose-on on approach
+  // (iss070e075419) one fin stands directly under the hatch, and every hangar photograph
+  // shows a fin edge-on in the middle of the trunk with the other two on its outline. They
+  // used to sit at 45° to the hatch.
   const FIN_SPAN = 0.74, FIN_FULL = 1.55, FIN_ROOT = 2.55;
   for (let i = 0; i < 4; i++) {
-    const a = Math.PI / 4 + (i * Math.PI) / 2;
+    const a = HATCH + (i * Math.PI) / 2;
     const fin = plate([[0, 0.02], [FIN_SPAN, 0.02], [FIN_SPAN, FIN_FULL], [0, FIN_ROOT]], 0.055, 0.014);
     const e1 = new THREE.Vector3(Math.sin(a), 0, Math.cos(a));
     const e3 = new THREE.Vector3().crossVectors(e1, new THREE.Vector3(0, 1, 0));
@@ -294,12 +395,16 @@ export function buildDragon(M) {
       const y = SHOULDER + 0.05 + (SPAN - 0.1) * (i / 16);
       seamProfile.push({ r: wallR(y) + 0.004, y });
     }
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+    // Four, on the fin lines — the middle of the hatch, hinge and side faces — which is where
+    // the hangar close-ups show a vertical row of fasteners running up the shell (Crew-6,
+    // Crew-8). There were eight, at 22.5° off those lines; one of them now crossed a window.
+    for (let i = 0; i < 4; i++) {
+      const a = HATCH + (i * Math.PI) / 2;
       seams.push({ geometry: lathe(seamProfile, { segments: 2, phiStart: a - 0.003, phiLength: 0.006, uvMode: 'normalized' }) });
     }
-    // Two circumferential joints, where the shell's rings meet.
-    for (const y of [SHOULDER + 0.62, NOSE_BASE - 0.78]) {
+    // Two circumferential joints, where the shell's rings meet (reconstructed). The upper one
+    // is kept clear of the top of the hatch frame.
+    for (const y of [SHOULDER + 0.62, NOSE_BASE - 0.60]) {
       seams.push({
         geometry: new THREE.TorusGeometry(wallR(y) + 0.005, 0.008, 5, 112),
         matrix: mat4([0, y, 0], [Math.PI / 2, 0, 0]),
@@ -308,14 +413,10 @@ export function buildDragon(M) {
     fine.seam.push(...seams);
   }
 
-  // Parachute bay doors on the upper shell: two drogues and four mains live under them, and
-  // on the real vehicle they are the largest features on that part of the cone.
-  for (const a of [Math.PI * 0.25, Math.PI * 0.75, Math.PI * 1.25, Math.PI * 1.75]) {
-    const y = NOSE_BASE - 0.52;
-    fine.dark.push(...wallFrame(a, y, 0.82, 0.62, 0.020, 0.006));
-    // The door itself, very slightly proud, so it catches a different highlight.
-    fine.white.push({ geometry: wallPatch(a, y, 0.78, 0.58, 0.009) });
-  }
+  // No parachute doors on the sidewall. The model used to carry four 0.8 m doors at 45° to the
+  // hatch; no photograph shows them. The hangar views of the other faces (Crew-3, Crew-8,
+  // Crew-10) show plain shell there with a few small bolted access plates, and on the hatch
+  // side that band is taken by the hatch's own frame.
 
   // Hinged nose cone over the docking adapter.
   const noseProfile = [];
@@ -325,7 +426,9 @@ export function buildDragon(M) {
   // The hinge it opens on, and the seam it opens along. A cone with neither reads as cast in
   // one piece, which is the opposite of the thing it is famous for doing.
   {
-    const hingePhi = Math.PI;
+    // Opposite the hatch: nose-on on approach (iss070e075419) the open cone stands up on the
+    // far side from the hatch and its two windows.
+    const hingePhi = HINGE;
     const hinge = [];
     for (let i = 0; i < 5; i++) {
       const p = noseAt(0.04 + (i / 4) * 0.2);
@@ -352,107 +455,124 @@ export function buildDragon(M) {
     }
   }
 
-  // ---- SuperDraco pods ---------------------------------------------------------------
-  // Eight engines in four pods, built into the capsule wall as raised fairings rather than
-  // external pods, each with a pair of canted nozzles under a dark scalloped chin. The chin
-  // is the detail that makes a pod read as an engine installation instead of a blister: on
-  // the vehicle it is a heat-protective apron the exhaust washes over.
+  // ---- SuperDraco recesses -----------------------------------------------------------
+  // Eight engines in four pairs, each pair firing out of a RECESS in the wall — not out of a
+  // raised fairing. Every photograph agrees on the form: an arched pocket cut into the shell
+  // with the two nozzles side by side in it, and the pocket's walls running on down to the
+  // shoulder as a pair of folds that fan out, the channel the exhaust leaves along (clearest
+  // on Crew-10 in the hangar, KSC-20250305-PH-SPX01_0002; before flight the pocket carries a
+  // black cover with two holes in it, Crew-6, KSC-20230219-PH-SPX01_0002). The model had a
+  // white blister with a black chin, a metre lower — the thing it most looked like was a
+  // handle.
+  //
+  // Read off those photographs, approximately: the pocket about 0.9 m across and 0.6 m tall,
+  // its top some 1.9 m above the heat shield, the nozzles about 1.55 m up, and the folds
+  // reaching the shoulder about 1.25 m apart. The pocket is drawn as a dark panel lying on the
+  // shell, since the shell is one closed surface; seen in daylight the real one reads as
+  // exactly that, a dark shape in the wall, and the nozzles stand in it.
   let superDracos = 0;
-  for (let i = 0; i < 4; i++) {
-    const a = Math.PI / 4 + (i * Math.PI) / 2;
-    // Low on the wall and about 1.2 m long, as the side elevation shows them: they sit just
-    // above the heat-shield shoulder, which is where an abort motor has to be to push the
-    // capsule off a rocket. At 1.55 m up and 1.87 m long they had drifted halfway to the
-    // windows and read as handles.
-    const podY = SHOULDER + 0.92;
-    const pod = new THREE.Group();
-    pod.name = `superdraco-pod-${i}`;
-    const shell = new THREE.CapsuleGeometry(0.44, 0.62, 6, 22);
-    shell.scale(1, 1, 0.34);                       // flattened into the wall
-    pod.add(mesh(shell, M.whiteFresh));
-    // No lip ring around the base. A flat ellipse there sinks into a conical wall unevenly,
-    // and only its top arc came out — a stray black bow hanging over the nearest window. The
-    // blister's own silhouette against the shell is the join.
-    // Dark chin and the shield between the nozzles.
-    // Rounded rather than a sharp box, and matte: the gloss black mirrored the sky and the
-    // chin read as a grey block bolted under the fairing.
-    const roundedBlock = (w, h, d, r) => {
-      const sh = new THREE.Shape();
-      const x = w / 2 - r, y = h / 2 - r;
-      sh.moveTo(-x, -h / 2); sh.lineTo(x, -h / 2); sh.absarc(x, -y, r, -Math.PI / 2, 0, false);
-      sh.lineTo(w / 2, y); sh.absarc(x, y, r, 0, Math.PI / 2, false);
-      sh.lineTo(-x, h / 2); sh.absarc(-x, y, r, Math.PI / 2, Math.PI, false);
-      sh.lineTo(-w / 2, -y); sh.absarc(-x, -y, r, Math.PI, Math.PI * 1.5, false);
-      const geo = new THREE.ExtrudeGeometry(sh, { depth: d - 0.04, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 3, curveSegments: 6 });
-      geo.translate(0, 0, -(d - 0.04) / 2);
-      return geo;
-    };
-    pod.add(mesh(roundedBlock(0.76, 0.30, 0.34, 0.1), M.blackMatte, { position: [0, -0.60, 0.06] }));
-    pod.add(mesh(roundedBlock(0.86, 0.10, 0.40, 0.04), M.blackMatte, { position: [0, -0.74, 0.04] }));
-    for (const dx of [-0.19, 0.19]) {
-      // Bell, throat collar and the mounting boss behind it.
-      pod.add(mesh(new THREE.CylinderGeometry(0.125, 0.082, 0.28, 20), M.bellCool, { position: [dx, -0.80, 0.05], rotation: [0.42, 0, 0] }));
-      pod.add(mesh(new THREE.CylinderGeometry(0.086, 0.086, 0.09, 16), M.darkMetal, { position: [dx, -0.68, 0.10], rotation: [0.42, 0, 0] }));
-      pod.add(mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.22, 12), M.alumDark, { position: [dx, -0.56, 0.14], rotation: [0.42, 0, 0] }));
-      superDracos++;
+  {
+    const POCKET_Y = TRUNK_H + 1.62, POCKET_W = 0.88, POCKET_WB = 0.62, POCKET_H = 0.6;
+    const pockets = [], edges = [], bells = [], bellInners = [], collars = [];
+    const pocketShape = () => roundedOutline(POCKET_W, POCKET_WB, POCKET_H, 0.24, 0.08);
+    for (const a of [HATCH - POD_PSI, HATCH + POD_PSI, HINGE - POD_PSI, HINGE + POD_PSI]) {
+      pockets.push({ geometry: wallShape(pocketShape(), a, POCKET_Y, 0.006) });
+      // The recess edge: a hairline round the pocket, then the two folds down to the shoulder.
+      const rim = roundedOutline(POCKET_W + 0.05, POCKET_WB + 0.05, POCKET_H + 0.05, 0.265, 0.1);
+      rim.holes.push(pocketShape());
+      edges.push({ geometry: wallShape(rim, a, POCKET_Y, 0.005) });
+      const yTop = -POCKET_H / 2 + 0.02, yBot = SHOULDER + 0.06 - POCKET_Y;
+      for (const s of [-1, 1]) {
+        const fold = new THREE.Shape();
+        const x0 = s * (POCKET_WB / 2 + 0.02), x1 = s * 0.63;
+        fold.moveTo(x0 - 0.012, yTop); fold.lineTo(x0 + 0.012, yTop);
+        fold.lineTo(x1 + 0.012, yBot); fold.lineTo(x1 - 0.012, yBot);
+        edges.push({ geometry: wallShape(fold, a, POCKET_Y, 0.005) });
+      }
+      // Nozzles side by side in the lower half of the pocket, canted out of the wall so they
+      // fire down and away from it.
+      const CANT = 0.52;   // ≈30° off the wall; reconstructed
+      for (const s of [-0.2, 0.2]) {
+        const y = POCKET_Y - 0.08;
+        const base = onWall(a + s / wallR(y), y, 0)
+          .multiply(new THREE.Matrix4().makeRotationX(-CANT));
+        // Bell: narrow end up and into the wall, exit down and out, its lip at the surface.
+        const bellAt = base.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0.02, -0.055));
+        bells.push({ geometry: new THREE.CylinderGeometry(0.082, 0.118, 0.26, 20, 1, true), matrix: bellAt });
+        // The inside of the bell, facing in, so the open exit shows a nozzle wall and not the
+        // back of the pocket through it.
+        const inner = new THREE.CylinderGeometry(0.078, 0.113, 0.26, 20, 1, true);
+        const ix = inner.index.array;
+        for (let k = 0; k < ix.length; k += 3) { const t = ix[k + 1]; ix[k + 1] = ix[k + 2]; ix[k + 2] = t; }
+        const nn = inner.attributes.normal.array;
+        for (let k = 0; k < nn.length; k++) nn[k] = -nn[k];
+        bellInners.push({ geometry: inner, matrix: bellAt });
+        collars.push({ geometry: new THREE.CylinderGeometry(0.09, 0.09, 0.07, 16), matrix: base.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0.17, -0.05)) });
+        superDracos++;
+      }
     }
-    pod.position.set(Math.sin(a) * (wallR(podY) - 0.02), podY, Math.cos(a) * (wallR(podY) - 0.02));
-    // The wall's slope where the pod sits, not the mean slope: on a convex wall they differ,
-    // and a pod tilted to the average would stand off the shell at one end.
-    pod.rotation.set(-wallAngle(podY), a, 0, 'YXZ');
-    g.add(pod);
+    g.add(mesh(mergeAll(pockets), M.blackMatte, { name: 'superdraco-recess', castShadow: false }));
+    g.add(mesh(mergeAll(bells), M.bellCool, { name: 'superdraco-bells' }));
+    g.add(mesh(mergeAll(bellInners), M.bellInner, { name: 'superdraco-bell-inner', castShadow: false }));
+    g.add(mesh(mergeAll(collars), M.darkMetal, { name: 'superdraco-collars', castShadow: false }));
+    fine.seam.push(...edges);
   }
   g.userData.superDracoCount = superDracos;
 
   // ---- Windows, hatch and Draco ------------------------------------------------------
-  // Four windows, built as a real assembly: a recessed pocket, an inner pane set back behind
-  // a thick frame, and a sill. They used to be 4 cm discs flush with the paint, which at any
-  // distance read as dots and at close range as stickers.
-  const winY = TRUNK_H + 2.35;
-  const WIN_R = 0.26;
-  for (const a of [0.62, -0.62, Math.PI + 0.62, Math.PI - 0.62]) {
+  // Two windows, one each side of the hatch (see the layout note at the top). Oval, about
+  // 0.38 m across and 0.48 m tall in the glass, read off the same photographs against the
+  // 1 m hatch; the model's four were 0.52 m circles. Built as a real assembly: a dark shade
+  // ring round the aperture, the pane just under the surface, a frame proud of the paint and
+  // a bezel fairing it into the shell.
+  const winY = TRUNK_H + 2.15;
+  const WIN_A = 0.19, WIN_B = 0.24;       // half-width and half-height of the glass
+  const R0 = 0.215;                       // parts are built round and scaled to the oval
+  for (const a of [HATCH - WIN_PSI, HATCH + WIN_PSI]) {
     const base = onWall(a, winY, 0);
+    const oval = base.clone().multiply(new THREE.Matrix4().makeScale(WIN_A / R0, WIN_B / R0, 1));
     const flat = (m) => m.clone().multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
-    // A shallow recess, built the way a porthole is: a dark shade ring around the aperture,
-    // then the pane just under the surface. The first attempt hung an open-ended cylinder
-    // behind the wall, and an open tube seen from outside is a black hole, which is exactly
-    // what the render showed — four dark ovals where the windows should be.
-    g.add(mesh(new THREE.CylinderGeometry(WIN_R, WIN_R, 0.05, 28, 1, true), M.blackMatte,
-      { matrix: flat(base).multiply(new THREE.Matrix4().makeTranslation(0, -0.025, 0)), castShadow: false }));
-    const pane = mesh(new THREE.CylinderGeometry(WIN_R, WIN_R, 0.035, 28), M.glass);
-    pane.applyMatrix4(flat(base).multiply(new THREE.Matrix4().makeTranslation(0, -0.012, 0)));
+    // An open tube hung behind the wall reads from outside as a black hole — the first
+    // attempt's four dark ovals — so the recess is a short shade ring and the pane sits
+    // just under the surface.
+    g.add(mesh(new THREE.CylinderGeometry(R0, R0, 0.05, 32, 1, true), M.blackMatte,
+      { matrix: flat(oval).multiply(new THREE.Matrix4().makeTranslation(0, -0.025, 0)), castShadow: false }));
+    const pane = mesh(new THREE.CylinderGeometry(R0, R0, 0.035, 32), M.glass);
+    pane.applyMatrix4(flat(oval).multiply(new THREE.Matrix4().makeTranslation(0, -0.012, 0)));
     g.add(pane);
-    // Frame proud of the paint, then the wider bezel that fairs it into the shell.
     fine.metal.push({
-      geometry: new THREE.TorusGeometry(WIN_R + 0.018, 0.036, 10, 36),
-      matrix: base.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, 0.014)),
+      geometry: new THREE.TorusGeometry(R0 + 0.016, 0.03, 10, 40),
+      matrix: oval.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, 0.012)),
     });
     fine.white.push({
-      geometry: new THREE.TorusGeometry(WIN_R + 0.08, 0.055, 8, 32),
-      matrix: base.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, -0.008)),
+      geometry: new THREE.TorusGeometry(R0 + 0.06, 0.035, 8, 40),
+      matrix: oval.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, -0.006)),
     });
-    // Retaining bolts around the frame — the smallest thing on the capsule, and the reason
-    // the eye reads it as 26 cm of glass rather than as a painted circle.
+    // Retaining bolts round the frame, which is what makes the eye read glass rather than a
+    // painted oval.
     for (let k = 0; k < 12; k++) {
       const th = (k / 12) * Math.PI * 2;
       fine.micro.push({
         geometry: new THREE.CylinderGeometry(0.014, 0.014, 0.022, 6),
         matrix: base.clone()
-          .multiply(new THREE.Matrix4().makeTranslation(Math.cos(th) * (WIN_R + 0.058), Math.sin(th) * (WIN_R + 0.058), 0.018))
+          .multiply(new THREE.Matrix4().makeTranslation(Math.cos(th) * (WIN_A + 0.05), Math.sin(th) * (WIN_B + 0.05), 0.016))
           .multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2)),
       });
     }
   }
 
-  // Side hatch: a real door rather than a rectangle laid on the paint — outline, hinge line,
-  // latch recess, and the window in it that the crew boards through.
+  // Side hatch: a real door rather than a rectangle laid on the paint — outline, hinge line
+  // and the handle. About 1.0 m across and 1.25 m tall, its middle level with the windows,
+  // measured square-on on Resilience and Freedom. No porthole: the door in every clean
+  // photograph carries only a small square handle recess to one side of centre.
   {
-    const a = Math.PI / 2, hatchY = TRUNK_H + 1.85;
-    const HW = 1.06, HH = 1.16;
+    const a = HATCH, hatchY = TRUNK_H + 2.18;
+    const HW = 1.0, HH = 1.25;
     fine.white.push({ geometry: wallPatch(a, hatchY, HW - 0.06, HH - 0.06, 0.012) });
-    fine.dark.push(...wallFrame(a, hatchY, HW, HH, 0.028, 0.008));
+    // The door's joint is a grey line like the other panel joints, not a black stroke.
+    fine.seam.push(...wallFrame(a, hatchY, HW, HH, 0.022, 0.008));
     // Hinge side.
-    for (const dy of [-0.34, 0, 0.34]) {
+    for (const dy of [-0.4, 0, 0.4]) {
       fine.metal.push({
         geometry: new THREE.CylinderGeometry(0.036, 0.036, 0.2, 10),
         // Rotated round the axis to the hatch edge, not slid along the tangent: sliding put
@@ -460,24 +580,23 @@ export function buildDragon(M) {
         matrix: onWall(a - (HW / 2) / wallR(hatchY + dy), hatchY + dy, 0.03),
       });
     }
-    // Latch recess on the opposite edge.
+    // The handle recess on the opposite side of the door.
+    fine.dark.push({ geometry: wallPatch(a + 0.3 / wallR(hatchY), hatchY - 0.05, 0.17, 0.17, 0.016) });
     fine.metal.push({
-      geometry: new THREE.BoxGeometry(0.1, 0.24, 0.05),
-      matrix: onWall(a + (HW / 2 - 0.09) / wallR(hatchY), hatchY, 0.024),
+      geometry: new THREE.BoxGeometry(0.1, 0.03, 0.03),
+      matrix: onWall(a + 0.3 / wallR(hatchY - 0.05), hatchY - 0.05, 0.03),
     });
-    // The hatch window.
-    const hb = onWall(a, hatchY + 0.2, 0.02);
-    const hp = mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.03, 24), M.glass);
-    hp.applyMatrix4(hb.clone().multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2)));
-    g.add(hp);
-    fine.metal.push({ geometry: new THREE.TorusGeometry(0.185, 0.026, 8, 28), matrix: hb });
   }
 
-  // 16 Draco (spacex.com): four clusters of three near the shoulder, four more around the
-  // nose. The published figure is the count, not the grouping — how the sixteen are
-  // distributed round the hull is reconstructed from photographs, like everything else at
-  // this scale. Each is a raised housing with a recessed nozzle rather than a bare stub, so
-  // the cluster reads as an installation and the "Draco (16)" callout points at something.
+  // 16 Draco (spacex.com). Twelve of them are in four groups of three on the shell, each group
+  // a square panel of two with a single one in a smaller panel below it and a little further
+  // round: on the hatch side directly under each window, where Resilience and Freedom show
+  // them square-on, and the same pair of groups at 30° either side of the hinge
+  // (iss069e085578). The other four sit on the forward bulkhead round the docking adapter,
+  // under the nose cone — the four round ports the nose-on approach photograph shows at the
+  // diagonals (iss070e075419) — so with the cone closed, as it is here, they are out of
+  // sight. Positions approximate, like everything read off photographs; the count is
+  // spacex.com's. Each is a raised housing with a recessed nozzle rather than a bare stub.
   const dracos = [];
   const dracoHousings = [];
   const addDraco = (phi, y) => {
@@ -488,17 +607,22 @@ export function buildDragon(M) {
       matrix: base.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, -0.02)).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2)),
     });
   };
-  for (let i = 0; i < 4; i++) {
-    const a = Math.PI / 4 + (i * Math.PI) / 2;
-    // Beside each SuperDraco pod rather than under it: with the pods moved down to the
-    // shoulder where the side elevation puts them, the old row at +0.62 m on the pods' own
-    // azimuth sat inside the fairings. Alternate sides so no cluster lands on the hatch.
-    const side = i % 2 === 0 ? -1 : 1;
-    const c = a + side * 0.38;
-    // Two side by side on the lower row, one centred above them.
-    for (const [dphi, dy] of [[-0.075, 0], [0.075, 0], [0, 0.2]]) addDraco(c + dphi, SHOULDER + 1.30 + dy);
+  for (const [c, out] of [[HATCH - DRACO_PSI, -1], [HATCH + DRACO_PSI, 1], [HINGE - DRACO_PSI, -1], [HINGE + DRACO_PSI, 1]]) {
+    // `out` is the side away from the hatch (or hinge) centre line.
+    const yPanel = TRUNK_H + 1.40, ySingle = TRUNK_H + 0.98;
+    for (const [s, dy] of [[-0.035, 0.1], [0.035, -0.1]]) addDraco(c + (s * out) / wallR(yPanel + dy), yPanel + dy);
+    fine.seam.push(...wallFrame(c, yPanel, 0.36, 0.46, 0.012, 0.005));
+    const cs = c + (0.16 * out) / wallR(ySingle);
+    addDraco(cs, ySingle);
+    fine.seam.push(...wallFrame(cs, ySingle, 0.24, 0.26, 0.012, 0.005));
   }
-  for (let i = 0; i < 4; i++) addDraco((i * Math.PI) / 2, NOSE_BASE - 0.42);
+  for (let i = 0; i < 4; i++) {
+    const a = HATCH + Math.PI / 4 + (i * Math.PI) / 2;
+    dracos.push({
+      geometry: new THREE.CylinderGeometry(0.038, 0.052, 0.12, 12),
+      matrix: mat4([Math.sin(a) * 0.62, NOSE_BASE + 0.06, Math.cos(a) * 0.62]),
+    });
+  }
   g.userData.dracoCount = dracos.length;
   g.add(mesh(mergeAll(dracos), M.blackMatte, { name: 'draco' }));
   fine.white.push(...dracoHousings);
@@ -528,17 +652,17 @@ export function buildDragon(M) {
   g.userData.height = TOP;
   g.userData.footprint = CAP_R * 2;
   g.userData.stations = { trunkTop: TRUNK_H, shoulder: SHOULDER, noseBase: NOSE_BASE, capR: CAP_R, trunkR: TRUNK_R };
+  const around = (phi, y, r) => [Math.sin(phi) * r, y, Math.cos(phi) * r];
   g.userData.annotations = [
     { label: 'PICA heat shield', position: [0, TRUNK_H - 0.2, 1.3] },
-    { label: 'SuperDraco pod (2 × 4 = 8)', position: [Math.sin(Math.PI / 4) * 2.35, SHOULDER + 0.92, Math.cos(Math.PI / 4) * 2.35] },
-    { label: 'Window', position: [Math.sin(0.62) * 2.0, winY, Math.cos(0.62) * 2.0] },
-    { label: 'Side hatch', position: [2.2, TRUNK_H + 1.85, 0] },
-    { label: 'Parachute bay doors', position: [Math.sin(Math.PI * 0.25) * 1.7, NOSE_BASE - 0.3, Math.cos(Math.PI * 0.25) * 1.7] },
+    { label: 'SuperDraco recess (4 × 2 = 8)', position: around(HATCH - POD_PSI, TRUNK_H + 1.95, 2.3) },
+    { label: 'Window (one each side of the hatch)', position: around(HATCH - WIN_PSI, winY + 0.35, 2.0) },
+    { label: 'Side hatch', position: around(HATCH, TRUNK_H + 2.9, 1.9) },
     { label: 'Hinged nose cone · IDSS adapter', position: [0, TOP + 0.25, 0.6] },
-    { label: 'Trunk · solar cells (half the circumference)', position: [TRUNK_R + 0.35, 1.9, 0] },
-    { label: 'Trunk · radiators and coolant loop', position: [-(TRUNK_R + 0.35), 2.6, 0] },
-    { label: 'Trunk fin', position: [Math.sin(Math.PI / 4) * (TRUNK_R + 0.95), 0.9, Math.cos(Math.PI / 4) * (TRUNK_R + 0.95)] },
-    { label: 'Draco (16)', position: [0, NOSE_BASE - 0.42, wallR(NOSE_BASE - 0.42) + 0.3] },
+    { label: 'Trunk · radiators and coolant loop', position: around(HATCH, 2.6, TRUNK_R + 0.35) },
+    { label: 'Trunk · solar cells (half the circumference)', position: around(HINGE, 1.9, TRUNK_R + 0.35) },
+    { label: 'Trunk fin', position: around(HATCH - Math.PI / 2, 0.9, TRUNK_R + 0.95) },
+    { label: 'Draco (16)', position: around(HATCH + DRACO_PSI, TRUNK_H + 1.1, wallR(TRUNK_H + 1.1) + 0.35) },
   ];
   return g;
 }
