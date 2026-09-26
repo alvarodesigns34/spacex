@@ -63,10 +63,10 @@ try {
 
   const { dimensions, pad, interfaces, scene } = await page.evaluate(() => window.__vc.verify());
   for (const d of dimensions) {
-    report(d.ok, `${d.vehicle} · ${d.label}`, `declarado ${d.declared}, construido ${d.built} (${d.errorPct} %)`);
+    report(d.ok, `${d.vehicle} · ${d.label}`, `declarado ${d.declared}${d.grade ? ` (grado ${d.grade}, ±${d.tolPct} %)` : ''}, construido ${d.built} (${d.errorPct} %)`);
   }
   for (const d of pad) {
-    report(d.ok, `pad · ${d.part}`, `declarado ${d.declared} (${d.origen}), construido ${d.built} (${d.errorPct} %)`);
+    report(d.ok, `pad · ${d.part}`, `declarado ${d.declared} (grado ${d.grade}, ${d.origen}), construido ${d.built} (${d.errorPct} %)`);
   }
   // Where two independently built subsystems have to meet. Each of these was wrong.
   for (const d of interfaces) report(d.ok, `interfaz · ${d.interface}`, d.detail);

@@ -8,59 +8,38 @@
  * and automatically when the page is loaded with `?verify`.
  */
 import * as THREE from 'three';
-
-const TOL = 0.02;   // 2 % — enough slack for antennas, pins and hinge fairings
-
-/** Declared reference dimensions, keyed by vehicle id. Sources are cited in specs.js. */
-export const EXPECTED = {
-  falcon1: { height: 21.984, footprint: 1.6805, note: 'Guía de usuario de Falcon 1 (2008), figura 2-5: 865,5 in de la tobera a la punta, Ø66,16 in' },
-  starship: { height: 124.05, footprint: 9, note: 'Altura del apilado (407 ft = 124,05 m: 236 ft + 171 ft, spacex.com) y diámetro' },
-  falcon9: { height: 70, footprint: 5.2, note: 'Altura total y diámetro de cofia (spacex.com)' },
-  falconheavy: { height: 70, footprint: 12.2, note: 'Altura y anchura (spacex.com)' },
-  dragon: { height: 8.1, footprint: 4, note: 'Altura con trunk y diámetro máximo (spacex.com)' },
-  starlink: { height: null, footprint: 30, note: 'Envergadura desplegada (prensa)', tol: 0.06 },
-  // Tesla Roadster Service Manual, Technical Data: 3 946 mm long, 1 851 mm wide INCLUDING
-  // mirrors, 1 127 mm high. Those three are primary and held to 0.5 %. The body without its
-  // mirrors is not published: ≈1.75 m is a reconstruction (see roadster.js) and is held only
-  // loosely, so the test cannot pretend it is a measured figure. The 1.852 m this used to
-  // check as "body width" was Tesla's with-mirrors figure misread by secondary sites, and the
-  // model and this check had shared the misreading.
-  roadster: {
-    height: 1.127, footprint: 3.946, breadth: 1.75, mirrors: 1.851, fromHull: true,
-    tols: { height: 0.005, footprint: 0.005, breadth: 0.03, mirrors: 0.005 },
-    note: 'Longitud, anchura con espejos y altura: manual de servicio de Tesla. Carrocería sin espejos: reconstruida (≈)',
-  },
-  // The engine stands are measured on the Raptor Vacuum, the tallest of the three: 4,4 m of
-  // engine and a 2,3 m exit plane, both publicados en spacex.com. Se mide el tamaño del casco,
-  // no su cota superior, porque el motor se apoya en una cuna a 0,34 m del suelo.
-  engines: {
-    height: 4.4, footprint: 2.3, tol: 0.02, fromHullSize: true,
-    note: 'Raptor Vacuum: altura y diámetro de salida (spacex.com)',
-  },
-};
+import { FIGURES, COUNTS, PAD_FIGURES, GRADES, toleranceOf } from './figures.js';
 
 /**
- * Published part counts, checked against what the builders actually placed.
+ * How each exhibit is measured. The figures themselves, with their provenance and therefore
+ * their tolerance, live in figures.js; this says only which geometry a figure is read off.
  *
- * A dimension that drifts shows up in a render; a count does not — nobody looks at a capsule
- * and sees twenty thrusters where the label beside it says sixteen, which is exactly what this
- * scene shipped until the count was measured. Each entry names a `userData` key the builders
- * set; the value is summed over the whole exhibit, so a vehicle that places its engines in
- * three rings still reports one number.
+ *   fromHull      height is the top of the named hull meshes above the origin (the Roadster
+ *                 carries flight hardware below its tyres and above its roof)
+ *   fromHullSize  height is the hull's own extent (the engines stand on a cradle)
+ *   footprintHull the footprint is read off these meshes only (the Raptor Vacuum's published
+ *                 2.3 m is its nozzle exit; the stiffening hoops stand a centimetre proud of it)
  */
-export const COUNTS = {
-  falcon1: [{ key: 'engineCount', want: 2, label: 'Merlin 1C + Kestrel (SpaceX 2008)' }],
-  dragon: [
-    { key: 'dracoCount', want: 16, label: 'Draco (spacex.com)' },
-    { key: 'superDracoCount', want: 8, label: 'SuperDraco (spacex.com)' },
-  ],
-  // 33 Raptor on the booster plus 3 Raptor and 3 Raptor Vacuum on the ship (spacex.com).
-  starship: [{ key: 'engineCount', want: 39, label: 'Raptor · 33 + 3 + 3 (spacex.com)' }],
-  // Nine Merlin 1D on the first stage and one Merlin Vacuum on the second (spacex.com).
-  falcon9: [{ key: 'engineCount', want: 10, label: 'Merlin · 9 + 1 MVac (spacex.com)' }],
-  // Three nine-engine cores plus the second stage's MVac (spacex.com).
-  falconheavy: [{ key: 'engineCount', want: 28, label: 'Merlin · 27 + 1 MVac (spacex.com)' }],
+const MEASURE = {
+  roadster: { fromHull: true },
+  engines: { fromHullSize: true, footprintHull: ['rvac-bell', 'rvac-bell-inner'] },
 };
+
+/** Declared reference dimensions, keyed by vehicle id, with the tolerance their grade earns. */
+export const EXPECTED = Object.fromEntries(Object.entries(FIGURES).map(([id, f]) => {
+  const e = { ...MEASURE[id], tols: {}, grades: {}, notes: {} };
+  for (const key of ['height', 'footprint', 'breadth', 'mirrors']) {
+    const fig = f[key];
+    if (!fig || fig.unchecked) continue;
+    e[key] = fig.value;
+    e.tols[key] = toleranceOf(fig);
+    e.grades[key] = fig.grade;
+    e.notes[key] = fig.note;
+  }
+  return [id, e];
+}));
+
+export { COUNTS };
 
 /** Sums a `userData` count over every descendant of a model. */
 function countParts(model, key) {
@@ -74,9 +53,10 @@ function countParts(model, key) {
  * envelope (grid fins, flaps, pins) from the footprint check by measuring the named hull
  * meshes instead of the whole group.
  */
-function measure(model, hullNames) {
+function measure(model, hullNames, footprintNames) {
   const box = new THREE.Box3();
   const hull = new THREE.Box3();
+  const foot = new THREE.Box3();
   model.updateWorldMatrix(true, true);
   // Measure in the vehicle's own frame. Box3.expandByObject inflates the box of a rotated
   // object to the AABB of its rotated AABB, so measuring in world space would report a
@@ -87,11 +67,15 @@ function measure(model, hullNames) {
   const own = new THREE.Box3();
   model.traverse((o) => {
     if (!o.isMesh) return;
+    // Launch effects (plumes, jets, vapour) hang off the vehicle's groups but are not part of
+    // it; launch.js tags their roots.
+    for (let a = o; a && a !== model; a = a.parent) if (a.userData?.fx) return;
     if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
     m.multiplyMatrices(toLocal, o.matrixWorld);
     b.copy(o.geometry.boundingBox).applyMatrix4(m);
     box.union(b);
     if (hullNames && hullNames.includes(o.name)) hull.union(b);
+    if (footprintNames && footprintNames.includes(o.name)) foot.union(b);
     let flight = false;
     for (let a = o; a; a = a.parent) if (a.name === 'payload-adapter') { flight = true; break; }
     if (!flight) own.union(b);
@@ -100,10 +84,12 @@ function measure(model, hullNames) {
   const span = Math.min(ownSize.x, ownSize.z);
   const size = box.getSize(new THREE.Vector3());
   const hullSize = hull.isEmpty() ? size : hull.getSize(new THREE.Vector3());
+  const footSize = foot.isEmpty() ? null : foot.getSize(new THREE.Vector3());
   return {
     height: size.y,
     width: Math.max(size.x, size.z),
     hullWidth: Math.max(hullSize.x, hullSize.z),
+    footprintWidth: footSize ? Math.max(footSize.x, footSize.z) : null,
     // The short horizontal axis of the hull. For the rockets it is the same as hullWidth; for
     // the car it is the body width, which is the figure that was wrong by 12 cm.
     hullBreadth: Math.min(hullSize.x, hullSize.z),
@@ -301,28 +287,28 @@ export function verifyExhibits(exhibits, { log = true } = {}) {
     for (const c of COUNTS[id] ?? []) {
       const got = countParts(ex.model, c.key);
       rows.push({
-        vehicle: id, label: c.label, declared: c.want, built: got,
+        vehicle: id, label: c.label, declared: c.want, built: got, grade: c.grade, tolPct: 0,
         errorPct: c.want ? +(((got - c.want) / c.want) * 100).toFixed(2) : 0, ok: got === c.want,
       });
     }
     const exp = EXPECTED[id];
     if (!exp) continue;
-    const m = measure(ex.model, HULLS[id]);
+    const m = measure(ex.model, HULLS[id], exp.footprintHull);
     const check = (label, got, want, key) => {
       if (want == null || !isFinite(got)) return;
-      // A tolerance per figure where the entry gives one: a published dimension and a
+      // The tolerance is the figure's grade's (figures.js): a published dimension and a
       // reconstruction do not deserve the same slack.
-      const tol = exp.tols?.[key] ?? exp.tol ?? TOL;
+      const tol = exp.tols[key];
       const err = (got - want) / want;
       rows.push({
-        vehicle: id, label, declared: want, built: +got.toFixed(3),
-        errorPct: +(err * 100).toFixed(2), ok: Math.abs(err) <= tol,
+        vehicle: id, label, declared: want, built: +got.toFixed(3), grade: exp.grades[key],
+        tolPct: +(tol * 100).toFixed(2), errorPct: +(err * 100).toFixed(2), ok: Math.abs(err) <= tol,
       });
     };
     // Height is measured from the model's own origin, which every builder places at the aft
     // plane, so the raw bounding-box height is the vehicle height.
     check('altura', exp.fromHullSize ? m.hullHeight : exp.fromHull ? m.hullTop : m.height, exp.height, 'height');
-    check('envergadura / diámetro', HULLS[id] ? m.hullWidth : m.width, exp.footprint, 'footprint');
+    check('envergadura / diámetro', m.footprintWidth ?? (HULLS[id] ? m.hullWidth : m.width), exp.footprint, 'footprint');
     check('anchura de carrocería (reconstruida)', m.hullBreadth, exp.breadth, 'breadth');
     check('anchura total con espejos', m.span, exp.mirrors, 'mirrors');
   }
@@ -339,21 +325,14 @@ export function verifyExhibits(exhibits, { log = true } = {}) {
 }
 
 /**
- * Declared dimensions of the launch complex. SpaceX publishes none of these, so they are
- * either cited from reporting (the tower height and the arm length) or reconstructed from
- * imagery against the booster's known 9 m diameter — see the provenance note at the head of
- * vehicles/pad.js. Repeating them here is deliberate: the point of the check is to catch the
- * built geometry drifting away from the figure the interface shows, which is the only sense
- * in which a reconstruction can be held to "correct".
+ * Declared dimensions of the launch complex, from figures.js. SpaceX publishes none of these,
+ * so they are either cited from reporting (grade C: the tower height, the arm length, the
+ * clamp count) or reconstructed from imagery against the booster's known 9 m diameter (grade
+ * D) — see the provenance note at the head of vehicles/pad.js. The point of the check is to
+ * catch the built geometry drifting away from the figure the interface shows, which is the
+ * only sense in which a reconstruction can be held to "correct".
  */
-export const EXPECTED_PAD = {
-  towerH: { value: 144.5, label: 'torre · altura sobre la explanada', cited: true },
-  armLen: { value: 26, label: 'brazo de captura · longitud (≈36 del Pad 1 − 10)', cited: true },
-  deckTop: { value: 18, label: 'mesa · cota de la cubierta' },
-  padY: { value: 5, label: 'explanada · cota' },
-  trenchDepth: { value: 4.2, label: 'zanja de llamas · profundidad' },
-  clamps: { value: 20, label: 'pinzas de sujeción', cited: true },
-};
+export const EXPECTED_PAD = PAD_FIGURES;
 
 // =========================================================================================
 //  Interfaces: where two independently built subsystems have to meet
@@ -553,8 +532,8 @@ export function verifyPad(complex, { log = true } = {}) {
     const err = (got - exp.value) / exp.value;
     rows.push({
       part: exp.label, declared: exp.value, built: +got.toFixed(3),
-      origen: exp.cited ? 'prensa' : 'reconstruido',
-      errorPct: +(err * 100).toFixed(2), ok: Math.abs(err) <= TOL,
+      origen: GRADES[exp.grade].short, grade: exp.grade,
+      errorPct: +(err * 100).toFixed(2), ok: Math.abs(err) <= toleranceOf(exp),
     });
   };
 
@@ -591,6 +570,12 @@ export function verifyPad(complex, { log = true } = {}) {
   }
   const holds = complex.getObjectByName('holddowns');
   if (holds) add('clamps', holds.children.length);
+  // Plan dimensions the data sheet states. The trench is measured across its stainless
+  // cladding, which is 12 cm either side of the 22 m line the builder lays it on; the deck is
+  // the slab itself.
+  if (armor) add('trenchWidth', geoSpan(armor, 'x'));
+  const deck = complex.getObjectByName('mount-deck');
+  if (deck) add('mountWidth', geoSpan(deck, 'x'));
 
   if (log) {
     const bad = rows.filter(r => !r.ok);

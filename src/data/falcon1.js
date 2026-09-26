@@ -1,3 +1,5 @@
+import { FIGURES } from './figures.js';
+
 /** Historical Falcon 1, late Merlin 1C configuration. SI conversion of the 2008 guide. */
 export const FALCON1_SOURCES = {
   spacex_falcon1_2008: {
@@ -12,11 +14,11 @@ export const FALCON1_SOURCES = {
 
 export const FALCON1 = {
   id: 'falcon1', name: 'Falcon 1', subtitle: 'Historical exhibit · Merlin 1C configuration',
-  height: 21.984, footprint: 1.6805,
+  height: FIGURES.falcon1.height.value, footprint: FIGURES.falcon1.footprint.value,
   summary: 'The small two-stage ancestor of Falcon 9. This exhibit follows the late Falcon 1 configuration: a Merlin 1C first stage, a pressure-fed Kestrel 2 upper stage, the long dark interstage and the aluminium biconic fairing dimensioned in the 2008 manufacturer guide.',
   specs: [
-    { label: 'Height · nozzle exit to tip', value: '21.98 m (865.5 in, from the Figure 2-5 stations; the summary table rounds to 70 ft)', source: 'spacex', ref: 'spacex_falcon1_2008' },
-    { label: 'Stage diameter', value: '1.681 m (Ø66.16 in, Figure 2-5; 5.5 ft in the table)', source: 'spacex', ref: 'spacex_falcon1_2008' },
+    { fig: 'height', label: 'Height · nozzle exit to tip', value: '21.98 m (865.5 in, from the Figure 2-5 stations; the summary table rounds to 70 ft)', source: 'spacex', ref: 'spacex_falcon1_2008' },
+    { fig: 'footprint', label: 'Stage diameter', value: '1.681 m (Ø66.16 in, Figure 2-5; 5.5 ft in the table)', source: 'spacex', ref: 'spacex_falcon1_2008' },
     { label: 'Fairing diameter', value: '1.524 m (Ø60.00 in) · aluminium biconic', source: 'spacex', ref: 'spacex_falcon1_2008' },
     { label: 'Fairing height', value: '3.44 m (stations 756.36 → 891.83 in; slope changes at 817.20 and 847.32)', source: 'spacex', ref: 'spacex_falcon1_2008' },
     { label: 'Stations read off Figure 2-5', value: 'gimbal 100 in · aft ring 133 · interstage 524 · separation 649 · fairing 756', source: 'derived', approx: true },

@@ -365,22 +365,44 @@ El penacho se calcula a partir de la presión ambiente, no de un guion: corto, e
 
 `src/data/verify.js` hace dos pasadas independientes, disponibles con `?verify` en la URL o llamando a `window.__vc.verify()`:
 
-**1. Dimensional** — mide la caja envolvente real de cada modelo construido, en su propio sistema de referencia, y la compara con lo declarado:
+**0. Procedencia** — todas las cifras que se comprueban están una sola vez en `src/data/figures.js`, cada una con su **grado**, su fuente y, por tanto, su tolerancia:
+
+| Grado | Qué es | Tolerancia del modelo |
+|---|---|---|
+| **A** | primaria publicada: spacex.com, las guías de usuario de Falcon, el manual de servicio de Tesla | ±0,5 % |
+| **B** | primaria medida: fotogrametría sobre una foto primaria contra una cota conocida | ±2 % |
+| **C** | secundaria: enciclopedia o prensa especializada | ±1 % |
+| **D** | reconstruida: no hay cifra; se elige para cuadrar con las fotos y se muestra con ≈ | ±3 % |
+
+La tolerancia no es la incertidumbre de la cifra, sino cuánto puede apartarse el modelo del número que afirma. Una cifra publicada se exige al máximo porque la interfaz la presenta como un hecho. Una reconstrucción se exige menos, para que la prueba no la haga pasar por medida. Los recuentos (motores, Draco, pinzas) son exactos sea cual sea su grado.
+
+De ese módulo salen las expectativas de `verify.js` y la altura y la huella de cada ficha. `tools/provenance-check.mjs`, sin navegador y el primero de `npm run check`, falla en tres casos:
+- si una fila de la ficha enlazada a una cifra (`fig`/`pad` en `specs.js`) dice otro número;
+- si su fuente no casa con el grado: una cifra publicada mostrada con ≈ o citada a Wikipedia, o una reconstrucción sin ≈;
+- si la tabla de vehículos del principio de este README no enuncia la cifra que le corresponde.
+
+Nueve controles negativos (una altura cambiada en el README, una fila con otra cifra, una cifra publicada marcada ≈, una fuente inexistente…) tienen que fallar, y fallan.
+
+Al montarlo afloraron tres desajustes, ya corregidos:
+- **Starship: 1 m de más en la medida.** La verificación medía 125,05 m porque la caja incluía los efectos del lanzamiento (penachos y vapor) que cuelgan del vehículo, y aun así pasaba por la tolerancia global del 2 %. Ahora los efectos están marcados y no se miden, y la altura sale 124,054 m.
+- **Raptor Vacuum: 2,317 m frente a 2,3 m.** Los aros de refuerzo sobresalen 1 cm del borde de salida. El diámetro publicado es el de salida, así que ahora se mide sobre la tobera.
+- **Zanja del Pad 2:** la ficha decía 8,2 m de profundidad y el modelo tiene 4,2 m desde que se rehízo la plataforma. Ahora la ficha dice 4,2 m, y la anchura de la zanja y el lado de la mesa también se miden.
+
+**1. Dimensional** — mide la caja envolvente real de cada modelo construido, en su propio sistema de referencia, y la compara con lo declarado con la tolerancia de su grado (extracto):
 
 ```
-vehicle       measure                 declared   built   err%
-starship      altura                  124        124        0
-starship      envergadura / diámetro  9          9          0
-falcon9       altura                  70         70         0
-falcon9       envergadura / diámetro  5.2        5.2        0
-falconheavy   altura                  70         70         0
-falconheavy   envergadura / diámetro  12.2       12.2       0
-dragon        altura                  8.1        8.1        0
-dragon        envergadura / diámetro  4          4          0
-starlink      envergadura             30         30         0
+vehicle       measure                 declared   grade   built     err%
+starship      altura                  124.05     A       124.054   0.00
+falcon9       altura                  70         A       70        0
+falconheavy   envergadura / diámetro  12.2       A       12.2      0
+dragon        altura                  8.1        A       8.1       0
+starlink      envergadura             30         C       30        0
+roadster      anchura con espejos     1.851      A       1.851     0
+roadster      anchura de carrocería   1.75       D       1.749    -0.04
+engines       diámetro de salida RVac 2.3        A       2.3       0
 ```
 
-**2. Complejo de lanzamiento** — `verifyPad()` mide la geometría construida del pad contra las cifras declaradas (altura de torre, longitud de brazo, cotas de cubierta y explanada, profundidad de la zanja, número de pinzas) y marca cada fila como *prensa* o *reconstruido*. Detectó la losa de la cubierta extruida hacia arriba desde su cota, que había enterrado los 2,4 m inferiores del vehículo dentro de ella.
+**2. Complejo de lanzamiento** — `verifyPad()` mide la geometría construida del pad contra las cifras declaradas (altura de torre, longitud de brazo, cotas de cubierta y explanada, profundidad y anchura de la zanja, lado de la mesa, número de pinzas) y marca cada fila con su grado: *prensa* (C) o *reconstruido* (D). Detectó la losa de la cubierta extruida hacia arriba desde su cota, que había enterrado los 2,4 m inferiores del vehículo dentro de ella.
 
 **2b. Interfaces** — `verifyInterfaces()` mide **dónde dos subsistemas construidos por separado tienen que encajar**, que es donde han vivido los errores caros de este proyecto: cada cifra era defendible por su cuenta y estaba mal contra su vecina. Las campanas de los motores tienen que pasar por el agujero de la mesa (la garganta se cortaba 43 cm dentro de veinte de ellas), las pinzas tienen que llegar al faldón (cerraban a 6 cm de él, y su pie entraba 8 cm por dentro), el propulsor tiene que apoyarse en la cubierta, y los brazos de la torre tienen que cerrarse **a la altura de los pines** (lo hacían 6,8 m por debajo, alrededor del tanque de metano). Todo se mide sobre la geometría construida, nunca recalculando la constante que la produjo.
 
@@ -392,7 +414,7 @@ Todas están auto-testeadas: romper cada cosa a propósito hace saltar su compro
 
 ### Puerta de validación en CI
 
-`npm run check` ejecuta primero las regresiones deterministas de nube, trayectoria y hardware, después levanta el sitio en Chromium headless, recorre las 46 vistas autoradas y termina con cinco tamaños responsive a DPR 2. Comprueba que la cámara es finita, la geometría conserva sus interfaces, el HUD no se solapa, el diálogo modal bloquea los atajos del fondo y la consola queda limpia. La escena principal se carga con `?quality=high` y **se comprueba**: el rasterizador por software sobre el que corre CI caería en el nivel más barato, y la puerta estaría midiendo una escena reducida sin enterarse, porque una escena reducida es coherente consigo misma. Los checks sin navegador requieren Node 22.15 o posterior para cargar Three.js vendorizado sin alterar los imports de producción.
+`npm run check` ejecuta primero la prueba de procedencia y las regresiones deterministas de nube, trayectoria y hardware, después levanta el sitio en Chromium headless, recorre las 46 vistas autoradas y termina con cinco tamaños responsive a DPR 2. Comprueba que la cámara es finita, la geometría conserva sus interfaces, el HUD no se solapa, el diálogo modal bloquea los atajos del fondo y la consola queda limpia. La escena principal se carga con `?quality=high` y **se comprueba**: el rasterizador por software sobre el que corre CI caería en el nivel más barato, y la puerta estaría midiendo una escena reducida sin enterarse, porque una escena reducida es coherente consigo misma. Los checks sin navegador requieren Node 22.15 o posterior para cargar Three.js vendorizado sin alterar los imports de producción.
 
 También comprueba las **combinaciones**, que es donde han estado los errores: del lanzamiento al vuelo libre, de la vista orbital al lanzamiento y de vuelta, sol bajo + vuelo completo + reset devolviendo la misma atmósfera, redimensionar en mitad de una transición, veinte cambios de vista seguidos dejando un estado coherente, y el detalle retirándose con la distancia y volviendo al acercarse. Y las invariantes de la máquina de estados directamente: que una vista inexistente cae en la primera del expositor, que la vista orbital se *deduce* en vez de fijarse, y que el dueño de la cámara pasa limpiamente de visita a lanzamiento a visitante.
 
@@ -451,6 +473,7 @@ src/vehicles/pad.js        complejo de lanzamiento (Pad 2 de Starbase) a escala
 src/sim/launch.js          secuencia de lanzamiento: perfil integrado, planos y hardware
 src/sim/plume.js           penacho gobernado por la presión ambiente y nube de tierra
 src/sim/sound.js           sonido opcional del lanzamiento, retardado a la velocidad del sonido
+src/data/figures.js        cifras comprobadas, una sola vez, con grado (A/B/C/D), fuente y tolerancia
 src/data/specs.js          ficha técnica con procedencia de cada dato
 src/data/verify.js         comprobación de coherencia entre lo declarado y lo construido
 src/ui/hud.js              interfaz

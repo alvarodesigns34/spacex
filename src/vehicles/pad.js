@@ -242,7 +242,7 @@ function buildMountTable(M) {
   const deck = new THREE.ExtrudeGeometry(sq, { depth: deckThick, bevelEnabled: false, curveSegments: 48 });
   deck.rotateX(-Math.PI / 2);
   deck.translate(0, deckTop - deckThick, 0);
-  g.add(mesh(boxUV(mergeAll([{ geometry: deck }])), (M.towerSteel ?? M.mount)));
+  g.add(mesh(boxUV(mergeAll([{ geometry: deck }])), (M.towerSteel ?? M.mount), { name: 'mount-deck' }));
 
   // Concrete foundation plinths and heavy steel baseplates under the four piers
   const plinths = [];

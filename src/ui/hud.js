@@ -136,7 +136,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     b.dataset.id = v.id;
     b.setAttribute('role', 'tab');
     b.setAttribute('aria-selected', 'false');
-    b.innerHTML = `<span class="rail-index">${i + 1}</span><span class="rail-name">${v.name}</span><span class="rail-h">${fmtHeight(v.id === 'starlink' ? 30 : v.height)}${v.id === 'starlink' ? ' <small>span</small>' : ''}</span>`;
+    b.innerHTML = `<span class="rail-index">${i + 1}</span><span class="rail-name">${v.name}</span><span class="rail-h">${fmtHeight(v.id === 'starlink' ? v.footprint : v.height)}${v.id === 'starlink' ? ' <small>span</small>' : ''}</span>`;
     b.addEventListener('click', () => { closeDock(); onSelect(v.id); });
     rail.appendChild(b);
   });

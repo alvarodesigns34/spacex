@@ -445,7 +445,7 @@ async function main() {
 
     // height ruler
     // height ruler (span ruler for Starlink, laid along X in front of the wings)
-    const ruler = buildRuler(M, v.id === 'starlink' ? 30 : v.height, v.id);
+    const ruler = buildRuler(M, v.id === 'starlink' ? v.footprint : v.height, v.id);
     if (v.id === 'starlink') {
       ruler.rotation.z = -Math.PI / 2;
       ruler.position.set(lay.x - 15, model.position.y - 1.2, lay.z + 4.2);

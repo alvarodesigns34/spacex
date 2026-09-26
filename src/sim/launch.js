@@ -755,6 +755,12 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   booster.add(collar.mesh);
   const collarShip = new CondensationCollar({ radius: 4.5, spread: 5, length: 16, y: 12, name: 'condensation-collar-ship' });
   ship.add(collarShip.mesh);
+  // Tagged as effects: they hang off the vehicle's own groups, and a volume of vapour or a
+  // plume's bounding box is not part of the vehicle. The dimensional check measured the stack
+  // 1 m tall for as long as they were there — puffs of vapour parked half a metre under the
+  // engines and plume boxes a metre under them — and passed only because the tolerance was 2 %.
+  for (const o of [boosterPlume.group, shipPlume.group, boosterJets.mesh, shipJets.mesh, hotStageVents.mesh,
+    stageGlow.mesh, rest, catchVent.mesh, flipVent.mesh, collar.mesh, collarShip.mesh]) o.userData.fx = true;
   const collarAt = (t) => {
     const k = THREE.MathUtils.smoothstep(t, EVENTS.maxQ - 22, EVENTS.maxQ - 12) * (1 - THREE.MathUtils.smoothstep(t, EVENTS.maxQ + 6, EVENTS.maxQ + 14));
     // Flickers as it forms and sheds, the way it does on film.
