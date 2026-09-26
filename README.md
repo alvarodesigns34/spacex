@@ -281,6 +281,14 @@ El número de losetas que dicen la ficha y la pantalla de carga se comprueba aho
 
 **Roadster.** Las láminas escalonadas del capó son de **fibra de carbono**, no rojas. Así aparecen en la foto oficial del coche en órbita tomada desde delante, mirando a Starman por encima del capó.
 
+### Ronda vehículo por vehículo
+
+Cada expositor se volvió a comparar con fuentes primarias desde un ángulo equivalente. Se registra qué se confirmó, qué se cambió y qué se descartó.
+
+- **Starship y Pad 2** (fotos de SpaceX del B19, marzo y abril de 2026): brazos de captura como celosía de tubo redondo, y extremos de la mesa en talud (ver *Starship V3 contra las fotos*). Las grid fins del propulsor no cambian: su envergadura es compatible con la foto, tomada desde abajo.
+- **Falcon 1**: se comparó una vista lateral con teleobjetivo con el plano acotado de la guía de 2008 (figura 2-5). Coinciden la interetapa negra (123 in medidas frente a 125 del plano, empezando en la estación ≈649 frente a 648,8), la base de la cofia y la punta, así que no se cambia la geometría. **Descartado:** en la única foto de la guía, la portada, la banda negra parece llegar hasta la estación ≈686 in, 0,95 m más arriba que en el plano. Esa foto es de un vuelo de 2007, anterior a la configuración de 2008 que se expone, así que no sirve para corregirla. Las pinzas de Omelek siguen pendientes de foto. El repositorio de la Universidad de Utah, donde está el artículo de SpaceX sobre los vuelos de demostración, exige una verificación antibots y no se consultó.
+- **Falcon 9: grid fins en la base de la interetapa.** Dos fotos de la NASA lo muestran: el vehículo del Crew-9 en el SLC-40, con las aletas plegadas (NHQ202409270003), y el propulsor de TRACERS aterrizando, con las aletas desplegadas (KSC-20250723-PH-SPX01_0008). Las aletas van en el borde inferior de la interetapa negra, a caballo de la línea de pintura, con unos 6,2–6,5 m de negro por encima; esto cuadra con los 6,7 m de interetapa del modelo. Estaban arriba, 4,8 m más altas. La vista *Interstage and grid fins* se reencuadra. **Pendiente:** el núcleo central del Falcon Heavy conserva la cota que se midió en la foto de la misión de demostración (≈39,5 m, cerca de lo alto). No se ha podido volver a abrir esa foto (Wikimedia Commons devolvió límite de peticiones), y no se cambia sin verla.
+
 ### Auditoría externa de ChatGPT (septiembre de 2026)
 
 Se contrastó punto por punto con fuentes primarias antes de tocar nada.
@@ -494,6 +502,8 @@ El último paso es `tools/lod-pop.mjs`, que mide el **salto visible al cambiar d
 - si la escena registra un intercambio que la prueba no tiene encuadrado.
 
 Un control negativo, el mosaico lejano un 33 % más claro, tiene que fallar, y falla.
+
+**Plazos en el runner.** En el runner compartido, un fotograma de la escena completa por software puede tardar varios segundos, y Playwright espera dos fotogramas estables antes de pulsar un botón. El primer clic en el dock móvil, justo después de pasar de 1920×1080 a 390×844, tardó 29,6 s en una ejecución que pasó y agotó el plazo de 30 s en la siguiente, sin que cambiara nada de la interfaz. La prueba de interfaz da ahora a clics y esperas los mismos 120 s que ya daba a las capturas. Lo que mide es la maquetación; el tiempo de fotograma lo mide el perfilado.
 
 Cierra con un **presupuesto de escena** que informa en vez de bloquear: triángulos construidos y dibujados, mallas, materiales y texturas. Sus techos están muy por encima de las cifras de hoy, así que detecta que algo se ha duplicado — algo construido dentro de un bucle — sin tumbar una compilación por ruido entre máquinas.
 

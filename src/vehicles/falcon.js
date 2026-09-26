@@ -38,6 +38,7 @@ const S2_H = 13.8;                 // second stage (Wikipedia)
 const S2_TOP = S1_H + S2_H;        // 55.0 m
 const FAIRING_BASE = TOTAL_H - 13.2;    // 56.8 m (13.2 m standard fairing, Falcon User's Guide 2025)
 const FAIRING_R = 2.6;             // 5.2 m diameter
+const F9_FIN_Y = TANK_TOP + 0.12;  // stowed fin centre, on the paint line (approx, from photographs)
 
 /**
  * Titanium grid fin: an orthogonal waffle inside a closed frame.
@@ -234,8 +235,8 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
     // Mission (40126460511)", side-on, scaled by the 70 m stack and checked against the fairing,
     // which it reads as 13.3 m against the guide's 13.2 m): all three sets of grid fins sit level at about 40 m,
     // and the side boosters' nose tips stand at about 45 m. So a side booster keeps a cylinder
-    // where the Falcon 9 carries its interstage, with its grid fins at the top of it, and the
-    // nose cone sits above that. It used to sit straight on the tank, 6 m lower, with the grid
+    // where the Falcon 9 carries its interstage, with its grid fins near the top of it, and the
+    // nose cone sits above that. (The Falcon 9 itself carries them lower; see below.) It used to sit straight on the tank, 6 m lower, with the grid
     // fins at 33 m — a visibly squat pair of boosters. This is still SpaceX's "nose cone in
     // place of the interstage": the side booster's nose cone is a cylindrical skirt over the
     // interstage station, closed by the taper.
@@ -284,7 +285,13 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
   g.userData.separation = { pusherCount: 4, latchCount: 3, centralPushers: 1, reconstructedGeometry: true };
   g.add(instanceEngines(merlinVacGeometry(), M, [{ position: [0, TANK_TOP + 0.9, 0], tilt: [0, 0], spin: 0 }], { bellMaterial: M.bellCool }));
 
-  addGridFins(S1_H - 1.95);   // at the top of the interstage
+  // Falcon 9 Block 5 carries its grid fins at the BASE of the interstage, stowed across the
+  // line where the black composite meets the white tank: NASA's photographs of Crew-9's
+  // vehicle on SLC-40 (NHQ202409270003, stowed, the fins' upper ends ≈1 m into the black) and
+  // of the TRACERS booster landing (KSC-20250723-PH-SPX01_0008, deployed, ≈6.2 m of black
+  // above them). They were at the top, 4.8 m too high. The Falcon Heavy centre core keeps the
+  // station measured on its own demo-mission photograph (see the side boosters above).
+  addGridFins(variant === 'f9' ? F9_FIN_Y : S1_H - 1.95);
 
   // Second stage: LOX/RP-1 tank plus the payload interface below the fairing.
   g.add(mesh(lathe([{ r: R, y: S1_H }, { r: R, y: S2_TOP }], { segments: 128 }), M.white, { name: 'stage2' }));
@@ -361,7 +368,7 @@ const commonAnnotations = () => [
   { label: 'RP-1 tank', position: [0, 10, R + 0.3] },
   { label: 'LOX tank', position: [0, 26, R + 0.3] },
   { label: 'Interstage (composite)', position: [0, TANK_TOP + 3.2, R + 0.35] },
-  { label: 'Titanium grid fin', position: [Math.sin(Math.PI / 4) * 2.9, S1_H - 1.6, Math.cos(Math.PI / 4) * 2.9] },
+  { label: 'Titanium grid fin', position: [Math.sin(Math.PI / 4) * 2.9, F9_FIN_Y + 0.35, Math.cos(Math.PI / 4) * 2.9] },
   { label: 'Second stage · Merlin Vacuum', position: [0, S1_H + S2_H / 2, R + 0.35] },
   { label: 'Fairing · 13.2 m × 5.2 m', position: [0, FAIRING_BASE + 6, FAIRING_R + 0.4] },
 ];
