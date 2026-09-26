@@ -1753,12 +1753,12 @@ function buildBodyShell(mats, M) {
         const zRear = ZR + k * PITCH + BOW * (1 - u * u);
         for (let j = 0; j <= NC; j++) {
           const c = j / NC, z = zRear + c * CHORD;
-          pos.push(...onSkin(z, x, 0.0015 + LIP * fu * c * (2 - c)));
+          pos.push(...onSkin(z, x, 0.002 + LIP * fu * c * (2 - c)));
           uvs.push(x, z);
         }
         // The riser under the lip: from the lip down to just below the paint.
         const zF = zRear + CHORD + 0.002;
-        spos.push(...onSkin(zF, x, 0.0015 + LIP * fu), ...onSkin(zF, x, -0.004));
+        spos.push(...onSkin(zF, x, 0.002 + LIP * fu), ...onSkin(zF, x, -0.004));
       }
       const row = NC + 1;
       for (let i = 0; i < NU; i++) {
@@ -1786,6 +1786,38 @@ function buildBodyShell(mats, M) {
     // fenders.
     g.add(mesh(mergeAll(blades), mats.carbonFiber, { name: 'bonnet-louvres' }));
     g.add(mesh(mergeAll(slots), mats.satinBlack, { name: 'bonnet-louvre-slots', castShadow: false }));
+    // …and so is the panel they sit in. The same photograph shows woven carbon over the whole
+    // width between the red fender crests, from the base of the windscreen forward past the
+    // louvres; only the blades were carbon here, standing in a strip of red paint. The panel
+    // is laid 1 mm over the skin, from under the windscreen base (+0.78 m) to the frunk
+    // lid, bowed like the louvres; its edges are read off the photograph and approximate.
+    {
+      // Wider than the louvres: in the photograph the carbon is ≈1.13 times the width of the
+      // windscreen base and runs out to the fender crests. Kept inside the section's shoulders,
+      // where the skin lookup is defined.
+      const zA = 0.70, zB = ZR + 2 * PITCH + CHORD + 0.010, NZ = 12;
+      const WP = Math.min(0.60, Math.abs(xL) * 0.96);
+      const pos = [], uvs = [], idx = [];
+      for (let i = 0; i <= NU; i++) {
+        const u = (i / NU) * 2 - 1, x = u * WP;
+        for (let j = 0; j <= NZ; j++) {
+          const z = zA + (zB - zA) * (j / NZ) + BOW * (1 - u * u) * (j / NZ);
+          pos.push(...onSkin(z, x, 0.001));
+          uvs.push(x, z);
+        }
+      }
+      const row = NZ + 1;
+      for (let i = 0; i < NU; i++) for (let j = 0; j < NZ; j++) {
+        const a = i * row + j, b = a + row;
+        idx.push(a, a + 1, b, b, a + 1, b + 1);
+      }
+      const panel = new THREE.BufferGeometry();
+      panel.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      panel.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      panel.setIndex(idx);
+      panel.computeVertexNormals();
+      g.add(mesh(panel, mats.carbonFiber, { name: 'bonnet-vent-panel', castShadow: false }));
+    }
 
     // Frunk lid shut line. The lid is the panel every front view of the car is organised
     // around — louvres behind it, headlamps either side, the T just below its leading edge —

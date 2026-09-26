@@ -236,14 +236,22 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
     // which it reads as 13.3 m against the guide's 13.2 m): all three sets of grid fins sit level at about 40 m,
     // and the side boosters' nose tips stand at about 45 m. So a side booster keeps a cylinder
     // where the Falcon 9 carries its interstage, with its grid fins near the top of it, and the
-    // nose cone sits above that. (The Falcon 9 itself carries them lower; see below.) It used to sit straight on the tank, 6 m lower, with the grid
-    // fins at 33 m — a visibly squat pair of boosters. This is still SpaceX's "nose cone in
+    // nose cone sits above that. (The Falcon 9 itself carries them lower; see below.) It used
+    // to sit straight on the tank, 6 m lower, with the grid fins at 33 m — a visibly squat pair
+    // of boosters. This is still SpaceX's "nose cone in
     // place of the interstage": the side booster's nose cone is a cylindrical skirt over the
     // interstage station, closed by the taper.
     const shoulder = S1_H - 0.3;              // top of the cylinder, level with the core's interstage
     const noseL = 4.3;                        // tip ≈ 45.2 m, as measured
     g.add(mesh(lathe([{ r: R, y: TANK_TOP }, { r: R, y: shoulder }], { segments: 128 }), M.whiteFresh, { name: 'side-upper' }));
-    const prof = [{ r: R, y: shoulder }, ...ogiveProfile(R, noseL, shoulder, 30, 0.16).slice(1)];
+    // Blunt, not pointed. NASA's side-on photograph of the Europa Clipper vehicle on LC-39A
+    // (KSC-20241013-PH-SPX02_0001; vertical scale from the 13.2 m fairing) puts the tip at
+    // ≈44.8 m and the shoulder at ≈41.1 m, as here, and gives the nose's width at 0.7 / 1.4 /
+    // 2.1 / 2.8 / 3.5 m below the tip as ≈2.2 / 2.8 / 3.15 / 3.45 / 3.6 m. A tangent ogive
+    // with a 1.4 m spherical cap matches that to about 1 cm; the 0.16 m tip it had was 0.9 m
+    // too narrow 0.7 m down, and read as a pointed missile nose. Approximate: a halo of
+    // ≈0.5 m round the white against the night sky was taken off the measured widths.
+    const prof = [{ r: R, y: shoulder }, ...ogiveProfile(R, noseL, shoulder, 36, 1.4).slice(1)];
     g.add(mesh(lathe(prof, { segments: 128 }), M.whiteFresh, { name: 'nosecone' }));
     addGridFins(S1_H - 1.95);
     g.userData.top = shoulder + noseL;
