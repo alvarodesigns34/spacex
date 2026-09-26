@@ -12,6 +12,15 @@
  * that 41.2 m into a 34.5 m tank section and a 6.7 m interstage, and place the second stage
  * so that the fairing base lands at 70 − 13.2 = 56.8 m. Interstage length, stowed leg length,
  * grid-fin size and Merlin plumbing detail are approximations from imagery.
+ *
+ * Checked against a photograph, because the alternative reading is common: some tables give
+ * 41.2 m for the stage WITHOUT its interstage and ≈47.7 m with it. On the long-lens photograph
+ * of the Falcon Heavy demo vehicle on LC-39A (scaled by the 3.66 m core and the 70 m height),
+ * the centre core's grid fins stand ≈39.5 m above the engines and the top of its interstage
+ * ≈41.4 m — this model has them at 39.25 m and 41.2 m. Under the 47.7 m reading they would be
+ * at ≈46 m, above the side boosters' nose-cone tips; in the photograph they are well below.
+ * The fairing base measures ≈55.4 m against 56.8 m here, inside the ±1 m of the reading, so
+ * the stations stand; the 1.8 m forward skirt between them remains an unmeasured closure.
  */
 import * as THREE from 'three';
 import { lathe, ogiveProfile, mesh, mergeAll, mat4, plate, boxUV } from '../geometry/utils.js';

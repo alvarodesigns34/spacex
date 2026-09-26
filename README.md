@@ -213,6 +213,21 @@ Con un navegador real (Chromium) se leyeron las páginas que cargan su contenido
 
 **Roadster.** Las láminas escalonadas del capó son de **fibra de carbono**, no rojas. Así aparecen en la foto oficial del coche en órbita tomada desde delante, mirando a Starman por encima del capó.
 
+### Auditoría externa de ChatGPT (septiembre de 2026)
+
+Se contrastó punto por punto con fuentes primarias antes de tocar nada.
+
+- **Roadster: error real, corregido.** El manual de servicio de Tesla (Technical Data) y el manual del propietario dan 3946 mm de largo, **1851 mm de ancho incluyendo los espejos**, 1127 mm de alto, 2351 mm de batalla, **voladizos de 871 mm delante y 724 mm detrás** y vías de 1456/1485 mm. El modelo tomaba 1852 mm como anchura de la carrocería *sin* espejos (leída así en fuentes secundarias) y la prueba comprobaba la misma cifra mal interpretada. Además, los voladizos eran simétricos (797/797 mm), un error que la auditoría no había detectado. Ahora:
+  - los espejos cierran exactamente en 1,851 m;
+  - la carrocería, cuya anchura sin espejos no está publicada, se reconstruye en **≈1,75 m** a partir de la vía trasera con neumáticos de 225 y del saliente de los espejos, y queda marcada como aproximación;
+  - los ejes caen donde dice Tesla (+1,102 m y −1,249 m desde el centro), y los voladizos se estiran o acortan solo más allá de los pasos de rueda, con una transición suave, sin deformar ruedas ni habitáculo;
+  - el habitáculo se estrecha con la carrocería, y Starman se desplaza con su asiento sin deformarse, salvo el brazo apoyado en la puerta.
+- **Tolerancias según la procedencia.** Las cifras primarias del Roadster se comprueban al 0,5 %, y la carrocería reconstruida al 3 %. Al ajustar la tolerancia apareció un error que el 2,5 % global ocultaba: el marco del parabrisas llegaba a 1,143 m. Ahora está en 1,127 m.
+- **Falcon 1:** la tabla del README decía 21,336 m y 1,6764 m, cuando el modelo y la verificación usan el plano acotado de la guía de 2008 (21,98 m desde la salida de la tobera, Ø1,681 m). Corregido.
+- **CI:** la rama `grok/**` no pasaba la validación. Ahora sí, y cada rama tiene su propia cola: con un solo grupo de concurrencia, al empujar el mismo commit a tres ramas se cancelaban dos de las tres comprobaciones.
+- **Falcon 9 (comprobado, sin cambios):** la auditoría planteaba que los 41,2 m de la primera etapa podrían no incluir la interetapa. En la foto del Falcon Heavy de la misión de demostración en la 39A, tomada con teleobjetivo, las rejillas del núcleo central están a ≈39,5 m y el techo de la interetapa a ≈41,4 m; el modelo los tiene a 39,25 y 41,2 m. Con la otra lectura estarían a ≈46 m, por encima de las puntas de los laterales. Las estaciones se mantienen, y la cofia de 13,2 × 5,2 m sigue la guía de usuario de 2025.
+- **Dragon (pendiente):** el número de ventanas no está claro. La NASA habla hoy de tres y documentos anteriores de cuatro, y no se ha encontrado una foto lo bastante clara para decidir. No se borra nada sin esa prueba.
+
 ### Auditoría externa
 
 En septiembre de 2026 una auditoría de solo lectura hecha con otro modelo (Grok) revisó el código y la simulación. Cada hallazgo se contrastó con el código y, cuando era posible, con su fuente antes de aplicarlo.
