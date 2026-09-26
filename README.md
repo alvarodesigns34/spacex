@@ -138,6 +138,10 @@ Sin cambios de forma, con motivo: el perfil de la cápsula Dragon (se midió con
 - **Luz por defecto:** el sol arranca a 20° (ver *Controles*).
 - **Sonido** del lanzamiento y del resto de fases de Starship, rehecho (ver *El complejo de lanzamiento y la secuencia*).
 
+### La secuencia, explicada en pantalla
+
+El panel de misión explicaba en una nota plegable que la secuencia no es un vuelo concreto, pero cerrada pasaba inadvertida. Ahora, bajo el reloj, una línea siempre visible lo resume: demostración compuesta, V3 en el Pad 2, cuenta atrás y ascenso con los tiempos del vuelo 7, captura con los del vuelo 5, y retorno calculado. La nota sigue debajo, con las fuentes y los límites. Se comprobó en escritorio (1280 × 800) y en móvil (390 × 844) que no se solapa con nada.
+
 ### Nube de lanzamiento contra el vuelo 12
 
 Se comparó la nube con dos fotos del despegue del vuelo 12, el primero desde el Pad 2 (22 de mayo de 2026): la de NSF desde la carretera y el dron de SpaceX publicado en spacex.com. Solo se usaron como referencia visual; no están en el repositorio. Las fotos muestran:
@@ -305,6 +309,8 @@ Todas coinciden en la **disposición**, que es lo que se corrige:
 - **SuperDraco:** no son carenados en relieve con una barbilla negra. Son **huecos en arco** en la pared, con las dos toberas dentro y dos pliegues que bajan en abanico hasta el hombro (Crew-10 en el hangar). Antes del vuelo llevan una tapa negra con dos agujeros (Crew-6). Hay dos parejas, a ≈62° a cada lado de la escotilla y de la bisagra, y cada pareja queda centrada en una aleta lateral. Las toberas están a ≈1,55 m sobre el escudo; el modelo las tenía cerca de 1 m más abajo.
 - **Draco:** doce van en cuatro grupos de tres, cada uno formado por un panel cuadrado con dos y otro más pequeño debajo con uno. Dos grupos quedan justo bajo las ventanas y otros dos a 30° de la bisagra. Los cuatro restantes van en el mamparo delantero, alrededor del puerto de atraque (los cuatro orificios que se ven en la vista frontal con el cono abierto), y con el cono cerrado no se ven. El total sigue siendo 16, como dice spacex.com.
 - **Retirado:** las cuatro «puertas de paracaídas» de 0,8 m del casco, que no aparecen en ninguna foto, y cuatro de las ocho costuras longitudinales. Las cuatro que quedan están donde las fotos de hangar muestran filas de remaches: en el centro de cada cara.
+
+**Dos ventanas o tres.** El dossier del Commercial Crew Program de la NASA dice que Crew Dragon «se diseñó con tres ventanas». En el casco exterior solo hay dos, una a cada lado de la escotilla: lo muestran todas las fotos de las tres cápsulas, y el resto del casco y la propia escotilla no tienen ninguna. La tercera, por tanto, no está en la parte que se ve con el cono cerrado; lo más probable es que sea la ventana de la escotilla delantera, bajo el cono, pero es una inferencia. La ficha dice ahora «tres (NASA), dos en el casco exterior» y marca la tercera como no modelada, en lugar de contradecir a la NASA. El mismo dossier confirma dos cosas del modelo: que el trunk es mitad panel solar y mitad radiador, y que hay Draco alojados bajo el cono de la nariz.
 
 Los ángulos son lecturas proporcionales sobre fotos en perspectiva (≈ ±5°), y las alturas y los tamaños, fracciones de los 3,6 m de la cápsula (≈ ±0,15 m). La ficha los marca como aproximados y cita las fotos. El perfil de la cápsula no cambia.
 

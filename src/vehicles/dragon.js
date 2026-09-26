@@ -593,7 +593,8 @@ export function buildDragon(M) {
   // round: on the hatch side directly under each window, where Resilience and Freedom show
   // them square-on, and the same pair of groups at 30° either side of the hinge
   // (iss069e085578). The other four sit on the forward bulkhead round the docking adapter,
-  // under the nose cone — the four round ports the nose-on approach photograph shows at the
+  // under the nose cone — NASA's Commercial Crew press kit: "additional Draco thrusters are
+  // housed under the nose cone" — the four round ports the nose-on approach photograph shows at the
   // diagonals (iss070e075419) — so with the cone closed, as it is here, they are out of
   // sight. Positions approximate, like everything read off photographs; the count is
   // spacex.com's. Each is a raised housing with a recessed nozzle rather than a bare stub.

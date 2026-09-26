@@ -64,6 +64,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
         <span class="mission-phase" id="mission-phase">Terminal count</span>
         <span class="mission-next" id="mission-next"></span>
       </div>
+      <p class="mission-kind">Composite demo, not one flight: V3 on Pad 2 · count and ascent timed to flight 7 · catch to flight 5 · return computed</p>
       <div class="mission-telemetry">
         <div class="mt-veh mt-booster">
           <svg class="mt-engines" id="mt-engines-booster" viewBox="-5 -5 10 10" aria-hidden="true"></svg>
