@@ -3,7 +3,8 @@ name: Deploy to GitHub Pages
 on:
   push:
     # The repository's default branch is the feature branch, so deploy from it too.
-    branches: [main, master, 'claude/**', 'codex/**']
+    # Every branch the project pushes to is gated the same way, the audit branch included.
+    branches: [main, master, 'claude/**', 'codex/**', 'grok/**']
   workflow_dispatch:
 
 permissions:
@@ -11,8 +12,10 @@ permissions:
   pages: write
   id-token: write
 
+# One queue per branch: the same commit is pushed to three branches at once, and a single
+# shared group cancelled two of the three checks every time.
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

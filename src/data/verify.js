@@ -19,9 +19,16 @@ export const EXPECTED = {
   falconheavy: { height: 70, footprint: 12.2, note: 'Altura y anchura (spacex.com)' },
   dragon: { height: 8.1, footprint: 4, note: 'Altura con trunk y diámetro máximo (spacex.com)' },
   starlink: { height: null, footprint: 30, note: 'Envergadura desplegada (prensa)', tol: 0.06 },
+  // Tesla Roadster Service Manual, Technical Data: 3 946 mm long, 1 851 mm wide INCLUDING
+  // mirrors, 1 127 mm high. Those three are primary and held to 0.5 %. The body without its
+  // mirrors is not published: ≈1.75 m is a reconstruction (see roadster.js) and is held only
+  // loosely, so the test cannot pretend it is a measured figure. The 1.852 m this used to
+  // check as "body width" was Tesla's with-mirrors figure misread by secondary sites, and the
+  // model and this check had shared the misreading.
   roadster: {
-    height: 1.128, footprint: 3.947, breadth: 1.852, tol: 0.025, fromHull: true,
-    note: 'Altura al techo del parabrisas, longitud y anchura de carrocería (publicado)',
+    height: 1.127, footprint: 3.946, breadth: 1.75, mirrors: 1.851, fromHull: true,
+    tols: { height: 0.005, footprint: 0.005, breadth: 0.03, mirrors: 0.005 },
+    note: 'Longitud, anchura con espejos y altura: manual de servicio de Tesla. Carrocería sin espejos: reconstruida (≈)',
   },
   // The engine stands are measured on the Raptor Vacuum, the tallest of the three: 4,4 m of
   // engine and a 2,3 m exit plane, both publicados en spacex.com. Se mide el tamaño del casco,
@@ -77,6 +84,7 @@ function measure(model, hullNames) {
   const toLocal = new THREE.Matrix4().copy(model.matrixWorld).invert();
   const m = new THREE.Matrix4();
   const b = new THREE.Box3();
+  const own = new THREE.Box3();
   model.traverse((o) => {
     if (!o.isMesh) return;
     if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
@@ -84,7 +92,12 @@ function measure(model, hullNames) {
     b.copy(o.geometry.boundingBox).applyMatrix4(m);
     box.union(b);
     if (hullNames && hullNames.includes(o.name)) hull.union(b);
+    let flight = false;
+    for (let a = o; a; a = a.parent) if (a.name === 'payload-adapter') { flight = true; break; }
+    if (!flight) own.union(b);
   });
+  const ownSize = own.getSize(new THREE.Vector3());
+  const span = Math.min(ownSize.x, ownSize.z);
   const size = box.getSize(new THREE.Vector3());
   const hullSize = hull.isEmpty() ? size : hull.getSize(new THREE.Vector3());
   return {
@@ -101,6 +114,9 @@ function measure(model, hullNames) {
     // which is part of the 1,128 m envelope.
     hullTop: hull.isEmpty() ? box.max.y : hull.max.y,
     minY: box.min.y,
+    // Across the vehicle proper — everything but flight hardware that is not part of it (the
+    // Roadster's payload adapter and selfie booms) — on the short horizontal axis.
+    span,
   };
 }
 
@@ -292,9 +308,11 @@ export function verifyExhibits(exhibits, { log = true } = {}) {
     const exp = EXPECTED[id];
     if (!exp) continue;
     const m = measure(ex.model, HULLS[id]);
-    const tol = exp.tol ?? TOL;
-    const check = (label, got, want) => {
+    const check = (label, got, want, key) => {
       if (want == null || !isFinite(got)) return;
+      // A tolerance per figure where the entry gives one: a published dimension and a
+      // reconstruction do not deserve the same slack.
+      const tol = exp.tols?.[key] ?? exp.tol ?? TOL;
       const err = (got - want) / want;
       rows.push({
         vehicle: id, label, declared: want, built: +got.toFixed(3),
@@ -303,9 +321,10 @@ export function verifyExhibits(exhibits, { log = true } = {}) {
     };
     // Height is measured from the model's own origin, which every builder places at the aft
     // plane, so the raw bounding-box height is the vehicle height.
-    check('altura', exp.fromHullSize ? m.hullHeight : exp.fromHull ? m.hullTop : m.height, exp.height);
-    check('envergadura / diámetro', HULLS[id] ? m.hullWidth : m.width, exp.footprint);
-    check('anchura de carrocería', m.hullBreadth, exp.breadth);
+    check('altura', exp.fromHullSize ? m.hullHeight : exp.fromHull ? m.hullTop : m.height, exp.height, 'height');
+    check('envergadura / diámetro', HULLS[id] ? m.hullWidth : m.width, exp.footprint, 'footprint');
+    check('anchura de carrocería (reconstruida)', m.hullBreadth, exp.breadth, 'breadth');
+    check('anchura total con espejos', m.span, exp.mirrors, 'mirrors');
   }
   if (log) {
     const bad = rows.filter(r => !r.ok);

@@ -42,6 +42,7 @@ export const SOURCES = {
   tesla_roadster_gen1: { label: 'evspecifications — Tesla Roadster 1.5 (dimensions and chassis)', url: 'https://www.evspecifications.com/en/model/0f3a60' },
   wheelsize_roadster: { label: 'wheel-size.com — 2008 Tesla Roadster OEM fitment', url: 'https://www.wheel-size.com/size/tesla/roadster/2008/' },
   dimensions_roadster: { label: 'dimensions.com — Tesla Roadster (2008) drawings', url: 'https://www.dimensions.com/element/tesla-roadster-2008' },
+  tesla_roadster_sm: { label: 'Tesla — Roadster Service Manual, Technical Data (dimensions and weights)', url: 'https://service.tesla.com/docs/Public/Roadster/ServiceManual/en-us/GUID-4E037ADB-D0F4-48A0-9261-1083193D4C1B.html' },
 };
 
 // Starship first: it is the centre's main exhibit and the one the launch belongs to; Falcon 1
@@ -285,14 +286,16 @@ export const VEHICLES = [
     footprint: 3.95,
     summary: 'Elon Musk\'s personal all-electric two-seat sports car — a first-generation Roadster, model year 2010, on the pre-2.5 bodywork — used as the mass simulator on the maiden flight of Falcon Heavy (6 February 2018, LC-39A). Driven by the Starman mannequin in a SpaceX spacesuit, now in an elliptical heliocentric orbit reaching beyond Mars.',
     specs: [
-      { label: 'Overall length', value: '3.947 m (155.4 in)', source: 'press', ref: 'tesla_roadster_gen1' },
-      { label: 'Wheelbase', value: '2.352 m (92.6 in)', source: 'press', ref: 'tesla_roadster_gen1' },
-      { label: 'Body width', value: '1.852 m (1.873 m across the mirrors)', source: 'press', ref: 'tesla_roadster_gen1' },
-      { label: 'Track, front / rear', value: '1.463 m / 1.499 m', source: 'press', ref: 'tesla_roadster_gen1' },
+      { label: 'Overall length', value: '3.946 m (155.4 in)', source: 'official', ref: 'tesla_roadster_sm' },
+      { label: 'Wheelbase', value: '2.351 m (92.6 in)', source: 'official', ref: 'tesla_roadster_sm' },
+      { label: 'Overhang, front / rear', value: '0.871 m / 0.724 m', source: 'official', ref: 'tesla_roadster_sm' },
+      { label: 'Overall width, including mirrors', value: '1.851 m (72.9 in)', source: 'official', ref: 'tesla_roadster_sm' },
+      { label: 'Body width, without mirrors', value: '≈ 1.75 m (reconstructed: not published)', source: 'derived', approx: true },
+      { label: 'Track, front / rear', value: '1.456 m / 1.485 m', source: 'official', ref: 'tesla_roadster_sm' },
       { label: 'Tyres', value: '175/55 R16 front · 225/45 R17 rear', source: 'press', ref: 'wheelsize_roadster' },
-      { label: 'Ground clearance', value: '0.130 m', source: 'press', ref: 'tesla_roadster_gen1' },
-      { label: 'Overall height', value: '1.128 m (44.4 in)', source: 'press', ref: 'tesla_roadster_gen1' },
-      { label: 'Vehicle mass', value: '≈ 1,250 kg (2,755 lb)', source: 'press', ref: 'tesla_roadster_gen1' },
+      { label: 'Ground clearance', value: '0.130 m', source: 'official', ref: 'tesla_roadster_sm' },
+      { label: 'Overall height', value: '1.127 m (44.4 in), two occupants', source: 'official', ref: 'tesla_roadster_sm' },
+      { label: 'Curb weight', value: '1,235 kg (2,723 lb)', source: 'official', ref: 'tesla_roadster_sm' },
       { label: 'Body colour', value: 'Midnight Cherry Red metallic', source: 'spacex', ref: 'spacex_fh_demo' },
       { label: 'Occupant', value: 'Starman mannequin in a SpaceX IVA spacesuit', source: 'spacex', ref: 'spacex_fh_demo' },
       { label: 'Launch vehicle', value: 'Falcon Heavy (maiden flight / Demo Flight)', source: 'spacex', ref: 'spacex_fh_demo' },
@@ -306,7 +309,7 @@ export const VEHICLES = [
       { label: 'Payload adapter', value: 'Conical carbon-fibre tubular structure on the Falcon Heavy second stage', source: 'spacex', ref: 'spacex_fh_demo' },
     ],
     approximations: [
-      'The vehicle dimensions are the published first-generation figures: length 3.947 m, wheelbase 2.352 m, width 1.852 m without mirrors, height 1.128 m, tracks 1.463 / 1.499 m, ground clearance 0.130 m, on the OEM 175/55 R16 and 225/45 R17 tyres. The model carried 1.73 m until now, which is the Lotus Elise\'s width, not this car\'s.',
+      'Length, wheelbase, overhangs, overall width including mirrors, height, tracks and ground clearance are Tesla\'s own figures (Roadster Service Manual, Technical Data; the Owner\'s Manual gives the same). The width of the body without its mirrors is not published: ≈1.75 m is reconstructed from the 1.485 m rear track on 225-section tyres and the door mirrors\' reach. Secondary sites give 1.852 m as the body width; that is Tesla\'s with-mirrors figure misread, and the model carried it until this revision.',
       'The body surface between those dimensions is reconstructed from side, front and three-quarter photographs of first-generation Roadsters. The master curves are interpolations; no surface data for this car is public.',
       'The headlamps and tail lamps are reconstructed from photographs of the car: one swept teardrop lens per corner with three round optics inside it. Their outline and the size of each optic are proportional readings from those photographs, not published dimensions.',
       'The payload attach fitting (PAF) and the three selfie camera booms are reconstructed from hangar integration photographs and the live orbital footage.',
@@ -314,15 +317,15 @@ export const VEHICLES = [
       'The Earth in the «In orbit» view is illustrative scenery: generic ocean, cloud and terminator, with no intent to depict real coastlines or a specific orbital position. It is the only element in the centre not tied to a dimension or a photograph.',
       'The car flew without licence plates, so the rear recess is left empty.',
     ],
-    sources: ['spacex_fh_demo', 'wiki_roadster', 'tesla_roadster_gen1', 'wheelsize_roadster', 'dimensions_roadster'],
+    sources: ['tesla_roadster_sm', 'spacex_fh_demo', 'wiki_roadster', 'wheelsize_roadster'],
     presets: [
       { id: 'overview', label: 'Overview', pos: [3.6, 1.75, 4.2], target: [0, 0.58, 0] },
-      { id: 'starman', label: 'Starman', pos: [-1.44, 1.26, 0.79], target: [-0.34, 0.94, -0.11] },
-      { id: 'dontpanic', label: 'Don\'t Panic', pos: [0.094, 0.760, -0.059], target: [0.0, 0.585, 0.452] },
+      { id: 'starman', label: 'Starman', pos: [-1.44, 1.26, 0.72], target: [-0.32, 0.94, -0.18] },
+      { id: 'dontpanic', label: 'Don\'t Panic', pos: [0.089, 0.760, -0.132], target: [0.0, 0.585, 0.379] },
       { id: 'selfie', label: 'Selfie Cam', pos: [1.30, 1.42, 3.15], target: [-0.34, 0.90, -0.01] },
       { id: 'earth', label: 'In orbit', pos: [-1.55, 1.28, -2.95], target: [-0.20, 0.80, 0.35] },
-      { id: 'detail', label: 'Headlamps and nose', pos: [1.34, 0.86, 2.42], target: [0.42, 0.60, 1.62] },
-      { id: 'underbody', label: 'Wheel and arch', pos: [1.42, 0.44, 1.86], target: [0.62, 0.30, 1.18] },
+      { id: 'detail', label: 'Headlamps and nose', pos: [1.34, 0.86, 2.35], target: [0.40, 0.60, 1.55] },
+      { id: 'underbody', label: 'Wheel and arch', pos: [1.42, 0.44, 1.78], target: [0.59, 0.30, 1.10] },
     ],
   },
   {
@@ -362,6 +365,8 @@ export const VEHICLES = [
 ];
 
 export const SOURCE_LABEL = {
+  // The manufacturer's own documentation, where it is not SpaceX (Tesla's Roadster manuals).
+  official: 'maker',
   nasa: 'NASA',
   spacex: 'spacex.com',
   wiki: 'Wikipedia',

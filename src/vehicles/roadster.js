@@ -7,19 +7,22 @@
  *    brought a different nose, which is precisely the part of the car this file models.
  *    Personal car of Elon Musk, launched as mass simulator payload on the maiden flight
  *    of SpaceX Falcon Heavy on 6 February 2018 from Launch Complex 39A (KSC).
- *  - Documented Dimensions (Gen 1 Tesla Roadster published specifications):
- *      Overall length:  3.947 m (declared 3.95 m)
- *      Wheelbase:       2.352 m (front axle z = +1.176 m, rear axle z = -1.176 m)
- *      Overall width:   1.852 m (body) / 1.873 m (with exterior mirrors)
- *      Overall height:  1.128 m (declared 1.13 m)
- *      Front track:     1.463 m, Rear track: 1.499 m
+ *  - Dimensions, from Tesla's own Roadster Service Manual (Technical Data) and the Roadster
+ *    Owner's Manual, which agree:
+ *      Overall length:  3.946 m
+ *      Overall width INCLUDING MIRRORS: 1.851 m
+ *      Overall height:  1.127 m (two 75 kg occupants, no luggage)
+ *      Wheelbase:       2.351 m; overhangs 0.871 m front, 0.724 m rear
+ *      Front track:     1.456 m, Rear track: 1.485 m
  *      Ground clearance: 0.130 m
  *      Wheel sizes:     Front 175/55 R16 (ø 0.599 m), Rear 225/45 R17 (ø 0.634 m)
- *    Sources: evspecifications (Roadster 1.5, full chassis table), dimensions.com and
- *    autopadre (both 1.85 m explicitly \"without mirrors\"), wheel-size.com (OEM fitment),
- *    Wikipedia (1.873 m = across the mirrors). The 1.728 m this model carried until now is
- *    the Lotus Elise's width: the Tesla has its own carbon bodywork on wider tracks and is
- *    12 cm broader, which is most of why it read too narrow for its length.
+ *    The width of the body without its mirrors is not published. This model used to take
+ *    1.852 m as the body and 1.873 m across the mirrors, from secondary sites (dimensions.com,
+ *    autopadre, an unreferenced Wikipedia infobox) that read Tesla's 72.9 in as "without
+ *    mirrors": Tesla prints it as the width including them. The body is reconstructed at
+ *    ≈1.75 m: the rear tyres' outer faces are at ≈1.71 m on the published 1.485 m track, and
+ *    the door mirrors stand about 5 cm clear of the widest bodywork on each side. It is an
+ *    approximation; the 1.851 m envelope is the published figure it is held to.
  *  - Finish: Midnight Cherry Red metallic car paint with deep clearcoat gloss.
  *  - Configuration: Open cockpit (hardtop roof removed for flight).
  *  - Passenger: Starman mannequin in authentic SpaceX IVA flight spacesuit.
@@ -43,13 +46,15 @@ import { canvas, shade, fbm, noise2, heightToNormal, toTexture } from '../materi
 
 // ---- Dimensions -------------------------------------------------------------------------
 export const ROADSTER_SPECS = {
-  length: 3.947,      // total bumper-to-bumper length
-  width: 1.852,       // body width, without mirrors
-  widthMirrors: 1.873,// width across the exterior mirrors
-  height: 1.128,      // ground to top of windshield header / roll bar
-  wheelbase: 2.352,   // distance between front and rear axle centers
-  trackFront: 1.463,
-  trackRear: 1.499,
+  length: 3.946,      // overall length (Tesla service manual)
+  width: 1.75,        // body without mirrors: RECONSTRUCTED, ≈ (not published)
+  widthMirrors: 1.851,// overall width including mirrors (Tesla service manual)
+  height: 1.127,      // overall height, two occupants (Tesla service manual)
+  wheelbase: 2.351,   // (Tesla service manual)
+  overhangFront: 0.871,
+  overhangRear: 0.724,
+  trackFront: 1.456,
+  trackRear: 1.485,
   rideHeight: 0.130,  // published ground clearance
   wheelRadiusFront: 0.2995,  // 175/55 R16
   wheelRadiusRear: 0.3172,   // 225/45 R17
@@ -1586,15 +1591,20 @@ function buildBodyShell(mats, M) {
   for (const side of [-1, 1]) {
     // Mirrors are mounted off the door skin, so take the root off the body surface instead of
     // the hardcoded coordinates the old body used — they left the housings floating in space
-    // once the flank moved. Overall width with mirrors is the declared 1,873 m.
+    // once the flank moved. Overall width with mirrors is Tesla's published 1.851 m.
     const mt = side < 0 ? T_SHOULDER_L - 0.024 : T_SHOULDER_R + 0.024;
     const root = bodyPoint(0.40, mt);
     // Housing: a rounded pod about 15 cm across, 8 cm tall and 9 cm deep, as the front
     // three-quarter photograph shows it at the foot of the A-pillar — not the 6 cm ball it was,
-    // which read as a red bead on a wire. Its outer face stops at the declared 1.873 m across
-    // the mirrors, so it stands only a centimetre past the bodywork, as on the car.
+    // which read as a red bead on a wire. Its outer face stops at Tesla's 1.851 m across the
+    // mirrors. (The pod is built against the body as swept; reshapeToPublished() then narrows
+    // the body and bends the stem to meet it, and leaves the pod where it is.)
     const POD_W = 0.150, POD_R = 0.042;
-    const cx = side * (ROADSTER_SPECS.widthMirrors / 2 - POD_W / 2);
+    // Toed in by 0.14 rad, the pod's outer end reaches past its half-length by the turned
+    // capsule's depth: that is what has to land on the 1.851 m, not the unturned half-length.
+    const TOE = 0.14;
+    const reach = (POD_W / 2) * Math.cos(TOE) + POD_R * 1.05 * Math.sin(TOE);
+    const cx = side * (ROADSTER_SPECS.widthMirrors / 2 - reach);
     const cy = root.y + 0.058, cz = root.z - 0.012;
     const inboard = cx - side * (POD_W / 2 - 0.012);
     const mirrorStem = tube([
@@ -1602,13 +1612,13 @@ function buildBodyShell(mats, M) {
       [root.x + (inboard - root.x) * 0.5, root.y + 0.030, root.z - 0.004],
       [inboard, cy - 0.010, cz],
     ], 0.011, { tubular: 16, radial: 8 });
-    g.add(mesh(mirrorStem, mats.satinBlack));
+    g.add(mesh(mirrorStem, mats.satinBlack, { name: `mirror-stem-${side < 0 ? 'left' : 'right'}` }));
 
     const mirrorHousing = new THREE.Group();
     mirrorHousing.name = `mirror-${side < 0 ? 'left' : 'right'}`;
     mirrorHousing.position.set(cx, cy, cz);
     // Toed in a few degrees, so the glass looks back along the flank at the driver.
-    mirrorHousing.rotation.set(0, side * 0.14, 0);
+    mirrorHousing.rotation.set(0, side * TOE, 0);
 
     const mBody = new THREE.CapsuleGeometry(POD_R, POD_W - 2 * POD_R, 6, 18);
     mBody.rotateZ(Math.PI / 2);                    // long axis across the car
@@ -3440,6 +3450,103 @@ function buildPayloadAdapter(mats, M) {
 // =========================================================================================
 //  Main Builder Export
 // =========================================================================================
+/**
+ * Brings the swept car to the published envelope without re-authoring it.
+ *
+ * The master surface and everything keyed to it were built to a body 1.852 m wide with the
+ * axles centred between equal 0.797 m overhangs. Tesla's manuals give 1.851 m INCLUDING the
+ * mirrors and overhangs of 0.871 m in front and 0.724 m behind. Two corrections, applied to
+ * the finished vertices (normals by the inverse-transpose of the same map):
+ *  - across the car, the exterior is scaled to the reconstructed ≈1.75 m body about the
+ *    centreline; the mirror pods keep their place (outer faces at 1.851 m) and each mirror
+ *    stem is stretched from the narrowed door skin out to its pod;
+ *  - along the car, beyond each wheel arch, the overhang is lengthened (front) or shortened
+ *    (rear) with a quadratic blend, so the arches, the cabin and the wheels are untouched and
+ *    the surface has no crease where the blend starts.
+ * The whole car is then moved back so its length is centred on the plinth again.
+ */
+// Base of the windscreen on the scuttle, and the vertical scale that brings the top of its
+// surround (1.1435 m as built) to the published 1.127 m.
+const WINDSCREEN_FIT = { y0: 0.74, k: (1.127 - 0.74) / (1.1435 - 0.74) };
+function reshapeToPublished(root, { bodyParts, cabinParts, occupantParts = [] }) {
+  const S = ROADSTER_SPECS;
+  const kx = S.width / 1.852;
+  const za = S.wheelbase / 2;                      // axle stations the body was swept around
+  const L = 1.973 - za;                             // overhang as swept
+  const ends = [
+    { sign: 1, d0: 0.40, dL: S.overhangFront - L },  // beyond the front arch
+    { sign: -1, d0: 0.42, dL: S.overhangRear - L },  // beyond the rear arch
+  ];
+  const mapZ = (z) => {
+    for (const e of ends) {
+      const d = e.sign * z - za;
+      if (d > e.d0) {
+        const u = (d - e.d0) / (L - e.d0);
+        return { z: e.sign * (za + d + e.dL * u * u), dz: 1 + 2 * e.dL * u / (L - e.d0) };
+      }
+    }
+    return { z, dz: 1 };
+  };
+  root.updateMatrixWorld(true);
+  const done = new Set();
+  const p = new THREE.Vector3(), n = new THREE.Vector3();
+  const inv = new THREE.Matrix4(), m3 = new THREE.Matrix3(), m3t = new THREE.Matrix3();
+  const apply = (group, lateral) => group.traverse((o) => {
+    if (!o.isMesh) return;
+    if (/^mirror-(left|right)$/.test(o.parent?.name ?? '')) return;
+    if (done.has(o.geometry)) o.geometry = o.geometry.clone();
+    const g = o.geometry; done.add(g);
+    const pos = g.attributes.position, nor = g.attributes.normal;
+    const M = o.matrixWorld; inv.copy(M).invert();
+    m3.setFromMatrix4(M); m3t.copy(m3).transpose();
+    const nMat = new THREE.Matrix3().getNormalMatrix(M);
+    const stem = /^mirror-stem/.test(o.name);
+    // The windscreen was built with its frame 1.6 cm above the published overall height;
+    // it is scaled down from its base on the scuttle so the frame's top is the 1.127 m.
+    const screen = /^windshield-/.test(o.name) ? WINDSCREEN_FIT : null;
+    let rx = 0, px = 0;
+    if (stem) {                                     // root on the door skin, tip at the pod
+      for (let i = 0; i < pos.count; i++) { p.fromBufferAttribute(pos, i).applyMatrix4(M); const a = Math.abs(p.x); if (i === 0 || a < rx) rx = a; if (a > px) px = a; }
+    }
+    for (let i = 0; i < pos.count; i++) {
+      p.fromBufferAttribute(pos, i).applyMatrix4(M);
+      let sx = lateral ? kx : 1;
+      if (stem) sx = kx + (1 - kx) * THREE.MathUtils.clamp((Math.abs(p.x) - rx) / Math.max(1e-4, px - rx), 0, 1);
+      const { z, dz } = mapZ(p.z);
+      const ky = screen && p.y > screen.y0 ? screen.k : 1;
+      p.set(p.x * sx, ky === 1 ? p.y : screen.y0 + (p.y - screen.y0) * ky, z).applyMatrix4(inv);
+      pos.setXYZ(i, p.x, p.y, p.z);
+      if (nor) {
+        n.fromBufferAttribute(nor, i).applyMatrix3(nMat);
+        n.set(n.x / sx, n.y / ky, n.z / dz).applyMatrix3(m3t).normalize();
+        nor.setXYZ(i, n.x, n.y, n.z);
+      }
+    }
+    pos.needsUpdate = true; if (nor) nor.needsUpdate = true;
+    g.computeBoundingBox(); g.computeBoundingSphere();
+  });
+  for (const part of bodyParts) apply(part, true);
+  for (const part of cabinParts) apply(part, true);
+  // The occupant keeps his shape and moves with his seat: each piece of the suit is carried
+  // across by its own centre's share of the narrowing. The left arm, which lies over the door
+  // top and down its outside, is narrowed with the door instead, or the sleeve comes out
+  // through the skin of a door that is now 4.5 cm further in.
+  for (const part of occupantParts) part.traverse((o) => {
+    if (!o.isMesh) return;
+    if (/^left-(arm|glove|fingers)/.test(o.name)) { apply(o, true); return; }
+    if (done.has(o.geometry)) o.geometry = o.geometry.clone();
+    done.add(o.geometry);
+    const box = new THREE.Box3().setFromObject(o);
+    const dx = (box.min.x + box.max.x) / 2 * (kx - 1);
+    const shift = new THREE.Vector3(dx, 0, 0);
+    // Into the mesh's own frame: a pure translation, so only its rotation and scale matter.
+    const local = shift.clone().applyMatrix3(new THREE.Matrix3().setFromMatrix4(o.matrixWorld).invert());
+    o.geometry.translate(local.x, local.y, local.z);
+    o.geometry.computeBoundingSphere();
+  });
+  return mapZ;
+}
+
 export function buildRoadster(M) {
   const root = new THREE.Group();
   root.name = 'roadster';
@@ -3473,6 +3580,12 @@ export function buildRoadster(M) {
   root.add(wheels);
   root.add(interior);
   root.add(starman);
+
+  // To the published envelope (see reshapeToPublished). The cabin is narrowed with the body it
+  // sits in, Starman moves with his seat, and the wheels are not reshaped, only moved.
+  const mapZ = reshapeToPublished(root, { bodyParts: [bodyShell], cabinParts: [interior], occupantParts: [starman] });
+  const CENTRE_DZ = -(ROADSTER_SPECS.overhangFront - ROADSTER_SPECS.overhangRear) / 2;
+  for (const part of [bodyShell, wheels, interior, starman]) part.position.z += CENTRE_DZ;
 
   // ---- Level of detail ------------------------------------------------------------------
   // This exhibit is 247 meshes and 219,000 triangles on a 3.9 m car, and in the overview it
@@ -3553,6 +3666,7 @@ export function buildRoadster(M) {
   root.userData.footprint = ROADSTER_SPECS.length;
   root.userData.length = ROADSTER_SPECS.length;
   root.userData.width = ROADSTER_SPECS.width;
+  root.userData.widthMirrors = ROADSTER_SPECS.widthMirrors;
 
   root.userData.parts = {
     body: bodyShell,
@@ -3576,6 +3690,11 @@ export function buildRoadster(M) {
     { label: 'Falcon Heavy payload attach fitting (PAF)', position: [0.0, -0.30, 0.0], scope: 'orbital' },
     { label: 'Selfie camera on a carbon-fibre boom', position: [0.55, 0.95, 3.10], scope: 'orbital' },
   ];
+  // The callouts were placed on the car as swept: move them with it.
+  for (const a of root.userData.annotations) {
+    if (a.scope === 'orbital') continue;
+    a.position = [a.position[0] * ROADSTER_SPECS.width / 1.852, a.position[1], mapZ(a.position[2]).z + CENTRE_DZ];
+  }
 
   return root;
 }
