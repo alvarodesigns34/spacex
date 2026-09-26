@@ -305,7 +305,7 @@ Todas coinciden en la **disposición**, que es lo que se corrige:
 - **Escotilla:** ≈1,0 × 1,25 m, con el centro 2,18 m por encima del escudo (estaba 0,33 m más abajo).
 - **Aletas del trunk:** en línea con la escotilla. En la vista frontal de la nariz, una aleta queda justo debajo de ella; el modelo las tenía a 45°.
 - **Bisagra del cono de la nariz:** en el lado opuesto a la escotilla. Estaba a 90° de ella.
-- **Trunk:** los radiadores blancos están detrás de la escotilla y las células solares, en el otro lado. Así aparece atracada en la estación y tras desacoplarse (iss069e085578); el modelo lo tenía al revés.
+- **Trunk:** mitad panel solar y mitad radiador, como dice la NASA. La división va por las aletas de la escotilla y de la bisagra. Así lo muestran tres fotos de la NASA en la plataforma, donde el brazo de acceso marca la escotilla: Crew-3 (2021), Crew-9 (2024) y Crew-11 (2025). La cara con el logotipo de SpaceX es panel solar de aleta a aleta, y la opuesta, radiador. En una revisión anterior se siguió una sola foto orbital (iss071e264174), que parecía mostrar radiador alrededor de la escotilla, y se colocaron mal; tres fotos de tres vuelos pesan más. El modelo original dividía por las aletas laterales, que tampoco era correcto.
 - **SuperDraco:** no son carenados en relieve con una barbilla negra. Son **huecos en arco** en la pared, con las dos toberas dentro y dos pliegues que bajan en abanico hasta el hombro (Crew-10 en el hangar). Antes del vuelo llevan una tapa negra con dos agujeros (Crew-6). Hay dos parejas, a ≈62° a cada lado de la escotilla y de la bisagra, y cada pareja queda centrada en una aleta lateral. Las toberas están a ≈1,55 m sobre el escudo; el modelo las tenía cerca de 1 m más abajo.
 - **Draco:** doce van en cuatro grupos de tres, cada uno formado por un panel cuadrado con dos y otro más pequeño debajo con uno. Dos grupos quedan justo bajo las ventanas y otros dos a 30° de la bisagra. Los cuatro restantes van en el mamparo delantero, alrededor del puerto de atraque (los cuatro orificios que se ven en la vista frontal con el cono abierto), y con el cono cerrado no se ven. El total sigue siendo 16, como dice spacex.com.
 - **Retirado:** las cuatro «puertas de paracaídas» de 0,8 m del casco, que no aparecen en ninguna foto, y cuatro de las ocho costuras longitudinales. Las cuatro que quedan están donde las fotos de hangar muestran filas de remaches: en el centro de cada cara.
@@ -550,6 +550,15 @@ src/ui/hud.js              interfaz
 ```
 
 ## Presupuesto de rendimiento
+
+**Coste de esta ronda (escudo y nube), en calidad baja.** Se comparó `tools/profile.mjs --quality low` en el commit anterior a la ronda (`23b5d4a`) y en el actual, con el mismo renderizador por software. Los tiempos absolutos de SwiftShader no dicen nada sobre una GPU real; la comparación entre versiones sí.
+- La escena no cambia: los mismos 1,96 M triángulos, 1017 mallas, 144 materiales, 77 texturas y 155,5 MB de texturas. El arranque pasa de 24,6 a 24,8 s.
+- El **primer plano del escudo** cuesta un 48 % más por fotograma (de 1,09 a 1,62 s): las 13 361 losetas ahora se dibujan de verdad. Antes el respaldo las tapaba y la GPU descartaba casi todos sus fragmentos. Es el coste de que se vean. A distancia no cambia, porque ahí se dibuja el mosaico lejano.
+- El **despegue** cuesta un 6 % más (nube con polvo y variantes).
+- Las vistas del pad y del complejo cuestan un 3–8 % más en mediciones repetidas. Una primera medición daba +20 % en el pad, pero al repetirla resultó ser ruido.
+- El resto de vistas queda dentro del ruido (±2 %).
+
+No se ha medido en una GPU ni en un móvil real, porque desde este entorno no hay acceso a ese hardware.
 
 Medido con `npm run profile`, que informa del reparto del arranque, triángulos, draw calls, materiales, texturas y tiempo de fotograma en la vista general, en un primer plano y durante el lanzamiento. `node tools/cpu-profile.mjs` baja un nivel: graba un perfil de CPU de V8 durante el arranque y reparte el tiempo propio por función y por archivo. Ahí se vio que el coste no estaba en los triángulos.
 

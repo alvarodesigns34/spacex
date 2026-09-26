@@ -240,12 +240,15 @@ export function buildDragon(M) {
   const fine = { white: [], dark: [], seam: [], metal: [], micro: [] };
 
   // ---- Trunk -------------------------------------------------------------------------
-  // Solar cells wrap one half; the other half carries the radiator panels. Which half is which
-  // is photographed: docked at the station (iss071e264174) the trunk behind the side hatch is
-  // the white, fluted radiator, and seen from the hinge side after undocking (iss069e085578)
-  // it is the dark array. So the radiators are centred on the hatch (+X) and the cells on the
-  // hinge (−X), split at the side fins. The model had them the other way round.
-  const RAD0 = 0;                           // radiator half: φ ∈ [0, π], centred on the hatch
+  // Half solar array, half radiator (NASA, Commercial Crew press kit). Which half is which
+  // is read off the pad, where the crew access arm marks the hatch: Crew-3 (2021), Crew-9
+  // (2024) and Crew-11 (2025) all show the split running down the HATCH and HINGE fins, with
+  // the face between them that carries the SpaceX logo — +Z here, the hatch to its right seen
+  // from outside — solid array from fin to fin (KSC-20240924-SPX01_0002 shows it square-on),
+  // and the white radiator on the other side. One orbital photograph (iss071e264174) seemed to
+  // show radiator all round behind the hatch and this model followed it for one revision; three
+  // pad photographs from three flights outweigh it. The original model split at the side fins.
+  const RAD0 = Math.PI / 2;                 // radiator half: φ ∈ [π/2, 3π/2], centred on −Z
   g.add(mesh(lathe([{ r: TRUNK_R, y: 0 }, { r: TRUNK_R, y: TRUNK_H }], { segments: 128, phiStart: RAD0, phiLength: Math.PI }), M.radiator, { name: 'trunk-radiator' }));
   const bays = 5;
   for (let i = 0; i < bays; i++) {
@@ -261,9 +264,9 @@ export function buildDragon(M) {
   // be laid out over the wrong half, so half the plumbing ran straight across the solar cells:
   // black hoops and white bars caging the one face of the trunk that should be a continuous
   // dark array. (Torus arcs here are in the x = cos θ, z = sin θ convention; the radiator half
-  // φ ∈ [0, π] of the lathe is x ≥ 0, i.e. θ ∈ [−π/2, π/2]. `ARC0` rotates an arc starting at
+  // φ ∈ [π/2, 3π/2] of the lathe is z ≤ 0, i.e. θ ∈ [π, 2π]. `ARC0` rotates an arc starting at
   // θ = 0 to start just past the radiator half's first edge.)
-  const ARC0 = -Math.PI / 2 + Math.PI * 0.03;
+  const ARC0 = Math.PI + Math.PI * 0.03;
   {
     const pipes = [];
     for (const yy of [0.55, TRUNK_H - 0.55]) {
@@ -660,8 +663,8 @@ export function buildDragon(M) {
     { label: 'Window (one each side of the hatch)', position: around(HATCH - WIN_PSI, winY + 0.35, 2.0) },
     { label: 'Side hatch', position: around(HATCH, TRUNK_H + 2.9, 1.9) },
     { label: 'Hinged nose cone · IDSS adapter', position: [0, TOP + 0.25, 0.6] },
-    { label: 'Trunk · radiators and coolant loop', position: around(HATCH, 2.6, TRUNK_R + 0.35) },
-    { label: 'Trunk · solar cells (half the circumference)', position: around(HINGE, 1.9, TRUNK_R + 0.35) },
+    { label: 'Trunk · radiators and coolant loop', position: around(Math.PI, 2.6, TRUNK_R + 0.35) },
+    { label: 'Trunk · solar cells (half the circumference)', position: around(0, 1.9, TRUNK_R + 0.35) },
     { label: 'Trunk fin', position: around(HATCH - Math.PI / 2, 0.9, TRUNK_R + 0.95) },
     { label: 'Draco (16)', position: around(HATCH + DRACO_PSI, TRUNK_H + 1.1, wallR(TRUNK_H + 1.1) + 0.35) },
   ];
