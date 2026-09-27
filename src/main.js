@@ -90,10 +90,13 @@ const LAYOUT = {
   },
   dragon: { x: 18, z: 0, mount: 1.6, people: [[3.4, 0, 1.6, 0.6], [-2.8, 0, 2.6, -0.8]] },
   starlink: { x: 78, z: 0, mount: 6.2, people: [[3.2, 0, 2.4, 0.4], [-2.6, 0, 3.0, -1.2]] },
-  roadster: { x: 118, z: 0, mount: 1.4, yaw: 25, people: [[2.8, 0, 1.8, 0.5], [-2.8, 0, 1.2, -1.8]] },
+  // Figures stand clear of every authored view: at [2.8, 1.8] one was 2.7 m in front of the
+  // Roadster's overview camera, a hard hat cut off by the bottom of the frame, and at
+  // [3.4, 2.6] another filled the right third of the RVac close-up.
+  roadster: { x: 118, z: 0, mount: 1.4, yaw: 25, people: [[4.3, 0, 1.2, 0.5], [-2.8, 0, 1.2, -1.8]] },
   engines: {
     x: 163, z: 0, mount: 0, yaw: -12,
-    people: [[3.4, 0, 2.6, 0.4], [-5.8, 0, 2.2, -1.4], [1.2, 0, -3.0, 2.6]],
+    people: [[4.8, 0, -2.8, -0.6], [-5.8, 0, 2.2, -1.4], [1.2, 0, -3.0, 2.6]],
   },
 };
 // Recomposed when the Roadster became the sixth exhibit: the old frame was centred on x = -14
@@ -888,6 +891,10 @@ async function main() {
 
   window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return;
+    // Every key here is a toggle. Held down, the auto-repeat started and stopped the launch
+    // over and over; with a modifier it is the browser's shortcut (Ctrl+L, Ctrl+R), not ours,
+    // and both used to flip the labels or the ruler on the way.
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.toLowerCase();
     if (k >= '1' && k <= String(VEHICLES.length)) select(VEHICLES[Number(k) - 1].id);
     else if (k === '0') select(null);

@@ -140,6 +140,26 @@ try {
   report(await page.evaluate(() => document.getElementById('help').classList.contains('hidden') && document.activeElement.id === 'help-btn'), 'Escape restores Help button focus');
   await page.evaluate(() => window.__vc.rig.setMode('orbit'));
 
+  // Keyboard toggles fire once per press: a held G used to start and stop the launch on every
+  // auto-repeat, and the browser's own Ctrl+L / Ctrl+R flipped the labels and the ruler.
+  const toggles = () => page.evaluate(() => ({ run: window.__vc.launch.running, ...window.__vc.viewState().toggles }));
+  const t0 = await toggles();
+  await page.keyboard.down('g');
+  for (let i = 0; i < 3; i++) await page.keyboard.down('g');
+  await page.keyboard.up('g');
+  await page.keyboard.press('Control+l');
+  const t1 = await toggles();
+  report(t1.run === !t0.run && t1.labels === t0.labels, 'Held G toggles the launch once; Ctrl+L leaves the labels alone', { t0, t1 });
+  await page.keyboard.press('g');
+  // Space is "up" in free flight, and after clicking the mode button it also pressed that
+  // button, dropping the visitor straight back to orbit.
+  await page.click('#mode-btn');
+  await page.keyboard.down(' ');
+  await page.waitForTimeout(200);
+  await page.keyboard.up(' ');
+  report(await page.evaluate(() => window.__vc.rig.mode === 'fly'), 'Space in free flight does not press the focused mode button');
+  await page.evaluate(() => window.__vc.rig.setMode('orbit'));
+
   // Negative control: recreate the old narrow, oversized header overlapping the sheet.
   await page.setViewportSize({ width: 390, height: 844 });
   const sabotage = await page.addStyleTag({ content: '.hud-header { width: 340px !important; max-width: none !important; } .sheet.collapsed { top: 12px !important; right: 12px !important; }' });

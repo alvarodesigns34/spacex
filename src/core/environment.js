@@ -413,6 +413,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   // The centre is a daylight exhibit now. The control stops a few degrees above the horizon,
   // where the light is at its warmest and the shadows at their longest, and never gets dark.
   const SUN_MIN = 4, SUN_MAX = 75;
+  const BASE_EXPOSURE = 0.7;          // at the default 20° sun (see applyAtmosphere)
 
   const fog = new THREE.FogExp2(0xc5cdd6, 0.00027);
   scene.fog = fog;
@@ -469,7 +470,18 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     sun.intensity = daylight * ((1 - n) + 0.012 * n);
     hemi.color.setHSL(0.58, 0.22 - 0.08 * warmth, 0.58 + 0.06 * t).lerp(_nightHemi, n);
     hemi.intensity = THREE.MathUtils.lerp(THREE.MathUtils.lerp(0.22, 0.36, t), 0.04, n) * (1 - j * 0.9);
-    fog.color.setHSL(0.58, 0.24 + 0.14 * warmth, THREE.MathUtils.lerp(0.48, 0.66, t)).lerp(_nightFog, n);
+    // The haze brightens with the sun up to the default 20°, and only a little past it: rising
+    // on to 0.66 at a 75° sun it went nearly white and the whole site read as milk, with no
+    // contrast past a few hundred metres.
+    const fogL = t < 1 / 3 ? THREE.MathUtils.lerp(0.48, 0.54, t * 3) : THREE.MathUtils.lerp(0.54, 0.57, (t - 1 / 3) * 1.5);
+    fog.color.setHSL(0.58, 0.24 + 0.14 * warmth, fogL).lerp(_nightFog, n);
+    // Exposure follows the light the way a camera's metering does, half-way: the square root
+    // of the ground's irradiance against the default 20° sun, where 0.7 was calibrated. With a
+    // fixed exposure a midday sun put ~2.5× the light on every horizontal surface and the
+    // apron, the flats and the sky all clipped towards white. Low suns are lifted a little
+    // (at most 15 %) so evening light stays evening light rather than being metered to noon.
+    const irr = (e) => THREE.MathUtils.lerp(1.35, 2.8, Math.pow(THREE.MathUtils.clamp(e / 60, 0, 1), 0.55)) * Math.sin(THREE.MathUtils.degToRad(e)) + 0.6;
+    renderer.toneMappingExposure = BASE_EXPOSURE * THREE.MathUtils.clamp(Math.sqrt(irr(20) / irr(elev)), 0.6, 1.15);
 
     // Scattering: the two blends multiply. Everything is computed from the ground constants,
     // never read back out of the uniforms — reading and multiplying compounds on every call.

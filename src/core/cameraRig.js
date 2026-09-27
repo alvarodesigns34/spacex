@@ -48,8 +48,13 @@ export class CameraRig {
     this._wish = new THREE.Vector3();
     this._dir = new THREE.Vector3();
 
-    this._onKeyDown = (e) => { if (e.target.tagName === 'INPUT') return; this.keys.add(e.code); };
-    this._onKeyUp = (e) => this.keys.delete(e.code);
+    // In free flight the movement keys belong to the flight. Space is "up", and it is also
+    // what a browser uses to press the focused button: after clicking "Free flight" the
+    // focus stays on that button, so rising pressed it and dropped straight back to orbit.
+    const FLY_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'KeyC', 'Space']);
+    const claim = (e) => { if (this.mode === 'fly' && FLY_KEYS.has(e.code) && e.target.tagName !== 'INPUT') e.preventDefault(); };
+    this._onKeyDown = (e) => { if (e.target.tagName === 'INPUT') return; claim(e); this.keys.add(e.code); };
+    this._onKeyUp = (e) => { claim(e); this.keys.delete(e.code); };
     // A keyup that lands on another window never reaches us, so the key stays in the set and
     // the camera flies on by itself when the tab comes back. Alt-Tab away mid-flight and the
     // scene had drifted off into the distance by the time you returned.

@@ -226,7 +226,7 @@ export const VEHICLES = [
     sources: ['spacex_fh', 'falcon_guide_2025', 'wiki_fh', 'wiki_merlin', 'nasa_europa_clipper_39a'],
     presets: [
       { id: 'overview', label: 'Overview', pos: [80, 38, 100], target: [0, 33, 0] },
-      { id: 'engines', label: '27 Merlins', pos: [3.2, -5.8, 4.2], target: [0, 0.5, 0] },
+      { id: 'engines', label: '27 Merlins', pos: [6.8, -4.0, 1.2], target: [0.5, 0.4, 0] },
       { id: 'nosecones', label: 'Side nose cones', pos: [15, 46, 17], target: [0, 42.5, 0] },
       { id: 'struts', label: 'Forward interfaces', pos: [3, 36, 8], target: [2.1, 34.1, 0] },
       { id: 'aft-interfaces', label: 'Aft interfaces', pos: [3.2, 4.9, 8], target: [2.1, 2.9, 0] },
