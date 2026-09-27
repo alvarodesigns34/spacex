@@ -262,7 +262,12 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
   // Interstage: unpainted carbon composite, with the Merlin Vacuum nozzle inside it. The
   // paint/composite boundary is the sharpest line on the vehicle and was a bare butt joint;
   // on the real booster there is a lap, a ring of fasteners and a run of sooting above it.
-  g.add(mesh(lathe([{ r: R, y: TANK_TOP }, { r: R, y: S1_H }], { segments: 128 }), M.carbon, { name: 'interstage' }));
+  // The Falcon Heavy centre core's is painted white: NASA's photographs of Psyche
+  // (KSC-20231010-PH-SPX01_0007, 2023) and Europa Clipper (KSC-20241013-PH-SPX02_0001, 2024)
+  // on 39A both show it white under the forward strut beam, sooted grey; two consecutive NASA
+  // missions, where one alone was not enough to change it. (The logo and flag it carries are
+  // left off, as on every exhibit here.)
+  g.add(mesh(lathe([{ r: R, y: TANK_TOP }, { r: R, y: S1_H }], { segments: 128 }), variant === 'fh-center' ? (M.whiteFresh ?? M.carbon) : M.carbon, { name: 'interstage' }));
   g.add(mesh(lathe([{ r: R - 0.03, y: TANK_TOP + 0.2 }, { r: R - 0.03, y: S1_H }], { segments: 64, flip: true }), M.blackMatte, { castShadow: false }));
   {
     const trim = [];
