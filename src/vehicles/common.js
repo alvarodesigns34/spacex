@@ -224,7 +224,7 @@ export function buildPedestal(M, { radius = 1.2, height = 1.2, post = 0 } = {}) 
  * seeded hash of where the person stands, and a shadow cast along the real sun direction.
  */
 /** A capsule of radius r from a to b, as a merge item. */
-function limb(a, b, r, seg = 8) {
+function limb(a, b, r, seg = 7) {
   const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b);
   const d = B.clone().sub(A), len = d.length();
   const geometry = new THREE.CapsuleGeometry(r, Math.max(0.001, len), 3, seg);
@@ -272,7 +272,7 @@ function humanParts(suit, look) {
   const torso = new THREE.LatheGeometry([
     [0.001, 0.84], [0.150, 0.85], [0.165, 0.92], [0.160, 0.98], [0.140, 1.06], [0.150, 1.16],
     [0.172, 1.28], [0.188, 1.38], [0.170, 1.44], [0.100, 1.485], [0.001, 1.50],
-  ].map(([r, y]) => new THREE.Vector2(r, y)), 16);
+  ].map(([r, y]) => new THREE.Vector2(r, y)), 14);
   torso.scale(1, 1, 0.62);
   parts.push({ layer: 'cloth', color: (y) => (y > 0.955 ? top : legs), geometry: torso, matrix: new THREE.Matrix4() });
 
@@ -280,7 +280,7 @@ function humanParts(suit, look) {
   for (const s of [-1, 1]) {
     const arm = poseArms(pose, s);
     const sh = [0.19 * s, 1.395, 0];
-    add('cloth', top, { geometry: new THREE.SphereGeometry(0.058, 10, 8), matrix: mat4(sh) });
+    add('cloth', top, { geometry: new THREE.SphereGeometry(0.058, 8, 6), matrix: mat4(sh) });
     add('cloth', top, limb(sh, arm.e, 0.046));
     add('cloth', top, limb(arm.e, arm.w, 0.039));
     const hand = limb(arm.w, arm.h, 0.03, 6);
@@ -296,7 +296,7 @@ function humanParts(suit, look) {
   }
   const tilt = poseArms(pose, 1).tilt;
   head.push({ layer: 'skin', color: skin, geometry: new THREE.CylinderGeometry(0.044, 0.05, 0.10, 10), matrix: mat4([0, 1.535, 0]) });
-  const skull = new THREE.SphereGeometry(0.092, 18, 14);
+  const skull = new THREE.SphereGeometry(0.092, 14, 10);
   skull.scale(0.9, 1.12, 1.0);
   head.push({ layer: 'skin', color: skin, geometry: skull, matrix: mat4([0, 1.675, 0.008]) });
   head.push({ layer: 'skin', color: skin, geometry: new THREE.SphereGeometry(0.017, 8, 6), matrix: mat4([0, 1.655, 0.097]) });
@@ -306,7 +306,7 @@ function humanParts(suit, look) {
     head.push({ layer: 'hat', color: null, geometry: hat, matrix: mat4([0, 1.745, 0.005]) });
     head.push({ layer: 'hat', color: null, geometry: new THREE.CylinderGeometry(0.125, 0.125, 0.008, 20), matrix: mat4([0, 1.745, 0.012]) });
   } else {
-    const cap = new THREE.SphereGeometry(0.097, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.56);
+    const cap = new THREE.SphereGeometry(0.097, 14, 7, 0, Math.PI * 2, 0, Math.PI * 0.56);
     cap.scale(0.93, 1.1, 1.04);
     head.push({ layer: 'hair', color: hair, geometry: cap, matrix: mat4([0, 1.69, -0.004], [-0.28, 0, 0]) });
   }

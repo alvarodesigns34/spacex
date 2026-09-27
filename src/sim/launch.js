@@ -805,12 +805,34 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   // Frost on the loaded tanks: shown for the sequence (the exhibit on its stand is dry), full
   // on the pad, shedding through the ascent as the vehicle shakes and the propellant drains.
   const frostShells = ['booster-frost', 'ship-frost'].map(n => ex.model.getObjectByName(n)).filter(Boolean);
-  const frostMat = frostShells[0]?.children[0]?.material;
+  // Each shell gets its own copy of the frost material, so the booster's can go while the
+  // ship's stays: the returning booster has drained its tanks, and SpaceX's photograph of the
+  // Flight 5 landing burn shows no frost on it. Kept at 40 % it painted the returning booster
+  // white from MECO to the catch.
+  const frostMats = frostShells.map((f) => {
+    const m = f.children[0]?.material?.clone();
+    if (m) f.traverse((o) => { if (o.isMesh) o.material = m; });
+    return m;
+  });
   function applyFrost(t, on) {
     const k = !on ? 0 : t < EVENTS.liftoff + 15 ? 1
       : THREE.MathUtils.lerp(1, 0.4, THREE.MathUtils.smoothstep(t, EVENTS.liftoff + 15, EVENTS.meco));
-    for (const f of frostShells) f.visible = k > 0.01;
-    if (frostMat) frostMat.opacity = 0.9 * k;
+    frostShells.forEach((f, i) => {
+      const kf = f.name === 'booster-frost' ? k * (1 - THREE.MathUtils.smoothstep(t, EVENTS.separation, EVENTS.boostbackEnd)) : k;
+      f.visible = kf > 0.01;
+      if (frostMats[i]) frostMats[i].opacity = 0.9 * kf;
+    });
+  }
+
+  // Soot on the returning booster (library.js, sootable): none on the pad or in the ascent;
+  // the boostback relight, with its plume recirculating round the engine bay, puts the first
+  // of it on, and reentry heating the rest before the landing burn. Clean again on reset.
+  const soot = booster?.userData.soot;
+  function applySoot(t, on) {
+    if (!soot) return;
+    soot.value = !on ? 0
+      : 0.4 * THREE.MathUtils.smoothstep(t, EVENTS.boostbackStart, EVENTS.boostbackEnd)
+      + 0.6 * THREE.MathUtils.smoothstep(t, EVENTS.boostbackEnd + 60, EVENTS.landingBurn - 20);
   }
 
   const home = {
@@ -1127,6 +1149,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   // ---- The one function that maps a mission time to the whole scene ---------------------
   function apply(t) {
     applyFrost(t, true);
+    applySoot(t, true);
     const alt = altitudeAt(t);
     const bt = boosterThrottle(t), st = shipThrottle(t);
 
@@ -1287,6 +1310,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     camera.near = home.near; camera.far = home.far;
     camera.updateProjectionMatrix();
     applyFrost(0, false);
+    applySoot(0, false);
     visibilityHook?.(false);
     Object.assign(state, { phase: 'On the pad', altitude: 0, velocity: 0, throttle: 0, downrange: 0, next: null });
     Object.assign(state.ship, { altitude: 0, velocity: 0, lit: 0 });

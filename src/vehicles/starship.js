@@ -465,6 +465,14 @@ export function buildSuperHeavy(M) {
   }
   g.add(frost);
   g.userData.stations = { aft: BOOSTER_AFT, skirtTop, commonDome, ringTop, finY, pinY: finY - PIN_DROP, height: BOOSTER_H };
+  // The booster's steel takes soot on the way back (library.js, sootable): its own copies of
+  // the three steels, driven by one uniform the launch sequence sets from mission time. On the
+  // stand it is 0 and they look exactly like the clean ones.
+  if (M.boosterSteel) {
+    const swap = new Map([[M.steel, M.boosterSteel], [M.steelSkirt, M.boosterSkirt], [M.steelWarm, M.boosterWarm]]);
+    g.traverse((o) => { if (o.isMesh && swap.has(o.material)) o.material = swap.get(o.material); });
+    g.userData.soot = M.boosterSoot;
+  }
   return g;
 }
 

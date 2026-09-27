@@ -313,6 +313,8 @@ Cada expositor se volvió a comparar con fuentes primarias desde un ángulo equi
   Siguen fuera del mapa de sombras, como exige el control de rendimiento: son seis mallas en total (tela, piel, pelo, calzado, cascos y sombra). La sombra queda a 3,5 cm sobre la cota de los pies, porque el pavimento del recinto está a 12 mm sobre el terreno y a menos cota competían en profundidad.
 - **Falcon 1: costura de la cofia de 7 mm.** Con 12 mm, desde la vista de la propia cofia se leía como un trazo de rotulador.
 
+- **El propulsor vuelve tiznado.** En la foto de SpaceX del encendido de aterrizaje del vuelo 5 junto a la torre (spacex.com, *Starship's Fifth Flight Test*), el propulsor que vuelve es gris oscuro, negro hacia los motores, con vetas a lo largo y manchas pardas de la reentrada. En la secuencia volvía como un espejo, igual que había despegado, y encima con un 40 % de escarcha blanca que se mantenía desde el MECO hasta la captura. Ahora el propulsor tiene sus propias copias de los tres aceros con una capa de hollín en el shader. Está controlada por un uniforme que la secuencia fija según el tiempo de misión: nada en la plataforma ni en el ascenso, un 40 % con el reencendido del *boostback* y el resto antes del encendido de aterrizaje. Debajo del hollín, el acero sale apagado y tostado. La escarcha del propulsor, que ya tiene los tanques casi vacíos, desaparece entre la separación y el final del *boostback*, y la de la nave no cambia. Al reiniciar vuelve a estar limpio, y en la exposición no cambia nada. El patrón (más denso en popa, vetas verticales, manchas) es procedural y aproximado.
+
 ### Auditoría externa de ChatGPT (septiembre de 2026)
 
 Se contrastó punto por punto con fuentes primarias antes de tocar nada.

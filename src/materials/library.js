@@ -90,6 +90,54 @@ float vcPlateHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758
   m.customProgramCacheKey = () => `vc-steel-plates-2${key ? key() : ''}`;
 }
 
+/**
+ * Soot on a flown booster, driven by one shared uniform (0 clean, 1 as returned). A booster
+ * coming back to the tower is not the mirror it left as: SpaceX's photograph of Flight 5's
+ * landing burn beside the tower (spacex.com, "Starship's Fifth Flight Test") shows it dark
+ * grey, black towards the engines, streaked down its length and stained brown in patches by
+ * reentry heating. The pattern is procedural — heavier aft, vertical streaks, broad patches —
+ * and approximate; the amount is set by the launch sequence from mission time.
+ * Hooked after metalnessmap_fragment, which ringsAndPlates leaves intact and which runs after
+ * the colour and roughness it modifies.
+ */
+function sootable(m, uSoot) {
+  const prev = m.onBeforeCompile;
+  m.onBeforeCompile = (sh, r) => {
+    prev?.(sh, r);
+    sh.uniforms.uSoot = uSoot;
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vSootP;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSootP = position;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+uniform float uSoot;
+varying vec3 vSootP;
+float sootHash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float sootNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(sootHash(i), sootHash(i + vec2(1.0, 0.0)), u.x), mix(sootHash(i + vec2(0.0, 1.0)), sootHash(i + vec2(1.0, 1.0)), u.x), u.y);
+}`)
+      .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
+  if (uSoot > 0.001) {
+    float sAng = atan(vSootP.x, vSootP.z);
+    float sY = vSootP.y;
+    float aft = 1.0 - 0.6 * smoothstep(3.0, 50.0, sY);
+    float streak = sootNoise(vec2(sAng * 11.0, sY * 0.045)) * 0.65 + sootNoise(vec2(sAng * 38.0, sY * 0.16)) * 0.35;
+    float sPatch = sootNoise(vec2(sAng * 2.6 + 7.0, sY * 0.09));
+    float sAmt = uSoot * clamp(0.5 + 0.4 * aft + (streak - 0.5) * 0.85 + (sPatch - 0.5) * 0.4, 0.0, 1.0);
+    float scorch = uSoot * smoothstep(0.55, 0.8, sootNoise(vec2(sAng * 4.3 - 3.0, sY * 0.07 + 11.0))) * (1.0 - aft * 0.5);
+    // Under the soot, the steel itself comes back heat-dulled and tan, not mirror-bright.
+    diffuseColor.rgb *= mix(vec3(1.0), vec3(0.62, 0.57, 0.52), uSoot);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.046, 0.043), sAmt * 0.9);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.3, 0.19, 0.12), scorch * 0.5);
+    metalnessFactor = mix(metalnessFactor, 0.25, sAmt);
+    roughnessFactor = mix(roughnessFactor, 0.8, max(sAmt, 0.5 * uSoot));
+  }`);
+  };
+  const key = m.customProgramCacheKey?.bind(m);
+  m.customProgramCacheKey = () => `vc-soot-1${key ? key() : ''}`;
+}
+
 export async function createMaterials(onProgress = () => {}, pause = null) {
   const T = {};
   const steps = [
@@ -152,6 +200,13 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
   // Payload-bay door seam: the same steel, darkened, so the outline reads without a decal.
   M.steelDoor = new THREE.MeshPhysicalMaterial({ ...steelBase, color: 0xeceded, map: T.steel.map, roughnessMap: T.steel.roughnessMap, normalMap: T.steel.normalMap });
   for (const m of [M.steel, M.steelSkirt, M.steelWarm, M.steelDoor]) ringsAndPlates(m);
+  // The booster's own copies of the three steels, with the soot hook: the ship and the exhibit
+  // keep the clean ones. `M.boosterSoot` is the shared amount the launch sequence drives.
+  M.boosterSoot = { value: 0 };
+  M.boosterSteel = new THREE.MeshPhysicalMaterial({ ...steelBase, map: T.steel.map, roughnessMap: T.steel.roughnessMap, normalMap: T.steel.normalMap });
+  M.boosterSkirt = new THREE.MeshPhysicalMaterial({ ...steelBase, anisotropy: 0.2, envMapIntensity: 0.7, map: T.steelSkirt.map, roughnessMap: T.steelSkirt.roughnessMap, normalMap: T.steelSkirt.normalMap });
+  M.boosterWarm = new THREE.MeshPhysicalMaterial({ ...steelBase, anisotropy: 0.3, envMapIntensity: 0.78, map: T.steelWarm.map, roughnessMap: T.steelWarm.roughnessMap, normalMap: T.steelWarm.normalMap });
+  for (const m of [M.boosterSteel, M.boosterSkirt, M.boosterWarm]) { ringsAndPlates(m); sootable(m, M.boosterSoot); }
   // Flap skins: the same steel, but rougher so the rounded leading edge catches a soft
   // highlight instead of drawing a mirror-bright outline against the sky.
   // Both faces of a Starship flap read dark grey in photographs — the lee face carries a
