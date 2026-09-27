@@ -317,7 +317,20 @@ export function buildFalconCore(M, { variant = 'f9', bodyMaterial } = {}) {
   // read as a measured payload adapter; nothing measures it.
   g.add(mesh(lathe([{ r: R, y: S2_TOP }, { r: R, y: FAIRING_BASE }], { segments: 128 }), M.white, { name: 'stage2-forward-skirt' }));
   g.add(mesh(new THREE.TorusGeometry(R + 0.006, 0.02, 5, 96), seamMat(M), { position: [0, S2_TOP, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false, name: 'stage2-forward-seam' }));
-  g.add(mesh(new THREE.BoxGeometry(0.38, S2_H - 1.2, 0.18), M.blackMatte, { position: [0, S1_H + S2_H / 2, R + 0.08] }));
+  // Second-stage raceway: white, not black. NASA's close-up of the Europa Clipper vehicle
+  // (KSC-20241013-PH-SPX02_0005) shows it as a narrow riveted white channel, ≈0.2 m wide against
+  // the 3.66 m stage, ending low on the stage in a rounded fairing. It was a 0.38 m black bar,
+  // which drew a stripe the length of the stage that no photograph shows. (The first stage's
+  // raceway is black, as the same photographs show on all three cores.) Sizes approximate.
+  {
+    const top = S2_TOP - 0.6, bot = S1_H + 1.9;
+    const cap = new THREE.CapsuleGeometry(0.24, 0.7, 6, 16);
+    cap.scale(1, 1, 0.34);
+    g.add(mesh(boxUV(mergeAll([
+      { geometry: new THREE.BoxGeometry(0.2, top - bot, 0.1), matrix: mat4([0, (top + bot) / 2, R + 0.05]) },
+      { geometry: cap, matrix: mat4([0, bot - 0.35, R + 0.02]) },
+    ])), M.whiteFresh ?? M.white, { name: 'stage2-raceway' }));
+  }
 
   // Fairing: 13.2 m × 5.2 m, two halves, blunt ogive nose.
   const ogiveStart = FAIRING_BASE + 6.1;

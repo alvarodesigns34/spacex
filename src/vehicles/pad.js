@@ -923,7 +923,7 @@ function buildPadInfrastructure(M) {
   g.add(mesh(boxUV(mergeAll(curbs)), M.concrete));
   g.add(mesh(boxUV(mergeAll(curbYellow)), M.safetyYellow));
 
-  // 2. Trench perimeter safety handrails (prevent falling 8.2 m into the pit)
+  // 2. Trench perimeter safety handrails (prevent falling into the pit)
   const rails = [];
   const railYellow = [];
   for (const s of [-1, 1]) {
@@ -1119,7 +1119,8 @@ export function buildLaunchComplex(M) {
     { label: 'Ship quick-disconnect arm', position: [PAD.towerX + 14, PAD.qdY + 4, 0] },
     { label: 'Launch mount · water-cooled deck', position: [17, PAD.deckTop + 2.5, 14] },
     { label: '20 hold-down clamps', position: [8.5, PAD.deckTop + 3.6, -9] },
-    { label: 'Bidirectional flame trench · 8.2 m', position: [0, PAD.trenchFloorY + 3, 40] },
+    // From the constant that builds it: this label said 8.2 m for months after the trench became 4.2 m.
+    { label: `Bidirectional flame trench · ${PAD.trenchDepth.toFixed(1)} m deep`, position: [0, PAD.trenchFloorY + 3, 40] },
   ];
   return g;
 }

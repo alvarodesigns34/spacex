@@ -10,7 +10,10 @@
  *  - every figure must be stated in the sheet, and every graded figure must cite a source that
  *    exists (a reconstruction must say what it was reconstructed from);
  *  - the vehicle table at the top of the README must state each figure it is meant to;
- *  - a part count the sheet states (the modelled tiles) must be the count the check enforces.
+ *  - a part count the sheet states (the modelled tiles) must be the count the check enforces;
+ *  - every figure with a unit (m, tf, kN, in) written into a 3-D label in a vehicle builder must
+ *    be stated in that vehicle's sheet: the Pad 2 trench label said 8.2 m for months after the
+ *    trench, the sheet and the check had all become 4.2 m.
  *
  * Mutations of the inputs must fail, so the gate cannot pass by checking nothing.
  */
@@ -20,6 +23,14 @@ import { fileURLToPath } from 'node:url';
 const { FIGURES, PAD_FIGURES, COUNTS, GRADES } = await import('../src/data/figures.js');
 const { VEHICLES, SOURCES } = await import('../src/data/specs.js');
 const README = readFileSync(fileURLToPath(new URL('../README.md', import.meta.url)), 'utf8');
+// Which exhibit's sheet each builder's labels answer to.
+const LABEL_FILES = {
+  'pad.js': ['starship'], 'starship.js': ['starship'], 'falcon.js': ['falcon9', 'falconheavy'],
+  'falcon1.js': ['falcon1'], 'dragon.js': ['dragon'], 'starlink.js': ['starlink'],
+  'roadster.js': ['roadster'], 'enginehall.js': ['engines'],
+};
+const BUILDERS = Object.fromEntries(Object.keys(LABEL_FILES).map(f =>
+  [f, readFileSync(fileURLToPath(new URL(`../src/vehicles/${f}`, import.meta.url)), 'utf8')]));
 
 const SOURCE_FOR_GRADE = {
   A: ['spacex', 'official', 'nasa'],
@@ -54,7 +65,7 @@ function readmeTable(readme) {
   return rows;
 }
 
-export function audit({ figures, pad, counts, vehicles, sources, readme }) {
+export function audit({ figures, pad, counts, vehicles, sources, readme, builders = {} }) {
   const problems = [];
   const bad = (msg) => problems.push(msg);
   const graded = (where, f) => {
@@ -103,6 +114,23 @@ export function audit({ figures, pad, counts, vehicles, sources, readme }) {
     else if (!states(row.value, c.want)) bad(`${id}.${c.key}: la fila «${c.sheet}» dice «${row.value}», que no enuncia ${c.want}`);
   }
 
+  // Figures with a unit in the 3-D labels (literal strings; a template built from a constant
+  // cannot drift from it). Each must be stated somewhere in the owning exhibit's sheet.
+  for (const [file, text] of Object.entries(builders)) {
+    const ids = LABEL_FILES[file] ?? [];
+    const sheet = ids.flatMap(id => {
+      const v = vehicles.find(x => x.id === id);
+      return v ? [...v.specs.map(r => r.value), ...(v.approximations ?? [])] : [];
+    }).join(' · ');
+    for (const m of text.matchAll(/\{\s*label:\s*'((?:[^'\\]|\\.)*)'\s*,\s*position/g)) {
+      for (const u of m[1].matchAll(/(\d[\d,]*(?:\.\d+)?)\s*(?:m|tf|kN|in)\b/g)) {
+        const [{ n, half }] = numbersIn(u[1]);
+        const said = numbersIn(sheet).some(x => Math.abs(x.n - n) <= half + 1e-9);
+        if (!said) bad(`${file}: la etiqueta «${m[1]}» dice ${u[0]}, que la ficha de ${ids.join('/')} no enuncia`);
+      }
+    }
+  }
+
   const table = readmeTable(readme);
   if (table.length !== vehicles.length) bad(`README: la tabla tiene ${table.length} filas y hay ${vehicles.length} expositores`);
   for (const v of vehicles) {
@@ -122,7 +150,7 @@ const report = (ok, name, detail = '') => {
   if (!ok) failed++;
 };
 
-const base = { figures: FIGURES, pad: PAD_FIGURES, counts: COUNTS, vehicles: VEHICLES, sources: SOURCES, readme: README };
+const base = { figures: FIGURES, pad: PAD_FIGURES, counts: COUNTS, vehicles: VEHICLES, sources: SOURCES, readme: README, builders: BUILDERS };
 const found = audit(base);
 report(found.length === 0, 'Cifras, ficha y README coinciden, con fuente según su grado', found.length ? `\n  ${found.join('\n  ')}` : '');
 
@@ -139,6 +167,7 @@ const mutants = [
   ['cabecera de la ficha escrita a mano', withVehicles(v => { v.find(x => x.id === 'falcon9').footprint = 3.7; })],
   ['cifra sin fila en la ficha', withVehicles(v => { for (const r of v.find(x => x.id === 'engines').specs) delete r.fig; })],
   ['recuento de losetas antiguo en la ficha', withVehicles(v => { const r = v.find(x => x.id === 'starship').specs.find(x => x.label === 'Heat shield'); r.value = r.value.replace('13,361', '13,132'); })],
+  ['etiqueta 3-D con la zanja antigua', { ...base, builders: { ...BUILDERS, 'pad.js': BUILDERS['pad.js'] + "\n{ label: 'Bidirectional flame trench · 8.2 m', position: [0, 0, 0] }" } }],
   ['fuente inexistente', { ...base, figures: { ...FIGURES, dragon: { ...FIGURES.dragon, height: { ...FIGURES.dragon.height, ref: 'no_such_source' } } } }],
 ];
 for (const [name, input] of mutants) {

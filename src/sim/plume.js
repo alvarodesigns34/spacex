@@ -428,29 +428,36 @@ function buildPuffTexture() {
   const img = ctx.createImageData(size, size);
   const data = img.data;
   const rng = (() => { let x = 0x9e3779b9; return () => ((x = (x * 1664525 + 1013904223) >>> 0) / 4294967296); })();
-  const dens = new Float32Array(cell * cell);
-  // The relief the normals come from: the density before its edge is sharpened, blurred. Taken
-  // from the sharpened density, every contour became a steep step and the shading drew a dark
-  // crease along each one.
-  const relief = new Float32Array(cell * cell), tmp = new Float32Array(cell * cell);
+  // A height field, not a density: each lobe is a spherical cap, and the lobes are joined by a
+  // soft maximum, so the puff is a cluster of rounded domes with creases between them — the way
+  // a cumulus billow is lit. It used to be the density itself, summed until it saturated, with
+  // its edges sharpened: a flat plateau with bevelled rims, which the lighting drew as a dish,
+  // and isolated small discs around it that read as bubbles. Close up, the launch cloud looked
+  // pitted like foam. Normals are the true gradient of the caps (height in the same units as
+  // x and y), so a lobe shades as a dome from its lit top to its dark underside.
+  const H = new Float32Array(cell * cell), A = new Float32Array(cell * cell);
+  const K = 0.035;                               // softness of the crease between two lobes
   for (let v = 0; v < cells * cells; v++) {
     const ox = (v % cells) * cell, oy = Math.floor(v / cells) * cell;
-    // A main mass, off centre by a little, then mid lobes and small turrets, weighted to the
-    // upper half (the sunlit top of a puff is where it boils; underneath it is flatter).
-    const lean = (rng() - 0.5) * 0.16;
-    const lobes = [{ x: lean, y: 0.0, r: 0.4 + rng() * 0.06, w: 0.85 }];
-    const mid = 9 + Math.floor(rng() * 6);
+    const lean = (rng() - 0.5) * 0.14;
+    const lobes = [{ x: lean, y: -0.04, r: 0.36 + rng() * 0.06 }];
+    // Mid lobes round the main mass, and small ones on the rims of those: every turret is
+    // attached to something, weighted to the upper, sunlit side where a puff boils.
+    const mid = 6 + Math.floor(rng() * 5);
     for (let k = 0; k < mid; k++) {
-      const a = rng() * Math.PI * 2, d = 0.26 + rng() * 0.24;
-      lobes.push({ x: Math.cos(a) * d + lean, y: Math.sin(a) * d * 0.9 + 0.04, r: 0.2 + rng() * 0.14, w: 0.8 + rng() * 0.3 });
+      const a = rng() * Math.PI * 2, p0 = lobes[0];
+      const r = 0.17 + rng() * 0.12, d = p0.r * (0.55 + rng() * 0.4);
+      lobes.push({ x: p0.x + Math.cos(a) * d, y: p0.y + Math.sin(a) * d * 0.9 + 0.03, r });
     }
-    const small = 10 + Math.floor(rng() * 14);
+    const small = 12 + Math.floor(rng() * 12);
     for (let k = 0; k < small; k++) {
-      const a = rng() * Math.PI * 2, d = 0.44 + rng() * 0.26;
-      // Turrets cluster on the upper edge.
-      const yy = Math.sin(a) * d;
-      if (yy < -0.2 && rng() < 0.6) continue;
-      lobes.push({ x: Math.cos(a) * d * 0.95 + lean, y: yy, r: 0.07 + rng() * 0.08, w: 0.8 + rng() * 0.3 });
+      const par = lobes[1 + Math.floor(rng() * (lobes.length - 1))];
+      let a = rng() * Math.PI * 2;
+      if (Math.sin(a) < -0.3 && rng() < 0.65) a = -a;          // mostly on the upper rims
+      const r = 0.06 + rng() * 0.07, d = par.r * (0.75 + rng() * 0.2);
+      const x = par.x + Math.cos(a) * d, y = par.y + Math.sin(a) * d;
+      if (Math.hypot(x, y) + r > 0.93) continue;               // keep inside the cell
+      lobes.push({ x, y, r });
     }
     const seed = v * 37.1;
     for (let y = 0; y < cell; y++) {
@@ -458,46 +465,41 @@ function buildPuffTexture() {
       const ny = -(y - cell / 2) / (cell / 2);
       for (let x = 0; x < cell; x++) {
         const nx = (x - cell / 2) / (cell / 2);
-        const r = Math.hypot(nx, ny);
-        let d = 0;
+        let sum = 0, any = false;
         for (const lb of lobes) {
-          const q = Math.hypot(nx - lb.x, ny - lb.y) / lb.r;
-          if (q < 1) { const t = 1 - q; d += lb.w * t * t * (3 - 2 * t); }
+          const q2 = ((nx - lb.x) ** 2 + (ny - lb.y) ** 2) / (lb.r * lb.r);
+          if (q2 < 1) { sum += Math.exp(lb.r * Math.sqrt(1 - q2) / K); any = true; }
         }
-        // Turrets below the lobe scale: fractal noise at two frequencies.
-        const turb = (fbm(nx * 4.2 + seed, ny * 4.2 - seed, 5, 2.1, 0.55) - 0.5)
-          + 0.25 * (fbm(nx * 11 - seed, ny * 11 + seed, 3, 2.0, 0.5) - 0.5);
-        d = d * 1.2 + turb * 0.8;
-        const edge = 1 - THREE.MathUtils.smoothstep(r, 0.82, 0.99);
-        dens[y * cell + x] = THREE.MathUtils.clamp(THREE.MathUtils.smoothstep(d, 0.12, 0.5) * edge, 0, 1);
-        relief[y * cell + x] = THREE.MathUtils.clamp(d, 0, 1.4) * edge;
+        let h = any ? K * Math.log(sum) : 0;
+        // Fine billowing on the surface, a few per cent of the height.
+        if (h > 0) h += 0.018 * (fbm(nx * 9 + seed, ny * 9 - seed, 4, 2.0, 0.5) - 0.5) * Math.min(1, h / 0.05);
+        H[y * cell + x] = Math.max(0, h);
+        // Density follows the thickness of the dome, so a puff is opaque through its middle
+        // and thins towards its outline, and the small turrets (a tenth of the cell high) stay
+        // half transparent — the lit-through fringe of a real billow. A low-frequency field
+        // frays it, so erosion (which raises a threshold with age) shrinks the outline raggedly
+        // without opening holes in the middle.
+        const fray = 0.75 + 0.5 * fbm(nx * 3.1 - seed, ny * 3.1 + seed, 3, 2.0, 0.5);
+        A[y * cell + x] = THREE.MathUtils.clamp(THREE.MathUtils.smoothstep(h, 0.0, 0.2) * Math.min(1, fray + 0.25), 0, 1);
       }
     }
-    // Two box-blur passes (±3 px), separable.
-    for (let pass = 0; pass < 2; pass++) {
-      for (let y = 0; y < cell; y++) for (let x = 0; x < cell; x++) {
-        let a = 0, n = 0;
-        for (let k = -3; k <= 3; k++) { const xx = x + k; if (xx >= 0 && xx < cell) { a += relief[y * cell + xx]; n++; } }
-        tmp[y * cell + x] = a / n;
-      }
-      for (let y = 0; y < cell; y++) for (let x = 0; x < cell; x++) {
-        let a = 0, n = 0;
-        for (let k = -3; k <= 3; k++) { const yy = y + k; if (yy >= 0 && yy < cell) { a += tmp[yy * cell + x]; n++; } }
-        relief[y * cell + x] = a / n;
-      }
-    }
+    const px = 2 / cell;                         // one pixel in the puff's own units
     for (let y = 0; y < cell; y++) {
-      const y0 = Math.max(0, y - 2), y1 = Math.min(cell - 1, y + 2);
+      const y0 = Math.max(0, y - 1), y1 = Math.min(cell - 1, y + 1);
       for (let x = 0; x < cell; x++) {
-        const x0 = Math.max(0, x - 2), x1 = Math.min(cell - 1, x + 2);
-        const dx = (relief[y * cell + x1] - relief[y * cell + x0]) * 3.0;
-        const dy = (relief[y1 * cell + x] - relief[y0 * cell + x]) * 3.0;
-        const len = Math.hypot(dx, dy, 1);
+        const x0 = Math.max(0, x - 1), x1 = Math.min(cell - 1, x + 1);
+        const dx = (H[y * cell + x1] - H[y * cell + x0]) / ((x1 - x0) * px);
+        const dy = -(H[y1 * cell + x] - H[y0 * cell + x]) / ((y1 - y0) * px);   // +y up
+        const g = Math.min(Math.hypot(dx, dy), 6);                // cap the rim's slope
+        const sc = g > 0 ? g / Math.hypot(dx, dy) : 0;
+        const nxv = -dx * sc, nyv = -dy * sc, len = Math.hypot(nxv, nyv, 1);
         const i = ((oy + y) * size + ox + x) * 4;
-        data[i] = Math.round((-dx / len * 0.5 + 0.5) * 255);
-        data[i + 1] = Math.round((-dy / len * 0.5 + 0.5) * 255);
+        data[i] = Math.round((nxv / len * 0.5 + 0.5) * 255);
+        // +y up, as the quad's uv and the flipped canvas both run. The old encoding stored the
+        // vertical component negated: every lobe was lit from below, which reads as a dent.
+        data[i + 1] = Math.round((nyv / len * 0.5 + 0.5) * 255);
         data[i + 2] = Math.round(255 / len);
-        data[i + 3] = Math.round(dens[y * cell + x] * 255);
+        data[i + 3] = Math.round(A[y * cell + x] * 255);
       }
     }
   }
@@ -920,7 +922,9 @@ const VAPOR_FRAG = /* glsl */`
     vec4 t = texture2D(uMap, vUv);
     float a = t.a * vAlpha;
     if (a < 0.004) discard;
-    vec2 n2 = t.rg * 2.0 - 1.0;
+    // Softer relief than the trench cloud: venting vapour is thin, and full-strength normals
+    // outlined every translucent puff where they overlap.
+    vec2 n2 = (t.rg * 2.0 - 1.0) * 0.7;
     float s = sin(vRot), k = cos(vRot);
     vec3 n = normalize(vec3(n2.x * k - n2.y * s, n2.x * s + n2.y * k, max(t.b, 0.2)));
     float wrap = clamp((dot(n, uSunDir) + 0.5) / 1.5, 0.0, 1.0);

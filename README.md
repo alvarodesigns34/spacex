@@ -151,6 +151,12 @@ El panel de misión explicaba en una nota plegable que la secuencia no es un vue
 
 ### Nube de lanzamiento contra el vuelo 12
 
+**Los hoyuelos de la nube (revisión de la galería regenerada).** De cerca, la nube de tierra y el vapor parecían espuma con cráteres. Había dos causas en el atlas de bocanadas:
+- **Signo invertido:** la componente vertical de la normal se guardaba con el signo cambiado, así que cada lóbulo se iluminaba desde abajo, y un bulto iluminado desde abajo se lee como un hoyo.
+- **Relieve en meseta:** el relieve era la densidad sumada hasta saturar, una meseta plana con los bordes biselados. Alrededor quedaban discos pequeños sueltos, que se leían como burbujas.
+
+Ahora el atlas es un **campo de alturas**: cada lóbulo es un casquete esférico, y se unen con un máximo suave que deja pliegues entre ellos. Los torreones pequeños van pegados al borde de un lóbulo mayor y cargados hacia arriba. La densidad sigue el grosor de la cúpula: opaca por dentro, más fina hacia el contorno y en los torreones, así que la erosión por edad deshilacha el borde sin abrir agujeros. El vapor usa un relieve algo más suave, porque es más tenue. El resultado son cúmulos redondos, iluminados por arriba y con pliegues en sombra, como en las fotos del vuelo 12.
+
 Se comparó la nube con dos fotos del despegue del vuelo 12, el primero desde el Pad 2 (22 de mayo de 2026): la de NSF desde la carretera y el dron de SpaceX publicado en spacex.com. Solo se usaron como referencia visual; no están en el repositorio. Las fotos muestran:
 - dos masas, una por cada boca de la zanja, que **crecen en altura** como cúmulos;
 - bordes hechos de cientos de torretas pequeñas;
@@ -294,6 +300,9 @@ Cada expositor se volvió a comparar con fuentes primarias desde un ángulo equi
 - **Roadster: el panel de las rejillas es de carbono entero.** En la foto de SpaceX del coche en órbita, mirando a Starman por encima del capó (Flickr de SpaceX, *Falcon Heavy Demo Mission*; solo como referencia visual), todo el panel entre las crestas de las aletas es fibra de carbono vista, desde la base del parabrisas hasta más allá de las rejillas. En el modelo solo las lamas eran de carbono, sobre una franja de pintura roja. Ahora hay un panel de carbono a 1 mm sobre la piel, de ≈1,1 veces el ancho de la base del parabrisas (lo que da la foto), arqueado como las rejillas y hasta la tapa del maletero delantero. Los bordes son aproximados. Las lamas suben 0,5 mm para no coincidir en profundidad con el panel. Se conserva la identidad de primera generación.
 - **Starlink: cotas estimadas, señaladas.** El grosor del bus (≈0,48 m) no está publicado y ahora tiene su propia fila como estimación. Una línea de aproximaciones decía que el modelo se quedaba un 8 % corto de área; era de una versión anterior. Con dos alas de 13,1 × 4,0 m y un bus de 2,7 × 4,1 m suma ≈115,9 m², los ≈116 m² publicados, y cumple a la vez los 30 m de envergadura.
 - **Dragon y motores** se revisaron antes en esta misma ronda (ver *Crew Dragon contra las fotos de la NASA* y *Motores contra las fotos*) y no se han vuelto a tocar.
+
+- **Falcon 9: la canaleta de la segunda etapa es blanca.** En la foto de cerca de la NASA del vehículo de Europa Clipper (KSC-20241013-PH-SPX02_0005), la canaleta de cables de la segunda etapa es un canal estrecho y remachado, de ≈0,2 m, blanco como la etapa, que termina abajo en un carenado abombado. En el modelo era una barra negra de 0,38 m que dibujaba una raya a lo largo de toda la etapa. La de la primera etapa sí es negra, como muestran las mismas fotos en los tres núcleos, y se queda. Las medidas son aproximadas.
+- **Etiquetas 3D.** La de la zanja seguía diciendo «8.2 m» meses después de corregir la profundidad a 4,2 m. Ahora sale de la constante que construye la zanja. La prueba de procedencia comprueba además que toda cifra con unidad (m, tf, kN, in) en una etiqueta 3D aparezca en la ficha de su vehículo, con un control negativo que reintroduce el «8.2 m». La etiqueta del escudo térmico sube 9 m, porque en su propia vista quedaba tapada por la barra de vistas.
 
 ### Auditoría externa de ChatGPT (septiembre de 2026)
 

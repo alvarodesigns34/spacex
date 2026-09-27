@@ -812,7 +812,7 @@ export function buildShip(M) {
 
   g.userData.annotations = [
     { label: '3 Raptor + 3 Raptor Vacuum', position: [0, -0.4, 5.0] },
-    { label: 'Heat shield · 13,361 hexagonal tiles modelled', position: [0, 18, R + 0.7] },
+    { label: 'Heat shield · 13,361 hexagonal tiles modelled', position: [0, 27, R + 0.7] },
     { label: 'Aft flap', position: [R + 4.4, rings(1) + 3.5, 1.2] },
     { label: 'Forward flap (leeward side)', position: [Math.sin(fwdPhi) * (R + 2.4), fwdBase + 3.2, Math.cos(fwdPhi) * (R + 2.4)] },
     { label: 'Payload bay', position: [0, doorY, -(R + 0.9)] },
