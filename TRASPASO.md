@@ -14,9 +14,11 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
    - `claude/dreamy-bell-qn1eth`
    - `grok/sun18-audit-10c9929`
    - `claude/spacex-vehicle-center-3d-48zlkm` (la rama por defecto; la que despliega Pages)
+
+   y, además, a la rama que te asigne la sesión (en la última fue `claude/new-session-pnlz3h`).
 3. **Antes de cada commit, `npm run check` tiene que terminar con código 0.** Tarda unos 25 minutos. Nunca confirmes sin él.
 4. **Tras cada push, comprueba que GitHub Pages sirve la versión nueva:** https://alvarodesigns34.github.io/spacex/
-5. **No regenerar la galería de capturas** (`docs/screenshots`, `docs/hud`, `npm run shots`) **hasta que yo lo apruebe explícitamente.** La galería actual está desactualizada (muestra la torre oscura, el faldón antiguo del propulsor, etc.). Aún no lo he aprobado.
+5. **No regenerar la galería de capturas** (`docs/screenshots`, `docs/hud`, `npm run shots`) **hasta que yo lo apruebe explícitamente** en cada ocasión. Estado: ver la sección 4.
 6. **Escala 1:1, solo medidas verificables, y las aproximaciones marcadas como tales** (≈, `approx: true`, «reconstruido»).
 7. **Prohibido:**
    - banderas o logotipos nuevos;
@@ -204,27 +206,24 @@ c5b86c6 Close the tank-farm domes; carbon louvre panel on the Roadster bonnet
 
 ## 4. Estado actual y pendientes
 
-- **HEAD** `6ec11a5` en las tres ramas. Check verde. Pages sirve esta versión.
-- **Pendiente de mi aprobación:** regenerar la galería de capturas. Está desactualizada; no la regeneres sin que te lo diga.
-- **Pendientes técnicos abiertos:**
-  - **Dragon**: identificar la configuración (Crew Dragon actual) y el número y posición de ventanas con fotos claras. Solo cambiar con evidencia.
-  - **Propuestas de la auditoría de ChatGPT aún no abordadas** (tengo que priorizarlas):
-    - capa de datos canónica con procedencia (A = primaria medida, B = primaria visual/fotogrametría, C = secundaria fiable, D = reconstruida) para que `specs.js`, los builders, `verify.js` y el README no se desincronicen, y generar o verificar la tabla del README;
-    - tolerancias por procedencia en el resto de vehículos y en el Pad 2 (ahora solo el Roadster tiene `tols`);
-    - regresión visual interna nueva (no la galería pública): cámaras, sol y semilla fijos, comparación perceptual;
-    - prueba automática de salto de nivel de detalle en el check (ahora `lod-pop.mjs` va aparte);
-    - regulador de calidad adaptativo según el tiempo de fotograma;
-    - modo físico 3-DOF del lanzamiento (sin romper lo visual);
-    - modularizar `roadster.js`, `launch.js`, `main.js`, `plume.js`, `textures.js` y `pad.js`;
-    - ESLint, `// @ts-check` y pruebas unitarias baratas;
-    - mover el historial del README a `docs/ACCURACY.md` / `docs/PROVENANCE.md` / `docs/CHANGELOG_VISUAL.md`;
-    - accesibilidad (axe-core, `prefers-reduced-motion`) y pruebas de humo en WebKit y Firefox;
-    - Starlink: fijar la variante exacta y revisar filings de la FCC.
-  - **Posibles mejoras visuales detectadas:**
-    - popa de la nave V3;
-    - base de la torre (fondo real desconocido);
-    - hollín bajo las rejillas en propulsores probados (decidimos mostrar los vehículos limpios).
-- **Última petición general del usuario:** «Mejora todo, revisa todo al máximo. Añade detalle y realismo en todo… AMBICIÓN.» Mantener la ambición, pero siempre con evidencia y sin inventar.
+- **Último cambio de código:** `1144807`, en las cuatro ramas (el commit siguiente solo actualiza este documento). Check verde. Pages sirve esta versión, y se verificó en la web publicada con teclado y ratón reales (teclas 1–8 y 0, vistas, P, F, G a ×10, extremos del sol) a 1440×900, 834×1112 y 390×844, sin errores de consola.
+- **Galería:** se regeneró en `b1f09d3` (con aprobación). Después cambió el aspecto del HUD (paneles al 88 % de opacidad, grises más claros, telemetría ≥ 11 px, horas del modelo con ≈), así que las capturas con panel (`docs/hud` y las del lanzamiento) muestran la paleta anterior. **Regenerarlas necesita mi aprobación.**
+- **Hecho en las últimas rondas** (el detalle está en el README, secciones *Revisión corriendo la simulación* y *Segunda auditoría externa de ChatGPT*):
+  - capa de datos canónica con grados A/B/C/D (`src/data/figures.js`) y `tools/provenance-check.mjs`, que también rechaza atribuciones retiradas, cifras reconstruidas sin ≈ en etiquetas 3D y contradicciones concretas del README;
+  - salto de nivel de detalle dentro del check (`tools/lod-pop.mjs`);
+  - regreso del propulsor con arrastre resuelto (transónico 5 s antes del encendido, como el vuelo 7), humo y penacho de aterrizaje, escarcha blanca, marisma con canales, interetapa blanca del núcleo central del Falcon Heavy;
+  - reloj de misión independiente de los fotogramas (`src/sim/missionClock.js`);
+  - accesibilidad: selecciones con `aria-pressed`, contraste AA medido sobre cielo blanco, atajos de teclado que funcionan con el deslizador del sol enfocado.
+- **No hacer:** el regulador de calidad adaptativo (lo descartaste expresamente: el rendimiento es bueno). No reintroducir stencil en el render target MSAA: hundió la escena a ~10 fps en GPU real.
+- **Pendientes abiertos, todos a la espera de evidencia:**
+  - **altura de la torre:** los 474 ft solo aparecen en una wiki de aficionados que cita registros de la FAA no localizados (grado D, ≈); buscar el registro OE/AAA primario;
+  - **giro de la pila (0°):** inferido de una sola foto oblicua (±20°); confirmar con más vistas antes de ajustarlo;
+  - **paso de 13 a 3 motores en ≈T+6:37:** lectura no verificada de imágenes de terceros; contrastar fotograma a fotograma con el vídeo original del vuelo 5;
+  - **pinzas del Falcon 1 en Omelek:** sin foto accesible (el repositorio con el artículo de SpaceX exige verificación antibots);
+  - **Dragon:** número y posición de ventanas;
+  - **penacho del boostback a gran altura:** sin referencia oficial;
+  - propuestas de la primera auditoría de ChatGPT aún sin abordar: modo físico 3-DOF, modularizar los archivos grandes, ESLint/`@ts-check`, mover el historial del README a `docs/`, pruebas en WebKit/Firefox, `prefers-reduced-motion`, variante exacta de Starlink.
+- **Última petición general del usuario:** revisión completa y ambiciosa, siempre con evidencia y sin inventar.
 
 ---
 
@@ -232,14 +231,15 @@ c5b86c6 Close the tank-farm domes; carbon louvre panel on the Roadster bonnet
 
 - **Marco de Starship**: el origen del conjunto es el plano de salida de las toberas del propulsor.
   - `ex.lay.mount = PAD.deckTop − BOOSTER_AFT` (18 − 3,15).
-  - `PAD`: `padY 5`, `bermY 2.5`, `deckTop 18`, `towerX −30`, `towerHalf 6.1`, `section 12.2` × 10, `mast 22.5` (torre de 144,5 m), `armLen 26`, `armY 46`, `qdY 96 − BOOSTER_AFT`, `trenchFloorY 0.8`.
-  - Guiñada del conjunto: `STACK_YAW_DEG = 129.6`; en el modelo, la panza (losetas) mira a +z local.
+  - `PAD`: `padY 5`, `bermY 2.5`, `deckTop 18`, `towerX −30`, `towerHalf 6.1`, `section 12.2` × 11.5 (≈140,3 m de celosía, reconstruido), `mast 4.2` (pararrayos; total ≈144,5 m, estimado), `armLen 26`, `armY 132` (≈), `qdY 96 − BOOSTER_AFT`, `trenchFloorY 0.8`.
+  - Guiñada del conjunto: `STACK_YAW_DEG = 0` (inferida de la foto del ensayo del 11 de mayo de 2026); en el modelo, la panza (losetas) mira a +z local, que ahora es +z del mundo, hacia la fila de expositores.
 - **Presets de cámara**: por defecto en el marco del vehículo (giran con él). Con `frame: 'site'` van en el marco del sitio. Se definen en `specs.js`.
 - **Integridad de mallas** (`verify.js`): comprueba que la escala de las UV cuadre con el `tileSize` del mapa. Una geometría construida lejos del origen da falsos positivos, así que conviene construirla centrada y posicionarla.
 - **Materiales**: `M.steel`, `M.steelSkirt`, `M.aftBlack`, `M.bellRaptor3`, `M.metalTile`, `M.domePlate`, `M.gridFin`, `M.tile`, `M.tileUnder` (oscuro), `M.tpsShell`, `M.towerClad`, `M.towerSteel`, `M.concrete`, `M.darkMetal`, `M.blackMatte`, etc.
 - **Tiempos de la secuencia** (`launch.js`, `EVENTS`):
   - liftoff T+2, maxQ 62, meco 152, separación 160;
-  - boostback 165–221, encendido de aterrizaje 390, captura 414, fin 436.
+  - boostback 165–221, encendido de aterrizaje 390, captura 414, fin 436;
+  - derivados del modelo: paso de la torre ≈9,2, supersónico ≈52, apogeo ≈240, transónico ≈385; paso a 3 motores `BURN_THREE` ≈397 (aproximado, sin verificar).
 - **Fuentes clave ya usadas**:
   - spacex.com (Starship, V3), Falcon User's Guide 2025, Falcon 1 User's Guide 2008;
   - Tesla Roadster Service Manual: https://service.tesla.com/docs/Public/Roadster/ServiceManual/en-us/GUID-4E037ADB-D0F4-48A0-9261-1083193D4C1B.html
