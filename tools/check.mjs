@@ -798,6 +798,20 @@ try {
       + (over.length ? ` — POR ENCIMA: ${over.map(([k]) => k).join(', ')}` : ''));
   }
 
+  // ---- No stencil on the multisampled composer targets ------------------------------------
+  // A stencil buffer on the MSAA target makes every frame resolve a multisampled depth-stencil
+  // buffer, which some drivers (ANGLE on Direct3D 11 among them) emulate slowly: it once took
+  // the whole scene to about 10 fps on real hardware. The software renderer this check runs on
+  // measures no difference, so the configuration itself is asserted.
+  {
+    const rts = await page.evaluate(() => {
+      const c = window.__vc.composer;
+      return [c.renderTarget1, c.renderTarget2].map(t => ({ stencil: !!t?.stencilBuffer, samples: t?.samples ?? 0 }));
+    });
+    report(rts.every(t => !t.stencil), 'los render targets del compositor no llevan stencil',
+      rts.map(t => `stencil ${t.stencil ? 'sí' : 'no'} · ${t.samples} muestras`).join(' / '));
+  }
+
   // ---- The scale figures stay merged ------------------------------------------------------
   // Twenty-two people at four or five meshes each were 99 draw calls in the overview for
   // 13,286 triangles — more calls than the Starship, the pad and the Roadster together, for a

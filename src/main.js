@@ -215,9 +215,11 @@ async function main() {
   dressCampus(scene, M, { stops: Object.values(LAYOUT).filter(l => !l.pad).map(l => l.x), quality: quality.name });
 
   // ---- Post-processing (MSAA render target + subtle bloom) ----
-  // With a stencil: the scale figures' shadow marks each pixel once, so overlapping limbs do
-  // not darken it twice (common.js, crowdShadowMaterial).
-  const rt = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { samples: quality.msaa, type: THREE.HalfFloatType, stencilBuffer: true });
+  // No stencil. It was added for the scale figures' shadow and made every frame resolve a
+  // multisampled depth-stencil buffer, which several drivers (ANGLE on Direct3D 11 among them)
+  // have no fast path for: the whole scene fell to about 10 fps on real hardware while the
+  // software renderer the checks use measured no difference. The shadow uses depth instead.
+  const rt = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { samples: quality.msaa, type: THREE.HalfFloatType });
   const composer = new EffectComposer(renderer, rt);
   const renderPass = new RenderPass(scene, camera);
   composer.addPass(renderPass);

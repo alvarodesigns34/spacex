@@ -361,16 +361,17 @@ function crowdMaterials(M) {
  * A shadow for the whole crowd in one draw: every figure's geometry again, flattened in the
  * vertex shader onto the ground it stands on along the live sun direction, in a translucent
  * dark tint. The figures stay out of the shadow map (they are small, many, and the map's texel
- * is larger than a forearm), but without any shadow they floated. A stencil marks each pixel
- * the first time a shadow covers it, so where limbs and bodies overlap it is not darkened twice.
+ * is larger than a forearm), but without any shadow they floated. Every shadow fragment lies
+ * on its ground plane, so it writes depth and the strict depth test turns away a second one at
+ * the same place: overlapping limbs do not darken it twice. (A stencil did this more exactly,
+ * but a stencil on the multisampled target cost far more than the whole scene on some GPUs.)
  * `aClip` bounds a shadow to the deck a person stands on.
  */
 function crowdShadowMaterial(sunDir) {
   const mat = new THREE.MeshBasicMaterial({
-    name: 'crowd-shadow', color: 0x000000, transparent: true, opacity: 0.45, depthWrite: false,
+    name: 'crowd-shadow', color: 0x000000, transparent: true, opacity: 0.45,
+    depthWrite: true, depthFunc: THREE.LessDepth,
     polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
-    stencilWrite: true, stencilRef: 1, stencilFunc: THREE.NotEqualStencilFunc,
-    stencilZPass: THREE.ReplaceStencilOp, stencilFail: THREE.KeepStencilOp, stencilZFail: THREE.KeepStencilOp,
   });
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uSun = { value: sunDir };
