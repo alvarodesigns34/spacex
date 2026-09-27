@@ -741,10 +741,12 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     emitters: [0.3, 1.9, 3.4, 5.0].map(a => ({ at: around(4.75, 64, a), dir: out(a, -0.9), speed: 1.1, spread: 0.22, count: nv(40), life: 13, size: 3.4, grow: 2.4, jitter: 1.4, window: COUNT_WIN })),
   });
   const basePile = new Vapor({
-    name: 'vapor-base', rng: seeded(27), accel: [0.3, -0.25, 0.2], tau: 2.2, opacity: 0.6,
+    // Low and thinning, not a wall: at 0.6 and 3.2 m/s of growth it swallowed the whole mount
+    // in the countdown's close shot, the deflector water and the QD arm with it.
+    name: 'vapor-base', rng: seeded(27), accel: [0.3, -0.25, 0.2], tau: 2.2, opacity: 0.45,
     emitters: Array.from({ length: 6 }, (_, i) => {
       const a = (i / 6) * Math.PI * 2 + 0.4;
-      return { at: around(7.5, BOOSTER_AFT + 0.8, a), dir: out(a, -0.05), speed: 2.2, spread: 0.3, count: nv(30), life: 12, size: 5.5, grow: 3.2, jitter: 1.5, window: COUNT_WIN };
+      return { at: around(7.5, BOOSTER_AFT + 0.8, a), dir: out(a, -0.05), speed: 2.2, spread: 0.3, count: nv(30), life: 12, size: 5.5, grow: 2.2, jitter: 1.5, window: COUNT_WIN };
     }),
   });
   // Deluge: water driven up through the mount's plate round the engines, from a couple of
@@ -808,11 +810,13 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     return { t0: SMOKE_T[0], t1: SMOKE_T[1], points: pts };
   })();
   const landingSmoke = new Vapor({
-    name: 'vapor-landing-smoke', rng: seeded(27), accel: [0.7, 0.5, 0.3], tau: 1.2, opacity: 0.3, path: smokePath,
-    colors: [0x7b7874, 0x42403d],
-    // Half the sources stop as the booster slows over the pad: at a steady rate the smoke
-    // piles up where the booster lingers, and the last seconds stood a grey wall beside it.
-    emitters: [0.5, 2.1, 3.7, 5.3].map((a, i) => ({ at: around(3, 0, a), dir: out(a, 0.4), speed: 7, spread: 0.5, count: nv(80), life: 12, size: 9, grow: 4.5, jitter: 3, window: [EVENTS.landingBurn + 0.5, i % 2 ? BURN_THREE + 5 : EVENTS.catch - 1.5] })),
+    name: 'vapor-landing-smoke', rng: seeded(28), accel: [0.7, 0.5, 0.3], tau: 1.2, opacity: 0.3, path: smokePath,
+    colors: [0x7b7874, 0x42403d], fadeIn: 0.015,
+    // Dense and large enough to stay one stream at the burn's 280 m/s start: at 80 puffs a
+    // source and a 1.2 s fade-in it read as a dotted line. Half the sources stop as the
+    // booster slows over the pad, and the rest a few seconds before the catch: at a steady
+    // rate the smoke piles up where the booster lingers and stood a flat grey wall beside it.
+    emitters: [0.5, 2.1, 3.7, 5.3].map((a, i) => ({ at: around(3, 0, a), dir: out(a, 0.4), speed: 7, spread: 0.5, count: nv(150), life: 12, size: 12, grow: 4.5, jitter: 3, window: [EVENTS.landingBurn + 0.5, i % 2 ? BURN_THREE + 5 : EVENTS.catch - 5] })),
   });
   ex.group.add(landingSmoke.mesh);
   const vapors = [countdownVent, cascade, basePile, deluge, landingSpray, catchVent, flipVent, landingSmoke];
@@ -1149,11 +1153,11 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
       const near = 1 - THREE.MathUtils.smoothstep(boosterAltAt(t), 30, 90);
       // …and only while they burn: it kept pouring for 8 s after shutdown in the arms.
       const burning = Math.min(1, boosterEngineThrottle(t) / 0.1);
-      const n2 = near * burning * 18 * CLOUD_RATE * dt;
+      const n2 = near * burning * 10 * CLOUD_RATE * dt;
       if (n2 >= 0.05) {
         const m2 = Math.max(1, Math.round(n2 * 0.5));
         // Three engines, briefly, into a deck already wet: steam, not a thunderhead.
-        const k = { size0: 12 * CLOUD_SIZE, grow: 30 * CLOUD_SIZE };
+        const k = { size0: 10 * CLOUD_SIZE, grow: 20 * CLOUD_SIZE };
         cloud.emit(m2, [0, 2.4, 44], [0, 0.05, 1.0], 46, 16, k);
         cloud.emit(m2, [0, 2.4, -44], [0, 0.05, -1.0], 46, 16, k);
       }

@@ -1,4 +1,5 @@
 [
+  {"name": "launch-fuelled.jpg", "seek": -18, "wait": 1400},
   {"name": "launch-countdown.jpg", "seek": -8, "wait": 1400},
   {"name": "launch-ignition.jpg", "seek": -1, "wait": 1800},
   {"name": "launch-liftoff.jpg", "seek": 4, "wait": 1400},

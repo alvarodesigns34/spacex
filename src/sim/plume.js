@@ -895,7 +895,7 @@ const VAPOR_VERT = /* glsl */`
   attribute vec3 aVel;
   attribute vec4 aParams;   // phase 0..1, life s, start size m, growth m/s
   attribute vec2 aWindow;   // emitter active from, to (mission s)
-  uniform float uTime, uTau, uOpacity;
+  uniform float uTime, uTau, uOpacity, uFadeIn;
   uniform vec3 uAccel;
   // Optional moving source: where the emitter was at each moment, (t0, t1, samples). A puff
   // starts from wherever the source was when it was born and is left behind in the air.
@@ -921,7 +921,7 @@ const VAPOR_VERT = /* glsl */`
     vec3 p = aOrigin + aVel * uTau * (1.0 - exp(-age / uTau)) + 0.5 * uAccel * age * age;
     if (uPathT.z > 0.5) p += pathAt(born);
     float size = aParams.z + aParams.w * age;
-    vAlpha = on * uOpacity * smoothstep(0.0, 0.1, k) * (1.0 - smoothstep(0.45, 1.0, k));
+    vAlpha = on * uOpacity * smoothstep(0.0, uFadeIn, k) * (1.0 - smoothstep(0.45, 1.0, k));
     vRot = aParams.x * 6.2832 + age * 0.35 * (aParams.x - 0.5);
     vec3 c = (modelViewMatrix * vec4(p, 1.0)).xyz;
     float s = sin(vRot), q = cos(vRot);
@@ -966,8 +966,10 @@ export class Vapor {
    * @param {object} [o.path] a moving source, { t0, t1, points: Float32Array of xyz samples
    *   evenly spaced over [t0, t1] }: each puff is emitted relative to where it was then
    * @param {number[]} [o.colors] sunlit and shaded colour, for smoke that is not white
+   * @param {number} [o.fadeIn] share of a puff's life it takes to fade in (a trail wants it
+   *   visible from the moment it leaves the source)
    */
-  constructor({ emitters, rng, accel = [0.6, -0.4, 0.2], tau = 1.2, opacity = 0.55, name = 'vapor', path = null, colors = [0xf6f6f4, 0x959ba4] }) {
+  constructor({ emitters, rng, accel = [0.6, -0.4, 0.2], tau = 1.2, opacity = 0.55, name = 'vapor', path = null, colors = [0xf6f6f4, 0x959ba4], fadeIn = 0.1 }) {
     const n = emitters.reduce((s, e) => s + e.count, 0);
     const origin = new Float32Array(n * 3), vel = new Float32Array(n * 3);
     const params = new Float32Array(n * 4), win = new Float32Array(n * 2);
@@ -999,7 +1001,7 @@ export class Vapor {
     _vaporMap ??= puffTexture();
     this.material = new THREE.ShaderMaterial({
       uniforms: {
-        uMap: { value: _vaporMap }, uTime: { value: -1e4 }, uTau: { value: tau }, uOpacity: { value: opacity },
+        uMap: { value: _vaporMap }, uTime: { value: -1e4 }, uTau: { value: tau }, uOpacity: { value: opacity }, uFadeIn: { value: fadeIn },
         uAccel: { value: new THREE.Vector3(...accel) },
         uSunDir: { value: new THREE.Vector3(0.4, 0.7, 0.5).normalize() },
         uSun: { value: new THREE.Color(colors[0]) }, uShade: { value: new THREE.Color(colors[1]) },

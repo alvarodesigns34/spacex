@@ -91,9 +91,10 @@ const LAYOUT = {
   dragon: { x: 18, z: 0, mount: 1.6, people: [[3.4, 0, 1.6, 0.6], [-2.8, 0, 2.6, -0.8]] },
   starlink: { x: 78, z: 0, mount: 6.2, people: [[3.2, 0, 2.4, 0.4], [-2.6, 0, 3.0, -1.2]] },
   // Figures stand clear of every authored view: at [2.8, 1.8] one was 2.7 m in front of the
-  // Roadster's overview camera, a hard hat cut off by the bottom of the frame, and at
+  // Roadster's overview camera, a hard hat cut off by the bottom of the frame (another
+  // filled the left of the Selfie Cam view, 6 m out), and at
   // [3.4, 2.6] another filled the right third of the RVac close-up.
-  roadster: { x: 118, z: 0, mount: 1.4, yaw: 25, people: [[4.3, 0, 1.2, 0.5], [-2.8, 0, 1.2, -1.8]] },
+  roadster: { x: 118, z: 0, mount: 1.4, yaw: 25, people: [[5.3, 0, 1.4, 0.5], [-6.3, 0, -1.7, -1.8]] },
   engines: {
     x: 163, z: 0, mount: 0, yaw: -12,
     people: [[4.8, 0, -2.8, -0.6], [-5.8, 0, 2.2, -1.4], [1.2, 0, -3.0, 2.6]],

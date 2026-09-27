@@ -752,20 +752,21 @@ export function makeFrost({ size = 512, tile = 16.0, tileU = 4.0 } = {}) {
   const map = canvas(size, size);
   const alpha = canvas(size, size);
   const per = (u, v, fu, fv, ou = 0, ov = 0) => noise2(u * fu + ou, v * fv + ov);
-  // Contrast, not whiteness, is what reads as frost on already-bright steel: matte ice with
-  // darker vertical runs where condensate has melted and run down, and soft tall gaps where
-  // sheets have fallen away.
+  // Matte ice with darker vertical runs where condensate has melted and run down, and soft
+  // tall gaps where sheets have fallen away. Whiter and more nearly opaque than it was (0.84
+  // and 0.72): on SpaceX's photograph of the V3 wet dress rehearsal the loaded tanks are
+  // plainly white against the bare steel above them, not a grey mottle over it.
   const runsAt = (u, v) => per(u, v, 80, 3, 11, 2) * 0.6 + per(u, v, 28, 2, 5, 9) * 0.4;
   shade(map, (x, y, u, v) => {
     const n = per(u, v, 64, 24, 3, 7);
     const wet = Math.max(0, runsAt(u, v) - 0.55) * 2.6;
-    const c = (0.84 + (n - 0.5) * 0.06) * (1 - 0.42 * Math.min(1, wet));
+    const c = (0.93 + (n - 0.5) * 0.06) * (1 - 0.3 * Math.min(1, wet));
     return [clamp(c * 0.95 * 255), clamp(c * 0.97 * 255), clamp(c * 255)];
   });
   shade(alpha, (x, y, u, v) => {
     const shed = per(u, v, 12, 3, 21, 13) * 0.7 + per(u, v, 40, 6, 3, 17) * 0.3;
     const gap = THREE.MathUtils.smoothstep(shed, 0.6, 0.75);
-    const a = (0.72 + (runsAt(u, v) - 0.5) * 0.25) * (1 - 0.8 * gap);
+    const a = (0.9 + (runsAt(u, v) - 0.5) * 0.2) * (1 - 0.7 * gap);
     const g = clamp(a * 255);
     return [g, g, g];
   });

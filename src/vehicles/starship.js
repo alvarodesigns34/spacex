@@ -843,7 +843,9 @@ export function buildShip(M) {
   shipFrost.visible = false;
   for (const [y0, y1] of [[skirtTop + 0.5, commonDome - 0.9], [commonDome + 0.9, payloadBase - 0.4]]) {
     shipFrost.add(mesh(lathe([{ r: R + 0.014, y: y0 }, { r: R + 0.014, y: y1 }], {
-      segments: 64, phiStart: Math.PI * 0.62, phiLength: Math.PI * 0.76, rRef: R,
+      // Across the whole lee face, to just short of the flap line (±90°) where the tiles begin,
+      // as the wet-dress photograph shows it; it stopped 22° short on either side.
+      segments: 64, phiStart: Math.PI * 0.55, phiLength: Math.PI * 0.9, rRef: R,
     }), M.frost, { castShadow: false, name: 'frost-shell' }));
   }
   g.add(shipFrost);
