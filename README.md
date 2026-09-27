@@ -539,7 +539,7 @@ También **recorre la secuencia de lanzamiento**. `launch.seek(t)` reproduce el 
 | ![Rueda y paso](docs/screenshots/roadster-underbody.jpg) | ![Fila de motores](docs/screenshots/engines-row.jpg) |
 | ![Raptor Vacuum](docs/screenshots/engines-rvac.jpg) | ![Starship completo](docs/screenshots/starship-full.jpg) |
 
-Regenerables con `npm run shots`, que recorre los encuadres declarados en `tools/docs-shots.json`, `tools/launch-shots.json` y `tools/roadster-shots.json`, siempre con el sol a 18° y en calidad alta forzada.
+Regenerables con `npm run shots`, que recorre los encuadres declarados en `tools/docs-shots.json`, `tools/launch-shots.json` y `tools/roadster-shots.json`, siempre con el sol a 18° y en calidad alta forzada. Las del HUD en escritorio, tableta y móvil (`docs/hud`) salen de `node tools/shot.mjs docs/hud tools/hud-shots.json`. Todas se regeneraron en el commit c2bec28, después de la ronda vehículo por vehículo: brazos y mesa del Pad 2, grid fins del Falcon 9, ojivas del Falcon Heavy, capó del Roadster, nube de lanzamiento y panel de misión.
 
 ## Estructura
 
