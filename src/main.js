@@ -891,8 +891,12 @@ async function main() {
     rig.focusOn(hit.point);
   });
 
+  // Text fields keep their keys; a range input (the Sun slider) only wants the arrows, and after
+  // dragging it the focus stayed on it and every shortcut (G, F, P, L…) went dead until a click
+  // elsewhere.
+  const typing = (t) => t.tagName === 'TEXTAREA' || t.isContentEditable || (t.tagName === 'INPUT' && t.type !== 'range');
   window.addEventListener('keydown', (e) => {
-    if (e.target.tagName === 'INPUT') return;
+    if (typing(e.target)) return;
     // Every key here is a toggle. Held down, the auto-repeat started and stopped the launch
     // over and over; with a modifier it is the browser's shortcut (Ctrl+L, Ctrl+R), not ours,
     // and both used to flip the labels or the ruler on the way.

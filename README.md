@@ -369,6 +369,9 @@ Seis hallazgos, cada uno comprobado antes de aplicarlo. Los números de línea q
 - **P5 · Cifras publicadas.** spacex.com da 124 m / 407 ft (comprobado): esa es ahora la cifra canónica de grado A. La geometría sigue construida con los pies (71,93 + 52,12 = 124,05 m) y no se mueve nada. Los ≈39,25 m de las rejillas del núcleo central del Falcon Heavy se describen como fotogrametría, no como cota publicada.
 - **P6 · Inferencias redactadas como tales.** El giro de 0° de la pila es una inferencia a partir de una sola foto oblicua (caben unos ±20°) y queda pendiente de más vistas; figura también en las aproximaciones de la ficha. El paso de 13 a 3 motores en ≈T+6:37 viene de una lectura anterior de imágenes de terceros que no se ha comprobado con el vídeo original: sigue aproximado, no se presenta como telemetría y no se ha vuelto a ajustar.
 
+
+Al verificar la web publicada con teclado y ratón reales (teclas 1–8 y 0, vistas, P, F, G, extremos del sol, a 1440×900, 834×1112 y 390×844) apareció un fallo más: después de mover el deslizador **Sol**, el foco se quedaba en él y el manejador de teclado ignoraba cualquier campo `input`, así que G, F, P, L y el resto dejaban de responder hasta hacer clic en otro sitio. Ahora solo se ignoran los campos de texto; el deslizador no escribe. Está en `tools/ux-check.mjs`.
+
 ### Auditoría externa de ChatGPT (septiembre de 2026)
 
 Se contrastó punto por punto con fuentes primarias antes de tocar nada.

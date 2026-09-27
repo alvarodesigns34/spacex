@@ -151,6 +151,14 @@ try {
   const t1 = await toggles();
   report(t1.run === !t0.run && t1.labels === t0.labels, 'Held G toggles the launch once; Ctrl+L leaves the labels alone', { t0, t1 });
   await page.keyboard.press('g');
+  // After dragging the Sun slider the focus stays on it, and the handler ignored every INPUT, so
+  // all the shortcuts went dead until a click elsewhere. A range input does not type.
+  await page.focus('#sun').catch(() => {});
+  const lab0 = await toggles();
+  await page.keyboard.press('l');
+  const lab1 = await toggles();
+  await page.keyboard.press('l');
+  report(await page.evaluate(() => document.activeElement?.id === 'sun') && lab1.labels === !lab0.labels, 'Shortcuts still work with the Sun slider focused', { before: lab0.labels, after: lab1.labels });
   // Space is "up" in free flight, and after clicking the mode button it also pressed that
   // button, dropping the visitor straight back to orbit.
   await page.click('#mode-btn');

@@ -52,8 +52,11 @@ export class CameraRig {
     // what a browser uses to press the focused button: after clicking "Free flight" the
     // focus stays on that button, so rising pressed it and dropped straight back to orbit.
     const FLY_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'KeyC', 'Space']);
-    const claim = (e) => { if (this.mode === 'fly' && FLY_KEYS.has(e.code) && e.target.tagName !== 'INPUT') e.preventDefault(); };
-    this._onKeyDown = (e) => { if (e.target.tagName === 'INPUT') return; claim(e); this.keys.add(e.code); };
+    // Text fields keep their keys; the Sun slider (a range input) does not type, so flying on
+    // after touching it must still work.
+    const typing = (t) => t.tagName === 'TEXTAREA' || t.isContentEditable || (t.tagName === 'INPUT' && t.type !== 'range');
+    const claim = (e) => { if (this.mode === 'fly' && FLY_KEYS.has(e.code) && !typing(e.target)) e.preventDefault(); };
+    this._onKeyDown = (e) => { if (typing(e.target)) return; claim(e); this.keys.add(e.code); };
     this._onKeyUp = (e) => { claim(e); this.keys.delete(e.code); };
     // A keyup that lands on another window never reaches us, so the key stays in the set and
     // the camera flies on by itself when the tab comes back. Alt-Tab away mid-flight and the
