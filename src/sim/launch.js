@@ -707,6 +707,22 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
       ...[0.9, 3.9].map(a => ({ at: around(4.4, BOOSTER_AFT + 1.2, a), dir: out(a, -0.3), speed: 3, spread: 0.4, count: nv(30), life: 6.5, size: 4.32, grow: 2.8, window: COUNT_WIN })),
     ],
   });
+  // The loaded stack's cold vapour, in bulk. SpaceX's photograph of the V3 wet dress rehearsal
+  // on Pad 2 (11 May 2026) shows it pouring down the booster's sides in sheets from the top of
+  // the LOX tank and piling up round the mount — far more than the few vent puffs above. Cold,
+  // so it falls: a slow start and a strong downward pull keep it running down the hull; the
+  // pile at the base spreads low. Positions and rates are reconstructed.
+  const cascade = new Vapor({
+    name: 'vapor-cascade', rng: seeded(26), accel: [0.25, -1.5, 0.15], tau: 1.8, opacity: 0.66,
+    emitters: [0.3, 1.9, 3.4, 5.0].map(a => ({ at: around(4.75, 64, a), dir: out(a, -0.9), speed: 1.1, spread: 0.22, count: nv(40), life: 13, size: 3.4, grow: 2.4, jitter: 1.4, window: COUNT_WIN })),
+  });
+  const basePile = new Vapor({
+    name: 'vapor-base', rng: seeded(27), accel: [0.3, -0.25, 0.2], tau: 2.2, opacity: 0.6,
+    emitters: Array.from({ length: 6 }, (_, i) => {
+      const a = (i / 6) * Math.PI * 2 + 0.4;
+      return { at: around(7.5, BOOSTER_AFT + 0.8, a), dir: out(a, -0.05), speed: 2.2, spread: 0.3, count: nv(30), life: 12, size: 5.5, grow: 3.2, jitter: 1.5, window: COUNT_WIN };
+    }),
+  });
   // Deluge: water driven up through the mount's plate round the engines, from a couple of
   // seconds before ignition until the stack is clear. Spray, flashing to steam as it rises.
   const deluge = new Vapor({
@@ -725,7 +741,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
       return { at: around(5.5, BOOSTER_AFT + 0.5, a), dir: out(a, 0.08), speed: 22, spread: 0.25, count: nv(10), life: 4.5, size: 7, grow: 9, jitter: 1.5, window: [BURN_THREE - 1, EVENTS.catch - 0.5] };
     }),
   });
-  rest.add(countdownVent.mesh, deluge.mesh, landingSpray.mesh);
+  rest.add(countdownVent.mesh, cascade.mesh, basePile.mesh, deluge.mesh, landingSpray.mesh);
   // After the catch the booster sits on the arms venting: off the top, round the upper tank,
   // and from the engine section. Attached to the booster, which no longer moves.
   const CATCH_WIN = [EVENTS.catch + 1.5, EVENTS.end + 60];
@@ -747,7 +763,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     emitters: [0.4, 2.5, 4.6].map(a => ({ at: around(4.4, BOOSTER_TOP - 2.5, a), dir: out(a, 0.3), speed: 30, spread: 0.6, count: nv(14), life: 1.4, size: 4, grow: 26, jitter: 0.8, window: [EVENTS.separation + 1.5, EVENTS.boostbackStart + 2] })),
   });
   booster.add(flipVent.mesh);
-  const vapors = [countdownVent, deluge, landingSpray, catchVent, flipVent];
+  const vapors = [countdownVent, cascade, basePile, deluge, landingSpray, catchVent, flipVent];
 
   // Max-Q: a condensation collar off the hot-stage ring, trailing down the booster, through
   // the transonic climb and peak dynamic pressure. Timing follows the ascent's own Max-Q.

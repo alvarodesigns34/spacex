@@ -149,7 +149,7 @@ export const VEHICLES = [
       { id: 'lee', label: 'Leeward side', pos: [10, 96, -48], target: [0, 96, 0] },
       { id: 'gridfins', label: 'Grid fins and pins', pos: [-35.5, 76, -6.0], target: [0, 70, 0] },
       { id: 'site', label: 'Launch complex', frame: 'site', pos: [268, 118, 286], target: [4, 62, 0] },
-      { id: 'tower', label: 'Tower and arms', frame: 'site', pos: [58, 72, 64], target: [-24, 64, 0] },
+      { id: 'tower', label: 'Tower and arms', frame: 'site', pos: [58, 104, 64], target: [-24, 110, 0] },
       { id: 'booster-qd', label: 'LOX / methane QDs', pos: [34, 29, 20], target: [12, 19, 0], frame: 'site' },
       { id: 'trench', label: 'Flame trench', frame: 'site', pos: [3, 11, 74], target: [0, 12, 0] },
     ],

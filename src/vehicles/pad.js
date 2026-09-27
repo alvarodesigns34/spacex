@@ -67,7 +67,12 @@ export const PAD = {
   section: 12.2,
   sections: 10,           // 122 m of truss
   mast: 22.5,             // lightning mast on top
-  armY: 46.0,             // chopstick carriage height at launch (arms parked open)
+  // Chopstick carriage height with the arms parked open for launch: at the top of the truss.
+  // SpaceX's photographs of Pad 2 show them there with the full stack loaded (V3 wet dress
+  // rehearsal, 11 May 2026) and over Booster 19 alone (static fire, 15 April 2026); they were
+  // parked round the booster's middle, at 46 m. The exact height is not measurable on those
+  // frames (their perspective), so it is the highest that leaves the hoist its sheave: ≈.
+  armY: 120.0,
   // Pad 2's chopsticks are about 10 m shorter than Pad 1's ≈36 m (NASASpaceflight, "Starbase
   // Pad 2: Design Advancements from Pad 1", August 2025; Wikipedia: "a new shorter design").
   armLen: 26.0,
