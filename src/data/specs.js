@@ -104,6 +104,7 @@ export const VEHICLES = [
       { pad: ['clamps'], label: 'Pad 2 · launch mount', value: 'square, water-cooled deck, 20 hold-down clamps', source: 'press', ref: 'nsf_pad2' },
       { label: 'Pad 2 · flame trench', value: 'concrete bathtub lined with stainless steel, bidirectional, with a central deflector', source: 'press', ref: 'nsf_pad2' },
       { label: 'Pad 2 · tower crown', value: 'lightning rod and a small weather station on top of the tower', source: 'wiki', ref: 'wiki_starbase' },
+      { label: 'Pad 2 · truss and rod', value: '≈140 m of truss and a ≈4 m lightning rod; only the 474 ft total is published, the split is measured on SpaceX\'s wet-dress photograph, where the truss runs on past the stacked ship\'s nose and the parked arms', source: 'derived', approx: true, ref: 'spacex_v3_wdr' },
       { label: 'Pad 2 · flame diverter', value: 'a flame bucket built from many steel pipes', source: 'wiki', ref: 'wiki_starbase' },
       { label: 'Pad 2 · carriage hoist', value: 'chopstick carriage on a pulley at the tower top, driven by a winch and spool at the base', source: 'wiki', ref: 'wiki_starbase' },
       { label: 'Pad 2 · deluge water', value: 'held in a farm of horizontal tanks, driven onto the deck by compressed gas', source: 'wiki', ref: 'wiki_starbase' },

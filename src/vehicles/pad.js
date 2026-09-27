@@ -64,15 +64,23 @@ export const PAD = {
   // Tower (OLIT)
   towerX: -30.0,
   towerHalf: 6.1,         // 12,2 m square truss
+  // How the published 474 ft splits between truss and lightning rod is not published. It was
+  // 10 sections (122 m) and a 22,5 m mast, chosen only to add up: that put the top of the truss
+  // 12 m BELOW the nose of a stacked ship. SpaceX's photograph of the V3 wet dress rehearsal on
+  // Pad 2 (11 May 2026) shows the truss running on past the nose and the parked arms, out of
+  // the top of the frame. Measured on it — the ship QD arm (~92 m) as the reference on the
+  // tower's own line, the sea horizon for the camera's height — the truss is still there at
+  // ≈145–150 m. So nearly all of the 474 ft is truss: 23 half-section bays (140,3 m, ≈) and a
+  // short rod to the published total. The bays' 6,1 m matches the photograph's X-bracing.
   section: 12.2,
-  sections: 10,           // 122 m of truss
-  mast: 22.5,             // lightning mast on top
-  // Chopstick carriage height with the arms parked open for launch: at the top of the truss.
+  sections: 11.5,         // 140,3 m of truss (≈, see above)
+  mast: 4.2,              // lightning rod on top, the remainder of the 144,5 m (≈)
+  // Chopstick carriage height with the arms parked open for launch, near the top of the truss.
   // SpaceX's photographs of Pad 2 show them there with the full stack loaded (V3 wet dress
   // rehearsal, 11 May 2026) and over Booster 19 alone (static fire, 15 April 2026); they were
-  // parked round the booster's middle, at 46 m. The exact height is not measurable on those
-  // frames (their perspective), so it is the highest that leaves the hoist its sheave: ≈.
-  armY: 120.0,
+  // parked round the booster's middle, at 46 m. On the wet-dress photograph, measured as above,
+  // the carriage spans ≈124–137 m: ≈.
+  armY: 132.0,
   // Pad 2's chopsticks are about 10 m shorter than Pad 1's ≈36 m (NASASpaceflight, "Starbase
   // Pad 2: Design Advancements from Pad 1", August 2025; Wikipedia: "a new shorter design").
   armLen: 26.0,
@@ -83,7 +91,7 @@ export const PAD = {
   // Field
   farmX: 150.0,
 };
-PAD.towerH = PAD.section * PAD.sections + PAD.mast;   // 144,5 m
+PAD.towerH = PAD.section * PAD.sections + PAD.mast;   // 144,5 m (140,3 truss + 4,2 rod)
 PAD.trenchDepth = PAD.padY - PAD.trenchFloorY;        // 4,2 m
 
 const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
@@ -525,7 +533,7 @@ function buildTower(M) {
   }
 
   // The tower is a lattice you can see the sky through. It used to carry a solid 5.2 m box
-  // up its middle as the "service core", which turned the whole 122 m into a dark slab at
+  // up its middle as the "service core", which turned the whole truss into a dark slab at
   // every distance past a few hundred metres. Now: four corner columns, a horizontal ring
   // every half-section, two X-braced bays per face per section, and an open lift shaft and
   // stair inside. Member sizes are reconstructed from photographs; the height is cited.
@@ -588,17 +596,17 @@ function buildTower(M) {
 
   // Crown: a lightning rod that takes the tower to its published 144,5 m, and the small
   // weather station beside it (both cited: Wikipedia, SpaceX Starbase). The station's mast
-  // is well under the rod's tip, so the measured height stays the rod's.
+  // is under the rod's tip, so the measured height stays the rod's.
   const crown = [];
-  const spire = new THREE.CylinderGeometry(0.16, 0.75, mast, 12);
+  const spire = new THREE.CylinderGeometry(0.1, 0.4, mast, 12);
   spire.translate(0, top + mast / 2, 0);
   crown.push({ geometry: spire });
   const wx = c - 1.2, wz = -c + 1.2;
-  crown.push(rod([wx, top, wz], [wx, top + 6, wz], 0.07, 8));
-  crown.push(rod([wx - 0.9, top + 5.6, wz], [wx + 0.9, top + 5.6, wz], 0.035, 6));
+  crown.push(rod([wx, top, wz], [wx, top + 3.4, wz], 0.07, 8));
+  crown.push(rod([wx - 0.9, top + 3.0, wz], [wx + 0.9, top + 3.0, wz], 0.035, 6));
   crown.push({ geometry: B(0.45, 0.6, 0.3), matrix: mat4([wx, top + 1.6, wz + 0.25]) });
   for (const d of [-0.9, 0.9]) {
-    crown.push({ geometry: new THREE.CylinderGeometry(0.06, 0.06, 0.25, 8), matrix: mat4([wx + d, top + 5.8, wz]) });
+    crown.push({ geometry: new THREE.CylinderGeometry(0.06, 0.06, 0.25, 8), matrix: mat4([wx + d, top + 3.2, wz]) });
   }
   g.add(mesh(boxUV(mergeAll(crown)), M.alumDark, { name: 'mast' }));
 
