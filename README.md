@@ -317,6 +317,8 @@ Cada expositor se volvió a comparar con fuentes primarias desde un ángulo equi
 
 - **Brazos aparcados arriba y vapor del cohete cargado.** En la foto de SpaceX del ensayo con propelentes del V3 en el Pad 2 (11 de mayo de 2026), igual que en la del encendido estático del B19, los brazos de captura están en lo alto de la torre. El modelo los aparcaba abiertos a 46 m, a media altura del propulsor. Ahora aparcan a 120 m, lo más alto que deja sitio a la polea del cabrestante. La altura exacta no se puede medir en esas fotos por la perspectiva y está marcada como aproximada. La vista *Tower and arms* se reencuadra, y la captura sigue igual: el carro baja desde ahí hasta los pines. En la misma foto, el vapor frío cae en sábanas por los costados del propulsor desde lo alto del tanque de oxígeno y se amontona en la base. La cuenta atrás solo tenía unas bocanadas en los respiraderos. Ahora hay una cascada que resbala por el casco, con salida lenta y una aceleración fuerte hacia abajo, y una nube baja alrededor de la cubierta de la mesa. Posiciones y caudales son reconstruidos.
 
+- **Cabecera:** el subtítulo de Starship («Version 3») lleva un espacio de no separación. La cabecera partía la línea y dejaba un «3» solo en la segunda.
+
 ### Auditoría externa de ChatGPT (septiembre de 2026)
 
 Se contrastó punto por punto con fuentes primarias antes de tocar nada.
