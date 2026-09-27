@@ -70,7 +70,7 @@ export const VEHICLES = [
   {
     id: 'starship',
     name: 'Starship',
-    subtitle: 'Starship + Super Heavy · Version 3',
+    subtitle: 'Starship + Super Heavy · Version\u00a03',   // no-break: the header wrapped a lone "3"
     height: FIGURES.starship.height.value,
     footprint: FIGURES.starship.footprint.value,
     summary: 'Fully reusable two-stage launch system: the Super Heavy booster (33 Raptors) and the Starship upper stage (3 Raptor + 3 Raptor Vacuum). Modelled in the Version 3 (Block 3) configuration published on spacex.com and first flown on flight 12 (May 2026).',
