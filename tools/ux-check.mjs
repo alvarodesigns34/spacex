@@ -179,11 +179,12 @@ try {
   // Speed, with a real click on the ×5 button of a running sequence.
   await page.evaluate(() => window.__vc.launch.start());
   await page.getByRole('group', { name: 'Playback speed' }).getByRole('button', { name: 'Speed ×5' }).click();
-  await page.waitForFunction(() => window.__vc.launch.state.speed === 5 && document.querySelector('#mission-speeds [aria-pressed="true"]')?.dataset.k === '5', null, { timeout: 60000 }).catch(() => {});
+  // Read at once: the state must change with the click, not a frame later.
   a11y.speed = await pressed('Playback speed');
+  a11y.applied = await page.evaluate(() => window.__vc.launch.state.speed);
   a11y.tabs = await page.locator('[role="tab"], [role="tablist"]').count();
   report(a11y.vehicles.length === 1 && /Falcon 9/.test(a11y.vehicles[0]) && a11y.views.length === 1 && /grid fins/i.test(a11y.views[0])
-    && a11y.speed.length === 1 && a11y.speed[0].includes('×5') && a11y.tabs === 0,
+    && a11y.speed.length === 1 && a11y.speed[0].includes('×5') && a11y.applied === 5 && a11y.tabs === 0,
     'Vehicle, view and speed each expose exactly one pressed button; no fake tabs', a11y);
 
   // Contrast and size, measured. Every visible text in the HUD against its real background:

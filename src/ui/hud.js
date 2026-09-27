@@ -384,7 +384,10 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
   let milestones = [];
   // The buttons only ask; which one is lit is read back from the simulation in setMission,
   // so the panel cannot claim a multiplier the clock is not actually using.
-  for (const b of speeds) b.addEventListener('click', () => onLaunchSpeed?.(Number(b.dataset.k)));
+  // The pressed state changes with the click, not on the next simulation frame: on a slow
+  // device the button a visitor had just pressed was still announced as the old speed.
+  const showSpeed = (k) => { for (const x of speeds) { const on = Number(x.dataset.k) === k; x.classList.toggle('active', on); x.setAttribute('aria-pressed', String(on)); } };
+  for (const b of speeds) b.addEventListener('click', () => { showSpeed(Number(b.dataset.k)); onLaunchSpeed?.(Number(b.dataset.k)); });
   const clockText = (t) => {
     const a = Math.abs(t);
     return `T${t < 0 ? '−' : '+'}00:${String(Math.floor(a / 60)).padStart(2, '0')}:${String(Math.floor(a % 60)).padStart(2, '0')}`;
