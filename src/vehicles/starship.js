@@ -50,8 +50,10 @@ const TILE_T = 0.016;
  * tower–mount line. SpaceX's photograph of the V3 wet dress rehearsal on Pad 2 (11 May 2026),
  * taken with the tower behind and to the right of the stack, shows the ship's lee side — frosted
  * steel, both forward flaps on the silhouette's edges, the tiles only a sliver on the left — and
- * the quick-disconnect arm meeting it at the flap line on the tower side. That fixes the belly
- * perpendicular to the tower, on the side away from that camera. It used to be 129.6°, chosen
+ * the quick-disconnect arm meeting it at the flap line on the tower side. That puts the belly
+ * roughly perpendicular to the tower, on the side away from that camera. An INFERENCE from one
+ * oblique photograph, not a measurement: the orientation agrees with it, the exact angle is not
+ * determined (±20° fits that frame) and needs more views before it is refined. It used to be 129.6°, chosen
  * to show the tile line to the default cameras, which put the belly towards that camera and the
  * frosted lee side away from it. The grid-fin trio is clocked against this angle so the catch
  * pins sit over the arms whatever it is.

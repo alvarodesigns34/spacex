@@ -8,8 +8,10 @@
  * are carried into the vehicle sheet in data/specs.js so the interface never presents a
  * reconstructed number as a published one.
  *
- *   cited    tower height 144,5 m (474 ft) · chopstick arms ≈ 26 m (Pad 1's ≈36 m less the ≈10 m
- *            NSF reports for Pad 2) · 20 hold-down clamps
+ *   cited    chopstick arms ≈ 26 m (Pad 1's ≈36 m less the ≈10 m NSF reports for Pad 2) ·
+ *            20 hold-down clamps
+ *   reported tower height ≈144,5 m (474 ft): only a fan wiki attributing it to FAA filings
+ *            that have not been located, so it is an estimate, shown with ≈
  *   cited    square launch mount with a water-cooled deck; integrated bidirectional flame
  *            trench, a concrete "bathtub" clad in stainless; booster sits several metres
  *            lower than Pad A's stilted OLM
@@ -64,22 +66,27 @@ export const PAD = {
   // Tower (OLIT)
   towerX: -30.0,
   towerHalf: 6.1,         // 12,2 m square truss
-  // How the published 474 ft splits between truss and lightning rod is not published. It was
-  // 10 sections (122 m) and a 22,5 m mast, chosen only to add up: that put the top of the truss
-  // 12 m BELOW the nose of a stacked ship. SpaceX's photograph of the V3 wet dress rehearsal on
-  // Pad 2 (11 May 2026) shows the truss running on past the nose and the parked arms, out of
-  // the top of the frame. Measured on it — the ship QD arm (~92 m) as the reference on the
-  // tower's own line, the sea horizon for the camera's height — the truss is still there at
-  // ≈145–150 m. So nearly all of the 474 ft is truss: 23 half-section bays (140,3 m, ≈) and a
-  // short rod to the published total. The bays' 6,1 m matches the photograph's X-bracing.
+  // Truss and lightning rod, reconstructed. Only a total is reported (≈144,5 m, 474 ft, from a
+  // secondary source; see PAD_FIGURES.towerH), and nothing says how it splits. It used to be 10
+  // sections (122 m) and a 22,5 m mast, chosen only to add up, which put the top of the truss
+  // 12 m BELOW the nose of a stacked ship (≈139 m above grade). SpaceX's photograph of the V3 wet
+  // dress rehearsal on Pad 2 (11 May 2026) shows the truss running on past the nose and the
+  // parked arms and out of the top of the frame: the crown is cropped, so it cannot be measured
+  // there. An extrapolation on that frame (the ship QD arm, ~92 m, as the reference on the
+  // tower's own line; the sea horizon for the camera's height) put the truss still present at
+  // ≈145–150 m, which is more than the whole reported tower: its error is at least that large,
+  // and all it supports is that the truss top stands above the nose. So the truss is taken to
+  // ≈140,3 m (23 half-section bays; their 6,1 m does match the photograph's X-bracing) and the
+  // rod to the remaining ≈4,2 m. Both are reconstructions inside the reported total, not
+  // measurements.
   section: 12.2,
-  sections: 11.5,         // 140,3 m of truss (≈, see above)
-  mast: 4.2,              // lightning rod on top, the remainder of the 144,5 m (≈)
+  sections: 11.5,         // ≈140,3 m of truss (reconstructed, see above)
+  mast: 4.2,              // ≈4,2 m lightning rod, the remainder of the reported ≈144,5 m (reconstructed)
   // Chopstick carriage height with the arms parked open for launch, near the top of the truss.
   // SpaceX's photographs of Pad 2 show them there with the full stack loaded (V3 wet dress
   // rehearsal, 11 May 2026) and over Booster 19 alone (static fire, 15 April 2026); they were
-  // parked round the booster's middle, at 46 m. On the wet-dress photograph, measured as above,
-  // the carriage spans ≈124–137 m: ≈.
+  // parked round the booster's middle, at 46 m. On the wet-dress photograph, with the same
+  // extrapolation and the same caveat, the carriage spans ≈124–137 m: reconstructed, ≈.
   armY: 132.0,
   // Pad 2's chopsticks are about 10 m shorter than Pad 1's ≈36 m (NASASpaceflight, "Starbase
   // Pad 2: Design Advancements from Pad 1", August 2025; Wikipedia: "a new shorter design").
@@ -1127,7 +1134,7 @@ export function buildLaunchComplex(M) {
   g.traverse((o) => { const f = FINE[o.name]; if (f) o.userData.lodFeature = f; });
 
   g.userData.annotations = [
-    { label: 'Integration and launch tower · 144.5 m', position: [PAD.towerX - 9, PAD.padY + 96, 0] },
+    { label: 'Integration and launch tower · ≈144.5 m', position: [PAD.towerX - 9, PAD.padY + 96, 0] },
     { label: 'Catch arms · ≈26 m', position: [PAD.towerX + 12, PAD.armY + 4, -22] },
     { label: 'Ship quick-disconnect arm', position: [PAD.towerX + 14, PAD.qdY + 4, 0] },
     { label: 'Launch mount · water-cooled deck', position: [17, PAD.deckTop + 2.5, 14] },

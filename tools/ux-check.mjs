@@ -160,6 +160,78 @@ try {
   report(await page.evaluate(() => window.__vc.rig.mode === 'fly'), 'Space in free flight does not press the focused mode button');
   await page.evaluate(() => window.__vc.rig.setMode('orbit'));
 
+  // Accessible selection state. The vehicle rail and the view bar announced themselves as tab
+  // lists without behaving as tabs, and the speed buttons carried no state at all. Read from
+  // the accessibility tree (Playwright's role queries), not from classes.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.evaluate(() => { const v = window.__vc; v.launch.reset(false); v.jump('falcon9', 'interstage'); });
+  await page.waitForTimeout(300);
+  const pressed = async (group) => page.getByRole('group', { name: group }).getByRole('button', { pressed: true }).allInnerTexts();
+  const a11y = { vehicles: await pressed('Vehicles'), views: await pressed('Views') };
+  // Speed, with a real click on the ×5 button of a running sequence.
+  await page.evaluate(() => window.__vc.launch.start());
+  await page.getByRole('group', { name: 'Playback speed' }).getByRole('button', { name: 'Speed ×5' }).click();
+  await page.waitForFunction(() => window.__vc.launch.state.speed === 5 && document.querySelector('#mission-speeds [aria-pressed="true"]')?.dataset.k === '5', null, { timeout: 60000 }).catch(() => {});
+  a11y.speed = await pressed('Playback speed');
+  a11y.tabs = await page.locator('[role="tab"], [role="tablist"]').count();
+  report(a11y.vehicles.length === 1 && /Falcon 9/.test(a11y.vehicles[0]) && a11y.views.length === 1 && /grid fins/i.test(a11y.views[0])
+    && a11y.speed.length === 1 && a11y.speed[0].includes('×5') && a11y.tabs === 0,
+    'Vehicle, view and speed each expose exactly one pressed button; no fake tabs', a11y);
+
+  // Contrast and size, measured. Every visible text in the HUD against its real background:
+  // translucent panels are composited over WHITE, the worst the scene can put behind them (a
+  // bright sky, a cloud). AA: 4.5:1, or 3:1 for large text. Telemetry and the composite-demo
+  // notice must also be at least 11 px. The old palette is put back as the negative control.
+  const contrast = () => page.evaluate(() => {
+    const parse = (c) => { const m = c.match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return { r: p[0], g: p[1], b: p[2], a: p[3] ?? 1 }; };
+    const lin = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+    const lum = (c) => 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b);
+    const over = (top, base) => ({ r: top.r * top.a + base.r * (1 - top.a), g: top.g * top.a + base.g * (1 - top.a), b: top.b * top.a + base.b * (1 - top.a), a: 1 });
+    const fails = [], small = [];
+    let checked = 0;
+    for (const el of document.querySelectorAll('#hud *')) {
+      const own = [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim());
+      if (!own || el.closest('[aria-hidden="true"], .hidden, kbd')) continue;
+      const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+      if (!r.width || !r.height || cs.visibility === 'hidden' || r.bottom < 0 || r.top > innerHeight) continue;
+      let hiddenAnc = false;
+      for (let a = el; a; a = a.parentElement) { const s = getComputedStyle(a); if (s.display === 'none' || s.visibility === 'hidden' || Number(s.opacity) < 0.05) { hiddenAnc = true; break; } }
+      if (hiddenAnc) continue;
+      const chain = [];
+      for (let a = el; a && a !== document.body; a = a.parentElement) { const c = parse(getComputedStyle(a).backgroundColor); if (c && c.a > 0) chain.push(c); }
+      let bg = { r: 255, g: 255, b: 255, a: 1 };
+      for (const c of chain.reverse()) bg = over(c, bg);
+      const fg = over(parse(cs.color), bg);
+      const L1 = lum(fg), L2 = lum(bg);
+      const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+      const px = parseFloat(cs.fontSize), large = px >= 24 || (px >= 18.66 && Number(cs.fontWeight) >= 700);
+      checked++;
+      const name = `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.className && typeof el.className === 'string' ? '.' + el.className.split(' ')[0] : ''} «${el.textContent.trim().slice(0, 24)}»`;
+      if (ratio < (large ? 3 : 4.5)) fails.push(`${name} ${ratio.toFixed(2)}:1`);
+      if (el.closest('.mission') && px < 11) small.push(`${name} ${px.toFixed(1)} px`);
+    }
+    return { checked, fails, small };
+  });
+  const contrastSizes = [[390, 844], [834, 1112], [1440, 900]];
+  for (const [w, h] of contrastSizes) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.evaluate(() => { const s = document.getElementById('sheet'); if (s.classList.contains('collapsed')) document.getElementById('sheet-toggle').click(); });
+    await page.waitForTimeout(300);
+    const c = await contrast();
+    report(c.checked > 20 && !c.fails.length && !c.small.length, `${w}x${h} HUD text meets AA contrast over a white sky, telemetry ≥ 11 px`,
+      { checked: c.checked, fails: c.fails.slice(0, 6), small: c.small.slice(0, 6) });
+  }
+  const oldPalette = await page.addStyleTag({ content: ':root { --surface-solid: rgba(18, 20, 24, 0.72) !important; --ink-muted: #a09c94 !important; --ink-faint: #6c6963 !important; } .mt-row i { font-size: 0.62rem !important; }' });
+  const oldC = await contrast();
+  report(oldC.fails.length > 0 && oldC.small.length > 0, 'Negative control rejects the old faint palette and 9 px telemetry',
+    { fails: oldC.fails.length, small: oldC.small.length });
+  await oldPalette.evaluate(el => el.remove());
+  await page.evaluate(() => {
+    const v = window.__vc; v.launch.reset(false); v.jump('falcon1', 'overview');
+    // Leave the exhibit and the collapsed sheet as the negative control below expects them.
+    if (!document.getElementById('sheet').classList.contains('collapsed')) document.getElementById('sheet-toggle').click();
+  });
+
   // Negative control: recreate the old narrow, oversized header overlapping the sheet.
   await page.setViewportSize({ width: 390, height: 844 });
   const sabotage = await page.addStyleTag({ content: '.hud-header { width: 340px !important; max-width: none !important; } .sheet.collapsed { top: 12px !important; right: 12px !important; }' });

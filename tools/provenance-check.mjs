@@ -13,7 +13,12 @@
  *  - a part count the sheet states (the modelled tiles) must be the count the check enforces;
  *  - every figure with a unit (m, tf, kN, in) written into a 3-D label in a vehicle builder must
  *    be stated in that vehicle's sheet: the Pad 2 trench label said 8.2 m for months after the
- *    trench, the sheet and the check had all become 4.2 m.
+ *    trench, the sheet and the check had all become 4.2 m — and a label repeating a measured or
+ *    reconstructed figure (grade B or D) must carry its ≈;
+ *  - a source that was checked and found NOT to state a figure (RETRACTED) can never be cited
+ *    for it again, nor carry it in its own label: a URL existing says nothing about what it says;
+ *  - the README's description of the current state must not keep statements a later round
+ *    overturned (README_RULES): each rule is one contradiction that was actually found.
  *
  * Mutations of the inputs must fail, so the gate cannot pass by checking nothing.
  */
@@ -31,6 +36,27 @@ const LABEL_FILES = {
 };
 const BUILDERS = Object.fromEntries(Object.keys(LABEL_FILES).map(f =>
   [f, readFileSync(fileURLToPath(new URL(`../src/vehicles/${f}`, import.meta.url)), 'utf8')]));
+
+/** Sources checked against what they were cited for, and found not to say it. */
+export const RETRACTED = [
+  // Checked 27 Sep 2026: a construction-progress article with no tower height in it.
+  { ref: 'se_pad2', values: [144.5, 474], what: 'la altura de la torre del Pad 2' },
+];
+
+/**
+ * Statements the README must not make about the CURRENT state, each one a contradiction that
+ * stood in it after a later round had overturned it. `bad(line, section)` flags a line; a line
+ * can keep an old figure as history, but then it says so.
+ */
+const HISTORY = /\b(antes|entonces|anterior|histórico|Histórico|en lugar de|ya no|era|eran|usaba|usaban)\b/;
+export const README_RULES = [
+  { name: 'recuento de losetas antiguo presentado como actual', bad: (l) => /13[ .\u00a0]?132/.test(l) && !HISTORY.test(l) },
+  { name: 'celosía más alta que la torre entera, sin la salvedad', bad: (l) => /145–150/.test(l) && !/error/.test(l) },
+  { name: '474 ft presentado como dato publicado o citado', bad: (l, sec) => /474 ft/.test(l) && (/se publica su altura|publicado de 474|torre de 144,5 m \(474 ft\)/.test(l) || (/^\|\s*Citado/.test(l))) },
+  { name: 'fila «Citado» del pad con la altura de la torre', bad: (l) => /^\|\s*Citado\s*\|/.test(l) && /144,5|474/.test(l) },
+  { name: 'Falcon 9: los 1,9 m asignados todavía al adaptador', bad: (l, sec) => sec === 'Discrepancias entre fuentes' && /adaptador de carga bajo la cofia/.test(l) && !HISTORY.test(l) },
+  { name: 'Starlink: superficie un 8 % corta presentada como actual', bad: (l, sec) => sec === 'Discrepancias entre fuentes' && /8 %/.test(l) && !HISTORY.test(l) },
+];
 
 const SOURCE_FOR_GRADE = {
   A: ['spacex', 'official', 'nasa'],
@@ -68,6 +94,9 @@ function readmeTable(readme) {
 export function audit({ figures, pad, counts, vehicles, sources, readme, builders = {} }) {
   const problems = [];
   const bad = (msg) => problems.push(msg);
+  // Values a visitor must see with ≈: every measured (B) or reconstructed (D) figure.
+  const approxValues = [...Object.values(pad), ...Object.values(figures).flatMap(f => Object.values(f).filter(x => x && typeof x === 'object' && 'grade' in x))]
+    .filter(f => f.grade === 'B' || f.grade === 'D').map(f => f.value);
   const graded = (where, f) => {
     if (!GRADES[f.grade]) return bad(`${where}: grado desconocido «${f.grade}»`);
     if (f.grade === 'D') { if (!f.note && !f.label) bad(`${where}: una reconstrucción debe decir de qué sale`); }
@@ -127,8 +156,32 @@ export function audit({ figures, pad, counts, vehicles, sources, readme, builder
         const [{ n, half }] = numbersIn(u[1]);
         const said = numbersIn(sheet).some(x => Math.abs(x.n - n) <= half + 1e-9);
         if (!said) bad(`${file}: la etiqueta «${m[1]}» dice ${u[0]}, que la ficha de ${ids.join('/')} no enuncia`);
+        const approx = approxValues.some(v => Math.abs(v - n) <= half + 1e-9);
+        if (approx && !/≈\s*$/.test(m[1].slice(0, u.index))) bad(`${file}: la etiqueta «${m[1]}» da ${u[0]}, una cifra reconstruida o estimada, sin ≈`);
       }
     }
+  }
+
+  // Retracted attributions: not in a figure, not in a sheet row, not in the source's own label.
+  for (const r of RETRACTED) {
+    const hit = (v) => r.values.some(x => Math.abs(v - x) < 1e-6);
+    for (const [key, f] of Object.entries(pad)) if (f.ref === r.ref && hit(f.value)) bad(`pad.${key}: cita «${r.ref}» para ${r.what}, que esa fuente no da`);
+    for (const [id, fs] of Object.entries(figures)) for (const [key, f] of Object.entries(fs)) {
+      if (f && typeof f === 'object' && f.ref === r.ref && hit(f.value)) bad(`${id}.${key}: cita «${r.ref}» para ${r.what}, que esa fuente no da`);
+    }
+    for (const v of vehicles) for (const row of v.specs) {
+      if (row.ref === r.ref && numbersIn(row.value).some(x => hit(x.n))) bad(`${v.id}: la fila «${row.label}» atribuye ${r.what} a «${r.ref}», que no la da`);
+    }
+    const label = sources[r.ref]?.label ?? '';
+    if (numbersIn(label).some(x => hit(x.n))) bad(`SOURCES.${r.ref}: su etiqueta afirma ${r.what}, que la fuente no da`);
+  }
+
+  // README: the current-state contradictions that were actually found.
+  let section = '';
+  for (const line of readme.split('\n')) {
+    const h = line.match(/^#{2,3}\s+(.*)/);
+    if (h) { section = h[1].trim(); continue; }
+    for (const rule of README_RULES) if (rule.bad(line, section)) bad(`README (${section || 'inicio'}): ${rule.name} — «${line.slice(0, 110)}…»`);
   }
 
   const table = readmeTable(readme);
@@ -169,6 +222,17 @@ const mutants = [
   ['recuento de losetas antiguo en la ficha', withVehicles(v => { const r = v.find(x => x.id === 'starship').specs.find(x => x.label === 'Heat shield'); r.value = r.value.replace('13,361', '13,132'); })],
   ['etiqueta 3-D con la zanja antigua', { ...base, builders: { ...BUILDERS, 'pad.js': BUILDERS['pad.js'] + "\n{ label: 'Bidirectional flame trench · 8.2 m', position: [0, 0, 0] }" } }],
   ['fuente inexistente', { ...base, figures: { ...FIGURES, dragon: { ...FIGURES.dragon, height: { ...FIGURES.dragon.height, ref: 'no_such_source' } } } }],
+  // The round of 27 Sep 2026: each drift that was found, put back.
+  ['torre atribuida otra vez al artículo que no da la altura', { ...base, pad: { ...PAD_FIGURES, towerH: { ...PAD_FIGURES.towerH, ref: 'se_pad2' } } }],
+  ['fila de la ficha con la torre citada a ese artículo', withVehicles(v => { const r = v.find(x => x.id === 'starship').specs.find(x => (x.pad ?? []).includes('towerH')); r.ref = 'se_pad2'; })],
+  ['cifra y fila de la torre citadas, de acuerdo entre sí, a ese artículo', (() => { const b = withVehicles(v => { const r = v.find(x => x.id === 'starship').specs.find(x => (x.pad ?? []).includes('towerH')); r.ref = 'se_pad2'; }); return { ...b, pad: { ...PAD_FIGURES, towerH: { ...PAD_FIGURES.towerH, ref: 'se_pad2' } } }; })()],
+  ['etiqueta de la fuente que vuelve a prometer 474 ft', { ...base, sources: { ...SOURCES, se_pad2: { ...SOURCES.se_pad2, label: 'Space Explored — progress on the second Starship pad (474 ft tower)' } } }],
+  ['etiqueta 3-D con la altura estimada de la torre sin ≈', { ...base, builders: { ...BUILDERS, 'pad.js': BUILDERS['pad.js'].replace('tower · ≈144.5 m', 'tower · 144.5 m') } }],
+  ['README con las 13 132 losetas como cifra actual', { ...base, readme: README + '\n- El escudo lleva 13 132 losetas.\n' }],
+  ['README con la celosía a 145–150 m sin la salvedad', { ...base, readme: README + '\nLa celosía llega a ≈145–150 m.\n' }],
+  ['README con la torre en la fila «Citado»', { ...base, readme: README.replace('| Citado | brazos de unos 26 m', '| Citado | torre de 144,5 m (474 ft) · brazos de unos 26 m') }],
+  ['README con el adaptador del Falcon 9 en las discrepancias', { ...base, readme: README.replace('### Discrepancias entre fuentes\n', '### Discrepancias entre fuentes\n\n- La diferencia se asigna al adaptador de carga bajo la cofia.\n') }],
+  ['README con el Starlink un 8 % corto en las discrepancias', { ...base, readme: README.replace('### Discrepancias entre fuentes\n', '### Discrepancias entre fuentes\n\n- El modelo queda un 8 % por debajo en superficie.\n') }],
 ];
 for (const [name, input] of mutants) {
   const p = audit(input);

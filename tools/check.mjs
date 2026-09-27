@@ -645,6 +645,74 @@ try {
   report(speed.during === 10 && speed.after === 1, 'el multiplicador de tiempo vuelve a ×1',
     `durante la secuencia ×${speed.during}, tras terminarla ×${speed.after}`);
 
+  // Where each milestone's time comes from. The booster's transonic crossing is computed by the
+  // model (≈T+6:25 here); what flight 7 gives is the five-second interval before the landing
+  // burn, which the drag is solved to reproduce. It was tagged as flight 7's own time. Every
+  // model-derived milestone must say so, and the panel must show its time with ≈.
+  {
+    const r = await page.evaluate(async () => {
+      const { MILESTONES, EVENTS } = await import('/src/sim/launch.js');
+      const derived = ['Tower cleared', 'Supersonic', 'Booster apogee', 'Booster transonic'];
+      const audit = (list) => list.filter(m => derived.includes(m.label) && m.src !== 'model').map(m => `${m.label}: ${m.src}`);
+      const tr = MILESTONES.find(m => m.label === 'Booster transonic');
+      const v = window.__vc;
+      v.launch.seek(tr.t - 3);
+      const next = document.getElementById('mission-next').textContent;
+      v.launch.seek(EVENTS.landingBurn - 12);
+      v.launch.seek(EVENTS.landingBurn - 2);
+      const nextCited = document.getElementById('mission-next').textContent;
+      v.launch.reset(false);
+      const mutated = MILESTONES.map(m => (m.label === 'Booster transonic' ? { ...m, src: 'f7' } : m));
+      return { problems: audit(MILESTONES), tuned: tr.tunedTo, t: tr.t, gap: EVENTS.landingBurn - tr.t, next, nextCited, control: audit(mutated) };
+    });
+    const ok = r.problems.length === 0 && r.tuned === 'f7' && Math.abs(r.gap - 5) < 0.2
+      && /Booster transonic ≈T\+06:2\d/.test(r.next) && /Landing burn T\+06:30/.test(r.nextCited) && r.control.length === 1;
+    report(ok, 'los hitos calculados por el modelo no se presentan como observados',
+      `transónico ${r.t} s (modelo, ajustado al intervalo del vuelo 7: ${r.gap.toFixed(1)} s antes del encendido); panel «${r.next}» / «${r.nextCited}»; `
+      + `${r.problems.length ? `mal etiquetados: ${r.problems.join(', ')}; ` : ''}control con src «f7»: ${r.control.length ? 'rechazado' : 'NO detectado'}`);
+  }
+
+  // The mission clock keeps wall time whatever the frame rate. The frame loop clamps its step
+  // to 0,05 s for the view, and used to hand the same clamped step to the mission, so under
+  // 20 fps the launch ran slow (a quarter speed at 5 fps). Driven here with a synthetic clock:
+  // the same wall time at 60, 20, 10 and 5 fps, and at ×2/×5/×10, must reach the same T; a
+  // hidden tab's gap must not advance it; a stalled frame is capped. The old clamp is run as
+  // the negative control and must fail the same comparison.
+  {
+    const r = await page.evaluate(async () => {
+      const { createMissionClock, VIEW_STEP_MAX, MISSION_STEP_MAX } = await import('/src/sim/missionClock.js');
+      const L = window.__vc.launch;
+      const T0 = -40;
+      const run = (fps, speed, wall, stepOf) => {
+        L.reset(false); L.seek(T0); L.setSpeed(speed);
+        const n = Math.round(wall * fps);
+        for (let i = 0; i < n; i++) L.update(stepOf(1 / fps));
+        const t = L.state.t;
+        L.reset(false);
+        return +(t - T0).toFixed(4);
+      };
+      const clock = createMissionClock();
+      const mission = (raw) => clock.step(raw).mission;
+      const old = (raw) => Math.min(raw, 0.05);
+      const rates = Object.fromEntries([60, 20, 10, 5].map(f => [f, run(f, 1, 12, mission)]));
+      const speeds = Object.fromEntries([2, 5, 10].map(k => [k, run(20, k, 6, mission)]));
+      const oldAt5 = run(5, 1, 12, old);
+      const c2 = createMissionClock();
+      c2.discard();
+      const hidden = c2.step(30).mission;
+      const stall = createMissionClock().step(3);
+      return { rates, speeds, oldAt5, hidden, stall, VIEW_STEP_MAX, MISSION_STEP_MAX };
+    });
+    const near = (a, b) => Math.abs(a - b) < 0.02;
+    const okRates = Object.values(r.rates).every(v => near(v, 12));
+    const okSpeeds = Object.entries(r.speeds).every(([k, v]) => near(v, 6 * Number(k)));
+    const okGuards = r.hidden === 0 && r.stall.mission === r.MISSION_STEP_MAX && r.stall.view === r.VIEW_STEP_MAX;
+    const control = !near(r.oldAt5, 12);
+    report(okRates && okSpeeds && okGuards && control, 'el reloj de misión sigue al tiempo real a cualquier fps',
+      `12 s de pared → ${Object.entries(r.rates).map(([f, v]) => `${f} fps ${v} s`).join(', ')}; ×2/×5/×10 → ${Object.values(r.speeds).join(' / ')} s; `
+      + `pestaña oculta ${r.hidden} s, bloqueo de 3 s → ${r.stall.mission} s; control con el recorte antiguo a 5 fps: ${r.oldAt5} s${control ? ' (rechazado)' : ' (NO detectado)'}`);
+  }
+
   // ---- Transitions between modes ---------------------------------------------------------
   // Each mode was tested alone. The combinations were not, and the combinations are where
   // this project's bugs have actually lived: the tour running under a launch, the atmosphere

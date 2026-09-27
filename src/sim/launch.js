@@ -124,7 +124,7 @@ const PROFILE = buildProfile();
 // and marked so in the sheet: a 250 t booster for drag over the 9 m disc, an exponential
 // atmosphere (ρ₀ 1,225 kg/m³, 8,5 km scale height), a boostback of constant thrust direction
 // and size, a landing burn of constant thrust against the velocity on the thirteen inner
-// engines until the centre three take over at T+06:37 (cited below with the engine counts),
+// engines until the centre three take over at ≈T+06:37 (approximate and unverified, see below),
 // and a steady 1,6 m/s² deceleration on the centre three from there into the arms. What is
 // *solved*, rather than chosen: those two thrusts, the boostback's direction and the drag
 // coefficient, by Newton iteration at load, so the booster goes transonic at the cited
@@ -136,14 +136,17 @@ const PROFILE = buildProfile();
 // It used to take Cd ≈ 0,9 as given and solve only the burns. That booster was still at
 // Mach 2,3, 5 km up, when its landing burn lit, and crossed Mach 1 seven seconds into the
 // burn — the opposite order to every flight that has called it — and it kept the thirteen
-// engines lit until T+06:46,5, against its own citation of three at T+06:37.
+// engines lit until T+06:46,5, against the only reading there was of three at T+06:37.
 //
 // The model integrates the booster's centre of mass, 30 m up its axis, not its base: it flips
 // about that point, as a free body does, instead of swinging 70 m of tank about its engines.
 const CATCH_BASE = 22;            // booster base held this far above the mount deck when caught
 export const RETURN_ASSUMED = { mass: 250e3, diameter: 9, rho0: 1.225, scaleHeight: 8500, comOffset: 30, threeDecel: 1.6 };
 export const TRANSONIC_LEAD = 5;   // cited: flight 7, transonic T+06:26, landing burn T+06:31
-export const BURN_THREE = 397;     // cited: 13 engines → centre 3 by T+06:37 (flight 5, RGV count)
+// ≈, NOT telemetry: an earlier external audit read the engine count off third-party (RGV)
+// footage of flight 5 as 13 at T+6:30 and 3 by T+6:37. It has not been checked frame by frame
+// against the original video; until it is, it stays approximate and is not re-timed.
+export const BURN_THREE = 397;     // ≈T+06:37, 13 engines → centre 3 (approximate)
 const FLIP_END = 166.5;            // the flip to boostback attitude, overlapping the throttle-up
 const RETRO_BLEND = [221, 245];    // after the boostback: swing to engines-first
 
@@ -382,7 +385,7 @@ function boosterEngineThrottle(t) {
 /**
  * Which of the booster's engines are lit, as a share of the cluster's radius (rings at 1,02,
  * 2,48 and 3,86 m, 0,62 m exit radius, 4,48 m overall). Flight 5: 13 lit for the landing burn,
- * down to the centre 3 for the approach (RGV engine count, T+6:30 and T+6:37); the inner
+ * down to the centre 3 for the approach (≈T+6:37, an unverified reading of RGV footage); the inner
  * ring for the boostback (flight 7 relit 9 of 10); the centre 3 through hot-staging.
  */
 const CENTRE_3 = (1.02 + 0.62) / 4.48, INNER_13 = (2.48 + 0.62) / 4.48;
@@ -433,10 +436,10 @@ export const pitchAt = (t) => (t <= 0 ? 0 : sample(PROFILE.pit, t));
 
 // The moment the stack clears the tower is read off the integrated climb, not authored: the
 // engines' exit plane has to rise from where it rests — BOOSTER_AFT under the deck, and the
-// deck 13 m above the pad — past the 144,5 m tower top. It was a fixed T+12, by which time
+// deck 13 m above the pad — past the ≈144,5 m tower top (a reported, unverified total). It was a fixed T+12, by which time
 // the curve already has the stack ~300 m up.
 {
-  const CLIMB = 144.5 - (13 - BOOSTER_AFT);
+  const CLIMB = 144.5 - (13 - BOOSTER_AFT);   // ≈, PAD_FIGURES.towerH (grade D)
   let t = EVENTS.liftoff;
   while (altitudeAt(t) < CLIMB && t < 60) t += 0.05;
   EVENTS.towerClear = Math.round(t * 10) / 10;
@@ -526,7 +529,10 @@ export const MILESTONES = [
   { t: EVENTS.boostbackStart, label: 'Boostback burn', src: 'f5' },
   { t: EVENTS.boostbackEnd, label: 'Boostback shutdown', src: 'f5' },
   { t: DERIVED.apogee, label: 'Booster apogee', src: 'model' },
-  ...(DERIVED.transonic ? [{ t: DERIVED.transonic, label: 'Booster transonic', src: 'f7' }] : []),
+  // The crossing is the model's own (T+6:25 on this clock). What is cited is the interval: the
+  // drag is solved so it falls five seconds before the landing burn, as flight 7's did
+  // (T+6:26, burn T+6:31). `tunedTo` keeps that apart from where the time comes from.
+  ...(DERIVED.transonic ? [{ t: DERIVED.transonic, label: 'Booster transonic', src: 'model', tunedTo: 'f7' }] : []),
   { t: EVENTS.landingBurn, label: 'Landing burn', src: 'f5' },
   { t: EVENTS.catch, label: 'Booster caught', src: 'f5' },
 ].sort((a, b) => a.t - b.t);

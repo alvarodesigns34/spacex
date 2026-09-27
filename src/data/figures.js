@@ -41,7 +41,10 @@ export const GRADES = {
  */
 export const FIGURES = {
   starship: {
-    height: { value: 124.05, grade: 'A', ref: 'spacex_starship', note: '407 ft: 236 ft of booster + 171 ft of ship' },
+    // The published figure is what the interface states: 124 m / 407 ft (spacex.com, checked
+    // 27 Sep 2026). The geometry is built from the finer feet, 236 + 171 ft = 71.93 + 52.12 =
+    // 124.05 m, 0.04 % over, well inside the grade-A tolerance; nothing is moved to match.
+    height: { value: 124, grade: 'A', ref: 'spacex_starship', note: 'published 124 m / 407 ft; the model is built from the feet, 71.93 + 52.12 = 124.05 m' },
     footprint: { value: 9, grade: 'A', ref: 'spacex_starship', note: 'diameter' },
     readme: ['height'],
   },
@@ -110,7 +113,9 @@ export const COUNTS = {
  * of vehicles/pad.js. `sheet` names the data sheet row that states each one.
  */
 export const PAD_FIGURES = {
-  towerH: { value: 144.5, grade: 'C', ref: 'se_pad2', label: 'torre · altura sobre la explanada', sheet: 'Pad 2 · integration tower' },
+  // Grade D, not C: the only trail to 474 ft is a fan wiki citing FAA filings nobody here has
+  // seen; the press article it used to cite states no height at all (checked 27 Sep 2026).
+  towerH: { value: 144.5, grade: 'D', ref: 'wiki_olit3', label: 'torre · altura total sobre la explanada (≈, 474 ft según una fuente secundaria que cita expedientes FAA no localizados)', sheet: 'Pad 2 · integration tower' },
   armLen: { value: 26, grade: 'C', ref: 'nsf_pad2', label: 'brazo de captura · longitud (≈36 del Pad 1 − 10)', sheet: 'Pad 2 · catch arms' },
   deckTop: { value: 18, grade: 'D', label: 'mesa · cota de la cubierta', sheet: 'Pad 2 · plan dimensions' },
   padY: { value: 5, grade: 'D', label: 'explanada · cota' },

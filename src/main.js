@@ -33,6 +33,7 @@ import { seeded, mergeAll } from './geometry/utils.js';
 import { buildLaunchComplex, PAD } from './vehicles/pad.js';
 import { verifyExhibits, verifyScene, verifyPad, verifyInterfaces } from './data/verify.js';
 import { createLaunch, EVENTS, MILESTONES, ENGINE_LAYOUT, altitudeAt, boosterAltAt } from './sim/launch.js';
+import { createMissionClock } from './sim/missionClock.js';
 import { createLaunchSound } from './sim/sound.js';
 
 // Exhibit layout (world X, metres). Mount heights are presentation choices.
@@ -41,7 +42,7 @@ import { createLaunchSound } from './sim/sound.js';
 // nothing but the black shield. Turning it puts the tile line across the vehicle, which is
 // how it is almost always photographed and how the two finishes read against each other.
 // The seven museum exhibits stand in a row on z = 0. Starship does not: it sits on a launch
-// complex of its own, set back behind the row, because a 144,5 m tower and a flame trench do
+// complex of its own, set back behind the row, because a ≈144,5 m tower and a flame trench do
 // not belong in a line of display mounts and because the launch sequence needs the room.
 // `people` is declared per exhibit rather than inferred. It used to fall through to a generic
 // branch that read lay.mountRadius, which Engine Row does not have — undefined + 3.5 is NaN,
@@ -1038,10 +1039,18 @@ async function main() {
     }
   }
 
+  // The view steps at most 0,05 s a frame; the mission keeps wall time (missionClock.js).
+  const missionClock = createMissionClock();
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    clock.getDelta();            // drop the hidden gap from the next frame's delta…
+    missionClock.discard();      // …and from the mission, even if rAF already ran
+  });
   function frame() {
-    const dt = Math.min(clock.getDelta(), 0.05);
+    const steps = missionClock.step(clock.getDelta());
+    const dt = steps.view;
     rig.update(dt);
-    launch.update(dt);
+    launch.update(steps.mission);
     sound?.update();
     // Water keeps moving whatever the camera or the launch is doing.
     WAVE_TIME.value += dt;

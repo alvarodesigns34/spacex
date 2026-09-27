@@ -16,7 +16,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       <div class="subtitle" id="hud-subtitle"></div>
     </header>
 
-    <div class="rail" id="rail" role="tablist" aria-label="Vehicles"></div>
+    <div class="rail" id="rail" role="group" aria-label="Vehicles"></div>
 
     <aside class="sheet" id="sheet" aria-label="Data sheet">
       <div class="sheet-head">
@@ -37,7 +37,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
 
     <nav class="minimap" id="minimap" aria-label="Site map"></nav>
 
-    <div class="presets" id="presets" role="tablist" aria-label="Views"></div>
+    <div class="presets" id="presets" role="group" aria-label="Views"></div>
 
     <div class="tools">
       <label class="tool"><input type="checkbox" id="tg-labels" checked> Labels <kbd>L</kbd></label>
@@ -88,13 +88,13 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
         <figcaption><span class="mp-ship">Ship</span><span class="mp-booster">Booster</span><span class="mp-scale">altitude, square-root scale</span></figcaption>
       </figure>
       <div class="mission-foot">
-        <div class="mission-speeds" id="mission-speeds">
-          <button data-k="1" class="active">×1</button><button data-k="2">×2</button><button data-k="5">×5</button><button data-k="10">×10</button>
+        <div class="mission-speeds" id="mission-speeds" role="group" aria-label="Playback speed">
+          <button type="button" data-k="1" class="active" aria-pressed="true" aria-label="Speed ×1">×1</button><button type="button" data-k="2" aria-pressed="false" aria-label="Speed ×2">×2</button><button type="button" data-k="5" aria-pressed="false" aria-label="Speed ×5">×5</button><button type="button" data-k="10" aria-pressed="false" aria-label="Speed ×10">×10</button>
         </div>
         <button class="mission-sound" id="mission-sound" aria-pressed="false" title="Engine sound, delayed by distance at the speed of sound">Sound off</button>
         <button class="mission-abort" id="mission-abort">End</button>
       </div>
-      <details class="mission-note"><summary>Composite demonstration · sources and limits</summary><p><b>Not a reconstruction of one flight.</b> The vehicle and the pad are the V3 / Pad 2 configuration that debuted on flight 12 (22 May 2026), but that flight did <i>not</i> attempt a catch: booster 19 was sent to the Gulf and its landing burn failed to relight. So the terminal count and the ascent milestones are flight 7's (GO for launch T−0:30 · flame deflector T−0:10 · ignition T−0:03 · liftoff T+0:02 · Max-Q 1:02 · MECO 2:32 · hot-staging 2:40) and the return milestones are flight 5's, the flight on which a booster was first caught (boostback 2:45–3:41, landing burn 6:30, caught 6:54). Between the milestones, the ascent's speed curve, gravity turn and separation speed are authored. The booster's return is <i>computed</i> from that state with gravity, drag and two burns; their size and direction and the drag are solved so the cited times are met and the booster goes transonic five seconds before its landing burn, as flight 7's did (T+6:26, burn T+6:31). The centre three then ease it into the arms over the last 17 s. Mass, drag and the resulting apogee (≈ 83 km) are assumptions and results, not flight data. Tower clear, supersonic and booster apogee are read off this model, not cited. The sound, when on, is synthesised: a rumble and crackle that reach the camera at 343 m/s.</p></details>
+      <details class="mission-note"><summary>Composite demonstration · sources and limits</summary><p><b>Not a reconstruction of one flight.</b> The vehicle and the pad are the V3 / Pad 2 configuration that debuted on flight 12 (22 May 2026), but that flight did <i>not</i> attempt a catch: booster 19 was sent to the Gulf and its landing burn failed to relight. So the terminal count and the ascent milestones are flight 7's (GO for launch T−0:30 · flame deflector T−0:10 · ignition T−0:03 · liftoff T+0:02 · Max-Q 1:02 · MECO 2:32 · hot-staging 2:40) and the return milestones are flight 5's, the flight on which a booster was first caught (boostback 2:45–3:41, landing burn 6:30, caught 6:54). Between the milestones, the ascent's speed curve, gravity turn and separation speed are authored. The booster's return is <i>computed</i> from that state with gravity, drag and two burns; their size and direction and the drag are solved so the cited times are met and the booster goes transonic five seconds before its landing burn, as flight 7's did (T+6:26, burn T+6:31). The centre three then ease it into the arms over the last 17 s. Mass, drag and the resulting apogee (≈ 83 km) are assumptions and results, not flight data. Tower clear, supersonic, booster apogee and booster transonic are read off this model, not cited, and the panel marks their times ≈: the transonic crossing (≈T+6:25) is the model's, tuned to the flight-7 interval, not flight 7's own T+6:26. The sound, when on, is synthesised: a rumble and crackle that reach the camera at 343 m/s.</p></details>
     </div>
     <div class="callout" id="callout" aria-live="polite"></div>
 
@@ -133,18 +133,21 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
   const rail = root.querySelector('#rail');
   vehicles.forEach((v, i) => {
     const b = document.createElement('button');
+    // Selection buttons, not tabs: these move the camera and swap the sheet, there is no tab
+    // panel behind them and no arrow-key pattern, so role="tab" promised what they did not do.
+    // aria-pressed says which one is chosen, the group's label says what the choice is.
+    b.type = 'button';
     b.className = 'rail-item';
     b.dataset.id = v.id;
-    b.setAttribute('role', 'tab');
-    b.setAttribute('aria-selected', 'false');
+    b.setAttribute('aria-pressed', 'false');
     b.innerHTML = `<span class="rail-index">${i + 1}</span><span class="rail-name">${v.name}</span><span class="rail-h">${fmtHeight(v.id === 'starlink' ? v.footprint : v.height)}${v.id === 'starlink' ? ' <small>span</small>' : ''}</span>`;
     b.addEventListener('click', () => { closeDock(); onSelect(v.id); });
     rail.appendChild(b);
   });
   const overview = document.createElement('button');
+  overview.type = 'button';
   overview.className = 'rail-item rail-overview';
-  overview.setAttribute('role', 'tab');
-  overview.setAttribute('aria-selected', 'true');
+  overview.setAttribute('aria-pressed', 'true');
   overview.innerHTML = `<span class="rail-index">0</span><span class="rail-name">Overview</span><span class="rail-h">all</span>`;
   overview.addEventListener('click', () => { closeDock(); onReset(); });
   rail.appendChild(overview);
@@ -188,9 +191,9 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       const b = document.createElement('button');
       b.className = 'preset' + (i === 0 ? ' active' : '');
       b.textContent = pr.label;
+      b.type = 'button';
       b.dataset.preset = pr.id;
-      b.setAttribute('role', 'tab');
-      b.setAttribute('aria-selected', String(i === 0));
+      b.setAttribute('aria-pressed', String(i === 0));
       b.addEventListener('click', () => { closeDock(); onPreset(v.id, pr.id); });
       p.appendChild(b);
     });
@@ -201,7 +204,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     root.querySelectorAll('.preset').forEach(b => {
       const active = b.dataset.preset === id;
       b.classList.toggle('active', active);
-      b.setAttribute('aria-selected', String(active));
+      b.setAttribute('aria-pressed', String(active));
     });
   }
 
@@ -209,11 +212,11 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     closeDock();
     rail.querySelectorAll('.rail-item').forEach(b => {
       // `on` already accounts for the overview item, which has no dataset.id; toggling on the
-      // raw comparison instead meant aria-selected said "selected" while nothing was painted,
+      // raw comparison instead meant the ARIA state said "selected" while nothing was painted,
       // so the overview row never highlighted and the two states disagreed.
       const on = b.dataset.id === id || (!id && b.classList.contains('rail-overview'));
       b.classList.toggle('active', on);
-      b.setAttribute('aria-selected', on ? 'true' : 'false');
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
     setMapActive(id);
     const v = vehicles.find(x => x.id === id);
@@ -437,7 +440,10 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     mPhase.textContent = st.phase;
     // "T+01:02", without the hours the main clock carries.
     const short = st.next && clockText(st.next.t);
-    mNext.textContent = short ? `Next · ${st.next.label} ${short.slice(0, 2)}${short.slice(5)}` : '';
+    // A time read off the model (tower clear, supersonic, booster apogee, booster transonic) is
+    // marked ≈, so it is not taken for a flight's published timeline.
+    const est = st.next?.src === 'model' ? '≈' : '';
+    mNext.textContent = short ? `Next · ${st.next.label} ${est}${short.slice(0, 2)}${short.slice(5)}` : '';
     for (const key of ['booster', 'ship']) {
       const r = readout[key], v = st[key];
       if (!v) continue;
@@ -450,13 +456,18 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       }
     }
     // Callouts only on playback, as a milestone is crossed: a seek or a jump across the
-    // timeline is not the moment an event happens.
-    if (lastT !== null && st.t > lastT && st.t - lastT < 5) {
+    // timeline is not the moment an event happens. Playback steps reach 5 s of mission (a
+    // 0,5 s frame at ×10, missionClock.js), so anything up to 6 s is still playback.
+    if (lastT !== null && st.t > lastT && st.t - lastT <= 6) {
       const hit = milestones.filter(([t]) => t > lastT && t <= st.t).pop();
       if (hit) showCallout(hit[1]);
     }
     lastT = st.t;
-    for (const b of speeds) b.classList.toggle('active', Number(b.dataset.k) === st.speed);
+    for (const b of speeds) {
+      const on = Number(b.dataset.k) === st.speed;
+      b.classList.toggle('active', on);
+      if (b.getAttribute('aria-pressed') !== String(on)) b.setAttribute('aria-pressed', String(on));
+    }
     const cur = plotSpan && plot.querySelector('#mp-cursor');
     if (cur) {
       const x = Math.max(0, Math.min(400, ((st.t - plotSpan.t0) / (plotSpan.t1 - plotSpan.t0)) * 400));
