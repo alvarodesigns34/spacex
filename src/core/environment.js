@@ -7,7 +7,7 @@ import { mesh, mergeAll, mat4, chunkedInstances } from '../geometry/utils.js';
 import { noise2 } from '../materials/textures.js';
 import { waveNormals, grassNormals } from '../materials/library.js';
 import { createClouds } from './clouds.js';
-import { shoreZ, terrainHeight, thicket } from './terrain.js';
+import { shoreZ, terrainHeight, thicket, marsh } from './terrain.js';
 
 /**
  * The Gulf shore. Starbase stands on the coast at Boca Chica, and the plain runs out into a
@@ -25,6 +25,7 @@ function coastalDisc(radius, rings, segs) {
   const col = new Float32Array(count * 3);
   const shore = new Float32Array(count * 2);     // [dry sand, wet sand], read by the terrain shader
   const land = new Float32Array(count);          // woody cover (terrain.js thicket), read by the shader
+  const tidal = new Float32Array(count);         // where tidal channels may run (terrain.js marsh)
   const idx = [];
   let k = 0;
   const push = (x, y) => {
@@ -36,6 +37,7 @@ function coastalDisc(radius, rings, segs) {
     // The lomas and the plain's micro-relief (terrain.js), zero on the site and the beach.
     pos[k * 3 + 2] += terrainHeight(x, -y);
     land[k] = thicket(x, -y);
+    tidal[k] = marsh(x, -y);
     const broad = noise2(x / 110, y / 110);
     const patch = noise2(x / 42 + 19, y / 42 - 7);
     const salt = Math.max(0, broad - 0.46);
@@ -83,6 +85,7 @@ function coastalDisc(radius, rings, segs) {
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   g.setAttribute('aShore', new THREE.BufferAttribute(shore, 2));
   g.setAttribute('aLand', new THREE.BufferAttribute(land, 1));
+  g.setAttribute('aMarsh', new THREE.BufferAttribute(tidal, 1));
   g.setIndex(idx);
   g.computeVertexNormals();
   return g;

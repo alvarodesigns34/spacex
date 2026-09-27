@@ -106,6 +106,25 @@ export function terrainHeight(x, z) {
 }
 
 /**
+ * Where tidal channels may run, 0..1: the open low plain. None on the built site, the pools'
+ * margins, the beach and foredune, or up the lomas, which stand above the tide. SpaceX's own
+ * photograph of the V3 wet dress rehearsal on Pad 2 shows the ground round the pad as marsh
+ * grass cut by winding, water-filled channels and grey-brown flats with standing water. Their
+ * course here is drawn by noise, NOT surveyed: the kind of ground, not a map of it.
+ */
+export function marsh(x, z) {
+  // Its own, tighter site mask: in the photograph the channels come within a couple of hundred
+  // metres of the mount, well inside the berm-and-tank-farm circle siteMask keeps flat.
+  const dx = Math.max(0, Math.abs(x - 5) - 270), dz = Math.max(0, Math.abs(z - 15) - 175);
+  let m = smooth(0, 30, Math.hypot(dx, dz));
+  m = Math.min(m, smooth(150, 200, Math.hypot(x, z + 185)));   // berm 82 m, tank farm to ~120 m
+  for (const [px, pz, pr] of POOLS) m = Math.min(m, smooth(pr * 1.05, pr * 1.5, Math.hypot(x - px, z - pz)));
+  m *= inland(x, z);
+  if (m <= 0) return 0;
+  return m * (1 - smooth(0.02, 0.25, loma(x, z).k));
+}
+
+/**
  * How much thornscrub cover a point carries, 0..1 (drawn as a ground tone): dense on the
  * lomas, patchy on slight rises of the plain, none on the site, the beach or the pools.
  */

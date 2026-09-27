@@ -336,12 +336,13 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
   // Cheap: five noise evaluations and one extra texture fetch per ground fragment.
   M.terrain.onBeforeCompile = (sh) => {
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vVcWorld;\nattribute vec2 aShore;\nvarying vec2 vShore;\nattribute float aLand;\nvarying float vLand;')
-      .replace('#include <project_vertex>', '#include <project_vertex>\nvVcWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvShore = aShore;\nvLand = aLand;');
+      .replace('#include <common>', '#include <common>\nvarying vec3 vVcWorld;\nattribute vec2 aShore;\nvarying vec2 vShore;\nattribute float aLand;\nvarying float vLand;\nattribute float aMarsh;\nvarying float vMarsh;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvVcWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvShore = aShore;\nvLand = aLand;\nvMarsh = aMarsh;');
     const NOISE = `
 varying vec3 vVcWorld;
 varying vec2 vShore;
 varying float vLand;
+varying float vMarsh;
 float vcHash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float vcNoise(vec2 p) {
   vec2 i = floor(p), f = fract(p);
@@ -371,6 +372,7 @@ float vcNoise(vec2 p) {
   diffuseColor *= sampledDiffuseColor;
 #endif`)
       .replace('#include <color_fragment>', `#include <color_fragment>
+  float vcWater = 0.0;
   {
     vec2 wp = vVcWorld.xz;
     float beach = max(vShore.x, vShore.y);
@@ -392,10 +394,12 @@ float vcNoise(vec2 p) {
     float low = smoothstep(0.30, 0.18, cover);
     // Grey-tan, not yellow: half-way to the map's own luminance, which is what sun-bleached
     // salt crust and dry sand look like beside grass.
-    vec3 bareBase = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), 0.22);
+    // Greyer than it was (0.22): SpaceX's Pad 2 photographs show the bare flats round the pad as
+    // grey-brown silt and salt crust, not tan sand.
+    vec3 bareBase = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), 0.32);
     // A touch warmer than neutral: under a low sun half the light on flat ground is blue
     // skylight, and a neutral pale ground came out blue-grey.
-    vec3 bare = bareBase * mix(vec3(0.97, 0.92, 0.84), vec3(0.70, 0.66, 0.59), low);
+    vec3 bare = bareBase * mix(vec3(0.97, 0.92, 0.85), vec3(0.64, 0.61, 0.56), low);
     // Vegetation, in linear colour: green grass and dry straw by district, dark shrub clumps a
     // few metres across. The map's luminance is kept as grain so the grass is not flat paint.
     float lum = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11)) / 0.40;
@@ -423,6 +427,34 @@ float vcNoise(vec2 p) {
     // The fringe between the two is sparse: grass thinning out over bare ground.
     float fringe = smoothstep(0.0, 1.0, veg) * smoothstep(0.28, 0.78, clump + veg * 0.6);
     diffuseColor.rgb = mix(bare, vegCol, max(fringe, smoothstep(0.7, 1.0, veg)));
+    // Tidal channels (terrain.js marsh): winding, water-filled cuts through the marsh grass
+    // and the flats, the way SpaceX's Pad 2 photographs show the ground round the pad. Each
+    // is an isoline of warped noise, so it wanders and never closes on a grid: main channels
+    // a few metres to ten across, tapering out, with narrower creeks feeding them. Dark
+    // silty water that mirrors the sky, inside a band of wet grey mud. Drawn, not surveyed.
+    {
+      // Stretched across the plain, the way the creeks drain: an isotropic field closes its
+      // isolines into rings round every bump, and a marsh has no circular channels.
+      vec2 cw = vec2(vcNoise(wp / 150.0 + 2.3), vcNoise(wp / 150.0 - 5.1)) - 0.5;
+      float n1 = vcNoise(vec2(wp.x / 620.0, wp.y / 240.0) + cw * 1.5 + 17.0);
+      float n2 = vcNoise(vec2(wp.x / 180.0, wp.y / 80.0) + cw * 2.2 - 8.0);
+      float taper1 = smoothstep(0.3, 0.55, vcNoise(wp / 380.0 + 3.0));
+      float taper2 = smoothstep(0.5, 0.72, vcNoise(wp / 190.0 - 21.0)) * smoothstep(0.3, 0.5, taper1 + vcNoise(wp / 90.0));
+      // Antialiased against the pixel footprint (fwidth, so computed outside any branch): a
+      // channel narrower than a pixel fades instead of breaking into a flickering thread, which
+      // near the horizon drew rows of little rings.
+      float e1 = abs(n1 - 0.5), e2 = abs(n2 - 0.5);
+      float f1 = max(fwidth(n1), 1e-5), f2 = max(fwidth(n2), 1e-5);
+      float w1 = 0.02 * taper1, w2 = 0.013 * taper2;
+      float water = max((1.0 - smoothstep(w1 - f1, w1 + f1, e1)) * clamp(w1 / f1, 0.0, 1.0),
+                        (1.0 - smoothstep(w2 - f2, w2 + f2, e2)) * clamp(w2 / f2, 0.0, 1.0)) * vMarsh;
+      float mud = max((1.0 - smoothstep(2.6 * w1 - f1, 2.6 * w1 + f1, e1)) * clamp(2.6 * w1 / f1, 0.0, 1.0),
+                      (1.0 - smoothstep(2.6 * w2 - f2, 2.6 * w2 + f2, e2)) * clamp(2.6 * w2 / f2, 0.0, 1.0)) * vMarsh;
+      vec3 mudCol = vec3(0.105, 0.095, 0.078) * (0.9 + 0.2 * vcNoise(wp / 3.0));
+      diffuseColor.rgb = mix(diffuseColor.rgb, mudCol, mud * 0.85);
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.11, 0.115, 0.095), water);
+      vcWater = water;
+    }
     // The beach (ground mesh only; other meshes on this material have no aShore and read 0):
     // pale quartz sand with a faint ripple of tone, darkening to wet sand at the water. A beach
     // tinted from the plain's olive map stayed grass-coloured all the way into the sea.
@@ -434,7 +466,8 @@ float vcNoise(vec2 p) {
   }`)
       // Wet sand holds a film of water and shines; dry sand does not.
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-  roughnessFactor = mix(roughnessFactor, 0.28, vShore.y * 0.8);`)
+  roughnessFactor = mix(roughnessFactor, 0.28, vShore.y * 0.8);
+  roughnessFactor = mix(roughnessFactor, 0.07, vcWater);`)
       // Grass, scrub and dry soil are not a surface but a tangle of blades and grains: light
       // that would glance off a smooth plane is trapped and scattered instead. As a microfacet
       // surface, the Fresnel term at grazing angles laid a sheet of reflected sky over the plain,
@@ -442,12 +475,12 @@ float vcNoise(vec2 p) {
       // of it on the wet sand, which does shine.
       .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
   {
-    float vcSheen = mix(0.3, 1.0, vShore.y);
+    float vcSheen = mix(0.3, 1.0, max(vShore.y, vcWater));
     reflectedLight.indirectSpecular *= vcSheen;
     reflectedLight.directSpecular *= vcSheen;
   }`);
   };
-  M.terrain.customProgramCacheKey = () => 'vc-terrain-macro-16';
+  M.terrain.customProgramCacheKey = () => 'vc-terrain-macro-17';
   // The Gulf beyond the beach. Water is a dielectric with a smooth surface: almost all of what
   // it shows is the sky it reflects, so the colour here is only the body tint of shallow,
   // silty coastal water, and the wave normals do the rest.
