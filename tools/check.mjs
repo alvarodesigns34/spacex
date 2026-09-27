@@ -545,11 +545,11 @@ try {
       const arms = chop.children.filter(c => c.name.startsWith('arm-')).map(a => +a.rotation.y.toFixed(4));
       return { x: b.position.x, y: b.position.y, chop: chop.position.y, arms };
     }, t);
-    // The integrated return tops out at ≈ 90 km, T+4:13, ≈ 88 km downrange (returnSummary()).
-    const apogee = await at(253);
+    // The integrated return tops out at ≈ 83 km, T+4:00, ≈ 94 km downrange (returnSummary()).
+    const apogee = await at(240);
     const mid = await at(340);
     const caught = await at(415);
-    const rose = apogee.y > 85000 && apogee.x > 60000;
+    const rose = apogee.y > 75000 && apogee.x > 60000;
     const home = Math.abs(caught.x) < 60 && caught.y < 60;
     // Closed means well in from the ±42° open position; how far in is measured below against
     // the hull, since closing too far is as wrong as not closing (the arms went through it).

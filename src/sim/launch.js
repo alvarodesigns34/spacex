@@ -118,22 +118,32 @@ const PROFILE = buildProfile();
 // disagree — and nothing jumps at the joins.
 //
 // What is cited: the four times (boostback T+02:45–T+03:41, landing burn T+06:30, catch
-// T+06:54, flight 5) and the state it starts from, which is the stack's own at separation
-// (itself integrated from the ascent inputs above). What is assumed, and marked so in the
-// sheet: a 250 t booster for drag with Cd ≈ 0,9 end-on over the 9 m disc, an exponential
+// T+06:54, flight 5), the booster going transonic five seconds before its landing burn
+// (flight 7: T+06:26 against a burn at T+06:31), and the state it starts from, which is the
+// stack's own at separation (itself integrated from the ascent inputs above). What is assumed,
+// and marked so in the sheet: a 250 t booster for drag over the 9 m disc, an exponential
 // atmosphere (ρ₀ 1,225 kg/m³, 8,5 km scale height), a boostback of constant thrust direction
-// and size, and a landing burn of constant thrust against the velocity. What is *solved*,
-// rather than chosen: those two thrusts and the boostback's direction, by Newton iteration at
-// load, so the landing burn lit at the cited T+06:30 brings the booster to walking pace
-// (12 m/s) 45 m above the catch height at T+06:46,5 — the moment the thirteen engines give way to
-// the centre three, 7,5 s before the cited catch. The centre three then set it down in the
-// arms on a cubic that matches position and velocity at both ends.
+// and size, a landing burn of constant thrust against the velocity on the thirteen inner
+// engines until the centre three take over at T+06:37 (cited below with the engine counts),
+// and a steady 1,6 m/s² deceleration on the centre three from there into the arms. What is
+// *solved*, rather than chosen: those two thrusts, the boostback's direction and the drag
+// coefficient, by Newton iteration at load, so the booster goes transonic at the cited
+// offset and the burn lit at the cited T+06:30 hands over to the centre three at the speed
+// and height that deceleration needs. The
+// centre three then set it down in the arms on a cubic that matches position and velocity
+// at both ends.
+//
+// It used to take Cd ≈ 0,9 as given and solve only the burns. That booster was still at
+// Mach 2,3, 5 km up, when its landing burn lit, and crossed Mach 1 seven seconds into the
+// burn — the opposite order to every flight that has called it — and it kept the thirteen
+// engines lit until T+06:46,5, against its own citation of three at T+06:37.
 //
 // The model integrates the booster's centre of mass, 30 m up its axis, not its base: it flips
 // about that point, as a free body does, instead of swinging 70 m of tank about its engines.
 const CATCH_BASE = 22;            // booster base held this far above the mount deck when caught
-export const RETURN_ASSUMED = { mass: 250e3, cd: 0.9, diameter: 9, rho0: 1.225, scaleHeight: 8500, comOffset: 30 };
-export const BURN_THREE = 406.5;   // landing burn: 13 engines → centre 3; 12 m/s, 45 m above the catch
+export const RETURN_ASSUMED = { mass: 250e3, diameter: 9, rho0: 1.225, scaleHeight: 8500, comOffset: 30, threeDecel: 1.6 };
+export const TRANSONIC_LEAD = 5;   // cited: flight 7, transonic T+06:26, landing burn T+06:31
+export const BURN_THREE = 397;     // cited: 13 engines → centre 3 by T+06:37 (flight 5, RGV count)
 const FLIP_END = 166.5;            // the flip to boostback attitude, overlapping the throttle-up
 const RETRO_BLEND = [221, 245];    // after the boostback: swing to engines-first
 
@@ -141,14 +151,15 @@ const pitchRate = (t) => (pitchProgram(t + 0.01) - pitchProgram(t - 0.01)) / 0.0
 
 const RETURN_ITER = { n: 0 };
 const RETURN = (() => {
-  const { mass: M, cd: CD, diameter, rho0, scaleHeight, comOffset: R } = RETURN_ASSUMED;
+  const { mass: M, diameter, rho0, scaleHeight, comOffset: R, threeDecel } = RETURN_ASSUMED;
   const G = 9.81, AREA = Math.PI * (diameter / 2) ** 2, DT = 0.02;
-  const K = (h) => rho0 * Math.exp(-Math.max(h, 0) / scaleHeight) * CD * AREA / (2 * M);
+  const K = (h, cd) => rho0 * Math.exp(-Math.max(h, 0) / scaleHeight) * cd * AREA / (2 * M);
   const T0 = EVENTS.separation, BB0 = EVENTS.boostbackStart, BB1 = EVENTS.boostbackEnd;
-  const LB = EVENTS.landingBurn, STOP_V = -12;
-  // Stop where the centre three can take it to the arms at a steady deceleration: 12 m/s over
-  // the remaining 7,5 s is 45 m, so the burn hands over 45 m above the catch height.
-  const STOP_H = CATCH_BASE + 45 + R;
+  const LB = EVENTS.landingBurn, TT = LB - TRANSONIC_LEAD;
+  // Stop where the centre three can take it to the arms at a steady deceleration: over the
+  // remaining 17 s at 1,6 m/s² that is 27 m/s, 231 m above the catch height.
+  const T3 = EVENTS.catch - BURN_THREE;
+  const STOP_V = -threeDecel * T3, STOP_H = CATCH_BASE + threeDecel * T3 * T3 / 2 + R;
   const sst = THREE.MathUtils.smoothstep;
   const bbWeight = (t) => sst(t, BB0, BB0 + 2) * (1 - sst(t, BB1 - 3, BB1));
 
@@ -163,7 +174,7 @@ const RETURN = (() => {
 
   function deriv(t, s, q, out) {
     const [, h, vx, vh] = s;
-    const sp = Math.hypot(vx, vh), k = K(h);
+    const sp = Math.hypot(vx, vh), k = K(h, q[3]);
     let ax = -k * sp * vx, ah = -G - k * sp * vh;
     if (t >= BB0 && t <= BB1) { const w = bbWeight(t); ax += w * q[0]; ah += w * q[1]; }
     if (t >= LB) { const sp1 = sp || 1, w = sst(t, LB, LB + 1.5); ax -= w * q[2] * vx / sp1; ah -= w * q[2] * vh / sp1; }
@@ -180,32 +191,41 @@ const RETURN = (() => {
     deriv(t + dt, tmp, q, k4);
     return s.map((v, i) => v + dt / 6 * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]));
   }
-  // Flies q = [boostback ax, boostback ah, landing-burn thrust] (m/s²) from separation until
-  // the burn has slowed the descent to STOP_V; returns the stop time and state.
+  // Flies q = [boostback ax, boostback ah, landing-burn thrust (m/s²), Cd] from separation
+  // until the burn has slowed the descent to STOP_V; returns the stop time and state, and the
+  // moment the falling booster crossed Mach 1 (interpolated, so the solve sees it move smoothly).
   function fly(q, rec) {
-    let s = init.slice(), t = T0;
+    let s = init.slice(), t = T0, trans = null, m0 = 0;
     while (t < 440) {
       const n = rk4(t, s, DT, q);
+      if (trans === null && t > BB1 && n[3] < 0) {
+        const m1 = Math.hypot(n[2], n[3]) / soundSpeedAt(n[1] - R) - 1;
+        if (m0 > 0 && m1 <= 0) trans = t + DT * m0 / (m0 - m1);
+        m0 = m1;
+      }
       if (t + DT > LB && n[3] >= STOP_V) {
         const f = (STOP_V - s[3]) / (n[3] - s[3]);
         const e = s.map((v, i) => v + (n[i] - v) * f);
         if (rec) rec.push([t + DT * f, ...e]);
-        return { t: t + DT * f, s: e };
+        return { t: t + DT * f, s: e, trans };
       }
       s = n; t += DT;
       if (rec) rec.push([t, ...s]);
     }
-    return { t, s };
+    return { t, s, trans };
   }
-  const residual = (q) => { const r = fly(q); return [r.s[0] / 1000, (r.s[1] - STOP_H) / 100, r.t - BURN_THREE]; };
+  const residual = (q) => {
+    const r = fly(q);
+    return [r.s[0] / 1000, (r.s[1] - STOP_H) / 100, r.t - BURN_THREE, (r.trans ?? LB + 20) - TT];
+  };
   // Seeded with the converged solution, so this normally takes one step to confirm it.
-  let q = [-39.143829, 4.758797, 40.967829];
+  let q = [-40.566336, 2.321945, 42.585252, 1.74135];
   for (let it = 0; it < 30; it++) {
     RETURN_ITER.n = it;
     const r0 = residual(q), n0 = Math.hypot(...r0);
     if (n0 < 1e-4) break;
-    const J = [0, 1, 2].map((j) => { const qq = q.slice(); qq[j] += 0.01; return residual(qq).map((v, i) => (v - r0[i]) / 0.01); });
-    const d = solve3([0, 1, 2].map((i) => [J[0][i], J[1][i], J[2][i]]), r0.map((v) => -v));
+    const J = q.map((_, j) => { const qq = q.slice(); qq[j] += 0.01; return residual(qq).map((v, i) => (v - r0[i]) / 0.01); });
+    const d = solveN(r0.map((_, i) => J.map((col) => col[i])), r0.map((v) => -v));
     let lam = 1;
     while (lam > 1e-3) { const qn = q.map((v, j) => v + lam * d[j]); if (Math.hypot(...residual(qn)) < n0) { q = qn; break; } lam /= 2; }
     if (lam <= 1e-3) break;
@@ -249,20 +269,21 @@ const RETURN = (() => {
     reentryPeak: { t: vMaxT, speed: vMax },
     burnStart: { h: tab.h[burnIdx] - R, speed: Math.hypot(tab.vx[burnIdx], tab.vh[burnIdx]) },
     bbPitch: Math.atan2(q[0], q[1]),
+    transonic: stop.trans,
   };
 })();
 
-/** Gaussian elimination with partial pivoting, 3 × 3. */
-function solve3(A, b) {
-  const m = A.map((r, i) => [...r, b[i]]);
-  for (let i = 0; i < 3; i++) {
+/** Gaussian elimination with partial pivoting, n × n. */
+function solveN(A, b) {
+  const n = b.length, m = A.map((r, i) => [...r, b[i]]);
+  for (let i = 0; i < n; i++) {
     let p = i;
-    for (let k = i + 1; k < 3; k++) if (Math.abs(m[k][i]) > Math.abs(m[p][i])) p = k;
+    for (let k = i + 1; k < n; k++) if (Math.abs(m[k][i]) > Math.abs(m[p][i])) p = k;
     [m[i], m[p]] = [m[p], m[i]];
-    for (let k = i + 1; k < 3; k++) { const f = m[k][i] / m[i][i]; for (let c = i; c < 4; c++) m[k][c] -= f * m[i][c]; }
+    for (let k = i + 1; k < n; k++) { const f = m[k][i] / m[i][i]; for (let c = i; c <= n; c++) m[k][c] -= f * m[i][c]; }
   }
-  const x = [0, 0, 0];
-  for (let i = 2; i >= 0; i--) { let v = m[i][3]; for (let c = i + 1; c < 3; c++) v -= m[i][c] * x[c]; x[i] = v / m[i][i]; }
+  const x = new Array(n).fill(0);
+  for (let i = n - 1; i >= 0; i--) { let v = m[i][n]; for (let c = i + 1; c < n; c++) v -= m[i][c] * x[c]; x[i] = v / m[i][i]; }
   return x;
 }
 
@@ -314,7 +335,7 @@ export const boosterAltAt = (t) => {
 export const returnSummary = () => ({
   apogee: RETURN.apogee, reentryPeak: RETURN.reentryPeak, burnStart: RETURN.burnStart,
   boostback: { accel: Math.hypot(RETURN.q[0], RETURN.q[1]), pitchDeg: THREE.MathUtils.radToDeg(RETURN.bbPitch) },
-  landingBurnAccel: RETURN.q[2], stop: { t: RETURN.stop.t }, q: RETURN.q.slice(), iterations: RETURN_ITER.n,
+  landingBurnAccel: RETURN.q[2], cd: RETURN.q[3], transonic: RETURN.transonic, stop: { t: RETURN.stop.t }, q: RETURN.q.slice(), iterations: RETURN_ITER.n,
 });
 /**
  * Speed of the booster's base, differentiated from the positions the scene uses, so the
@@ -336,7 +357,7 @@ function returnThrottle(t) {
       * (1 - THREE.MathUtils.smoothstep(t, EVENTS.boostbackEnd - 3, EVENTS.boostbackEnd));
   }
   if (t >= EVENTS.landingBurn && t <= EVENTS.catch) {
-    // Thirteen engines to arrest the descent, down to three for the last few seconds.
+    // Thirteen engines to arrest the descent, down to the centre three for the approach.
     const lit = t < BURN_THREE - 1.5 ? 0.42 : 0.42 * (1 - 0.72 * THREE.MathUtils.smoothstep(t, BURN_THREE - 1.5, BURN_THREE + 0.5));
     return lit * (1 - THREE.MathUtils.smoothstep(t, EVENTS.catch - 1.2, EVENTS.catch));
   }
@@ -361,7 +382,7 @@ function boosterEngineThrottle(t) {
 /**
  * Which of the booster's engines are lit, as a share of the cluster's radius (rings at 1,02,
  * 2,48 and 3,86 m, 0,62 m exit radius, 4,48 m overall). Flight 5: 13 lit for the landing burn,
- * down to the centre 3 for the last seconds (RGV engine count, T+6:30 and T+6:37); the inner
+ * down to the centre 3 for the approach (RGV engine count, T+6:30 and T+6:37); the inner
  * ring for the boostback (flight 7 relit 9 of 10); the centre 3 through hot-staging.
  */
 const CENTRE_3 = (1.02 + 0.62) / 4.48, INNER_13 = (2.48 + 0.62) / 4.48;
@@ -505,7 +526,7 @@ export const MILESTONES = [
   { t: EVENTS.boostbackStart, label: 'Boostback burn', src: 'f5' },
   { t: EVENTS.boostbackEnd, label: 'Boostback shutdown', src: 'f5' },
   { t: DERIVED.apogee, label: 'Booster apogee', src: 'model' },
-  ...(DERIVED.transonic ? [{ t: DERIVED.transonic, label: 'Booster transonic', src: 'model' }] : []),
+  ...(DERIVED.transonic ? [{ t: DERIVED.transonic, label: 'Booster transonic', src: 'f7' }] : []),
   { t: EVENTS.landingBurn, label: 'Landing burn', src: 'f5' },
   { t: EVENTS.catch, label: 'Booster caught', src: 'f5' },
 ].sort((a, b) => a.t - b.t);
@@ -522,7 +543,10 @@ const PHASES = [
   [EVENTS.ignition, 'Flame deflector active'],
   [EVENTS.liftoff, 'Super Heavy ignition'],
   [EVENTS.towerClear, 'Liftoff'],
-  [EVENTS.maxQ - 6, 'Ascent · tower cleared'],
+  // A phase never names an event the panel still lists as next: Max-Q used to start 6 s
+  // early, under "Next · Max-Q", and "Supersonic" was announced but never shown.
+  [DERIVED.supersonic ?? EVENTS.maxQ, 'Ascent · tower cleared'],
+  ...(DERIVED.supersonic ? [[EVENTS.maxQ, 'Ascent · supersonic']] : []),
   [EVENTS.maxQ + 8, 'Max-Q · peak dynamic pressure'],
   [EVENTS.meco, 'Ascent'],
   [EVENTS.separation, 'MECO · engine cutoff'],
@@ -733,12 +757,15 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     }),
   });
   // Landing: the last seconds of the burn blast the mount deck, and the exhaust and deck water
-  // spread out across it as a low sheet of steam.
+  // spread out across it as a low sheet of steam. It starts when the column can reach the
+  // deck (the base within 55 m of it), not at a fixed time: tied to the switch to the centre
+  // three it billowed up round the pad while the booster was still 280 m up.
+  const SPRAY_FROM = (() => { let t = EVENTS.landingBurn; while (t < EVENTS.catch - 1 && boosterAltAt(t) > 55) t += 0.1; return t; })();
   const landingSpray = new Vapor({
     name: 'vapor-landing', rng: seeded(24), accel: [0.5, 0.8, 0.2], tau: 1.4, opacity: 0.38,
     emitters: Array.from({ length: 10 }, (_, i) => {
       const a = (i / 10) * Math.PI * 2 + 0.2;
-      return { at: around(5.5, BOOSTER_AFT + 0.5, a), dir: out(a, 0.08), speed: 22, spread: 0.25, count: nv(10), life: 4.5, size: 7, grow: 9, jitter: 1.5, window: [BURN_THREE - 1, EVENTS.catch - 0.5] };
+      return { at: around(5.5, BOOSTER_AFT + 0.5, a), dir: out(a, 0.08), speed: 22, spread: 0.25, count: nv(10), life: 4.5, size: 7, grow: 9, jitter: 1.5, window: [SPRAY_FROM, EVENTS.catch - 0.5] };
     }),
   });
   rest.add(countdownVent.mesh, cascade.mesh, basePile.mesh, deluge.mesh, landingSpray.mesh);
@@ -763,7 +790,32 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     emitters: [0.4, 2.5, 4.6].map(a => ({ at: around(4.4, BOOSTER_TOP - 2.5, a), dir: out(a, 0.3), speed: 30, spread: 0.6, count: nv(14), life: 1.4, size: 4, grow: 26, jitter: 0.8, window: [EVENTS.separation + 1.5, EVENTS.boostbackStart + 2] })),
   });
   booster.add(flipVent.mesh);
-  const vapors = [countdownVent, cascade, basePile, deluge, landingSpray, catchVent, flipVent];
+  // The landing burn trails dark smoke: on the flight 5 catch photograph a grey-brown stream
+  // pours off the engine section and hangs in the air above the booster as it comes down.
+  // Each puff leaves from where the engine bay was when it was emitted and then stays in the
+  // air, so the booster falls out of the bottom of its own trail. The source path is sampled
+  // through the same transforms as the booster, 5 m up from its base.
+  const SMOKE_T = [EVENTS.landingBurn, EVENTS.catch + 4], SMOKE_N = 256;
+  const smokePath = (() => {
+    const pts = new Float32Array(SMOKE_N * 3), m = new THREE.Matrix4(), mm = new THREE.Matrix4(), v = new THREE.Vector3();
+    mm.compose(ex.model.position, new THREE.Quaternion().setFromEuler(ex.model.rotation), new THREE.Vector3(1, 1, 1));
+    for (let i = 0; i < SMOKE_N; i++) {
+      const ts = SMOKE_T[0] + (SMOKE_T[1] - SMOKE_T[0]) * i / (SMOKE_N - 1);
+      m.makeRotationZ(-boosterPitchAt(ts)).setPosition(boosterDownAt(ts), boosterAltAt(ts), 0).multiply(mm);
+      v.copy(boosterHome.position).add(new THREE.Vector3(0, BOOSTER_AFT + 5, 0)).applyMatrix4(m);
+      pts.set([v.x, v.y, v.z], i * 3);
+    }
+    return { t0: SMOKE_T[0], t1: SMOKE_T[1], points: pts };
+  })();
+  const landingSmoke = new Vapor({
+    name: 'vapor-landing-smoke', rng: seeded(27), accel: [0.7, 0.5, 0.3], tau: 1.2, opacity: 0.3, path: smokePath,
+    colors: [0x7b7874, 0x42403d],
+    // Half the sources stop as the booster slows over the pad: at a steady rate the smoke
+    // piles up where the booster lingers, and the last seconds stood a grey wall beside it.
+    emitters: [0.5, 2.1, 3.7, 5.3].map((a, i) => ({ at: around(3, 0, a), dir: out(a, 0.4), speed: 7, spread: 0.5, count: nv(80), life: 12, size: 9, grow: 4.5, jitter: 3, window: [EVENTS.landingBurn + 0.5, i % 2 ? BURN_THREE + 5 : EVENTS.catch - 1.5] })),
+  });
+  ex.group.add(landingSmoke.mesh);
+  const vapors = [countdownVent, cascade, basePile, deluge, landingSpray, catchVent, flipVent, landingSmoke];
 
   // Max-Q: a condensation collar off the hot-stage ring, trailing down the booster, through
   // the transonic climb and peak dynamic pressure. Timing follows the ascent's own Max-Q.
@@ -776,7 +828,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   // 1 m tall for as long as they were there — puffs of vapour parked half a metre under the
   // engines and plume boxes a metre under them — and passed only because the tolerance was 2 %.
   for (const o of [boosterPlume.group, shipPlume.group, boosterJets.mesh, shipJets.mesh, hotStageVents.mesh,
-    stageGlow.mesh, rest, catchVent.mesh, flipVent.mesh, collar.mesh, collarShip.mesh]) o.userData.fx = true;
+    stageGlow.mesh, rest, catchVent.mesh, flipVent.mesh, landingSmoke.mesh, collar.mesh, collarShip.mesh]) o.userData.fx = true;
   const collarAt = (t) => {
     const k = THREE.MathUtils.smoothstep(t, EVENTS.maxQ - 22, EVENTS.maxQ - 12) * (1 - THREE.MathUtils.smoothstep(t, EVENTS.maxQ + 6, EVENTS.maxQ + 14));
     // Flickers as it forms and sheds, the way it does on film.
@@ -948,8 +1000,15 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     } },
     { until: EVENTS.boostbackStart + 2, blend: 3.0, shot: (t, pos, tgt) => {
       // Separation: side on, and pulling back so both stages stay in frame as they part.
+      // The aim point slides from the stack onto the booster before the boostback: once it
+      // relights the two part at ~150 m/s² and no stand-off holds both, and a shot still
+      // centred on the ship left the booster out of frame from T+2:45 to T+2:49, and for
+      // half a second of the hand-over neither vehicle was in the picture.
       vehicleAt(t, tgt);
-      const d = 340 + Math.max(0, t - EVENTS.separation) * 6.5;
+      boosterAt(t, _pad);
+      const gap = tgt.distanceTo(_pad);
+      tgt.lerp(_pad, ease(t, EVENTS.separation + 1, EVENTS.boostbackStart));
+      const d = 340 + Math.min(gap, 400) * 0.6;
       pos.set(tgt.x + d * 0.26, tgt.y - d * 0.20, tgt.z + d * 0.94);
     } },
     { until: EVENTS.landingBurn - 26, blend: 4.0, shot: (t, pos, tgt) => {
@@ -1081,13 +1140,19 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     // The landing burn kicks up its own cloud off the pad as the booster settles into the
     // arms. Same trench mouths, much less of it: three engines, not thirty-three.
     if (t >= EVENTS.catch - 16 && t <= EVENTS.catch + 8) {
-      // The landing burn's exhaust only reaches the deck in the last couple of hundred metres;
-      // from 700 m the trench was already pouring steam with the booster a speck overhead.
-      const near = 1 - THREE.MathUtils.smoothstep(boosterAltAt(t), 40, 260);
-      const n2 = near * 26 * CLOUD_RATE * dt;
+      // The landing burn's exhaust only reaches the deck in the last few tens of metres: the
+      // centre three throw a ~50 m column, and on the flight 5 catch photograph it still ends
+      // in clear air with the booster level with the arms. From 700 m the trench used to pour
+      // steam with the booster a speck overhead, and until this round it still billowed up
+      // either side of the pad with the booster 180 m up.
+      const near = 1 - THREE.MathUtils.smoothstep(boosterAltAt(t), 30, 90);
+      // …and only while they burn: it kept pouring for 8 s after shutdown in the arms.
+      const burning = Math.min(1, boosterEngineThrottle(t) / 0.1);
+      const n2 = near * burning * 18 * CLOUD_RATE * dt;
       if (n2 >= 0.05) {
         const m2 = Math.max(1, Math.round(n2 * 0.5));
-        const k = { size0: 14 * CLOUD_SIZE, grow: 52 * CLOUD_SIZE };
+        // Three engines, briefly, into a deck already wet: steam, not a thunderhead.
+        const k = { size0: 12 * CLOUD_SIZE, grow: 30 * CLOUD_SIZE };
         cloud.emit(m2, [0, 2.4, 44], [0, 0.05, 1.0], 46, 16, k);
         cloud.emit(m2, [0, 2.4, -44], [0, 0.05, -1.0], 46, 16, k);
       }
@@ -1202,12 +1267,13 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     const bThrottle = boosterEngineThrottle(t);
     boosterPlume.setTime(t);
     shipPlume.setTime(t);
-    boosterPlume.setThrottle(bThrottle, bAlt, boosterSpread(t));
     // Per engine, the running ones are near full throttle whatever the cluster total says:
     // 13 engines carrying 42 % of the cluster's thrust are each at ~100 %.
     const lit = boosterLit(t);
+    const perEngine = lit ? Math.min(1, bThrottle / (lit / 33)) : 0;
+    boosterPlume.setThrottle(bThrottle, bAlt, boosterSpread(t), perEngine);
     boosterJets.setTime(t);
-    boosterJets.setState(lit ? Math.min(1, bThrottle / (lit / 33)) : 0, bAlt, lit);
+    boosterJets.setState(perEngine, bAlt, lit);
     shipJets.setTime(t);
     shipJets.setState(st, alt, 6);
     const vent = ventAt(t);

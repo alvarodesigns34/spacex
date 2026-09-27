@@ -171,8 +171,9 @@ export class Plume {
    * @param {number} [spread] the lit engines' share of the cluster radius: 1 with every
    *   engine running, less when only an inner ring is lit, so a shutdown to the centre three
    *   narrows the column instead of only dimming it
+   * @param {number} [perEngine] throttle of each running engine, which sets the length
    */
-  setThrottle(throttle, altitude, spread = 1) {
+  setThrottle(throttle, altitude, spread = 1, perEngine = throttle) {
     const on = throttle > 0.001;
     // The group stays visible and only the cones hide: the light has to be in the scene all
     // the time, at zero when the engines are off. How many lights a scene has is part of
@@ -185,7 +186,10 @@ export class Plume {
     // At 60 km a booster's plume is a translucent bell several hundred metres long and many
     // times its own width (flight footage from the ascent's last minute).
     const stretch = 1 + 4.2 * (1 - p);
-    const t = 0.5 + 0.5 * throttle;
+    // Length goes with each engine's own throttle, not the cluster's: the centre three on the
+    // landing approach each run near full power and throw a column ~50 m long (flight 5 catch
+    // photograph), where 9 % of the cluster's thrust made a 29 m stub.
+    const t = 0.5 + 0.5 * perEngine;
     const r = this.radius * spread;
     // Length follows the lit radius less than width does: fewer engines make a thinner column
     // before they make a shorter one.
@@ -893,8 +897,19 @@ const VAPOR_VERT = /* glsl */`
   attribute vec2 aWindow;   // emitter active from, to (mission s)
   uniform float uTime, uTau, uOpacity;
   uniform vec3 uAccel;
+  // Optional moving source: where the emitter was at each moment, (t0, t1, samples). A puff
+  // starts from wherever the source was when it was born and is left behind in the air.
+  uniform sampler2D uPath;
+  uniform vec3 uPathT;
   varying vec2 vUv;
   varying float vAlpha, vRot;
+  vec3 pathAt(float t) {
+    float u = clamp((t - uPathT.x) / (uPathT.y - uPathT.x), 0.0, 1.0) * (uPathT.z - 1.0);
+    float i = floor(u);
+    vec3 a = texture2D(uPath, vec2((i + 0.5) / uPathT.z, 0.5)).xyz;
+    vec3 b = texture2D(uPath, vec2((min(i + 1.0, uPathT.z - 1.0) + 0.5) / uPathT.z, 0.5)).xyz;
+    return mix(a, b, u - i);
+  }
   void main() {
     vUv = atlasUv(uv, gl_InstanceID);
     float life = aParams.y;
@@ -904,6 +919,7 @@ const VAPOR_VERT = /* glsl */`
     float k = age / life;
     // Launched fast, slowed by drag, then carried by buoyancy / sinking and the wind.
     vec3 p = aOrigin + aVel * uTau * (1.0 - exp(-age / uTau)) + 0.5 * uAccel * age * age;
+    if (uPathT.z > 0.5) p += pathAt(born);
     float size = aParams.z + aParams.w * age;
     vAlpha = on * uOpacity * smoothstep(0.0, 0.1, k) * (1.0 - smoothstep(0.45, 1.0, k));
     vRot = aParams.x * 6.2832 + age * 0.35 * (aParams.x - 0.5);
@@ -932,14 +948,26 @@ const VAPOR_FRAG = /* glsl */`
     gl_FragColor = vec4(mix(uShade, uSun, wrap), clamp(a, 0.0, 1.0));
   }`;
 
-let _vaporMap = null;
+let _vaporMap = null, _noPath = null;
+/** xyz samples as a one-row float texture, read unfiltered and interpolated in the shader. */
+function pathTexture(points) {
+  const n = points.length / 3, data = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++) data.set([points[i * 3], points[i * 3 + 1], points[i * 3 + 2], 1], i * 4);
+  const tex = new THREE.DataTexture(data, n, 1, THREE.RGBAFormat, THREE.FloatType);
+  tex.minFilter = tex.magFilter = THREE.NearestFilter;
+  tex.needsUpdate = true;
+  return tex;
+}
 export class Vapor {
   /**
    * @param {object} o
    * @param {Array} o.emitters [{ at:[x,y,z], dir:[x,y,z], speed, spread, count, life, size, grow, window:[t0,t1] }]
    * @param {number[]} o.accel constant acceleration (buoyancy, sinking, wind), m/s²
+   * @param {object} [o.path] a moving source, { t0, t1, points: Float32Array of xyz samples
+   *   evenly spaced over [t0, t1] }: each puff is emitted relative to where it was then
+   * @param {number[]} [o.colors] sunlit and shaded colour, for smoke that is not white
    */
-  constructor({ emitters, rng, accel = [0.6, -0.4, 0.2], tau = 1.2, opacity = 0.55, name = 'vapor' }) {
+  constructor({ emitters, rng, accel = [0.6, -0.4, 0.2], tau = 1.2, opacity = 0.55, name = 'vapor', path = null, colors = [0xf6f6f4, 0x959ba4] }) {
     const n = emitters.reduce((s, e) => s + e.count, 0);
     const origin = new Float32Array(n * 3), vel = new Float32Array(n * 3);
     const params = new Float32Array(n * 4), win = new Float32Array(n * 2);
@@ -974,7 +1002,9 @@ export class Vapor {
         uMap: { value: _vaporMap }, uTime: { value: -1e4 }, uTau: { value: tau }, uOpacity: { value: opacity },
         uAccel: { value: new THREE.Vector3(...accel) },
         uSunDir: { value: new THREE.Vector3(0.4, 0.7, 0.5).normalize() },
-        uSun: { value: new THREE.Color(0xf6f6f4) }, uShade: { value: new THREE.Color(0x959ba4) },
+        uSun: { value: new THREE.Color(colors[0]) }, uShade: { value: new THREE.Color(colors[1]) },
+        uPath: { value: path ? pathTexture(path.points) : (_noPath ??= pathTexture(new Float32Array(3))) },
+        uPathT: { value: new THREE.Vector3(path?.t0 ?? 0, path?.t1 ?? 1, path ? path.points.length / 3 : 0) },
       },
       vertexShader: VAPOR_VERT, fragmentShader: VAPOR_FRAG,
       transparent: true, depthWrite: false,
