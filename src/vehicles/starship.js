@@ -46,10 +46,17 @@ const TILE_T = 0.016;
  * trench) that looks straight up at it.
  */
 /**
- * Yaw of the stack on its mount, in degrees. Chosen to show the heat-shield line to the default
- * cameras; the grid-fin trio is clocked against it so the catch pins still sit over the arms.
+ * Yaw of the stack on its mount, in degrees: windward (the tiled belly, model +Z) square to the
+ * tower–mount line. SpaceX's photograph of the V3 wet dress rehearsal on Pad 2 (11 May 2026),
+ * taken with the tower behind and to the right of the stack, shows the ship's lee side — frosted
+ * steel, both forward flaps on the silhouette's edges, the tiles only a sliver on the left — and
+ * the quick-disconnect arm meeting it at the flap line on the tower side. That fixes the belly
+ * perpendicular to the tower, on the side away from that camera. It used to be 129.6°, chosen
+ * to show the tile line to the default cameras, which put the belly towards that camera and the
+ * frosted lee side away from it. The grid-fin trio is clocked against this angle so the catch
+ * pins sit over the arms whatever it is.
  */
-export const STACK_YAW_DEG = 129.6;
+export const STACK_YAW_DEG = 0;
 export const RAPTOR_EXIT_R = 0.62;
 // Block 3 has no skirt round its engines: all 33 hang in the open below the black thrust
 // ring, powerheads and plumbing on show (NASASpaceflight, Booster 18/19 photographs, May 2026).
@@ -416,8 +423,8 @@ export function buildSuperHeavy(M) {
   // Grid fins: 3 in a T, catch pins integrated into the opposite pair and the third a rudder
   // (NSF, "Super Heavy Block 3", May 2026). The pins have to land on the catch arms, which run
   // out from the tower along world X and sit either side of the mount on ±Z. The stack is
-  // yawed STACK_YAW_DEG on display to show the tile line, so the trio is clocked back by the
-  // same angle: pins at world 0°/180°, over the arms. The rudder is put on the side away from
+  // yawed STACK_YAW_DEG on its mount, so the trio is clocked back by the same angle: pins at
+  // world 0°/180°, over the arms. The rudder is put on the side away from
   // the tower; which side it faces on the real pad is not published.
   const finY = ringTop - 3.9;
   const pinPhi = -THREE.MathUtils.degToRad(STACK_YAW_DEG);

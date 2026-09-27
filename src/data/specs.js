@@ -133,7 +133,7 @@ export const VEHICLES = [
     ],
     sources: ['spacex_starship', 'spacex_v3', 'spacex_s39_static', 'spacex_v3_wdr', 'spacex_b19_lift', 'spacex_b19_static', 'wiki_starship', 'wiki_starbase', 'wiki_superheavy', 'wiki_raptor', 'space_tiles', 'nsf_sh_block3', 'nsf_flight12', 'wiki_ft5', 'wiki_ft12'],
     presets: [
-      { id: 'overview', label: 'Overview', pos: [150, 70, 190], target: [0, 58, 0] },
+      { id: 'overview', label: 'Overview', pos: [50.8, 70, -236.7], target: [0, 58, 0] },
       // Site frame, standing in the open trench and looking back at the cluster.
       // The old camera sat on the centreline under the throat, where the vehicle and
       // the deck eclipse the sun at 18°. This one keeps every bell in frame and lets
@@ -148,7 +148,7 @@ export const VEHICLES = [
       // in profile off the nose. From above and in front it was a dark sliver behind the hull.
       { id: 'flaps', label: 'Flaps and nose', pos: [34, 108, 18], target: [1, 113, -1] },
       { id: 'lee', label: 'Leeward side', pos: [10, 96, -48], target: [0, 96, 0] },
-      { id: 'gridfins', label: 'Grid fins and pins', pos: [-35.5, 76, -6.0], target: [0, 70, 0] },
+      { id: 'gridfins', label: 'Grid fins and pins', pos: [18.0, 76, 31.2], target: [0, 70, 0] },
       { id: 'site', label: 'Launch complex', frame: 'site', pos: [268, 118, 286], target: [4, 62, 0] },
       { id: 'tower', label: 'Tower and arms', frame: 'site', pos: [58, 104, 64], target: [-24, 110, 0] },
       { id: 'booster-qd', label: 'LOX / methane QDs', pos: [34, 29, 20], target: [12, 19, 0], frame: 'site' },

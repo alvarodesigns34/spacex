@@ -964,9 +964,10 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
       // The fuelled stack from the tower's height: frost on the tanks and boil-off venting
       // from the booster and the ship, sinking down the hull. Square to the tower-stack line
       // (down the trench axis, harmless before ignition) so the tower stands beside the
-      // vehicle rather than behind it.
+      // vehicle rather than behind it — and on the ship's lee side, where the frost is, with
+      // the tower to the right: the angle of SpaceX's wet-dress-rehearsal photograph.
       const u = ease(t, -24, -12);
-      pos.set(S.x + THREE.MathUtils.lerp(28, 14, u), THREE.MathUtils.lerp(100, 90, u), S.z + THREE.MathUtils.lerp(152, 136, u));
+      pos.set(S.x + THREE.MathUtils.lerp(28, 14, u), THREE.MathUtils.lerp(100, 90, u), S.z - THREE.MathUtils.lerp(152, 136, u));
       tgt.set(S.x, ex.lay.mount + THREE.MathUtils.lerp(74, 62, u), S.z);
     } },
     { until: EVENTS.ignition + 1.2, blend: 0, shot: (t, pos, tgt) => {

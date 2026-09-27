@@ -260,8 +260,11 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
     // is darker than the field because it averages faces with joints. History worth keeping:
     // this was once dropped to 0.46 to match the near state while the near state was itself
     // wrong — the backing stood 2 mm over the tile faces and the "tiles" were a black skin. With
-    // the faces clear of it the field is lighter again, and 1.75 matches it within 1/255.
-    color: new THREE.Color(1.75, 1.75, 1.81),
+    // the faces clear of it the field is lighter again, and 1.75 matched it within 1/255 — seen
+    // obliquely, as the old display yaw showed it. Face-on, as the belly now faces the exhibit
+    // row, the tile chamfers catch more light and the field was 8/255 lighter than the shell:
+    // 2.3 holds face-on, oblique and from above within ±2.
+    color: new THREE.Color(2.3, 2.3, 2.38),
     normalScale: new THREE.Vector2(0.5, 0.5), roughness: 0.84, metalness: 0.0, envMapIntensity: 0.9,
     // It sits a couple of centimetres off the hull it covers; at a few hundred metres that is
     // inside the depth buffer's precision, so bias it forward as well.

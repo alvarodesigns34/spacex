@@ -44,7 +44,10 @@ const argOf = (f) => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : 
 
 /** Each swap, with a camera bearing that puts the affected surface across the frame. */
 const CASES = [
+  // The belly faces the exhibit row (+Z) since the stack's yaw follows the Pad 2 photograph:
+  // judged face-on from there and obliquely from the side away from the tower.
   { entry: 'starship-tps', exhibit: 'starship', at: [0, 95, 0], dir: [0.36, 0.11, 0.93] },
+  { entry: 'starship-tps', exhibit: 'starship', at: [0, 95, 0], dir: [0.8, 0.11, 0.59] },
   // The Roadster's paint: 162 k triangles near, ≈3 k far, swept from the same surface.
   { entry: 'roadster-body', exhibit: 'roadster', at: [0, 0.6, 0], dir: [0.62, 0.3, 0.72] },
 ];
