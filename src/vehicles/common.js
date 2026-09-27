@@ -3,6 +3,7 @@
  */
 import * as THREE from 'three';
 import { mesh, mergeAll, mat4, boxUV } from '../geometry/utils.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /**
  * Launch mount for the Falcon exhibits: the vehicle stands the way it does on the pad, on its
@@ -214,23 +215,19 @@ export function buildPedestal(M, { radius = 1.2, height = 1.2, post = 0 } = {}) 
 }
 
 /**
- * 1.80 m person from standard anthropometric proportions.
- * A visitor in light coveralls, or a technician in a hard hat. Scale furniture,
- * not a scanned actor: boxes and cylinders, with a head, neck, elbows and knees
- * so the silhouette is a person rather than two capsules.
- */
-/**
- * The parts of one figure, in its own frame, grouped by the material each takes.
- *
- * Split out of `buildHuman` so a whole crowd can be merged per material instead of per
- * figure — see `buildHumanCrowd`. The geometry is identical either way; only the number of
- * draw calls differs.
+ * 1.80 m people from standard anthropometric proportions: visitors in everyday clothes and
+ * pad technicians in coveralls and hard hats. Scale furniture, not scanned actors — but not
+ * mannequins either. They used to be one pose in two colours, arms held off the body, hands
+ * as balls, and no shadow, so they sat on the ground like cut-outs. Now each has a pose (arms
+ * at rest, hands in pockets, hands behind the back looking up, or pointing up at the vehicle),
+ * a head with a nose, ears and hair, clothes, skin and hair drawn from small palettes by a
+ * seeded hash of where the person stands, and a shadow cast along the real sun direction.
  */
 /** A capsule of radius r from a to b, as a merge item. */
-function limb(a, b, r) {
+function limb(a, b, r, seg = 8) {
   const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b);
   const d = B.clone().sub(A), len = d.length();
-  const geometry = new THREE.CapsuleGeometry(r, Math.max(0.001, len), 3, 8);
+  const geometry = new THREE.CapsuleGeometry(r, Math.max(0.001, len), 3, seg);
   const m = new THREE.Matrix4().compose(
     A.add(B).multiplyScalar(0.5),
     new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()),
@@ -238,60 +235,166 @@ function limb(a, b, r) {
   return { geometry, matrix: m };
 }
 
-function humanParts(M, suit) {
-  const cloth = suit === 'white' ? M.visitor : M.coverall;
-  // Rounded forms on the same 1.80 m frame: a lathed torso flattened front to back, capsule
-  // limbs jointed at the knee and elbow, a slightly long head on a neck. Boxes and straight
-  // cylinders read as a mannequin kit next to vehicles modelled to the centimetre.
-  const torso = new THREE.LatheGeometry([
-    [0.001, 0.86], [0.150, 0.87], [0.158, 0.94], [0.140, 1.06], [0.160, 1.22],
-    [0.185, 1.36], [0.170, 1.44], [0.090, 1.49], [0.001, 1.50],
-  ].map(([r, y]) => new THREE.Vector2(r, y)), 14);
-  torso.scale(1, 1, 0.62);
-  const body = [{ geometry: torso, matrix: new THREE.Matrix4() }];
-  for (const s of [-1, 1]) {
-    body.push(limb([0.20 * s, 1.41, 0], [0.24 * s, 1.14, 0.02], 0.044));   // upper arm
-    body.push(limb([0.24 * s, 1.14, 0.02], [0.25 * s, 0.90, 0.07], 0.037)); // forearm
-  }
-  const legs = [];
-  for (const s of [-1, 1]) {
-    legs.push(limb([0.085 * s, 0.90, 0], [0.090 * s, 0.50, 0.01], 0.064)); // thigh
-    legs.push(limb([0.090 * s, 0.50, 0.01], [0.090 * s, 0.12, -0.01], 0.048)); // shin
-  }
-  const boots = [];
-  for (const s of [-1, 1]) {
-    const boot = new THREE.CapsuleGeometry(0.048, 0.14, 3, 8);
-    boot.rotateX(Math.PI / 2);
-    boot.scale(1.05, 0.75, 1);
-    boots.push({ geometry: boot, matrix: mat4([0.09 * s, 0.045, 0.035]) });
-  }
-  const head = [];
-  head.push({ geometry: new THREE.CylinderGeometry(0.042, 0.048, 0.10, 10), matrix: mat4([0, 1.54, 0]) });
-  const skull = new THREE.SphereGeometry(0.092, 16, 12);
-  skull.scale(0.92, 1.12, 1.0);
-  head.push({ geometry: skull, matrix: mat4([0, 1.68, 0.005]) });
-  for (const s of [-1, 1]) head.push({ geometry: new THREE.SphereGeometry(0.040, 10, 8), matrix: mat4([0.255 * s, 0.86, 0.08]) });
-  const out = [
-    [cloth, [...body, ...legs]],
-    [M.boot, boots],
-    [M.skin, head],
-  ];
-  if (suit !== 'white') {
-    const hat = new THREE.SphereGeometry(0.108, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2);
-    hat.scale(1, 0.85, 1.1);
-    const brim = new THREE.CylinderGeometry(0.125, 0.125, 0.008, 18);
-    out.push([M.hardhat, [{ geometry: hat, matrix: mat4([0, 1.745, 0.005]) }, { geometry: brim, matrix: mat4([0, 1.745, 0.012]) }]]);
-  }
-  return out;
+const hex = (h) => new THREE.Color(h);
+const PALETTE = {
+  top: [0x2c3e5c, 0xe6e4df, 0x8a8d91, 0x9c3b35, 0x5d6448, 0x232427, 0x7c9cc4, 0xc9b79a].map(hex),
+  trousers: [0x3a4a66, 0xa89a7a, 0x2a2b2e, 0x5b5e63, 0x34405a].map(hex),
+  coverall: [0x2b3340, 0x3d4a40, 0x2a2a2c].map(hex),
+  skin: [0xf1c9a5, 0xe0ac86, 0xc68a64, 0x8d5a3b, 0x5c3a24].map(hex),
+  hair: [0x1d1a17, 0x3b2a1e, 0x6b4a2e, 0xa98b5f, 0x8f8f8f].map(hex),
+};
+const POSES = ['rest', 'pockets', 'up', 'point'];
+
+/** Arms (shoulder → elbow → wrist → knuckles) and head tilt for a pose, left and right. */
+function poseArms(pose, s) {
+  if (pose === 'pockets') return { e: [0.225 * s, 1.14, -0.02], w: [0.175 * s, 0.94, 0.065], h: [0.16 * s, 0.9, 0.07], tilt: 0 };
+  if (pose === 'up') return { e: [0.21 * s, 1.14, -0.075], w: [0.1 * s, 0.98, -0.15], h: [0.05 * s, 0.965, -0.16], tilt: 0.38 };
+  if (pose === 'point' && s > 0) return { e: [0.24, 1.49, 0.2], w: [0.265, 1.6, 0.42], h: [0.272, 1.635, 0.5], tilt: 0.32 };
+  if (pose === 'point') return { e: [-0.215, 1.13, -0.01], w: [-0.225, 0.885, 0.035], h: [-0.228, 0.8, 0.045], tilt: 0.32 };
+  return { e: [0.215 * s, 1.13, -0.01], w: [0.225 * s, 0.885, 0.035], h: [0.228 * s, 0.8, 0.045], tilt: 0 };
 }
 
-export function buildHuman(M, { suit = 'white' } = {}) {
-  const g = new THREE.Group();
-  g.name = 'human';
-  for (const [material, parts] of humanParts(M, suit)) {
-    g.add(mesh(mergeAll(parts), material, { castShadow: false }));
+/**
+ * The parts of one figure, in its own frame (+z forward), each tagged with the layer (the
+ * material) it belongs to and its colour. `look` picks the palette entries and the pose.
+ */
+function humanParts(suit, look) {
+  const pick = (list, k) => list[Math.floor(look[k] * list.length) % list.length];
+  const tech = suit !== 'white';
+  const top = tech ? pick(PALETTE.coverall, 0) : pick(PALETTE.top, 0);
+  const legs = tech ? top : pick(PALETTE.trousers, 1);
+  const skin = pick(PALETTE.skin, 2), hair = pick(PALETTE.hair, 3);
+  const pose = POSES[Math.floor(look[4] * POSES.length) % POSES.length];
+  const parts = [];
+  const add = (layer, color, item) => parts.push({ layer, color, ...item });
+
+  // Torso and hips in one lathe, flattened front to back; coloured by height below.
+  const torso = new THREE.LatheGeometry([
+    [0.001, 0.84], [0.150, 0.85], [0.165, 0.92], [0.160, 0.98], [0.140, 1.06], [0.150, 1.16],
+    [0.172, 1.28], [0.188, 1.38], [0.170, 1.44], [0.100, 1.485], [0.001, 1.50],
+  ].map(([r, y]) => new THREE.Vector2(r, y)), 16);
+  torso.scale(1, 1, 0.62);
+  parts.push({ layer: 'cloth', color: (y) => (y > 0.955 ? top : legs), geometry: torso, matrix: new THREE.Matrix4() });
+
+  const head = [];
+  for (const s of [-1, 1]) {
+    const arm = poseArms(pose, s);
+    const sh = [0.19 * s, 1.395, 0];
+    add('cloth', top, { geometry: new THREE.SphereGeometry(0.058, 10, 8), matrix: mat4(sh) });
+    add('cloth', top, limb(sh, arm.e, 0.046));
+    add('cloth', top, limb(arm.e, arm.w, 0.039));
+    const hand = limb(arm.w, arm.h, 0.03, 6);
+    hand.geometry.scale(0.78, 1, 1);
+    add('skin', skin, hand);
+    add('cloth', legs, limb([0.088 * s, 0.9, 0], [0.092 * s, 0.49, 0.012], 0.066));
+    add('cloth', legs, limb([0.092 * s, 0.49, 0.012], [0.092 * s, 0.11, -0.005], 0.05));
+    const shoe = new THREE.CapsuleGeometry(0.046, 0.17, 3, 8);
+    shoe.rotateX(Math.PI / 2);
+    shoe.scale(1.0, 0.78, 1);
+    add('boot', null, { geometry: shoe, matrix: mat4([0.092 * s, 0.046, 0.05]) });
+    head.push({ layer: 'skin', color: skin, geometry: new THREE.SphereGeometry(0.022, 8, 6), matrix: mat4([0.086 * s, 1.67, -0.002]) });
   }
-  return g;
+  const tilt = poseArms(pose, 1).tilt;
+  head.push({ layer: 'skin', color: skin, geometry: new THREE.CylinderGeometry(0.044, 0.05, 0.10, 10), matrix: mat4([0, 1.535, 0]) });
+  const skull = new THREE.SphereGeometry(0.092, 18, 14);
+  skull.scale(0.9, 1.12, 1.0);
+  head.push({ layer: 'skin', color: skin, geometry: skull, matrix: mat4([0, 1.675, 0.008]) });
+  head.push({ layer: 'skin', color: skin, geometry: new THREE.SphereGeometry(0.017, 8, 6), matrix: mat4([0, 1.655, 0.097]) });
+  if (tech) {
+    const hat = new THREE.SphereGeometry(0.108, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+    hat.scale(1, 0.85, 1.1);
+    head.push({ layer: 'hat', color: null, geometry: hat, matrix: mat4([0, 1.745, 0.005]) });
+    head.push({ layer: 'hat', color: null, geometry: new THREE.CylinderGeometry(0.125, 0.125, 0.008, 20), matrix: mat4([0, 1.745, 0.012]) });
+  } else {
+    const cap = new THREE.SphereGeometry(0.097, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.56);
+    cap.scale(0.93, 1.1, 1.04);
+    head.push({ layer: 'hair', color: hair, geometry: cap, matrix: mat4([0, 1.69, -0.004], [-0.28, 0, 0]) });
+  }
+  // Looking up: the head turns back about the top of the neck.
+  const pivot = new THREE.Matrix4().makeTranslation(0, 1.53, 0)
+    .multiply(new THREE.Matrix4().makeRotationX(-tilt))
+    .multiply(new THREE.Matrix4().makeTranslation(0, -1.53, 0));
+  for (const h of head) parts.push({ ...h, matrix: new THREE.Matrix4().multiplyMatrices(pivot, h.matrix) });
+  return parts;
+}
+
+/** Transforms each part into place, colours it, carries extra per-vertex attributes, merges. */
+function mergeParts(items, extra = {}) {
+  const geos = items.map((it) => {
+    let g = it.geometry.clone();
+    g.applyMatrix4(it.matrix);
+    if (g.index) g = g.toNonIndexed();
+    for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
+    const n = g.attributes.position.count;
+    if (it.color !== undefined) {
+      const col = new Float32Array(n * 3), c = new THREE.Color();
+      for (let i = 0; i < n; i++) {
+        c.copy(typeof it.color === 'function' ? it.color(it.localY[i]) : (it.color ?? new THREE.Color(1, 1, 1)));
+        col.set([c.r, c.g, c.b], i * 3);
+      }
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    }
+    for (const [name, [size, value]] of Object.entries(extra)) {
+      const v = typeof value === 'function' ? value(it) : value;
+      const a = new Float32Array(n * size);
+      for (let i = 0; i < n; i++) a.set(v, i * size);
+      g.setAttribute(name, new THREE.BufferAttribute(a, size));
+    }
+    g.clearGroups();
+    return g;
+  });
+  return mergeGeometries(geos, false);
+}
+
+let _crowdMats = null;
+function crowdMaterials(M) {
+  return (_crowdMats ??= {
+    cloth: new THREE.MeshStandardMaterial({ name: 'crowd-cloth', vertexColors: true, roughness: 0.86 }),
+    skin: new THREE.MeshStandardMaterial({ name: 'crowd-skin', vertexColors: true, roughness: 0.6 }),
+    hair: new THREE.MeshStandardMaterial({ name: 'crowd-hair', vertexColors: true, roughness: 0.92 }),
+    boot: M.boot,
+    hat: M.hardhat,
+  });
+}
+
+/**
+ * A shadow for the whole crowd in one draw: every figure's geometry again, flattened in the
+ * vertex shader onto the ground it stands on along the live sun direction, in a translucent
+ * dark tint. The figures stay out of the shadow map (they are small, many, and the map's texel
+ * is larger than a forearm), but without any shadow they floated. A stencil marks each pixel
+ * the first time a shadow covers it, so where limbs and bodies overlap it is not darkened twice.
+ * `aClip` bounds a shadow to the deck a person stands on.
+ */
+function crowdShadowMaterial(sunDir) {
+  const mat = new THREE.MeshBasicMaterial({
+    name: 'crowd-shadow', color: 0x000000, transparent: true, opacity: 0.45, depthWrite: false,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+    stencilWrite: true, stencilRef: 1, stencilFunc: THREE.NotEqualStencilFunc,
+    stencilZPass: THREE.ReplaceStencilOp, stencilFail: THREE.KeepStencilOp, stencilZFail: THREE.KeepStencilOp,
+  });
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uSun = { value: sunDir };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float aGround;\nattribute vec4 aClip;\nuniform vec3 uSun;\nvarying vec2 vShXZ;\nvarying vec4 vClip;')
+      .replace('#include <project_vertex>', `
+        vec4 wp = modelMatrix * vec4(transformed, 1.0);
+        vec3 sd = normalize(uSun);
+        float up = max(sd.y, 0.08);
+        wp.xyz -= sd * ((wp.y - aGround) / up);
+        wp.y = aGround + 0.035;   // the apron paving stands 12 mm proud of grade
+        vShXZ = wp.xz; vClip = aClip;
+        vec4 mvPosition = viewMatrix * wp;
+        gl_Position = projectionMatrix * mvPosition;`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec2 vShXZ;\nvarying vec4 vClip;')
+      .replace('void main() {', 'void main() {\n  if (vShXZ.x < vClip.x || vShXZ.x > vClip.y || vShXZ.y < vClip.z || vShXZ.y > vClip.w) discard;');
+  };
+  return mat;
+}
+
+/** One figure on its own (kept for tools and one-offs); the centre uses `buildHumanCrowd`. */
+export function buildHuman(M, { suit = 'white' } = {}) {
+  return buildHumanCrowd(M, [{ x: 0, y: 0, z: 0, suit }]);
 }
 
 /**
@@ -301,36 +404,45 @@ export function buildHuman(M, { suit = 'white' } = {}) {
  * meshes each, 99 draw calls in the overview for 13,286 triangles — more calls than the
  * Starship, the pad and the Roadster together, for a row of 1.80 m boxes. They are also the
  * easiest thing in the scene to merge: they never move, they never change material, and they
- * already cast no shadow, so nothing about how they look depends on their being separate.
+ * cast no shadow into the shadow map, so nothing about how they look depends on their being
+ * separate. Clothes, skin and hair carry per-vertex colour, so variety costs no extra meshes:
+ * cloth, skin, hair, shoes, hard hats and the crowd's shadow come out as six.
  *
- * Each person's placement is baked into the geometry, so the result is the same picture from
- * the same place — verified by pixel diff, not by argument. The group keeps its name and its
- * visibility flag, so the "1.80 m figures" toggle is untouched.
- *
- * @param placements [{ x, y, z, ry, suit }]
+ * @param placements [{ x, y, z, ry, suit, clip?: [xmin, xmax, zmin, zmax] }]
+ * @param opts.sunDir live world-space direction to the sun (the shadow follows it)
  */
-export function buildHumanCrowd(M, placements) {
+export function buildHumanCrowd(M, placements, { sunDir = new THREE.Vector3(0.5, 0.6, 0.3) } = {}) {
   const g = new THREE.Group();
   g.name = 'human-crowd';
-  // Keyed by material identity: two suits, boots, skin and hard hats come out as at most five
-  // meshes however many people there are.
-  const byMaterial = new Map();
-  for (const p of placements) {
+  const mats = crowdMaterials(M);
+  const byLayer = new Map(), shadow = [];
+  const frac = (v) => v - Math.floor(v);
+  const INF = 1e6;
+  placements.forEach((p, idx) => {
+    // A seeded look per person, from where they stand: stable across builds and reorderings.
+    const h = (k) => frac(Math.sin((p.x * 12.9898 + p.z * 78.233 + k * 37.719 + idx * 0.013) * 43758.5453));
+    const look = [h(1), h(2), h(3), h(4), h(5)];
     const place = mat4([p.x, p.y, p.z], [0, p.ry ?? 0, 0]);
-    for (const [material, parts] of humanParts(M, p.suit ?? 'white')) {
-      if (!byMaterial.has(material)) byMaterial.set(material, []);
-      const into = byMaterial.get(material);
-      for (const part of parts) {
-        into.push({
-          geometry: part.geometry,
-          // Compose in world order: the part's own matrix first, then where the person stands.
-          matrix: new THREE.Matrix4().multiplyMatrices(place, part.matrix),
-        });
+    for (const part of humanParts(p.suit ?? 'white', look)) {
+      const item = { ...part, matrix: new THREE.Matrix4().multiplyMatrices(place, part.matrix) };
+      // Colour by height needs each vertex's own height before placing.
+      if (typeof part.color === 'function') {
+        const pos = part.geometry.index ? part.geometry.toNonIndexed().attributes.position : part.geometry.attributes.position;
+        const ly = new Float32Array(pos.count), v = new THREE.Vector3();
+        for (let i = 0; i < pos.count; i++) ly[i] = v.fromBufferAttribute(pos, i).applyMatrix4(part.matrix).y;
+        item.localY = ly;
       }
+      if (!byLayer.has(part.layer)) byLayer.set(part.layer, []);
+      byLayer.get(part.layer).push(item);
+      shadow.push({ geometry: part.geometry, matrix: item.matrix, ground: p.y, clip: p.clip ?? [-INF, INF, -INF, INF] });
     }
+  });
+  for (const [layer, items] of byLayer) {
+    const colored = layer === 'cloth' || layer === 'skin' || layer === 'hair';
+    const geo = mergeParts(colored ? items : items.map(({ color, ...rest }) => rest));
+    g.add(mesh(geo, mats[layer], { castShadow: false, name: 'human-batch' }));
   }
-  for (const [material, parts] of byMaterial) {
-    if (parts.length) g.add(mesh(mergeAll(parts), material, { castShadow: false, name: 'human-batch' }));
-  }
+  const sh = mergeParts(shadow, { aGround: [1, (it) => [it.ground]], aClip: [4, (it) => it.clip] });
+  g.add(mesh(sh, crowdShadowMaterial(sunDir), { castShadow: false, receiveShadow: false, name: 'human-shadow' }));
   return g;
 }

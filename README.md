@@ -304,6 +304,15 @@ Cada expositor se volvió a comparar con fuentes primarias desde un ángulo equi
 - **Falcon 9: la canaleta de la segunda etapa es blanca.** En la foto de cerca de la NASA del vehículo de Europa Clipper (KSC-20241013-PH-SPX02_0005), la canaleta de cables de la segunda etapa es un canal estrecho y remachado, de ≈0,2 m, blanco como la etapa, que termina abajo en un carenado abombado. En el modelo era una barra negra de 0,38 m que dibujaba una raya a lo largo de toda la etapa. La de la primera etapa sí es negra, como muestran las mismas fotos en los tres núcleos, y se queda. Las medidas son aproximadas.
 - **Etiquetas 3D.** La de la zanja seguía diciendo «8.2 m» meses después de corregir la profundidad a 4,2 m. Ahora sale de la constante que construye la zanja. La prueba de procedencia comprueba además que toda cifra con unidad (m, tf, kN, in) en una etiqueta 3D aparezca en la ficha de su vehículo, con un control negativo que reintroduce el «8.2 m». La etiqueta del escudo térmico sube 9 m, porque en su propia vista quedaba tapada por la barra de vistas.
 
+- **Figuras de escala: personas, no maniquíes.** Eran todas iguales en dos colores, con los brazos separados del cuerpo, las manos como bolas y sin sombra, así que parecían recortes pegados al suelo. Ahora:
+  - **Posturas:** cada una tiene la suya: brazos en reposo, manos en los bolsillos, manos a la espalda mirando hacia arriba o señalando el vehículo.
+  - **Cuerpo:** cabeza con nariz, orejas y pelo, manos alargadas y zapatos.
+  - **Colores:** ropa, piel y pelo salen de paletas pequeñas, con un hash del sitio donde está cada figura. Van en color por vértice, así que la variedad no añade mallas.
+  - **Sombra:** una copia fusionada de todas las siluetas, aplastada sobre el suelo en el shader a lo largo de la dirección real del sol. Sigue el control del sol, un búfer de stencil evita que se oscurezca dos veces donde se cruzan miembros, y a quien está sobre la mesa de un Falcon se le recorta al contorno de la cubierta.
+
+  Siguen fuera del mapa de sombras, como exige el control de rendimiento: son seis mallas en total (tela, piel, pelo, calzado, cascos y sombra). La sombra queda a 3,5 cm sobre la cota de los pies, porque el pavimento del recinto está a 12 mm sobre el terreno y a menos cota competían en profundidad.
+- **Falcon 1: costura de la cofia de 7 mm.** Con 12 mm, desde la vista de la propia cofia se leía como un trazo de rotulador.
+
 ### Auditoría externa de ChatGPT (septiembre de 2026)
 
 Se contrastó punto por punto con fuentes primarias antes de tocar nada.

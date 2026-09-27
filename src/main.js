@@ -215,7 +215,9 @@ async function main() {
   dressCampus(scene, M, { stops: Object.values(LAYOUT).filter(l => !l.pad).map(l => l.x), quality: quality.name });
 
   // ---- Post-processing (MSAA render target + subtle bloom) ----
-  const rt = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { samples: quality.msaa, type: THREE.HalfFloatType });
+  // With a stencil: the scale figures' shadow marks each pixel once, so overlapping limbs do
+  // not darken it twice (common.js, crowdShadowMaterial).
+  const rt = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { samples: quality.msaa, type: THREE.HalfFloatType, stencilBuffer: true });
   const composer = new EffectComposer(renderer, rt);
   const renderPass = new RenderPass(scene, camera);
   composer.addPass(renderPass);
@@ -438,8 +440,11 @@ async function main() {
     }
     // person on the mount deck for the big vehicles
     if (lay.mountRadius >= 6) {
+      // Their shadow stays on the deck: clipped to its plan, it does not hang off the edge.
+      const lm = lay.launchMount ?? { halfX: lay.mountRadius, halfZ: lay.mountRadius };
       crowd.push({
         x: lay.x + lay.mountRadius - 1.2, y: lay.mount, z: lay.z + 1.5, ry: 2.4, suit: 'white',
+        clip: [lay.x - lm.halfX, lay.x + lm.halfX, lay.z - lm.halfZ, lay.z + lm.halfZ],
       });
     }
 
@@ -460,7 +465,7 @@ async function main() {
 
   // Every figure in the centre, as one mesh per material. Built here rather than inside the
   // loop because merging only pays once all the placements are known.
-  humans.add(buildHumanCrowd(M, crowd));
+  humans.add(buildHumanCrowd(M, crowd, { sunDir: env.sunDir }));
 
   // The launch complex is not an exhibit, so the loop above never reached it — and it is the
   // largest single object in the scene, drawn in most Starship views from a hundred metres or

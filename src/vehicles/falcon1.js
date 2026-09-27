@@ -190,9 +190,11 @@ export function buildFalcon1(M) {
     { name: 'falcon1-raceway', position: [0, (S1_TOP + TANK_BARREL) / 2, R + .035] });
   raceway.scale.set(.72, 1, .48); raceway.userData.lodFeature = .08; root.add(raceway);
   for (const side of [-1, 1]) {
-    const seam = mesh(tube(fairing.map(p => [0, p.y, side * (p.r + .006)]), .006,
+    // A shut line, not a pen stroke: at 12 mm across it drew a black stripe the length of the
+    // fairing from the exhibit's own close-up; 7 mm reads as the joint it is.
+    const seam = mesh(tube(fairing.map(p => [0, p.y, side * (p.r + .003)]), .0035,
       { tubular: 36, radial: 6, type: 'centripetal' }), A.dark, { name: 'falcon1-fairing-split-line' });
-    seam.userData.lodFeature = .012; root.add(seam);
+    seam.userData.lodFeature = .007; root.add(seam);
   }
   const port = mesh(new THREE.CircleGeometry(.10, 32), A.darkMetal,
     { name: 'falcon1-fairing-access', position: [0, FAIRING_BASE + .72, FR + .008] });
