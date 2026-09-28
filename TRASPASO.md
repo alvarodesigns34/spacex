@@ -216,6 +216,15 @@ c5b86c6 Close the tank-farm domes; carbon louvre panel on the Roadster bonnet
   - **visita guiada** con texto y fuente por parada (`TOUR` en `main.js`, comprobada por `provenance-check`);
   - **humo y vapor**: contacto suave con el suelo (`groundUnder` en los sombreadores de `plume.js`, uniforme `uPad`), bordes suaves, chorros turbulentos (`turbulence` en `EngineJets`);
   - **herramientas**: `?perf` (medidor de fps), ESLint (`eslint.config.js`, primer paso de `npm run check`), CI en cuatro trabajos paralelos (`check:static`, `check:scene`, `check:ux`, `check:lod`), historial del README movido a `docs/historial.md`.
+- **Segunda ronda del 28-09** (detalle en el README, *Lanzamiento, segunda ronda del 28 de septiembre de 2026*):
+  - **cámara montada en el cohete** durante la secuencia (`followCamera` en `launch.js`; `state.follow` = 'booster' | 'ship'; tecla C / botón *Camera*; 'none' solo como control negativo de la prueba);
+  - **separación en caliente**: el penacho y los chorros de la nave se cortan en la cúpula del propulsor mientras está en su eje (`maxLength` en `Plume.setThrottle` y `EngineJets.setState`); la nave gira sobre su centro (`SHIP_PIVOT`);
+  - **llamas**: ruido volumétrico en `PLUME_FRAG` (uniformes `uLen`, `uRad`, `uP`, `uRag`), núcleo corto y envolvente tenue en el vacío;
+  - **estela de condensación** del ascenso (`ascentTrail`, Vapor con trayectoria);
+  - **V3 en el regreso**: 33 → 13 motores en el *boostback* (`BOOSTBACK_33` ≈10 s) y 13 → 5 → 3 en el aterrizaje (`BURN_FIVE` ≈3 s antes de `BURN_THREE`), con el empuje resuelto de nuevo; límite de `cloud-check` a 12 g;
+  - **solo ordenador**: fuera la barra inferior de móvil y el CSS de teléfono; aviso en la carga y en pantallas pequeñas; `ux-check` solo en tamaños de escritorio (DPR 1);
+  - **paseo**: 60° de campo de visión, ritmo con la rueda (1,4–25 m/s, empieza en 3), `rig.walls` (valla y zanja), doble clic = viaje (`rig.travelTo`, ruta por la puerta del vial en `walkRoute`).
+- **Búsqueda web:** en esta sesión `WebSearch` funciona (resúmenes con enlaces); `WebFetch` y `curl` a spacex.com, Wikipedia, NASA, NSF o github.io están bloqueados. Lo leído por resúmenes se cita como tal.
 - **Galería:** sigue sin regenerar desde `b1f09d3` y ahora está más desfasada (fila de transporte del panel, botón *Walk*, trayectoria de la nave tras T+2:40). **Regenerarla necesita aprobación del usuario.**
 - **Red de esta sesión:** solo GitHub y npm. No se pudo contrastar ninguna fuente ni comprobar Pages con `curl`; el estado de Pages se comprueba con `mcp__github__actions_list` (ejecuciones del flujo).
 - **No hacer:** el regulador de calidad adaptativo (descartado por el usuario). No reintroducir stencil en el render target MSAA (hundió la escena a ~10 fps en GPU real). Por la misma razón, **no añadir una textura de profundidad** a ese render target para «partículas suaves»: obligaría a resolver una profundidad multimuestreada en cada fotograma, el mismo tipo de coste.

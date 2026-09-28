@@ -1,4 +1,5 @@
-/** Responsive and modal interaction regression gate. Medium rendering, DPR 2.
+/** Desktop layout and modal interaction regression gate. Medium rendering, DPR 1.
+ * (Phones and tablets were retired on 28 Sep 2026: the simulation is designed for a desktop.)
  * Screenshots/report are written outside the repository to ../ux-after.
  * Run: node tools/ux-check.mjs
  */
@@ -17,7 +18,7 @@ const server = createServer(staticHandler(ROOT, TYPES));
 await mkdir(OUT, { recursive: true });
 await new Promise(r => server.listen(PORT, '127.0.0.1', r));
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox'] });
-const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
 const page = await context.newPage();
 const results = [];
 const errors = [];
@@ -49,18 +50,18 @@ const bounds = () => page.evaluate(() => {
 // default on a shared runner; the check is about layout, not frame time (profile-check is).
 const SHOT_MS = 120000;
 // The same holds for clicks: Playwright waits for the target to be stable over two animation
-// frames, and the first frames after the 1920×1080 → 390×844 resize are that slow. On the
-// runner the dock click took 29.6 s in a passing run and timed out at 30 s in the next.
+// frames, and the first frames after a resize are that slow. On the runner one click took
+// 29.6 s in a passing run and timed out at 30 s in the next.
 page.setDefaultTimeout(SHOT_MS);
 try {
-  console.log('Loading once at medium quality, DPR 2');
+  console.log('Loading once at medium quality, DPR 1');
   await page.goto(`http://127.0.0.1:${PORT}/?quality=medium`, { waitUntil: 'load', timeout: 120000 });
   await page.waitForFunction(() => window.__vc && !document.getElementById('loading'), null, { timeout: 300000 });
-  report(await page.evaluate(() => window.__vc.quality.name === 'medium' && devicePixelRatio === 2), 'Explicit medium quality and DPR 2');
+  report(await page.evaluate(() => window.__vc.quality.name === 'medium' && devicePixelRatio === 1), 'Explicit medium quality and DPR 1');
   // The first-visit tips are measured at every size like the rest of the HUD: shown, and
   // held (no timer), so an overlap cannot hide behind their 20 s fade.
   await page.evaluate(() => { try { localStorage.removeItem('vc-coach-seen-1'); } catch {} window.__vc.hud.showCoach(0); });
-  const sizes = [[360, 800], [390, 844], [430, 932], [768, 1024], [844, 390], [1024, 768], [1366, 768], [1440, 900], [1920, 1080]];
+  const sizes = [[1024, 768], [1280, 800], [1366, 768], [1440, 900], [1920, 1080]];
   for (const [width, height] of sizes) {
     await page.setViewportSize({ width, height });
     await page.evaluate(() => {
@@ -70,7 +71,7 @@ try {
     await page.waitForTimeout(180);
     let r = await bounds();
     report(!r.outside.length && !r.overlap.length, `${width}x${height} exhibit controls`, r);
-    if ([390, 844, 1366].includes(width)) await page.screenshot({ path: join(OUT, `exhibit-${width}x${height}.jpg`), type: 'jpeg', quality: 82, timeout: SHOT_MS });
+    if (width === 1366) await page.screenshot({ path: join(OUT, `exhibit-${width}x${height}.jpg`), type: 'jpeg', quality: 82, timeout: SHOT_MS });
     await page.evaluate(() => window.__vc.launch.seek(6));
     // ResizeObserver publishes the panel's measured height after layout; wait for that
     // real condition instead of assuming a 180 ms software-rendered frame has completed.
@@ -79,31 +80,8 @@ try {
       - document.getElementById('mission').getBoundingClientRect().height) < 1, null, { timeout: 30000 });
     r = await bounds();
     report(!r.outside.length && !r.overlap.length, `${width}x${height} launch controls`, r);
-    if ([390, 844].includes(width)) await page.screenshot({ path: join(OUT, `launch-${width}x${height}.jpg`), type: 'jpeg', quality: 82, timeout: SHOT_MS });
+    if (width === 1366) await page.screenshot({ path: join(OUT, `launch-${width}x${height}.jpg`), type: 'jpeg', quality: 82, timeout: SHOT_MS });
   }
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.evaluate(() => { window.__vc.launch.reset(false); window.__vc.jump('falcon1', 'overview'); });
-  await page.click('#dock-vehicles');
-  const panel = await page.evaluate(() => {
-    const rail = document.querySelector('.rail');
-    const box = rail.getBoundingClientRect();
-    const kids = [...rail.querySelectorAll('*')].filter((el) => {
-      const r = el.getBoundingClientRect();
-      return r.width > 1 && r.height > 1 && (r.right > box.right + 1 || r.left < box.left - 1);
-    }).map((el) => el.className);
-    return {
-      scrollWidth: rail.scrollWidth, clientWidth: rail.clientWidth, scrollLeft: rail.scrollLeft, kids,
-    };
-  });
-  report(panel.scrollWidth <= panel.clientWidth + 1 && panel.scrollLeft === 0 && panel.kids.length === 0,
-    '390 vehicle panel content does not overflow horizontally', panel);
-  await page.click('.rail-item');
-  report(await page.evaluate(() => !document.querySelector('.rail').classList.contains('is-open')),
-    'Selecting a vehicle closes the mobile dock');
-  await page.click('#dock-views');
-  await page.click('.preset');
-  report(await page.evaluate(() => !document.querySelector('#presets').classList.contains('is-open')),
-    'Selecting a view closes the mobile dock');
   await page.evaluate(() => { window.__vc.launch.reset(false); window.__vc.jump('falcon1', 'overview'); });
   const cutaway = await page.evaluate(() => {
     const v = window.__vc, model = v.exhibits.falcon1.model;
@@ -120,7 +98,6 @@ try {
   report(cutaway.initial && cutaway.open && cutaway.restored, 'Falcon 1 cutaway shell group hides and restores across exhibits', cutaway);
 
   // Fly mode makes W a real movement key; help must block the camera controller too.
-  // The dock checks above leave a phone viewport, where Help lives inside a closed panel.
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.evaluate(() => { window.__vc.jump('falcon1', 'overview'); window.__vc.rig.setMode('fly'); });
   await page.click('#help-btn');
@@ -222,7 +199,7 @@ try {
     }
     return { checked, fails, small };
   });
-  const contrastSizes = [[390, 844], [834, 1112], [1440, 900]];
+  const contrastSizes = [[1024, 768], [1440, 900], [1920, 1080]];
   for (const [w, h] of contrastSizes) {
     await page.setViewportSize({ width: w, height: h });
     await page.evaluate(() => { const s = document.getElementById('sheet'); if (s.classList.contains('collapsed')) document.getElementById('sheet-toggle').click(); });
@@ -242,9 +219,9 @@ try {
     if (!document.getElementById('sheet').classList.contains('collapsed')) document.getElementById('sheet-toggle').click();
   });
 
-  // Negative control: recreate the old narrow, oversized header overlapping the sheet.
-  await page.setViewportSize({ width: 390, height: 844 });
-  const sabotage = await page.addStyleTag({ content: '.hud-header { width: 340px !important; max-width: none !important; } .sheet.collapsed { top: 12px !important; right: 12px !important; }' });
+  // Negative control: an oversized header running into the sheet must be caught.
+  await page.setViewportSize({ width: 1024, height: 768 });
+  const sabotage = await page.addStyleTag({ content: '.hud-header { width: 900px !important; max-width: none !important; }' });
   const broken = await bounds();
   report(broken.overlap.some(p => p.includes('.hud-header') && p.includes('.sheet')), 'Negative control rejects old narrow header/sheet overlap', broken.overlap);
   await sabotage.evaluate(el => el.remove());
@@ -332,11 +309,82 @@ try {
   await page.evaluate(() => { const v = window.__vc; if (v.rig.mode === 'fly') v.toggleMode(); });
   report(flyBad.y < flyBad.g, 'Negative control: a flat floor sinks into the loma', flyBad);
 
+  // Riding the launch: take the camera with a real drag, let the mission run on, and the
+  // vehicle is still in frame at the same distance. Negative control: with the ride switched
+  // off (follow 'none', the pre-28-09 behaviour), the same run leaves the rocket behind.
+  const ride = async (sabotage) => {
+    await page.evaluate(() => { const v = window.__vc; v.launch.reset(false); v.launch.start(); v.launch.seek(30); v.launch.setSpeed(0); });
+    await settle();
+    const c = await page.locator('#scene').boundingBox();
+    await page.mouse.move(c.x + c.width * 0.6, c.y + c.height * 0.5);
+    await page.mouse.down(); await page.mouse.move(c.x + c.width * 0.66, c.y + c.height * 0.48, { steps: 4 }); await page.mouse.up();
+    return page.evaluate(async (sabotage) => {
+      const v = window.__vc; const THREE = await import('three');
+      if (sabotage) v.launch.state.follow = 'none';
+      const ship = v.exhibits.starship.model.getObjectByName('ship');
+      const where = () => { v.scene.updateMatrixWorld(true); const p = ship.getWorldPosition(new THREE.Vector3()); return { d: p.distanceTo(v.camera.position), ndc: p.clone().project(v.camera) }; };
+      v.launch.setSpeed(1);
+      const w0 = where();
+      for (let i = 0; i < 40; i++) v.launch.update(0.5);     // 20 s of mission, 30 → 50 km/h … 1 400 km/h
+      v.camera.updateMatrixWorld();
+      const w1 = where();
+      const director = v.launch.state.director;
+      v.launch.reset(false);
+      return { director, d0: +w0.d.toFixed(0), d1: +w1.d.toFixed(0), x: +w1.ndc.x.toFixed(2), y: +w1.ndc.y.toFixed(2), inFrame: Math.abs(w1.ndc.x) < 1 && Math.abs(w1.ndc.y) < 1 && w1.ndc.z < 1 };
+    }, sabotage);
+  };
+  const rideOk = await ride(false);
+  report(!rideOk.director && rideOk.inFrame && Math.abs(rideOk.d1 - rideOk.d0) < 0.2 * rideOk.d0 + 30, 'A dragged camera rides with the rocket: still in frame, same distance, 20 s on', rideOk);
+  const rideBad = await ride(true);
+  report(!rideBad.inFrame || rideBad.d1 > 3 * rideBad.d0, 'Negative control: without the ride the rocket leaves the camera behind', rideBad);
+  // C cycles the launch camera: director → riding the booster → riding the ship → director.
+  const cams = await page.evaluate(async () => {
+    const v = window.__vc; v.launch.reset(false); v.launch.start(); v.launch.seek(200); v.launch.setSpeed(0);
+    const seen = [];
+    const read = () => (v.launch.state.director ? 'director' : v.launch.state.follow);
+    seen.push(read());
+    for (let i = 0; i < 3; i++) { document.activeElement?.blur?.(); window.dispatchEvent(new KeyboardEvent('keydown', { key: 'c', code: 'KeyC' })); seen.push(read()); }
+    const label = document.getElementById('mission-cam').textContent;
+    v.launch.reset(false);
+    return { seen, label };
+  });
+  report(cams.seen.join(',') === 'director,booster,ship,director', 'C cycles director → booster → ship → director', cams);
+
+  // Hot staging: the ship's plume and jets stop at the booster's dome while it is in the way,
+  // instead of running on through the booster; the unclipped plume would have reached past it.
+  const hs = await page.evaluate(async () => {
+    const v = window.__vc; const THREE = await import('three');
+    const model = v.exhibits.starship.model, ship = model.getObjectByName('ship'), booster = model.getObjectByName('superheavy');
+    const plume = v.scene.getObjectByName('plume-ship');
+    const rows = [];
+    for (const t of [159.0, 159.6, 160.0, 160.3]) {
+      v.launch.seek(t); v.scene.updateMatrixWorld(true);
+      const exit = ship.localToWorld(new THREE.Vector3()), stack = v.exhibits.starship.model.userData.stations?.booster?.ringTop ?? 70.47;
+      const dome = booster.localToWorld(new THREE.Vector3(0, stack + 0.9, 0));
+      const reach = Math.max(...plume.children.filter(c => c.isMesh).map(c => c.scale.y));
+      const down = ship.localToWorld(new THREE.Vector3(0, -1, 0)).sub(exit).normalize();
+      const inPath = dome.clone().sub(exit).normalize().dot(down) > Math.cos(THREE.MathUtils.degToRad(22));
+      rows.push({ t, gap: +exit.distanceTo(dome).toFixed(1), reach: +reach.toFixed(1), inPath });
+    }
+    v.launch.reset(false);
+    return rows;
+  });
+  report(hs.filter(r => r.inPath).length >= 3 && hs.every(r => !r.inPath || r.reach <= r.gap + 0.01), 'Hot staging: the ship plume stops at the booster dome while it is in the way', hs);
+
   // Walking: eye height over the ground, moving on W, stopped by an exhibit's footprint.
   await page.evaluate(() => { const v = window.__vc; v.jump('falcon9', 'overview'); document.activeElement?.blur?.(); });
   await page.keyboard.press('v');
   const w0 = await page.evaluate(() => { const v = window.__vc, p = v.camera.position; return { mode: v.rig.mode, eye: p.y - v.rig.groundAt(p.x, p.z), x: p.x, z: p.z }; });
-  report(w0.mode === 'walk' && Math.abs(w0.eye - 1.7) < 0.05 , 'V walks at 1.7 m eye height', w0);
+  const fov = await page.evaluate(() => window.__vc.camera.fov);
+  report(w0.mode === 'walk' && Math.abs(w0.eye - 1.7) < 0.05 && fov === 60, 'V walks at 1.7 m eye height with a 60° field of view', { ...w0, fov });
+  // The wheel sets the pace, and says so.
+  const box1 = await page.locator('#scene').boundingBox();
+  await page.mouse.move(box1.x + box1.width / 2, box1.y + box1.height / 2);
+  const pace0 = await page.evaluate(() => window.__vc.rig.walkSpeed);
+  await page.mouse.wheel(0, -120); await page.mouse.wheel(0, -120);
+  const pace = await page.evaluate(() => ({ v: window.__vc.rig.walkSpeed, note: document.getElementById('callout').textContent }));
+  report(pace.v > pace0 && /Walking pace/.test(pace.note), 'The wheel raises the walking pace and shows it', { pace0, ...pace });
+  await page.evaluate(() => { window.__vc.rig.walkLevel = 1; });
   await page.evaluate(() => { const v = window.__vc; v.camera.position.set(-135, 1.7, 30); v.rig.look.yaw = 0; v.rig.look.pitch = 0; });
   await page.keyboard.down('w'); await page.keyboard.down('Shift');
   await page.evaluate(() => { for (let i = 0; i < 250; i++) window.__vc.rig.update(0.05); });
@@ -344,10 +392,37 @@ try {
   const w1 = await page.evaluate(() => { const v = window.__vc, p = v.camera.position; return { z: p.z, x: p.x, eye: p.y - v.rig.groundAt(p.x, p.z), r: Math.hypot(p.x + 135, p.z) }; });
   report(w1.z < 29 && w1.r >= 9.2 && Math.abs(w1.eye - 1.7) < 0.1, 'Walking moves on W and stops at the Falcon 9 mount', w1);
   await page.keyboard.press('v');
-  report(await page.evaluate(() => window.__vc.rig.mode === 'orbit'), 'V again returns to orbit');
+  report(await page.evaluate(() => window.__vc.rig.mode === 'orbit' && window.__vc.camera.fov === 42), 'V again returns to orbit, at 42°');
+
+  // The fence: walking at it from the pad side, the visitor slides along it and stays out.
+  await page.evaluate(() => { const v = window.__vc; v.toggleWalk(); v.camera.position.set(0, 1.7, -40); v.rig.look.yaw = Math.PI; v.rig.look.pitch = 0; document.activeElement?.blur?.(); });
+  await page.keyboard.down('w');
+  await page.evaluate(() => { for (let i = 0; i < 200; i++) window.__vc.rig.update(0.05); });
+  await page.keyboard.up('w');
+  const fz = await page.evaluate(() => window.__vc.camera.position.z);
+  report(fz < -18.2, 'Walking into the site fence stops at it', { z: fz });
+  // A double-click on the Dragon from the pad side walks there through the fence gate.
+  const trip = await page.evaluate(async () => {
+    const v = window.__vc; const THREE = await import('three');
+    v.camera.position.set(-20, 6.7, -150); v.rig.look.yaw = 0; v.rig.update(0.05);
+    const d = v.exhibits.dragon.lay;
+    const hit = { point: new THREE.Vector3(d.x, 4, d.z), object: v.scene.getObjectByName('exhibit-dragon') };
+    v.walkRouteFor(hit);
+    let nearGate = Infinity, steps = 0;
+    while (v.rig.travel && steps++ < 4000) {
+      v.rig.update(0.05);
+      const p = v.camera.position;
+      if (Math.abs(p.z + 18) < 1.5) nearGate = Math.min(nearGate, Math.abs(p.x - 49.5));
+    }
+    const p = v.camera.position;
+    const out = { steps, nearGate: +nearGate.toFixed(1), dist: +Math.hypot(p.x - d.x, p.z - d.z).toFixed(1), eye: +(p.y - v.rig.groundAt(p.x, p.z)).toFixed(2) };
+    v.toggleWalk();
+    return out;
+  });
+  report(trip.steps < 4000 && trip.nearGate < 4 && trip.dist > 3 && trip.dist < 12 && Math.abs(trip.eye - 1.7) < 0.05, 'Double-click walks to the Dragon through the fence gate', trip);
 
   // Guided tour: a caption with its source, clear of the rest of the HUD.
-  for (const [w, h] of [[1440, 900], [390, 844], [834, 1112]]) {
+  for (const [w, h] of [[1440, 900], [1024, 768], [1920, 1080]]) {
     await page.setViewportSize({ width: w, height: h });
     await page.evaluate(() => { const v = window.__vc; if (v.tourAt >= 0) v.claimUserControl(); v.startTour(); });
     await settle();
@@ -358,30 +433,35 @@ try {
   }
   report(await page.evaluate(() => document.getElementById('tour-card').classList.contains('hidden')), 'Ending the tour puts its caption away');
 
-  // A phone held sideways: the mission panel starts folded to the clock and the controls, and
-  // unfolds on its button.
-  await page.setViewportSize({ width: 844, height: 390 });
-  await page.reload({ waitUntil: 'load' });
-  await page.waitForFunction(() => window.__vc && !document.getElementById('loading'), null, { timeout: 300000 });
+  // The mission panel folds to the clock and the controls, and unfolds again.
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.evaluate(() => { window.__vc.hud.hideCoach(); window.__vc.launch.seek(6); });
   await settle();
-  const fold0 = await page.evaluate(() => ({ compact: document.getElementById('mission').classList.contains('is-compact'), h: document.getElementById('mission').getBoundingClientRect().height }));
-  await page.click('#mission-fold');
-  await settle();
-  const fold1 = await page.evaluate(() => ({ compact: document.getElementById('mission').classList.contains('is-compact'), h: document.getElementById('mission').getBoundingClientRect().height, exp: document.getElementById('mission-fold').getAttribute('aria-expanded') }));
-  report(fold0.compact && fold0.h < 160 && !fold1.compact && fold1.h > fold0.h && fold1.exp === 'true', '844x390 mission panel starts folded and unfolds', { fold0, fold1 });
+  const fold0 = await page.evaluate(() => document.getElementById('mission').getBoundingClientRect().height);
+  await page.click('#mission-fold'); await settle();
+  const fold1 = await page.evaluate(() => ({ compact: document.getElementById('mission').classList.contains('is-compact'), h: document.getElementById('mission').getBoundingClientRect().height }));
+  await page.click('#mission-fold'); await settle();
+  const fold2 = await page.evaluate(() => document.getElementById('mission').getBoundingClientRect().height);
+  report(fold1.compact && fold1.h < fold0 * 0.6 && Math.abs(fold2 - fold0) < 2, 'The mission panel folds and unfolds', { fold0, fold1, fold2 });
   await page.evaluate(() => window.__vc.launch.reset(false));
 
-  // Upright phone: the overview takes in the whole row. Every exhibit projects inside the
-  // frame; the authored landscape frame, the negative control, leaves most of them outside.
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.waitForFunction(() => Math.abs(window.__vc.camera.aspect - 390 / 844) < 1e-3);
+  // A tall window (a portrait monitor): the overview takes in the whole row. Every exhibit
+  // projects inside the frame; the landscape frame, the negative control, leaves some out.
+  await page.setViewportSize({ width: 900, height: 1200 });
+  await page.waitForFunction(() => window.innerWidth === 900 && window.innerHeight === 1200);
+  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+  await settle();
   await page.evaluate(() => window.__vc.jump(null));
   await settle();
   const fit = await page.evaluate(async () => {
     const v = window.__vc; const THREE = await import('three');
+    // Inside the part of the canvas the rail leaves free. project() already works in the
+    // rendered canvas (the view offset is in the projection matrix), so the free part runs from
+    // the rail's width, `shift` pixels in, to the right edge.
     const inside = () => Object.values(v.exhibits).filter(ex => ex.lay.z === 0).map(ex => {
-      const p = new THREE.Vector3(ex.lay.x, 4, ex.lay.z).project(v.camera); return Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1;
+      const p = new THREE.Vector3(ex.lay.x, 4, ex.lay.z).project(v.camera);
+      const shift = v.camera.view?.enabled ? v.camera.view.fullWidth - innerWidth : 0;
+      return p.x >= -1 + 2 * shift / innerWidth && p.x <= 1 && Math.abs(p.y) <= 1;
     });
     v.camera.updateMatrixWorld(); const now = inside();
     const o = v.overviewFor(1.6); v.rig.jumpTo(o.pos, o.target); v.camera.updateMatrixWorld();
@@ -389,8 +469,8 @@ try {
     v.jump(null);
     return { now: now.filter(Boolean).length, old: old.filter(Boolean).length, total: now.length };
   });
-  report(fit.now === fit.total, '390x844 overview frames every exhibit in the row', fit);
-  report(fit.old < fit.total, 'Negative control: the landscape overview on a phone leaves exhibits out', fit);
+  report(fit.now === fit.total, '900x1200 overview frames every exhibit in the row', fit);
+  report(fit.old < fit.total, 'Negative control: the landscape overview in a tall window leaves exhibits out', fit);
 
   // A lost and restored WebGL context keeps the lighting (the reflection probe is rebuilt).
   await page.setViewportSize({ width: 960, height: 540 });

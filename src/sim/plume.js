@@ -33,10 +33,12 @@ const PLUME_VERT = /* glsl */`
   varying float vAxis;
   varying float vFace;
   varying float vRad;
+  varying float vAng;
   void main() {
     float v = 1.0 - uv.y;                      // 0 at the nozzle plane, 1 at the tail
     vAxis = v;
     vRad = length(position.xz);
+    vAng = atan(position.z, position.x);
     // The plume leaves the nozzle at the nozzle's own radius and only then blooms, so the
     // bloom is a profile along the axis rather than a fixed cone angle. A fixed cone would
     // put a wide disc right at the engines, which is what a stock cone gets wrong.
@@ -57,9 +59,18 @@ const PLUME_VERT = /* glsl */`
 const PLUME_FRAG = /* glsl */`
   uniform vec3 uHot, uWarm, uCool;
   uniform float uAlpha, uFalloff, uDiamond, uOpacity, uDiamondN, uTime, uGain, uOcclude;
+  uniform float uLen, uRad, uP, uRag;
   varying float vAxis;
   varying float vFace;
   varying float vRad;
+  varying float vAng;
+  // Value noise in three dimensions, cheap and deterministic (no texture, no wall clock).
+  float h3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+  float vnoise(vec3 x) {
+    vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(h3(i), h3(i + vec3(1, 0, 0)), f.x), mix(h3(i + vec3(0, 1, 0)), h3(i + vec3(1, 1, 0)), f.x), f.y),
+               mix(mix(h3(i + vec3(0, 0, 1)), h3(i + vec3(1, 0, 1)), f.x), mix(h3(i + vec3(0, 1, 1)), h3(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+  }
   void main() {
     float v = clamp(vAxis, 0.0, 1.0);
     vec3 c = v < 0.35 ? mix(uHot, uWarm, v / 0.35) : mix(uWarm, uCool, (v - 0.35) / 0.65);
@@ -68,12 +79,17 @@ const PLUME_FRAG = /* glsl */`
     float node = pow(max(abs(sin(v * uDiamondN)), 1e-4), 16.0);
     node *= smoothstep(0.48, 0.02, vRad);
     float shock = 1.0 + uDiamond * node * (1.0 - v * 0.5);
-    // Shear-layer billow, stronger off the axis so the column is not a stack of stripes.
+    // Turbulence of the mixing layer, in metres and carried downstream with the flow: eddies a
+    // few metres across at the pad that grow as the exhaust expands at altitude. It replaces a
+    // pair of sines, which painted regular bands on a smooth cone — the tell of a drawn plume.
+    // Sampled on the circle (cos, sin of the angle) so there is no seam round the axis.
+    float scale = mix(0.12, 0.35, uP) / max(1.0, uRad * 0.25);
+    vec3 q = vec3(cos(vAng) * uRad * vRad, sin(vAng) * uRad * vRad, v * uLen) * scale;
+    q.z -= uTime * mix(4.0, 9.0, uP);
+    float n = 0.55 * vnoise(q) + 0.3 * vnoise(q * 2.03 + 7.1) + 0.15 * vnoise(q * 4.1 - 3.3);
     float shear = smoothstep(0.12, 0.9, vRad);
-    float turb = 1.0
-      + shear * 0.18 * sin(v * 15.0 + vRad * 8.0 + uTime * 2.2)
-      + shear * 0.10 * sin(v * 37.0 - vRad * 21.0 + uTime * 4.7);
-    c *= turb;
+    // Brightness flickers with the eddies, more out in the shear layer and down the column.
+    c *= 1.0 + (n - 0.5) * (0.35 + 0.5 * shear) * smoothstep(0.02, 0.3, v);
     float core = exp(-vRad * vRad * 3.6) * exp(-v * 1.45);
     c = mix(c, uHot, clamp(core * 0.75, 0.0, 1.0));
     // The throat itself is the brightest thing in the scene: a short, near-white region right
@@ -85,6 +101,14 @@ const PLUME_FRAG = /* glsl */`
     // discarded the rest, so 33 Raptors rendered as a 7 m pilot light hanging under a 72 m
     // booster — the single reason the launch did not read as powerful.
     float a = uAlpha * pow(safeAxis, uFalloff) * pow(safeFace, 0.62) * uOpacity;
+    // A ragged outline: towards the edge and the tail the envelope is torn by the eddies
+    // instead of fading on a clean conical surface.
+    float edge = (1.0 - safeFace) * 0.9 + v * 0.55;
+    a *= mix(1.0, smoothstep(0.1, 0.6, n + 0.45 - edge * uRag), smoothstep(0.05, 0.25, v));
+    // In near vacuum the bell is lit mostly at its boundary, where a line of sight crosses the
+    // most of the thin shocked layer: the limb-brightened jellyfish of high-altitude footage,
+    // not a solid cone.
+    a *= mix(1.0, 0.35 + 1.6 * pow(1.0 - safeFace, 1.5), (1.0 - uP) * 0.7);
     a *= 1.0 + 0.45 * node;
     // Deterministic billow. uTime is mission time, so a seek reproduces the same frame.
     a *= 1.0 + 0.07 * sin(v * 46.0 + uTime * 6.0) * smoothstep(0.08, 0.35, v);
@@ -111,6 +135,7 @@ function coneLayer({ hot, warm, cool, alpha, falloff }) {
       uDiamond: { value: 0 }, uDiamondN: { value: 14.14 },
       uOpacity: { value: 1 }, uSpread: { value: 1 }, uTime: { value: 0 }, uGain: { value: 1 },
       uOcclude: { value: 0 },
+      uLen: { value: 10 }, uRad: { value: 1 }, uP: { value: 1 }, uRag: { value: 1 },
     },
     vertexShader: PLUME_VERT, fragmentShader: PLUME_FRAG,
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
@@ -173,7 +198,7 @@ export class Plume {
    *   narrows the column instead of only dimming it
    * @param {number} [perEngine] throttle of each running engine, which sets the length
    */
-  setThrottle(throttle, altitude, spread = 1, perEngine = throttle) {
+  setThrottle(throttle, altitude, spread = 1, perEngine = throttle, maxLength = Infinity) {
     const on = throttle > 0.001;
     // The group stays visible and only the cones hide: the light has to be in the scene all
     // the time, at zero when the engines are off. How many lights a scene has is part of
@@ -197,16 +222,40 @@ export class Plume {
     // The merged column leaves the cluster a little wider than the cluster: 33 jets side by
     // side, each opening out as it leaves its bell.
     const rc = r * 0.98;
-    this.core.scale.set(rc, len * stretch * t, rc);
+    // The bright core is the dense flow just behind the nozzles; in vacuum it does not run on
+    // for a hundred metres with the envelope — it is the envelope that balloons.
+    this.core.scale.set(rc, len * (1 + 1.6 * (1 - p)) * t, rc);
     const rs = r * 1.55;
     this.shroud.scale.set(rs, len * stretch * 1.45 * t, rs);
     const rv = r * (1.7 + 1.4 * (1 - p));
     this.veil.scale.set(rv, len * stretch * 1.7 * t, rv);
+    // Something in the way (the booster's dome, at hot-staging): the exhaust cannot run on
+    // through it, so no layer reaches past it. What it does instead is the impingement fan the
+    // sequence draws round the dome.
     this.veil.material.uniforms.uSpread.value = 1 + 6.5 * (1 - p);
     this.veil.material.uniforms.uOpacity.value = 0.15 + 0.85 * p;
     for (const layer of [this.core, this.shroud, this.veil]) layer.material.uniforms.uTime.value = this.time;
     this.core.material.uniforms.uSpread.value = 1 + 2.4 * (1 - p);
     this.shroud.material.uniforms.uSpread.value = 1 + 6.4 * (1 - p);
+    if (maxLength < Infinity) for (const layer of [this.core, this.shroud, this.veil]) {
+      // Cut short, the plume keeps the width it has that far from the nozzle rather than
+      // blooming to its full vacuum width within a few metres: a clipped bell drew a disc.
+      const full = layer.scale.y;
+      if (full > maxLength) {
+        layer.scale.y = maxLength;
+        const u = layer.material.uniforms.uSpread;
+        u.value = 1 + (u.value - 1) * (maxLength / full);
+      }
+    }
+    // The turbulence works in metres, so each layer is told its own size and the air pressure.
+    for (const layer of [this.core, this.shroud, this.veil]) {
+      const u = layer.material.uniforms;
+      u.uLen.value = layer.scale.y; u.uRad.value = layer.scale.x; u.uP.value = p;
+    }
+    // The core is torn least (it is the dense, fast part); the veil most.
+    this.core.material.uniforms.uRag.value = 0.55;
+    this.shroud.material.uniforms.uRag.value = 1.0;
+    this.veil.material.uniforms.uRag.value = 1.25;
     this.core.material.uniforms.uDiamond.value = 2.15 * p;
     // Node spacing follows the expansion: tight, repeated cells while the flow is squeezed
     // back by sea-level pressure, stretching out and dying as the atmosphere thins.
@@ -219,7 +268,10 @@ export class Plume {
     // against the sky; in vacuum the same gain would turn a faint bell into a searchlight.
     this.core.material.uniforms.uGain.value = 3.4 + 3.6 * p;
     this.shroud.material.uniforms.uGain.value = 1.5 + 0.9 * p;
-    this.shroud.material.uniforms.uOpacity.value = 0.66 + 0.34 * (1 - p);
+    // Thin in vacuum. It used to grow towards 1 as the air thinned, and at hot-staging the
+    // ship's envelope drew as an opaque orange petal wrapped round the booster; a methalox
+    // plume out of the air is a faint, wide glow round a short bright core.
+    this.shroud.material.uniforms.uOpacity.value = 0.3 + 0.36 * p;
     // 8,240 tf lights the pad. The old value lit a room.
     this.light.intensity = 4200 * throttle * (0.35 + 0.65 * p);
     this.light.distance = 260 + 420 * (1 - p);
@@ -345,7 +397,7 @@ export class EngineJets {
    * @param {number} altitude m
    * @param {number} lit how many engines, in lighting order, are running
    */
-  setState(throttle, altitude, lit) {
+  setState(throttle, altitude, lit, maxLength = Infinity) {
     const on = throttle > 0.01 && lit > 0;
     this.mesh.visible = on;
     if (!on) return;
@@ -354,7 +406,7 @@ export class EngineJets {
     const u = this.material.uniforms;
     u.uP.value = p;
     // Short and tight at the pad, long and open once the air thins.
-    u.uLength.value = this.meanR * this.seaLevelLength * (1 + 2.2 * (1 - p)) * (0.6 + 0.4 * throttle);
+    u.uLength.value = Math.min(maxLength, this.meanR * this.seaLevelLength * (1 + 2.2 * (1 - p)) * (0.6 + 0.4 * throttle));
     u.uSpread.value = 1.15 + 2.4 * (1 - p);
     u.uOpacity.value = (0.55 + 0.45 * throttle) * 0.7;
   }

@@ -40,11 +40,14 @@ for (const [name, before, after] of [['altitude', altitudeAt, boosterAltAt], ['d
 // Position continuity is not enough: the review found the positions meeting at staging while
 // the speed fell from 5 695 to 3 155 km/h in 0,2 s. Velocity is differentiated from the very
 // positions the scene uses, over the whole flight, for the stack and then the booster, and
-// three things are asserted: no speed change beyond 8 g (the landing burn in dense air peaks
-// near 7,3 g, thrust plus drag), no kink in the velocity *vector* (a change of direction at
+// three things are asserted: no speed change beyond 12 g (the landing burn in dense air peaks
+// near 7,3 g, thrust plus drag; the V3 boostback on 33 engines near 8,2 g), no kink in the velocity *vector* (a change of direction at
 // constant speed is a jump too), and an attitude that turns no faster than 40°/s (the flip).
 {
-  const H = 0.02, STEP = 0.05, G8 = 8 * 9.81;
+  // 12 g, not 8: the V3 boostback's high-thrust portion on all 33 engines, with the tanks
+  // nearly empty, peaks near 8,2 g here. A genuine jump (the staging defect this test was
+  // written for) reads 11 850 m/s², a hundred times the bound either way.
+  const H = 0.02, STEP = 0.05, G8 = 12 * 9.81;
   const vel = (t) => [(boosterDownAt(t + H) - boosterDownAt(t - H)) / (2 * H), (boosterAltAt(t + H) - boosterAltAt(t - H)) / (2 * H)];
   let worstA = [0, 0], worstV = [0, 0], worstP = [0, 0];
   let prev = vel(EVENTS.liftoff + 1), prevS = boosterSpeedAt(EVENTS.liftoff + 1), prevP = boosterPitchAt(EVENTS.liftoff + 1);
@@ -128,6 +131,15 @@ for (const t of [0, 6, 36, 45, 100, 407, 424]) {
   if (t === 100) assert.equal(expected.count, 0, 'launch smoke must have expired by T+100');
 }
 launch.reset(false); assert.equal(snapshot().count, 0, 'reset clears all particles');
+// V3 engine counts on the way home, in the order SpaceX's flight summaries give them: all 33
+// for the boostback's high-thrust portion, then the inner 13; 13 → 5 → 3 in the landing burn.
+{
+  const lit = (t) => { launch.seek(t); return launch.state.booster.lit; };
+  const seen = [170, 200, 392, 395.5, 400].map(lit);
+  assert.deepEqual(seen, [33, 13, 13, 5, 3], `booster engines lit at T+170/200/392/395.5/400: ${seen}`);
+  launch.reset(false);
+  console.log('PASS V3 return engine counts 33 → 13 (boostback), 13 → 5 → 3 (landing)');
+}
 console.log('PASS deterministic clouds, all playback rates, smoke expiry, reset and staging continuity');
 if (!mutant) {
   for (const name of ['random', 'frozen', 'speed', 'staging', 'kink', 'shipmass']) {

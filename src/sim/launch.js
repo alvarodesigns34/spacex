@@ -222,6 +222,14 @@ export const TRANSONIC_LEAD = 5;   // cited: flight 7, transonic T+06:26, landin
 // footage of flight 5 as 13 at T+6:30 and 3 by T+6:37. It has not been checked frame by frame
 // against the original video; until it is, it stays approximate and is not re-timed.
 export const BURN_THREE = 397;     // ≈T+06:37, 13 engines → centre 3 (approximate)
+// V3 (Block 3) engine counts, from SpaceX's own flight summaries: flight 13's booster "completed
+// the high thrust portion of the boostback burn with all 33 engines, the first time with a
+// Super Heavy V3"; flight 14's relit for "the high-thrust portion of the landing burn" on the
+// planned 13 "before down-selecting to five engines for trajectory fine-tuning, and then down
+// to three" (spacex.com, flights 13 and 14, read through search summaries on 28 Sep 2026).
+// The ORDER is cited; how long each portion lasts is not published, so these two are ≈.
+export const BOOSTBACK_33 = 10;    // ≈ s of the boostback on all 33 before the inner 13 carry on
+export const BURN_FIVE = BURN_THREE - 3;   // ≈ 13 → 5 engines, 3 s before the centre three
 const FLIP_END = 166.5;            // the flip to boostback attitude, overlapping the throttle-up
 const RETRO_BLEND = [221, 245];    // after the boostback: swing to engines-first
 
@@ -239,7 +247,12 @@ const RETURN = (() => {
   const T3 = EVENTS.catch - BURN_THREE;
   const STOP_V = -threeDecel * T3, STOP_H = CATCH_BASE + threeDecel * T3 * T3 / 2 + R;
   const sst = THREE.MathUtils.smoothstep;
-  const bbWeight = (t) => sst(t, BB0, BB0 + 2) * (1 - sst(t, BB1 - 3, BB1));
+  // Thrust per engine is the same whichever are lit, so the 33-engine portion pushes 33/13 as
+  // hard as the rest of the boostback, and five engines push 5/13 of thirteen. The solve then
+  // finds the per-engine thrust that meets the cited times with that shape.
+  const bbWeight = (t) => sst(t, BB0, BB0 + 2) * (1 - sst(t, BB1 - 3, BB1))
+    * (1 + (33 / 13 - 1) * (1 - sst(t, BB0 + BOOSTBACK_33 - 0.5, BB0 + BOOSTBACK_33 + 0.5)));
+  const lbWeight = (t) => 1 - (1 - 5 / 13) * sst(t, BURN_FIVE - 0.25, BURN_FIVE + 0.25);
 
   // Initial state: the base of the stack at separation, plus R up the axis, moving with it.
   const p0 = pitchProgram(T0), w0 = pitchRate(T0), v0 = PROFILE.spd[EVENTS.separation / PROFILE.step];
@@ -255,7 +268,7 @@ const RETURN = (() => {
     const sp = Math.hypot(vx, vh), k = K(h, q[3]);
     let ax = -k * sp * vx, ah = -G - k * sp * vh;
     if (t >= BB0 && t <= BB1) { const w = bbWeight(t); ax += w * q[0]; ah += w * q[1]; }
-    if (t >= LB) { const sp1 = sp || 1, w = sst(t, LB, LB + 1.5); ax -= w * q[2] * vx / sp1; ah -= w * q[2] * vh / sp1; }
+    if (t >= LB) { const sp1 = sp || 1, w = sst(t, LB, LB + 1.5) * lbWeight(t); ax -= w * q[2] * vx / sp1; ah -= w * q[2] * vh / sp1; }
     out[0] = vx; out[1] = vh; out[2] = ax; out[3] = ah;
   }
   const k1 = [0, 0, 0, 0], k2 = [0, 0, 0, 0], k3 = [0, 0, 0, 0], k4 = [0, 0, 0, 0], tmp = [0, 0, 0, 0];
@@ -430,14 +443,20 @@ export function boosterSpeedAt(t) {
 
 /** Booster engines after separation: the boostback burn, then the landing burn. */
 function returnThrottle(t) {
+  const sst = THREE.MathUtils.smoothstep;
   if (t >= EVENTS.boostbackStart && t <= EVENTS.boostbackEnd) {
-    return 0.40 * THREE.MathUtils.smoothstep(t, EVENTS.boostbackStart, EVENTS.boostbackStart + 2)
-      * (1 - THREE.MathUtils.smoothstep(t, EVENTS.boostbackEnd - 3, EVENTS.boostbackEnd));
+    // All 33 for the high-thrust portion, then the inner 13 (V3; see BOOSTBACK_33).
+    const share = 13 / 33 + (1 - 13 / 33) * (1 - sst(t, EVENTS.boostbackStart + BOOSTBACK_33 - 0.5, EVENTS.boostbackStart + BOOSTBACK_33 + 0.5));
+    return share * sst(t, EVENTS.boostbackStart, EVENTS.boostbackStart + 2)
+      * (1 - sst(t, EVENTS.boostbackEnd - 3, EVENTS.boostbackEnd));
   }
   if (t >= EVENTS.landingBurn && t <= EVENTS.catch) {
-    // Thirteen engines to arrest the descent, down to the centre three for the approach.
-    const lit = t < BURN_THREE - 1.5 ? 0.42 : 0.42 * (1 - 0.72 * THREE.MathUtils.smoothstep(t, BURN_THREE - 1.5, BURN_THREE + 0.5));
-    return lit * (1 - THREE.MathUtils.smoothstep(t, EVENTS.catch - 1.2, EVENTS.catch));
+    // Thirteen engines to arrest the descent, five to fine-tune, the centre three for the approach.
+    const n = t < BURN_FIVE ? 13 : t < BURN_THREE ? 5 : 3;
+    const prev = t < BURN_FIVE ? 13 : t < BURN_THREE ? 13 : 5;
+    const at = t < BURN_FIVE ? 0 : t < BURN_THREE ? BURN_FIVE : BURN_THREE;
+    const lit = (prev + (n - prev) * sst(t, at - 0.25, at + 0.25)) / 33;
+    return lit * (1 - sst(t, EVENTS.catch - 1.2, EVENTS.catch));
   }
   return 0;
 }
@@ -465,11 +484,14 @@ function boosterEngineThrottle(t) {
  */
 const CENTRE_3 = (1.02 + 0.62) / 4.48, INNER_13 = (2.48 + 0.62) / 4.48;
 function boosterSpread(t) {
+  const sst = THREE.MathUtils.smoothstep;
   if (t < EVENTS.meco) return 1;
   if (t < EVENTS.boostbackStart) return CENTRE_3;
-  if (t <= EVENTS.boostbackEnd) return INNER_13;
-  if (t < BURN_THREE - 1.5) return INNER_13;
-  return THREE.MathUtils.lerp(INNER_13, CENTRE_3, THREE.MathUtils.smoothstep(t, BURN_THREE - 1.5, BURN_THREE + 0.5));
+  if (t <= EVENTS.boostbackEnd) return THREE.MathUtils.lerp(1, INNER_13, sst(t, EVENTS.boostbackStart + BOOSTBACK_33 - 0.5, EVENTS.boostbackStart + BOOSTBACK_33 + 0.5));
+  if (t < BURN_FIVE - 0.25) return INNER_13;
+  // Five: the centre three and two of the inner ring, so the column is still about as wide.
+  if (t < BURN_THREE - 0.25) return THREE.MathUtils.lerp(INNER_13, 0.5 * (INNER_13 + CENTRE_3), sst(t, BURN_FIVE - 0.25, BURN_FIVE + 0.25));
+  return THREE.MathUtils.lerp(0.5 * (INNER_13 + CENTRE_3), CENTRE_3, sst(t, BURN_THREE - 0.25, BURN_THREE + 0.25));
 }
 
 /** How many booster engines are running, in lighting order (centre 3, inner 10, outer 20). */
@@ -482,7 +504,9 @@ function boosterLit(t) {
   }
   if (t < EVENTS.meco) return 33;
   if (t < EVENTS.boostbackStart) return 3;
-  if (t < BURN_THREE) return 13;
+  if (t < EVENTS.boostbackStart + BOOSTBACK_33) return 33;
+  if (t < BURN_FIVE) return 13;
+  if (t < BURN_THREE) return 5;
   return 3;
 }
 
@@ -908,7 +932,34 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     emitters: [0.5, 2.1, 3.7, 5.3].map((a, i) => ({ at: around(3, 0, a), dir: out(a, 0.4), speed: 7, spread: 0.5, count: nv(150), life: 12, size: 12, grow: 4.5, jitter: 3, window: [EVENTS.landingBurn + 0.5, i % 2 ? BURN_THREE + 5 : EVENTS.catch - 5] })),
   });
   ex.group.add(landingSmoke.mesh);
-  const vapors = [countdownVent, cascade, basePile, deluge, landingSpray, catchVent, flipVent, landingSmoke];
+
+  // The ascent trail. Methalox burns to water and carbon dioxide, and every launch video shows
+  // what that water does in the cold air behind the vehicle: a white trail, thin and bright
+  // near the ground, then broader and drifting, that stays in the sky long after the rocket
+  // has gone. The stack left none, so the sky behind it was empty. It starts behind the
+  // bright part of the plume and stops by ~20 km, where the air is too thin to hold it
+  // (≈ both; puff sizes and the fade are reconstructed from footage, not measured).
+  const TRAIL_T = [EVENTS.liftoff + 6, 100], TRAIL_N = 240;
+  const trailPath = (() => {
+    const pts = new Float32Array(TRAIL_N * 3), m = new THREE.Matrix4(), mm = new THREE.Matrix4(), v = new THREE.Vector3();
+    mm.compose(ex.model.position, new THREE.Quaternion().setFromEuler(ex.model.rotation), new THREE.Vector3(1, 1, 1));
+    for (let i = 0; i < TRAIL_N; i++) {
+      const ts = TRAIL_T[0] + (TRAIL_T[1] - TRAIL_T[0]) * i / (TRAIL_N - 1);
+      const back = 40 + altitudeAt(ts) * 0.004;        // behind the bright column, which lengthens with height
+      m.makeRotationZ(-pitchAt(ts)).setPosition(downrangeAt(ts), altitudeAt(ts), 0).multiply(mm);
+      v.set(0, -back, 0).applyMatrix4(m);
+      pts.set([v.x, v.y, v.z], i * 3);
+    }
+    return { t0: TRAIL_T[0], t1: TRAIL_T[1], points: pts };
+  })();
+  const ascentTrail = new Vapor({
+    name: 'vapor-ascent-trail', rng: seeded(31), accel: [0.35, 0.04, 0.2], tau: 2.5, opacity: 0.2, path: trailPath,
+    colors: [0xf4f5f6, 0x9aa1ab], fadeIn: 0.02,
+    // Dense enough to read as one line from kilometres off, not a string of beads.
+    emitters: [0, 2.1, 4.2].map((a) => ({ at: around(2, 0, a), dir: out(a, 0), speed: 3, spread: 0.6, count: nv(420), life: 34, size: 30, grow: 5, jitter: 8, window: TRAIL_T })),
+  });
+  ex.group.add(ascentTrail.mesh);
+  const vapors = [countdownVent, cascade, basePile, deluge, landingSpray, catchVent, flipVent, landingSmoke, ascentTrail];
   for (const vp of vapors) vp.material.uniforms.uPad.value.set(ex.lay.x, ex.lay.z);
 
   // Max-Q: a condensation collar off the hot-stage ring, trailing down the booster, through
@@ -922,7 +973,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   // 1 m tall for as long as they were there — puffs of vapour parked half a metre under the
   // engines and plume boxes a metre under them — and passed only because the tolerance was 2 %.
   for (const o of [boosterPlume.group, shipPlume.group, boosterJets.mesh, shipJets.mesh, hotStageVents.mesh,
-    stageGlow.mesh, rest, catchVent.mesh, flipVent.mesh, landingSmoke.mesh, collar.mesh, collarShip.mesh]) o.userData.fx = true;
+    stageGlow.mesh, rest, catchVent.mesh, flipVent.mesh, landingSmoke.mesh, ascentTrail.mesh, collar.mesh, collarShip.mesh]) o.userData.fx = true;
   const collarAt = (t) => {
     const k = THREE.MathUtils.smoothstep(t, EVENTS.maxQ - 22, EVENTS.maxQ - 12) * (1 - THREE.MathUtils.smoothstep(t, EVENTS.maxQ + 6, EVENTS.maxQ + 14));
     // Flickers as it forms and sheds, the way it does on film.
@@ -1007,6 +1058,9 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
 
   const state = {
     running: false, armed: false, paused: false, t: EVENTS.start, speed: 1,
+    // Who the camera is on when the visitor holds it: 'booster' or 'ship' (their orbit rides
+    // along with that vehicle), or 'director' for the broadcast shot list.
+    follow: 'director',
     phase: 'On the pad', altitude: 0, velocity: 0, throttle: 0, downrange: 0,
     ship: { altitude: 0, velocity: 0, lit: 0 }, booster: { altitude: 0, velocity: 0, lit: 0 }, next: null,
   };
@@ -1039,6 +1093,49 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
       altitudeAt(t) + ex.lay.mount + Math.cos(p) * r,
       S.z,
     );
+  }
+
+  // The ship turns about its own middle, not about the booster's engines. The flight group's
+  // origin is the stack's base (the engines' exit plane), which is right until separation;
+  // after it the group carries the ship alone, and once the ship steers on its own (it pitches
+  // up ~20° in the first seconds) rotating that group swung a 52 m ship round a point 72 m
+  // below it — sideways by tens of metres, and through the booster. After separation the
+  // integrated trajectory moves the ship's middle, and the group is placed so the ship
+  // rotates about it.
+  const SHIP_PIVOT = shipHome + 26;
+  const ATT_SEP = pitchAt(EVENTS.separation);
+  function shipMidAt(t, out) {
+    const a = t <= EVENTS.separation ? pitchAt(t) : ATT_SEP;
+    return out.set(S.x + downrangeAt(t) + Math.sin(a) * SHIP_PIVOT, ex.lay.mount + altitudeAt(t) + Math.cos(a) * SHIP_PIVOT, S.z);
+  }
+  /** What a visitor's orbit rides on during the sequence. */
+  function focusAt(t, out) {
+    if (t < EVENTS.separation) return vehicleAt(t, out);
+    if (state.follow === 'ship') return shipMidAt(t, out);
+    return boosterAt(t, out);
+  }
+  let followPrev = null;
+  const _gapA = new THREE.Vector3(), _gapB = new THREE.Vector3(), _gapC = new THREE.Vector3();
+  const _fo = new THREE.Vector3();
+  /**
+   * The visitor holds the camera but it rides with the rocket: the orbit's centre moves with
+   * the vehicle, and the camera by the same amount, so a drag or a pause and resume still
+   * leaves it on the rocket. Before this, taking the camera froze it where the shot list had
+   * put it, and the rocket climbed out of frame within seconds, pause or no pause.
+   */
+  function followCamera(t) {
+    // 'none' is the behaviour before the ride existed, kept only as the gate's negative control.
+    if (state.follow === 'none') { followPrev = null; return; }
+    focusAt(t, _fo);
+    if (!followPrev) {
+      rig.target.copy(_fo);
+      followPrev = _fo.clone();
+      return;
+    }
+    const dx = _fo.x - followPrev.x, dy = _fo.y - followPrev.y, dz = _fo.z - followPrev.z;
+    camera.position.x += dx; camera.position.y += dy; camera.position.z += dz;
+    rig.target.x += dx; rig.target.y += dy; rig.target.z += dz;
+    followPrev.copy(_fo);
   }
 
   /** Shot list. Each writes a world position and look-at target for the mission time. */
@@ -1331,8 +1428,15 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     const alt = altitudeAt(t);
     const bt = boosterThrottle(t), st = shipThrottle(t);
 
-    flight.position.set(downrangeAt(t), alt, 0);
-    flight.rotation.z = -pitchAt(t);
+    const att = pitchAt(t);
+    if (t <= EVENTS.separation) flight.position.set(downrangeAt(t), alt, 0);
+    else {
+      // Pivot on the ship's middle (see SHIP_PIVOT): the trajectory point carries the offset it
+      // had at separation, and the group is placed so the middle stays on it as the ship turns.
+      flight.position.set(downrangeAt(t) + SHIP_PIVOT * (Math.sin(ATT_SEP) - Math.sin(att)),
+        alt + SHIP_PIVOT * (Math.cos(ATT_SEP) - Math.cos(att)), 0);
+    }
+    flight.rotation.z = -att;
 
     // Hot staging. The ship keeps flying the ascent profile (its own engines, still
     // accelerating) and the booster its integrated return (three engines off, gravity and a
@@ -1372,29 +1476,53 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     boosterJets.setTime(t);
     boosterJets.setState(perEngine, bAlt, lit);
     shipJets.setTime(t);
-    shipJets.setState(st, alt, 6);
-    const vent = ventAt(t);
+    // Hot staging, as it is flown: the ship lights while still latched on, its exhaust hits the
+    // booster's shielded forward dome inside the open hot-stage truss and is thrown out
+    // sideways through it, and only as the gap opens does the plume run free. So the ship's
+    // plume stops at the dome, and the fan of flame out of the truss lasts while the gap is
+    // short — not for a fixed time — which is also what it did not do before: the plume ran on
+    // straight through the booster's tanks.
+    ship.updateWorldMatrix(true, false);
+    booster.updateWorldMatrix(true, false);
+    ship.localToWorld(_gapA.set(0, 0, 0));
+    booster.localToWorld(_gapB.set(0, HS_STATION, 0));
+    const gap = _gapA.distanceTo(_gapB);
+    // Only an obstruction while the dome is actually in the plume's path, below the ship
+    // along its axis: once the booster has swung away in its flip, the plume runs free.
+    ship.localToWorld(_gapC.set(0, -1, 0)).sub(_gapA).normalize();
+    const inPath = gap < 1 || _gapB.clone().sub(_gapA).normalize().dot(_gapC) > Math.cos(THREE.MathUtils.degToRad(22));
+    const impinge = st > 0.01 && t < EVENTS.separation + 20 && inPath ? 1 - THREE.MathUtils.smoothstep(gap, 8, 45) : 0;
+    const vent = Math.min(ventAt(t) + impinge * st, 1) * (t < EVENTS.separation ? 1 : impinge > 0 ? 1 : 0);
     hotStageVents.setTime(t);
     hotStageVents.setState(vent, alt, vent > 0.01 ? 24 : 0);
-    const sg = stageGlowAt(t);
+    const sg = stageGlowAt(t) * (t < EVENTS.separation ? 1 : Math.max(impinge, 0.15));
     stageGlow.set(3 * sg, 26 + 46 * THREE.MathUtils.smoothstep(t, EVENTS.separation - 1.5, EVENTS.separation + 2.5), t);
     for (const vp of vapors) vp.update(t, camera, env.sun);
     collar.set(collarAt(t), t);
     collarShip.set(collarAt(t) * 0.8, t);
-    shipPlume.setThrottle(st, alt);
+    const shipReach = t < EVENTS.separation + 20 && inPath ? Math.max(0.5, gap - 0.5) : Infinity;
+    shipPlume.setThrottle(st, alt, 1, st, shipReach);
+    shipJets.setState(st, alt, 6, shipReach);
     cloud.setFlame(bt * Math.max(0, 1 - alt / 160));
     const tf = trenchFireAt(t);
     trenchFire.setTime(t);
     trenchFire.setState(tf, 5500, tf > 0.01 ? 6 : 0);
 
+    // The camera first (the shot list, or the visitor's orbit riding on the vehicle), so the
+    // sky, the planes and the shadows below follow wherever it actually is.
+    if (rig.external) { driveCamera(t); followPrev = null; }
+    else if (rig.mode === 'orbit' && !rig.transition) followCamera(t);
+    else followPrev = null;
     // The atmosphere follows whatever the camera is on: the ship until staging, the booster
-    // afterwards, which is what brings the sky back as it comes down.
-    env.setAltitude(t < EVENTS.boostbackStart ? alt : bAlt);
+    // afterwards, which is what brings the sky back as it comes down. A visitor riding with the
+    // ship keeps the ship's thin sky.
+    const onShip = t < EVENTS.boostbackStart || (!rig.external && state.follow === 'ship');
+    env.setAltitude(onShip ? alt : bAlt);
     // A 340 m shadow frustum is meaningless once the vehicle is kilometres up, and it costs
     // a full shadow pass per frame.
     // The near/far plane and the shadows follow whichever vehicle the camera is on, so the
     // pad comes back into shadow range as the booster returns to it.
-    const camAlt = t < EVENTS.boostbackStart ? alt : bAlt;
+    const camAlt = onShip ? alt : bAlt;
     // The shadow map stops being REDRAWN up there, but the light keeps casting: whether a
     // light casts shadows is part of every lit material's program, so switching castShadow
     // off at 1,8 km and on again for the landing recompiled every visible material twice in
@@ -1408,7 +1536,6 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     camera.updateProjectionMatrix();
 
     driveHardware(t);
-    if (rig.external) driveCamera(t);
     flightEarth.update(camera, env.sunDir, camera.position.y);
 
     // After staging the panel follows the booster: it is what the camera is on and what the
@@ -1417,6 +1544,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     // booster's numbers under a shot of the ship is worse than either.
     const onBooster = t >= EVENTS.boostbackStart;
     state.t = t;
+    state.director = !!rig.external;
     state.altitude = onBooster ? bAlt : alt;
     state.velocity = onBooster ? boosterSpeedAt(t) : speedAt(t);
     state.downrange = onBooster ? boosterDownAt(t) : downrangeAt(t);
@@ -1440,6 +1568,8 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     state.running = true;
     state.armed = true;
     state.paused = false;
+    state.follow = 'director';
+    followPrev = null;
     state.t = EVENTS.start;
     resetCloud();
     visibilityHook?.(true);
@@ -1458,6 +1588,8 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     // next launch ran at ×10 while the panel showed ×1.
     state.speed = 1;
     state.paused = false;
+    state.follow = 'director';
+    followPrev = null;
     rig.releaseExternal();
     flight.position.set(0, 0, 0);
     flight.rotation.z = 0;
@@ -1537,6 +1669,8 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     setSpeed: (k) => { state.speed = k; },
     /** Holds the mission clock where it is; the camera stays free to move around the frozen scene. */
     setPaused: (on) => { if (!state.running) return; state.paused = !!on; onState(state); },
+    /** 'director' | 'booster' | 'ship' — main.js hands the camera over accordingly. */
+    setFollow: (w) => { state.follow = w; followPrev = null; if (state.running) apply(state.t); onState(state); },
     setVisibilityHook: (fn) => { visibilityHook = fn; },
     events: EVENTS,
     /**

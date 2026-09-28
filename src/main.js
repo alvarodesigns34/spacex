@@ -114,13 +114,16 @@ const OVERVIEW = { pos: [3, 72, 330], target: [-1, 39, -68] };
  * The camera backs off along its own line of sight until the row's ends (plus a margin) fit
  * the horizontal field of view, and never comes closer than authored.
  */
-const ROW_HALF = 178;
+// Half the row's width about the camera's line: Falcon 1's mount at x ≈ −159 to Engine Row's
+// cradles at ≈ +166 m, seen from x = 3. At 1440 × 900 with the rail showing that is exactly the
+// authored frame, so a desktop window keeps it.
+const ROW_HALF = 166;
 function overviewFor(aspect, fovDeg = 42) {
   const [px, py, pz] = OVERVIEW.pos, [tx, ty, tz] = OVERVIEW.target;
   const d0 = Math.hypot(px - tx, py - ty, pz - tz);
   const tanH = Math.tan(THREE.MathUtils.degToRad(fovDeg / 2)) * aspect;
   // The camera's distance to the row (z = 0) is tz + (pz − tz)·k along the scaled line of sight.
-  const need = ROW_HALF / (tanH * 0.94);
+  const need = ROW_HALF / tanH;
   const k = THREE.MathUtils.clamp((need - tz) / (pz - tz), 1, 3.4);
   const pos = [tx + (px - tx) * k, ty + (py - ty) * k, tz + (pz - tz) * k];
   return { pos, target: OVERVIEW.target, scale: k, d: d0 * k };
@@ -187,6 +190,7 @@ async function main() {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.15, 9000);
   camera.position.set(...overviewFor(window.innerWidth / window.innerHeight).pos);
+  let walkRoute = () => ({ route: [], look: null });
   // Where the overview last put the camera, so a resize can tell whether the visitor moved.
   let lastOverview = camera.position.clone();
 
@@ -222,6 +226,7 @@ async function main() {
     onLaunchPause: (on) => launch?.setPaused(on),
     onLaunchSeek: (t) => { if (launch?.running) launch.seek(t); },
     onLaunchRestart: () => { if (!launch?.running) return; launch.setPaused(false); launch.seek(EVENTS.start); },
+    onLaunchCamera: () => cycleLaunchCamera(),
     onLaunchSound: (on) => sound?.setEnabled(on),
   });
   rig.onModeChange = (m) => hud.setMode(m);
@@ -760,6 +765,27 @@ async function main() {
     rig.setMode(rig.mode === 'walk' ? 'orbit' : 'walk');
   }
 
+  /**
+   * Broadcast shots → your own orbit riding with the booster → riding with the ship → back.
+   * Riding keeps the orbit's centre on the vehicle as it moves (launch.js, followCamera), so
+   * the camera can be turned freely, paused and resumed without losing the rocket.
+   */
+  function cycleLaunchCamera() {
+    if (!launch.running) return;
+    const st = launch.state;
+    const next = st.director ? 'booster' : st.follow === 'booster' ? 'ship' : 'director';
+    if (next === 'director') {
+      if (rig.mode !== 'orbit') rig.setMode('orbit');
+      enforce(view.claim('launch'));
+      rig.external = true;
+      launch.setFollow('director');
+    } else {
+      claimUserControl();
+      if (rig.mode !== 'orbit') rig.setMode('orbit');
+      launch.setFollow(next);
+    }
+  }
+
   function toggleLaunch() {
     if (launch.running) { launch.reset(); return; }
     // A visitor who turned the sound on last time gets it again; this is a click or a key
@@ -808,7 +834,7 @@ async function main() {
     // Picking a vehicle is a request to look at the museum, so it ends whatever was driving.
     enforce(view.select(id, 'user'));
     syncHud();
-    if (!id) { const o = overviewFor(camera.aspect, camera.fov); rig.flyTo(o.pos, o.target, 2.0); lastOverview = new THREE.Vector3(...o.pos); return; }
+    if (!id) { const o = overviewFor(freeAspect(), camera.fov); rig.flyTo(o.pos, o.target, 2.0); lastOverview = new THREE.Vector3(...o.pos); return; }
     const w = worldPreset(id, view.preset);
     rig.flyTo(w.pos, w.target, 1.9);
   }
@@ -823,7 +849,7 @@ async function main() {
     if (!id) {
       enforce(view.select(null, owner));
       syncHud();
-      const o = overviewFor(camera.aspect, camera.fov);
+      const o = overviewFor(freeAspect(), camera.fov);
       rig.jumpTo(o.pos, o.target);
       lastOverview = new THREE.Vector3(...o.pos);
       return;
@@ -936,7 +962,7 @@ async function main() {
       (h.object.isMesh || h.object.isInstancedMesh) && shown(h.object)
       && !h.object.material?.transparent && h.object.material?.depthWrite !== false);
     if (!hit) return;
-    if (rig.mode === 'walk') { rig.walkTo(hit.point); return; }
+    if (rig.mode === 'walk') { const r = walkRoute(hit); rig.travelTo(r.route, r.look); return; }
     claimUserControl();
     rig.focusOn(hit.point);
   });
@@ -954,6 +980,7 @@ async function main() {
     const k = e.key.toLowerCase();
     if (k >= '1' && k <= String(VEHICLES.length)) select(VEHICLES[Number(k) - 1].id);
     else if (k === '0') select(null);
+    else if (k === 'c' && launch.running && rig.mode === 'orbit') cycleLaunchCamera();
     else if (k === 'f') toggleMode();
     else if (k === 'v') toggleWalk();
     else if (k === 'g') toggleLaunch();
@@ -1004,6 +1031,54 @@ async function main() {
       else if (id === 'starlink') obs.push([lay.x, lay.z, 1.2]);
     }
     rig.obstacles = obs;
+    // Walls a walker goes round: the site fence (open at the service-road gate and along the
+    // road) and the flame trench's rim, a 4,2 m drop with nothing to climb out by.
+    const fence = scene.getObjectByName('campus')?.userData.fence ?? [];
+    const tx = PAD.trenchHalfW, tz = 46;
+    rig.walls = [...fence,
+      [P.x - tx, P.z - tz, P.x - tx, P.z + tz], [P.x + tx, P.z - tz, P.x + tx, P.z + tz],
+      [P.x - tx, P.z - tz, P.x + tx, P.z - tz], [P.x - tx, P.z + tz, P.x + tx, P.z + tz]];
+    rig.onWalkSpeed = (v) => hud.notice(`Walking pace · ${v < 10 ? v.toFixed(1) : Math.round(v)} m/s`);
+    /**
+     * Where a double-click in walk mode takes the visitor, and by which way. An exhibit is
+     * walked up to — to the edge of its footprint plus a few metres, on the side the visitor is
+     * coming from, facing the point clicked — and anything else is walked to directly. A trip
+     * that would cross the site fence goes through the gate on the service road instead of
+     * stopping at the wire, which is what the walk used to do.
+     */
+    walkRoute = (hit) => {
+      let id = null;
+      for (let o = hit.object; o; o = o.parent) { const m = /^exhibit-(.+)$/.exec(o.name ?? ''); if (m) { id = m[1]; break; } }
+      const c = camera.position;
+      let dest = [hit.point.x, hit.point.z];
+      if (id) {
+        const lay = LAYOUT[id];
+        const circ = obs.filter(([ox, oz, r]) => Math.hypot(hit.point.x - ox, hit.point.z - oz) <= r + 0.5)
+          .sort((a, b) => a[2] - b[2])[0] ?? [lay.x, lay.z, 2];
+        const [ox, oz, r] = circ;
+        const dx = c.x - ox, dz = c.z - oz, d = Math.hypot(dx, dz) || 1;
+        const stand = r + Math.min(12, 3 + r * 0.25);
+        dest = [ox + dx / d * stand, oz + dz / d * stand];
+      }
+      const route = [];
+      const crosses = (w, x0, z0, x1, z1) => { const keep = rig.walls; rig.walls = [w]; const r = rig._crossesWall(x0, z0, x1, z1); rig.walls = keep; return r; };
+      // The rear fence runs along z = −18 with its gate on the service road; the sides run
+      // from it to the road at z = 20, open at their front ends. Crossing the rear line
+      // anywhere but the gate goes through the gate; crossing a side goes round its end.
+      if (fence.length >= 4) {
+        const gate = [(fence[0][2] + fence[1][0]) / 2, fence[0][1]];
+        const rear = crosses(fence[0], c.x, c.z, dest[0], dest[1]) || crosses(fence[1], c.x, c.z, dest[0], dest[1]);
+        const side = fence.slice(2).find(w => crosses(w, c.x, c.z, dest[0], dest[1]));
+        if (rear) {
+          const inside = c.z > gate[1];
+          route.push([gate[0], gate[1] + (inside ? 6 : -6)], [gate[0], gate[1] + (inside ? -6 : 6)]);
+        } else if (side) {
+          route.push([side[2] + Math.sign(c.x - side[2]) * 4, side[3] + 4], [side[2] - Math.sign(c.x - side[2]) * 4, side[3] + 4]);
+        }
+      }
+      route.push(dest);
+      return { route, look: hit.point };
+    };
   }
 
   // A lost and restored context comes back without the reflection probe (a render target has
@@ -1043,12 +1118,19 @@ async function main() {
     camera.updateProjectionMatrix();
   }
   window.addEventListener('resize', () => { viewShift = -1; });
+  // The shape of the part of the window the scene is framed in: right of the vehicle rail when
+  // it is showing (setViewOffset centres the projection there). camera.aspect is not it — with
+  // a view offset three.js sets it to the virtual, wider frame's.
+  function freeAspect() {
+    updateViewShift();
+    return (window.innerWidth - Math.max(0, viewShift)) / window.innerHeight;
+  }
   // Turning a phone while looking at the overview re-frames it for the new shape, as long as
   // the camera is still where the overview put it (a visitor who has moved keeps their view).
   window.addEventListener('resize', () => {
     if (view.exhibit || rig.mode !== 'orbit' || launch.running || !lastOverview) return;
     if (camera.position.distanceTo(lastOverview) > 1) return;
-    const o = overviewFor(window.innerWidth / window.innerHeight, camera.fov);
+    const o = overviewFor(freeAspect(), camera.fov);
     rig.jumpTo(o.pos, o.target);
     lastOverview = new THREE.Vector3(...o.pos);
   });
@@ -1319,6 +1401,7 @@ async function main() {
     M, scene, camera, rig, exhibits, complex, launch, select, goPreset, jump, renderer, env,
     setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour,
     claimUserControl, tourRunToEnd, toggleMode, toggleWalk,
+    walkRouteFor: (hit) => { const r = walkRoute(hit); rig.travelTo(r.route, r.look); return r; },
     // Exposed so a tool can render a frame and read it back in the same task, before the
     // drawing buffer is presented and cleared. Comparing the two states of a level-of-detail
     // swap from one camera is the only way to measure whether the switch is visible, and it

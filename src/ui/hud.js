@@ -7,7 +7,7 @@ import { SOURCES, SOURCE_LABEL } from '../data/specs.js';
 const fmtHeight = (h) => `${h >= 10 ? Math.round(h) : h} m`;
 const THREE_DEG20 = Math.PI / 9;
 
-export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWalk, onSun, onReset, onLaunch, onLaunchAbort, onLaunchSpeed, onLaunchSound, onLaunchPause, onLaunchSeek, onLaunchRestart, onTour, onHelp }) {
+export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWalk, onSun, onReset, onLaunch, onLaunchAbort, onLaunchSpeed, onLaunchSound, onLaunchPause, onLaunchSeek, onLaunchRestart, onLaunchCamera, onTour, onHelp }) {
   const root = document.getElementById('hud');
   root.innerHTML = `
     <header class="hud-header">
@@ -52,11 +52,10 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
       <button class="tool tool-btn" id="help-btn" title="Help (H)">Help <kbd>H</kbd></button>
     </div>
 
+    <!-- The only way back from the clean scene. (This was a four-button dock for phones; the
+         simulation is designed for a desktop computer and the phone layout was retired.) -->
     <div class="dock" id="dock">
-      <button type="button" class="dock-btn" id="dock-vehicles" aria-expanded="false" aria-controls="rail">Vehicles</button>
-      <button type="button" class="dock-btn" id="dock-views" aria-expanded="false" aria-controls="presets">Views</button>
-      <button type="button" class="dock-btn" id="dock-tools" aria-expanded="false">Tools</button>
-      <button type="button" class="dock-btn" id="dock-clean" aria-pressed="false">Clean</button>
+      <button type="button" class="dock-btn" id="dock-clean" aria-pressed="false">Show interface</button>
     </div>
 
     <div class="mission hidden" id="mission">
@@ -95,6 +94,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
           <button type="button" data-k="0.25" aria-pressed="false" aria-label="Speed ×0.25, slow motion">×¼</button><button type="button" data-k="1" class="active" aria-pressed="true" aria-label="Speed ×1">×1</button><button type="button" data-k="2" aria-pressed="false" aria-label="Speed ×2">×2</button><button type="button" data-k="5" aria-pressed="false" aria-label="Speed ×5">×5</button><button type="button" data-k="10" aria-pressed="false" aria-label="Speed ×10">×10</button>
         </div>
         <button class="mission-sound" id="mission-sound" aria-pressed="false" title="Engine sound, delayed by distance at the speed of sound">Sound off</button>
+        <button type="button" class="mission-cam" id="mission-cam" title="Camera: the broadcast shots, or your own orbit riding with the booster or the ship (C)">Camera · director <kbd>C</kbd></button>
         <button type="button" class="mission-restart" id="mission-restart" title="Back to T−40 and run again">Restart</button>
         <button class="mission-abort" id="mission-abort">End</button>
       </div>
@@ -114,9 +114,9 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
     </div>
 
     <div class="coach hidden" id="coach" role="note" aria-label="How to look around">
-      <span class="coach-tip"><b class="coach-desk">Drag</b><b class="coach-touch">Drag</b> to orbit · <b class="coach-desk">scroll</b><b class="coach-touch">pinch</b> to zoom</span>
-      <span class="coach-tip"><b class="coach-desk">1–${vehicles.length}</b><b class="coach-touch">Vehicles</b> to visit an exhibit, then pick a view</span>
-      <span class="coach-tip"><b class="coach-desk">G</b><b class="coach-touch">Tools</b> launches Starship</span>
+      <span class="coach-tip"><b>Drag</b> to orbit · <b>scroll</b> to zoom · <b>V</b> to walk</span>
+      <span class="coach-tip"><b>1–${vehicles.length}</b> to visit an exhibit, then pick a view</span>
+      <span class="coach-tip"><b>G</b> launches Starship</span>
       <button type="button" class="coach-close" id="coach-close" aria-label="Dismiss these tips">×</button>
     </div>
 
@@ -126,14 +126,14 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
         <table>
           <tr><td>Drag</td><td>orbit · <em>wheel</em> zoom towards the cursor · <em>right button</em> pan</td></tr>
           <tr><td>Double-click</td><td>orbit around the point you clicked · walking: walk there</td></tr>
-          <tr><td><kbd>V</kbd></td><td>walk at eye height (1.7 m): <kbd>W A S D</kbd> or arrows · drag to look · <kbd>Shift</kbd> runs · double-click (or double-tap) to walk to a spot</td></tr>
+          <tr><td><kbd>V</kbd></td><td>walk at eye height (1.7 m): <kbd>W A S D</kbd> or arrows · drag to look · <em>wheel</em> sets the pace (1.4 to 25 m/s) · <kbd>Shift</kbd> doubles it · double-click an exhibit or a spot to walk there (through the fence gate if need be)</td></tr>
           <tr><td><kbd>F</kbd></td><td>free flight: <kbd>W A S D</kbd> move · <kbd>Q</kbd>/<kbd>E</kbd> (or <kbd>C</kbd>/<kbd>space</kbd>) down/up · drag to look · <kbd>Shift</kbd> ×4 · <kbd>Ctrl</kbd> ×0.2 · wheel adjusts speed</td></tr>
           <tr><td><kbd>1</kbd>–<kbd>${vehicles.length}</kbd></td><td>select exhibit</td></tr>
           <tr><td><kbd>L</kbd> <kbd>R</kbd> <kbd>T</kbd></td><td>labels · ruler · data sheet</td></tr>
           <tr><td><kbd>0</kbd></td><td>overview of the centre</td></tr>
           <tr><td><kbd>P</kbd></td><td>guided tour — the camera walks the centre stop by stop; any drag, scroll or click ends it</td></tr>
           <tr><td><kbd>G</kbd></td><td>Starship launch sequence · during the countdown and ascent, dragging or scrolling hands the camera back to you without stopping it</td></tr>
-          <tr><td><kbd>K</kbd> <kbd>←</kbd> <kbd>→</kbd></td><td>during the launch: pause · previous / next milestone · click the flight profile to jump anywhere</td></tr>
+          <tr><td><kbd>K</kbd> <kbd>←</kbd> <kbd>→</kbd> <kbd>C</kbd></td><td>during the launch: pause · previous / next milestone · camera: broadcast shots, or your own orbit riding with the booster or the ship (a drag also takes the camera and keeps riding) · click the flight profile to jump anywhere</td></tr>
         </table>
         <p class="help-note">1:1 scale — one scene unit is one metre. Figures marked <span class="chip chip-approx">≈</span> have no exact published value and were reconstructed from imagery.</p>
         <button class="btn" id="help-close">Close</button>
@@ -153,7 +153,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
     b.dataset.id = v.id;
     b.setAttribute('aria-pressed', 'false');
     b.innerHTML = `<span class="rail-index">${i + 1}</span><span class="rail-name">${v.name}</span><span class="rail-h">${fmtHeight(v.id === 'starlink' ? v.footprint : v.height)}${v.id === 'starlink' ? ' <small>span</small>' : ''}</span>`;
-    b.addEventListener('click', () => { closeDock(); onSelect(v.id); });
+    b.addEventListener('click', () => { onSelect(v.id); });
     rail.appendChild(b);
   });
   const overview = document.createElement('button');
@@ -161,7 +161,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
   overview.className = 'rail-item rail-overview';
   overview.setAttribute('aria-pressed', 'true');
   overview.innerHTML = `<span class="rail-index">0</span><span class="rail-name">Overview</span><span class="rail-h">all</span>`;
-  overview.addEventListener('click', () => { closeDock(); onReset(); });
+  overview.addEventListener('click', () => { onReset(); });
   rail.appendChild(overview);
 
   // ---- sheet ----
@@ -206,13 +206,12 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
       b.type = 'button';
       b.dataset.preset = pr.id;
       b.setAttribute('aria-pressed', String(i === 0));
-      b.addEventListener('click', () => { closeDock(); onPreset(v.id, pr.id); });
+      b.addEventListener('click', () => { onPreset(v.id, pr.id); });
       p.appendChild(b);
     });
   }
 
   function setPreset(id) {
-    closeDock();
     root.querySelectorAll('.preset').forEach(b => {
       const active = b.dataset.preset === id;
       b.classList.toggle('active', active);
@@ -221,7 +220,6 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
   }
 
   function setActive(id) {
-    closeDock();
     rail.querySelectorAll('.rail-item').forEach(b => {
       // `on` already accounts for the overview item, which has no dataset.id; toggling on the
       // raw comparison instead meant the ARIA state said "selected" while nothing was painted,
@@ -304,40 +302,15 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
   helpBtn.addEventListener('click', () => showHelp(help.classList.contains('hidden')));
   el('#help-close').addEventListener('click', () => showHelp(false));
 
-  // The sheet is a drawer. It starts closed on every viewport so it does not cover
-  // the vehicle; T or the header button opens it. Narrow screens keep it closed.
-  const compact = window.matchMedia('(max-width: 820px), (max-height: 600px)');
+  // The sheet is a drawer. It starts closed so it does not cover the vehicle; T or the
+  // header button opens it.
   toggleSheet(true);
-  compact.addEventListener('change', e => { if (e.matches) toggleSheet(true); });
-
-  const dockMap = {
-    vehicles: [root.querySelector('#dock-vehicles'), rail],
-    views: [root.querySelector('#dock-views'), root.querySelector('#presets')],
-    tools: [root.querySelector('#dock-tools'), root.querySelector('.tools')],
-  };
-  function closeDock() {
-    for (const [btn, panel] of Object.values(dockMap)) {
-      panel.classList.remove('is-open');
-      btn.setAttribute('aria-expanded', 'false');
-    }
-  }
-  for (const [btn, panel] of Object.values(dockMap)) {
-    btn.addEventListener('click', () => {
-      const open = !panel.classList.contains('is-open');
-      closeDock();
-      if (open) {
-        panel.classList.add('is-open');
-        btn.setAttribute('aria-expanded', 'true');
-      }
-    });
-  }
   const cleanBtn = root.querySelector('#clean-btn');
   const dockClean = root.querySelector('#dock-clean');
   function setClean(on) {
     root.classList.toggle('is-clean', on);
     cleanBtn.setAttribute('aria-pressed', String(on));
     dockClean.setAttribute('aria-pressed', String(on));
-    if (on) closeDock();
   }
   cleanBtn.addEventListener('click', () => setClean(!root.classList.contains('is-clean')));
   dockClean.addEventListener('click', () => setClean(!root.classList.contains('is-clean')));
@@ -357,6 +330,14 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
   launchBtn.addEventListener('click', () => onLaunch?.());
   el('#mission-abort').addEventListener('click', () => onLaunchAbort?.());
   el('#mission-restart').addEventListener('click', () => onLaunchRestart?.());
+  const camBtn = el('#mission-cam');
+  camBtn.addEventListener('click', () => onLaunchCamera?.());
+  function showCamera(st) {
+    const label = st.director ? 'director' : st.follow === 'ship' ? 'riding the ship' : 'riding the booster';
+    const html = `Camera · ${label} <kbd>C</kbd>`;
+    if (camBtn.innerHTML !== html) camBtn.innerHTML = html;
+    camBtn.classList.toggle('active', !st.director);
+  }
   // The panel can fold down to the clock, the phase and the transport row. On a phone held
   // sideways it starts folded: expanded, it covered all but the top 70 px of an 844 × 390
   // screen and the rocket it describes.
@@ -368,7 +349,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
     foldBtn.setAttribute('aria-label', on ? 'Expand the mission panel' : 'Fold the mission panel');
   }
   foldBtn.addEventListener('click', () => foldMission(!mission.classList.contains('is-compact')));
-  foldMission(matchMedia('(max-height: 600px)').matches);
+  foldMission(false);
   const pauseBtn = el('#mission-pause');
   pauseBtn.addEventListener('click', () => onLaunchPause?.(pauseBtn.getAttribute('aria-pressed') !== 'true'));
   function showPaused(on) {
@@ -419,6 +400,8 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
     }
   }
   let lastT = null, calloutTimer = 0;
+  /** A short note over the scene (walking pace and the like), the same banner as the milestones. */
+  function notice(text) { showCallout(text); }
   function showCallout(text) {
     callout.textContent = text;
     callout.classList.add('is-on');
@@ -534,6 +517,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
     }
     lastT = st.t;
     showPaused(!!st.paused);
+    showCamera(st);
     for (const b of speeds) {
       const on = Number(b.dataset.k) === st.speed;
       b.classList.toggle('active', on);
@@ -614,7 +598,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
       const title = document.createElementNS(SVGNS, 'title');
       title.textContent = st.name;
       g.append(title, c, t);
-      const go = () => { closeDock(); onSelect(st.id); };
+      const go = () => { onSelect(st.id); };
       g.addEventListener('click', go);
       g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
       svg.appendChild(g);
@@ -647,7 +631,24 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
     loading.querySelector('.loading-text').textContent = text;
     loading.querySelector('.loading-fill').style.transform = `scaleX(${Math.max(0.02, frac)})`;
   }
-  function hideLoading() { loading.classList.add('done'); setTimeout(() => loading.remove(), 700); }
+  function hideLoading() {
+    loading.classList.add('done'); setTimeout(() => loading.remove(), 700);
+    // Desktop only: a phone, a tablet or a small window is told once, and can carry on.
+    const small = window.innerWidth < 900 || window.innerHeight < 560 || matchMedia('(pointer: coarse)').matches;
+    let seen = false;
+    try { seen = localStorage.getItem('vc-desktop-note-1') === '1'; } catch { /* storage unavailable */ }
+    if (!small || seen) return;
+    const note = document.createElement('div');
+    note.className = 'desktop-note';
+    note.setAttribute('role', 'dialog');
+    note.setAttribute('aria-label', 'Designed for desktop');
+    note.innerHTML = '<b>Designed for a desktop computer.</b><br>The SpaceX Vehicle Center is built for a desktop or laptop with a keyboard, a mouse and a large screen. On this device the controls may not fit and the scene may run slowly.<br><button class="btn" type="button">Continue anyway</button>';
+    note.querySelector('button').addEventListener('click', () => {
+      note.remove();
+      try { localStorage.setItem('vc-desktop-note-1', '1'); } catch { /* storage unavailable */ }
+    });
+    document.body.appendChild(note);
+  }
 
   function toggle(name, value) {
     const map = { labels: '#tg-labels', ruler: '#tg-ruler', humans: '#tg-humans' };
@@ -684,5 +685,5 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
   };
   root.querySelector('#coach-close').addEventListener('click', hideCoach);
 
-  return { setActive, setPreset, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setTrajectory, setTour, showHelp, setMap, setMapCamera, showCoach, hideCoach, soundWanted, milestoneStep };
+  return { setActive, setPreset, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setTrajectory, setTour, showHelp, setMap, setMapCamera, showCoach, hideCoach, soundWanted, milestoneStep, notice };
 }

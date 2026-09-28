@@ -405,6 +405,8 @@ function buildSiteFurniture(g, M, stops) {
   }
   g.add(mesh(mergeAll(posts), M.aluminum ?? M.mount, { name: 'site-fence-posts' }));
   g.add(mesh(mergeAll(rails), M.aluminum ?? M.mount, { name: 'site-fence-rails', castShadow: false }));
+  // The runs themselves, for the walking camera: a visitor goes round a fence, not through it.
+  g.userData.fence = runs.map(([[x0, z0], [x1, z1]]) => [x0, z0, x1, z1]);
   const fence = mesh(mergeAll(panels), meshMat, { name: 'site-fence-mesh', castShadow: false });
   fence.userData.lodFeature = 0.05;
   g.add(fence);
