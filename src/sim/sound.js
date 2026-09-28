@@ -213,7 +213,7 @@ export function createLaunchSound({ launch, camera }) {
       L.upX.value = e[4]; L.upY.value = e[5]; L.upZ.value = e[6];
     } else { L.setPosition(cp.x, cp.y, cp.z); L.setOrientation(_f.x, _f.y, _f.z, e[4], e[5], e[6]); }
 
-    const live = launch.running && launch.state.speed > 0;
+    const live = launch.running && launch.state.speed > 0 && !launch.state.paused;
     const t = launch.state.t;
     wind.gain.setTargetAtTime(live ? 0.05 : 0, tc, 0.5);
     if (!live) {
@@ -284,5 +284,15 @@ export function createLaunchSound({ launch, camera }) {
     deluge.gain.setTargetAtTime(0.35 * water * g, tc, 0.4);
   }
 
-  return { setEnabled, update, get enabled() { return enabled; } };
+  // A hidden tab stops requestAnimationFrame, so update() stops too and every gain stayed
+  // where the last frame left it: switch tabs during the ascent and the roar went on at full
+  // level behind the other page. The context is suspended while hidden and resumed on return.
+  const onVisibility = () => {
+    if (!ctx) return;
+    if (document.hidden) ctx.suspend?.();
+    else if (enabled) ctx.resume?.();
+  };
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisibility);
+
+  return { setEnabled, update, get enabled() { return enabled; }, get contextState() { return ctx?.state ?? 'none'; } };
 }

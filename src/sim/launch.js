@@ -88,16 +88,44 @@ const pitchProgram = (t) => (t <= PITCH.start ? 0 : PITCH.max * (1 - Math.exp(-(
  * Integrates the two inputs once, at load, into a 0,25 s table. Doing it up front is what
  * makes seek() exact: the headless check can jump to any mission time and get the state the
  * animation would have reached by running there, rather than a separate approximation.
+ *
+ * Up to hot-staging the stack follows the authored speed curve and pitch programme. From
+ * separation on, the SHIP is no longer authored at all: it is integrated as a point mass
+ * (3-DOF in the flight plane) from the stack's exact state at separation, with its published
+ * thrust and propellant load (spacex.com: 1 614 tf, 1 600 t) and assumed specific impulses
+ * and dry mass (SHIP_ASSUMED, marked ≈ on the sheet). The old table carried the ascent
+ * curve on to T+7:16, which had the ship's acceleration FALLING from 0,98 to 0,79 g while it
+ * burned propellant (a rocket's rises as it gets lighter) and put it at 299 km and 3,8 km/s,
+ * higher than any suborbital Starship flight and at half orbital speed.
  */
+export const SHIP_ASSUMED = {
+  thrust: 1614e3 * 9.80665,      // N, spacex.com (Starship, V3): 1 614 tf
+  propellant: 1600e3,            // kg, spacex.com: 1 600 t
+  dry: 150e3,                    // kg, ≈ assumed: dry mass plus residuals, not published for V3
+  ispSL: 350,                    // s, ≈ assumed: Raptor 3 sea-level engines in vacuum
+  ispVac: 380,                   // s, ≈ assumed: Raptor Vacuum
+  slShare: 750 / 1575,           // thrust share of the three sea-level engines (3 × 250 of 3 × 250 + 3 × 275 tf)
+  holdAltitude: 150e3,           // m, ≈ assumed: the ship levels off here by the end of the sequence
+};
+/** Linear-tangent constants, solved at load (see buildProfile). */
+export const SHIP_STEERING = { e0: 0, c: 0 };
+const G0 = 9.80665, R_EARTH = 6371e3;
+/** Ship mass flow at full thrust: each engine group's thrust over its own Isp·g0. */
+export const shipMassFlow = () => {
+  const { thrust: F, slShare: k, ispSL, ispVac } = SHIP_ASSUMED;
+  return (F * k) / (ispSL * G0) + (F * (1 - k)) / (ispVac * G0);
+};
 function buildProfile() {
   const xs = SPEED_KEYS.map(k => k[0]);
   const vy = SPEED_KEYS.map(k => k[1]);
   const vm = monotoneSlopes(xs, vy);
   const step = 0.25, sub = 5, dt = step / sub;
   const n = Math.round(EVENTS.end / step) + 1;
-  const alt = new Float64Array(n), spd = new Float64Array(n), down = new Float64Array(n), pit = new Float64Array(n);
+  const iSep = Math.round(EVENTS.separation / step);
+  const alt = new Float64Array(n), spd = new Float64Array(n), down = new Float64Array(n), pit = new Float64Array(n), att = new Float64Array(n);
+  const mass = new Float64Array(n), acc = new Float64Array(n);
   let h = 0, x = 0, t = 0;
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i <= iSep; i++) {
     if (i > 0) {
       for (let k = 0; k < sub; k++) {
         const v = hermite(xs, vy, vm, t + dt * 0.5), p = pitchProgram(t + dt * 0.5);
@@ -106,9 +134,56 @@ function buildProfile() {
         t += dt;
       }
     }
-    alt[i] = h; spd[i] = hermite(xs, vy, vm, i * step); down[i] = x; pit[i] = pitchProgram(i * step);
+    alt[i] = h; spd[i] = hermite(xs, vy, vm, i * step); down[i] = x; pit[i] = att[i] = pitchProgram(i * step);
   }
-  return { step, n, alt, spd, down, pit };
+  // ---- Ship after separation: point mass, published thrust, mass from the rocket equation ----
+  // Steering is the linear-tangent law of vacuum ascent (tan e = tan e₀ − c·(t − t_sep), e the
+  // thrust elevation above the horizon), the textbook optimum for a burn outside the air. Its
+  // two constants are not chosen: they are solved at load, by Newton, so the ship levels off at
+  // the assumed hold altitude with no climb rate left at the end of the sequence. The attitude
+  // slews from the stack's at separation to the law at 3°/s, so there is no snap.
+  const S = SHIP_ASSUMED, mdot = shipMassFlow();
+  const iEnd = n - 1;
+  const MAX_RATE = THREE.MathUtils.degToRad(3);
+  const throttleAt = (tt) => THREE.MathUtils.smoothstep(tt, EVENTS.separation - 1.5, EVENTS.separation + 1.5);
+  const fly = (q, rec) => {
+    const [e0, c] = q;
+    let vx = spd[iSep] * Math.sin(pit[iSep]), vh = spd[iSep] * Math.cos(pit[iSep]);
+    let m = S.propellant + S.dry, a = att[iSep], hh = alt[iSep], xx = down[iSep], tt = EVENTS.separation;
+    if (rec) mass[iSep] = m;
+    for (let i = iSep + 1; i <= iEnd; i++) {
+      for (let k = 0; k < sub; k++) {
+        const r = R_EARTH + hh, g = G0 * (R_EARTH / r) ** 2;
+        const burning = m > S.dry;
+        const thr = burning ? throttleAt(tt) : 0;
+        const aT = thr * S.thrust / m;
+        const want = Math.PI / 2 - Math.atan(Math.tan(e0) - c * (tt - EVENTS.separation));
+        a += THREE.MathUtils.clamp(want - a, -MAX_RATE * dt, MAX_RATE * dt);
+        vx += aT * Math.sin(a) * dt;
+        vh += (aT * Math.cos(a) - g + (vx * vx) / r) * dt;
+        xx += vx * dt; hh += vh * dt;
+        if (burning) m = Math.max(S.dry, m - thr * mdot * dt);
+        tt += dt;
+      }
+      if (rec) {
+        alt[i] = hh; down[i] = xx; spd[i] = Math.hypot(vx, vh); pit[i] = Math.atan2(vx, vh); att[i] = a;
+        mass[i] = m; acc[i] = m > S.dry ? throttleAt(tt) * S.thrust / m : 0;
+      }
+    }
+    return [hh - S.holdAltitude, vh];
+  };
+  const q = [THREE.MathUtils.degToRad(30), 0.002];
+  for (let it = 0; it < 30; it++) {
+    const r = fly(q, false);
+    if (Math.abs(r[0]) < 1 && Math.abs(r[1]) < 0.01) break;
+    const d = [1e-4, 1e-6], J = d.map((dd, j) => { const qq = q.slice(); qq[j] += dd; const rr = fly(qq, false); return [(rr[0] - r[0]) / dd, (rr[1] - r[1]) / dd]; });
+    const det = J[0][0] * J[1][1] - J[1][0] * J[0][1];
+    q[0] -= (J[1][1] * r[0] - J[1][0] * r[1]) / det;
+    q[1] -= (-J[0][1] * r[0] + J[0][0] * r[1]) / det;
+  }
+  fly(q, true);
+  SHIP_STEERING.e0 = q[0]; SHIP_STEERING.c = q[1];
+  return { step, n, alt, spd, down, pit, att, mass, acc };
 }
 const PROFILE = buildProfile();
 
@@ -432,7 +507,13 @@ function sampleC1(arr, comp, t) {
 export const altitudeAt = (t) => (t <= 0 ? 0 : sampleC1(PROFILE.alt, Math.cos, t));
 export const speedAt = (t) => (t <= 0 ? 0 : sample(PROFILE.spd, t));
 export const downrangeAt = (t) => (t <= 0 ? 0 : sampleC1(PROFILE.down, Math.sin, t));
-export const pitchAt = (t) => (t <= 0 ? 0 : sample(PROFILE.pit, t));
+/** Attitude, from vertical: the pitch programme on the stack, the thrust direction on the ship. */
+export const pitchAt = (t) => (t <= 0 ? 0 : sample(PROFILE.att, t));
+/** Flight-path angle, from vertical: the direction of the velocity. */
+export const flightPathAt = (t) => (t <= 0 ? 0 : sample(PROFILE.pit, t));
+/** Ship mass (kg) and thrust acceleration (m/s²) after separation, for the checks and the panel. */
+export const shipMassAt = (t) => (t < EVENTS.separation ? null : sample(PROFILE.mass, t));
+export const shipThrustAccelAt = (t) => (t < EVENTS.separation ? null : sample(PROFILE.acc, t));
 
 // The moment the stack clears the tower is read off the integrated climb, not authored: the
 // engines' exit plane has to rise from where it rests — BOOSTER_AFT under the deck, and the
@@ -693,7 +774,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   // wide tongue many metres long: from the ground the ring reads as a flower of fire round the
   // interstage (flight 7 and 8 tracking footage). They were 0,4 m jets a dozen metres long.
   const hotStageVents = new EngineJets({
-    name: 'jets-hot-stage', seaLevelLength: 16,
+    name: 'jets-hot-stage', seaLevelLength: 12, turbulence: 1,
     engines: Array.from({ length: 24 }, (_, i) => {
       const a = (i / 24) * Math.PI * 2;
       return { position: [Math.sin(a) * 4.45, HS_STATION, Math.cos(a) * 4.45], radius: 0.6, direction: [Math.sin(a), -0.35, Math.cos(a)] };
@@ -782,11 +863,13 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   const CATCH_WIN = [EVENTS.catch + 1.5, EVENTS.end + 60];
   const BOOSTER_TOP = ex.model.userData.stations?.booster?.height ?? 71.93;
   const catchVent = new Vapor({
-    name: 'vapor-caught', rng: seeded(23), accel: [0.9, -0.25, 0.35], tau: 1.6, opacity: 0.62,
+    // Thin and spreading rather than dense: at 0,62 with slow growth each puff stayed a white
+    // ball on the booster's flank, cotton wool rather than venting gas.
+    name: 'vapor-caught', rng: seeded(23), accel: [0.9, -0.25, 0.35], tau: 1.6, opacity: 0.44,
     emitters: [
-      { at: [0, BOOSTER_TOP - 0.8, 0], dir: [0.1, 1, 0], speed: 3.5, spread: 0.4, count: nv(39), life: 9.1, size: 4.32, grow: 2.6, jitter: 2, window: CATCH_WIN },
-      ...[1.0, 3.6].map(a => ({ at: around(4.6, 58, a), dir: out(a, 0), speed: 2.4, spread: 0.35, count: nv(27), life: 7.8, size: 3.36, grow: 2.2, window: CATCH_WIN })),
-      ...[0.3, 3.3].map(a => ({ at: around(4.3, BOOSTER_AFT + 1.2, a), dir: out(a, -0.3), speed: 2.6, spread: 0.4, count: nv(24), life: 6.5, size: 3.84, grow: 2.4, window: CATCH_WIN })),
+      { at: [0, BOOSTER_TOP - 0.8, 0], dir: [0.1, 1, 0], speed: 3.5, spread: 0.4, count: nv(39), life: 9.1, size: 4.32, grow: 3.6, jitter: 2, window: CATCH_WIN },
+      ...[1.0, 3.6].map(a => ({ at: around(4.6, 58, a), dir: out(a, 0), speed: 2.4, spread: 0.35, count: nv(27), life: 7.8, size: 3.36, grow: 3.2, window: CATCH_WIN })),
+      ...[0.3, 3.3].map(a => ({ at: around(4.3, BOOSTER_AFT + 1.2, a), dir: out(a, -0.3), speed: 2.6, spread: 0.4, count: nv(24), life: 6.5, size: 3.84, grow: 3.6, window: CATCH_WIN })),
     ],
   });
   booster.add(catchVent.mesh);
@@ -826,6 +909,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   });
   ex.group.add(landingSmoke.mesh);
   const vapors = [countdownVent, cascade, basePile, deluge, landingSpray, catchVent, flipVent, landingSmoke];
+  for (const vp of vapors) vp.material.uniforms.uPad.value.set(ex.lay.x, ex.lay.z);
 
   // Max-Q: a condensation collar off the hot-stage ring, trailing down the booster, through
   // the transonic climb and peak dynamic pressure. Timing follows the ascent's own Max-Q.
@@ -847,6 +931,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
 
   const cloud = new GroundCloud({ rng: seeded(11), count: quality.cloudParticles ?? 860 });
   cloud.points.position.set(ex.lay.x, 0, ex.lay.z);
+  cloud.setPad(ex.lay.x, ex.lay.z);
   scene.add(cloud.points);
   // Emission is budgeted to the ring. At ~190 puffs a second living ~20 s, the high tier's 1600
   // slots were overwritten at ~8 s, halfway through each puff's life: the cloud popped away in
@@ -861,7 +946,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   // flame itself rolling out of the trench ends. Three turbulent jets per mouth, no shock
   // diamonds (the flow has hit the deflector), fading as the vehicle climbs.
   const trenchFire = new EngineJets({
-    name: 'jets-trench-fire', seaLevelLength: 9,
+    name: 'jets-trench-fire', seaLevelLength: 9, turbulence: 0.7,
     engines: [1, -1].flatMap(sz => [-6.5, 0, 6.5].map(x => ({ position: [x, 3.2, sz * 42], radius: 3.4, direction: [x * 0.02, 0.1, sz] }))),
   });
   trenchFire.mesh.position.set(ex.lay.x, 0, ex.lay.z);
@@ -921,7 +1006,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   };
 
   const state = {
-    running: false, armed: false, t: EVENTS.start, speed: 1,
+    running: false, armed: false, paused: false, t: EVENTS.start, speed: 1,
     phase: 'On the pad', altitude: 0, velocity: 0, throttle: 0, downrange: 0,
     ship: { altitude: 0, velocity: 0, lit: 0 }, booster: { altitude: 0, velocity: 0, lit: 0 }, next: null,
   };
@@ -930,7 +1015,6 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   // ---- Camera ---------------------------------------------------------------------------
   const S = new THREE.Vector3(ex.lay.x, 0, ex.lay.z);        // site origin, on grade
   const PAD_CATCH_Y = ex.lay.mount + CATCH_ALT + 34;         // roughly the middle of the caught booster
-  const V = new THREE.Vector3();                             // vehicle mid-body, world
   const _p = new THREE.Vector3(), _q = new THREE.Vector3(), _pad = new THREE.Vector3();
   const _p2 = new THREE.Vector3(), _q2 = new THREE.Vector3();
 
@@ -1161,9 +1245,11 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
       const burning = Math.min(1, boosterEngineThrottle(t) / 0.1);
       const n2 = near * burning * 10 * CLOUD_RATE * dt;
       if (n2 >= 0.05) {
-        const m2 = Math.max(1, Math.round(n2 * 0.5));
-        // Three engines, briefly, into a deck already wet: steam, not a thunderhead.
-        const k = { size0: 10 * CLOUD_SIZE, grow: 20 * CLOUD_SIZE };
+        const m2 = Math.max(1, Math.round(n2 * 0.35));
+        // Three engines, briefly, into a deck already wet: steam, not a thunderhead. Fewer,
+        // larger puffs that grow into one another, so it reads as a sheet of vapour and not
+        // as a pile of separate cotton balls hanging in the air.
+        const k = { size0: 14 * CLOUD_SIZE, grow: 34 * CLOUD_SIZE };
         cloud.emit(m2, [0, 2.4, 44], [0, 0.05, 1.0], 46, 16, k);
         cloud.emit(m2, [0, 2.4, -44], [0, 0.05, -1.0], 46, 16, k);
       }
@@ -1353,6 +1439,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     onStart();
     state.running = true;
     state.armed = true;
+    state.paused = false;
     state.t = EVENTS.start;
     resetCloud();
     visibilityHook?.(true);
@@ -1370,6 +1457,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     // The clock multiplier belongs to a run, not to the session: leaving it at ×10 meant the
     // next launch ran at ×10 while the panel showed ×1.
     state.speed = 1;
+    state.paused = false;
     rig.releaseExternal();
     flight.position.set(0, 0, 0);
     flight.rotation.z = 0;
@@ -1432,7 +1520,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   }
 
   function update(dt) {
-    if (!state.running) return;
+    if (!state.running || state.paused) return;
     const prev = state.t;
     const t = prev + dt * state.speed;
     apply(t);
@@ -1447,6 +1535,8 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     get state() { return state; },
     get running() { return state.running; },
     setSpeed: (k) => { state.speed = k; },
+    /** Holds the mission clock where it is; the camera stays free to move around the frozen scene. */
+    setPaused: (on) => { if (!state.running) return; state.paused = !!on; onState(state); },
     setVisibilityHook: (fn) => { visibilityHook = fn; },
     events: EVENTS,
     /**

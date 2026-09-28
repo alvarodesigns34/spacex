@@ -14,7 +14,7 @@
  * Local frame: y = 0 at the apron, engines standing bell-down on welded stands.
  */
 import * as THREE from 'three';
-import { mesh, mergeAll, mat4, lathe } from '../geometry/utils.js';
+import { mesh, mergeAll, mat4 } from '../geometry/utils.js';
 import { raptorGeometry, raptorVacGeometry, merlinGeometry, profileRadius } from './engines.js';
 
 const CRADLE_Y = 0.42;

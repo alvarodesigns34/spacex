@@ -34,6 +34,18 @@ const LABEL_FILES = {
   'falcon1.js': ['falcon1'], 'dragon.js': ['dragon'], 'starlink.js': ['starlink'],
   'roadster.js': ['roadster'], 'enginehall.js': ['engines'],
 };
+// The guided tour's captions (main.js): each stop names an exhibit, so each figure it states
+// answers to that exhibit's sheet, exactly as a 3-D label does.
+const MAIN = readFileSync(fileURLToPath(new URL('../src/main.js', import.meta.url)), 'utf8');
+export function tourStops(main) {
+  const body = main.slice(main.indexOf('const TOUR = ['), main.indexOf('];', main.indexOf('const TOUR = [')));
+  const out = [];
+  for (const m of body.matchAll(/\[\s*'([a-z0-9]+)'\s*,\s*'([a-z0-9-]+)'\s*,\s*[\d.]+\s*,\s*'((?:[^'\\]|\\.)*)'\s*,\s*(?:'([a-z0-9_]+)'|null)\s*\]/g)) {
+    out.push({ id: m[1], preset: m[2], text: m[3].replace(/\\'/g, "'"), src: m[4] ?? null });
+  }
+  return out;
+}
+const TOUR = tourStops(MAIN);
 const BUILDERS = Object.fromEntries(Object.keys(LABEL_FILES).map(f =>
   [f, readFileSync(fileURLToPath(new URL(`../src/vehicles/${f}`, import.meta.url)), 'utf8')]));
 
@@ -91,7 +103,7 @@ function readmeTable(readme) {
   return rows;
 }
 
-export function audit({ figures, pad, counts, vehicles, sources, readme, builders = {} }) {
+export function audit({ figures, pad, counts, vehicles, sources, readme, builders = {}, tour = [] }) {
   const problems = [];
   const bad = (msg) => problems.push(msg);
   // Values a visitor must see with ≈: every measured (B) or reconstructed (D) figure.
@@ -162,6 +174,28 @@ export function audit({ figures, pad, counts, vehicles, sources, readme, builder
     }
   }
 
+  // The tour's captions: every figure with a unit must be on the stop's exhibit sheet, a
+  // measured or reconstructed one must carry ≈, and a cited source must exist.
+  for (const stop of tour) {
+    const v = vehicles.find(x => x.id === stop.id);
+    if (!v) { bad(`tour: la parada «${stop.preset}» nombra un expositor inexistente «${stop.id}»`); continue; }
+    if (!v.presets.some(p => p.id === stop.preset)) bad(`tour: ${stop.id} no tiene la vista «${stop.preset}»`);
+    if (stop.src && !sources[stop.src]) bad(`tour: ${stop.id}/${stop.preset} cita «${stop.src}», que no existe en SOURCES`);
+    const sheet = [...v.specs.map(r => r.value), ...(v.approximations ?? [])].join(' · ');
+    for (const u of stop.text.matchAll(/(\d[\d,]*(?:\.\d+)?)\s*(?:m²|mm|m|tf|kN|in)(?![A-Za-z])/g)) {
+      const [{ n, half }] = numbersIn(u[1]);
+      const hits = numbersIn(sheet).some(x => Math.abs(x.n - n) <= half + 1e-9);
+      const inMm = /mm/.test(u[0]) && numbersIn(sheet).some(x => Math.abs(x.n * 1000 - n) <= half * 1000 + 1e-6 || Math.abs(x.n - n / 1000) <= 0.0005 + 1e-9);
+      if (!hits && !inMm) bad(`tour: ${stop.id}/${stop.preset} dice ${u[0]}, que la ficha de ${stop.id} no enuncia`);
+      // Only this exhibit's own measured or reconstructed figures (the pad's for Starship):
+      // Dragon's published 4 m is not Starlink's reconstructed 4.0 m wing.
+      const own = [...Object.values(figures[stop.id] ?? {}), ...(stop.id === 'starship' ? Object.values(pad) : [])]
+        .filter(f => f && typeof f === 'object' && (f.grade === 'B' || f.grade === 'D')).map(f => f.value);
+      const approx = own.some(x => Math.abs(x - n) <= half + 1e-9);
+      if (approx && !/≈\s*$/.test(stop.text.slice(0, u.index)) && !/reconstructed|estimate/.test(stop.text)) bad(`tour: ${stop.id}/${stop.preset} da ${u[0]}, una cifra reconstruida o estimada, sin ≈ ni salvedad`);
+    }
+  }
+
   // Retracted attributions: not in a figure, not in a sheet row, not in the source's own label.
   for (const r of RETRACTED) {
     const hit = (v) => r.values.some(x => Math.abs(v - x) < 1e-6);
@@ -203,7 +237,8 @@ const report = (ok, name, detail = '') => {
   if (!ok) failed++;
 };
 
-const base = { figures: FIGURES, pad: PAD_FIGURES, counts: COUNTS, vehicles: VEHICLES, sources: SOURCES, readme: README, builders: BUILDERS };
+const base = { figures: FIGURES, pad: PAD_FIGURES, counts: COUNTS, vehicles: VEHICLES, sources: SOURCES, readme: README, builders: BUILDERS, tour: TOUR };
+if (TOUR.length < 20) { console.log(`FAIL la visita guiada: solo se leyeron ${TOUR.length} paradas de main.js`); process.exit(1); }
 const found = audit(base);
 report(found.length === 0, 'Cifras, ficha y README coinciden, con fuente según su grado', found.length ? `\n  ${found.join('\n  ')}` : '');
 
@@ -232,6 +267,10 @@ const mutants = [
   ['README con la celosía a 145–150 m sin la salvedad', { ...base, readme: README + '\nLa celosía llega a ≈145–150 m.\n' }],
   ['README con la torre en la fila «Citado»', { ...base, readme: README.replace('| Citado | brazos de unos 26 m', '| Citado | torre de 144,5 m (474 ft) · brazos de unos 26 m') }],
   ['README con el adaptador del Falcon 9 en las discrepancias', { ...base, readme: README.replace('### Discrepancias entre fuentes\n', '### Discrepancias entre fuentes\n\n- La diferencia se asigna al adaptador de carga bajo la cofia.\n') }],
+  // Guided tour captions (28 Sep 2026).
+  ['parada de la visita con la zanja antigua', { ...base, tour: TOUR.map(t => t.preset === 'trench' ? { ...t, text: t.text.replace('4.2 m', '8.2 m') } : t) }],
+  ['parada de la visita con la torre sin ≈', { ...base, tour: TOUR.map(t => t.preset === 'site' ? { ...t, text: 'The tower is 144.5 m tall.' } : t) }],
+  ['parada de la visita con una fuente inexistente', { ...base, tour: TOUR.map((t, i) => i === 0 ? { ...t, src: 'no_such_source' } : t) }],
   ['README con el Starlink un 8 % corto en las discrepancias', { ...base, readme: README.replace('### Discrepancias entre fuentes\n', '### Discrepancias entre fuentes\n\n- El modelo queda un 8 % por debajo en superficie.\n') }],
 ];
 for (const [name, input] of mutants) {

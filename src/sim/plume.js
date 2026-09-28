@@ -250,25 +250,31 @@ export class Plume {
  * "which engines are running" is just the draw count.
  */
 const JET_VERT = /* glsl */`
-  uniform float uLength, uSpread, uP;
-  varying float vAxis, vFace, vRad;
+  uniform float uLength, uSpread, uP, uTurb, uTime;
+  varying float vAxis, vFace, vRad, vAz, vSeed;
   void main() {
     float v = -position.y;                              // 0 at the exit plane, 1 at the tail
     vAxis = v;
     vRad = length(position.xz);
+    vAz = atan(position.z, position.x);
+    vSeed = fract(sin(float(gl_InstanceID) * 12.9898) * 43758.5453);
     // Over-expanded at sea level: the jet necks in after the exit before it spreads. At
     // altitude it opens straight away.
     float neck = 1.0 - 0.18 * uP * sin(3.14159 * clamp(v * 1.6, 0.0, 1.0));
     float w = neck * mix(1.0, uSpread, smoothstep(0.1, 1.0, v));
-    vec4 mv = modelViewMatrix * instanceMatrix * vec4(position.x * w, position.y * uLength, position.z * w, 1.0);
+    // Turbulent jets (the hot-stage vents, the trench fire) are ragged tongues rather than
+    // cones: each flickers in length on its own clock, and its outline wobbles along it.
+    float len = uLength * (1.0 + uTurb * (0.35 * sin(uTime * (7.0 + 5.0 * vSeed) + vSeed * 40.0) - 0.15 + 0.3 * vSeed));
+    w *= 1.0 + uTurb * 0.25 * v * sin(vAz * 3.0 + v * 9.0 - uTime * 11.0 + vSeed * 20.0);
+    vec4 mv = modelViewMatrix * instanceMatrix * vec4(position.x * w, position.y * len, position.z * w, 1.0);
     vec3 n = normalize(normalMatrix * mat3(instanceMatrix) * vec3(normal.x, 0.0, normal.z) + vec3(1e-5));
     vFace = clamp(abs(dot(n, normalize(-mv.xyz))), 0.0, 1.0);
     gl_Position = projectionMatrix * mv;
   }`;
 const JET_FRAG = /* glsl */`
   uniform vec3 uHot, uWarm, uTail;
-  uniform float uOpacity, uP, uTime, uGain;
-  varying float vAxis, vFace, vRad;
+  uniform float uOpacity, uP, uTime, uGain, uTurb;
+  varying float vAxis, vFace, vRad, vAz, vSeed;
   void main() {
     float v = clamp(vAxis, 0.0, 1.0);
     vec3 c = v < 0.3 ? mix(uHot, uWarm, v / 0.3) : mix(uWarm, uTail, (v - 0.3) / 0.7);
@@ -279,6 +285,14 @@ const JET_FRAG = /* glsl */`
     float a = uOpacity * pow(max(1.0 - v, 1e-4), 1.35) * pow(max(vFace, 1e-4), 0.8);
     a *= 1.0 + 0.6 * node;
     a *= 1.0 + 0.08 * sin(v * 40.0 + uTime * 9.0);
+    // Turbulent jets break into streaks and eddies towards the tail instead of one smooth sheet:
+    // what read as a flat orange petal round the interstage at hot-staging.
+    if (uTurb > 0.0) {
+      float streak = 0.5 + 0.5 * sin(vAz * 5.0 + v * 14.0 - uTime * 23.0 + vSeed * 31.0);
+      float eddy = 0.5 + 0.5 * sin(v * 26.0 - uTime * 17.0 + vAz * 2.0 + vSeed * 9.0);
+      a *= mix(1.0, (0.25 + 0.75 * streak) * (0.55 + 0.45 * eddy), uTurb * smoothstep(0.08, 0.5, v));
+      a *= 1.0 - uTurb * 0.35 * smoothstep(0.4, 1.0, v);
+    }
     // Near-white where it leaves the bell.
     c *= 1.0 + 1.8 * exp(-v * 9.0);
     if (a < 0.002) discard;
@@ -291,7 +305,7 @@ export class EngineJets {
    * @param {Array<{position:number[], radius:number}>} o.engines exit planes, in lighting order
    * @param {number} o.seaLevelLength jet length at sea level, in exit radii
    */
-  constructor({ engines, seaLevelLength = 11, name = 'engine-jets' }) {
+  constructor({ engines, seaLevelLength = 11, name = 'engine-jets', turbulence = 0 }) {
     const geo = new THREE.CylinderGeometry(1, 1, 1, 18, 16, true);
     geo.translate(0, -0.5, 0);
     const lin = (hex) => new THREE.Color(hex).convertSRGBToLinear();
@@ -299,7 +313,7 @@ export class EngineJets {
       uniforms: {
         uHot: { value: lin(0xfff4dc) }, uWarm: { value: lin(0xffb259) }, uTail: { value: lin(0xff6a2e) },
         uLength: { value: 1 }, uSpread: { value: 1 }, uP: { value: 1 },
-        uOpacity: { value: 1 }, uTime: { value: 0 }, uGain: { value: 1.25 },
+        uOpacity: { value: 1 }, uTime: { value: 0 }, uGain: { value: 1.25 }, uTurb: { value: turbulence },
       },
       vertexShader: JET_VERT, fragmentShader: JET_FRAG,
       transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
@@ -540,7 +554,20 @@ const CLOUD_VERT = /* glsl */`
   varying float vShade;
   varying float vDust;
   varying float vAge;
+  varying float vGround;
   uniform float uFlame;
+  // The ground a puff can sink into, in world metres: grade, and the Pad 2 plateau (5 m over
+  // the trench's 0,8 m floor, the 2,5 m berm and its 1:3 embankment; pad.js). The cloud writes
+  // no depth and the ground does, so a puff crossing it was cut along a hard line; fading the
+  // part of each puff within a few metres of the surface softens that line into a base.
+  uniform vec2 uPad;
+  float groundUnder(vec2 w) {
+    vec2 l = abs(w - uPad);
+    if (l.x < 64.0 && l.y < 46.0) return l.x < 11.0 ? 0.8 : 5.0;
+    if (l.x < 74.0 && l.y < 52.0) return 2.5;
+    float d = length(max(l - vec2(74.0, 52.0), 0.0));
+    return 2.5 * (1.0 - smoothstep(0.0, 7.5, d));
+  }
 
   void main() {
     vUv = atlasUv(uv, gl_InstanceID);
@@ -557,6 +584,12 @@ const CLOUD_VERT = /* glsl */`
     // Aspect, area-preserving: steam a little taller than wide, dust spread flat.
     vec2 p = position.xy * vec2(sqrt(aExtra.z), 1.0 / sqrt(aExtra.z));
     vec2 q = vec2(p.x * k - p.y * s, p.x * s + p.y * k) * aSize;
+    // This corner's height over the ground under it, in units of the puff's size: the camera's
+    // right and up axes in world space are the rows of the view matrix.
+    vec3 wc = (modelMatrix * vec4(aOffset, 1.0)).xyz
+      + vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]) * q.x
+      + vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]) * q.y;
+    vGround = (wc.y - groundUnder(wc.xz)) / max(aSize, 1.0);
 
     // Soft camera fade so nearby puffs never clip into the near frustum
     vAlpha = aAlpha * smoothstep(1.5, 16.0, -c.z);
@@ -584,6 +617,7 @@ const CLOUD_FRAG = /* glsl */`
   varying float vShade;
   varying float vDust;
   varying float vAge;
+  varying float vGround;
 
   void main() {
     vec4 tex = texture2D(uMap, vUv);
@@ -591,6 +625,12 @@ const CLOUD_FRAG = /* glsl */`
     // turrets go first and the puff frays into wisps, instead of every outline fading evenly.
     float th = 0.02 + 0.28 * pow(vAge, 2.5);
     float dens = smoothstep(th, th + 0.42, tex.a);
+    // Where the dome's surface turns away from the eye (its normal lies in the screen plane)
+    // the puff is seen through its thinnest part: fading it there turns the hard cut-out
+    // outline of each billow into a soft, lit-through edge, as vapour looks against the sky.
+    dens *= mix(0.5, 1.0, smoothstep(0.18, 0.62, tex.b));
+    // Soft contact: the lowest tenth of a puff's size fades into the ground it touches.
+    dens *= smoothstep(-0.02, 0.12, vGround);
     float a = dens * vAlpha;
     if (a < 0.003) discard;
 
@@ -697,6 +737,7 @@ export class GroundCloud {
         uFireColor: { value: new THREE.Color(0xff8a2a) },
         uSunDir: { value: new THREE.Vector3(0.4, 0.7, 0.5).normalize() },
         uFlame: { value: 0.0 },
+        uPad: { value: new THREE.Vector2(0, 0) },
       },
       vertexShader: CLOUD_VERT, fragmentShader: CLOUD_FRAG,
       transparent: true, depthWrite: false, side: THREE.FrontSide,
@@ -715,6 +756,9 @@ export class GroundCloud {
   setFlame(intensity) {
     this.points.material.uniforms.uFlame.value = intensity;
   }
+
+  /** World x, z of the pad centre, for the soft ground contact. */
+  setPad(x, z) { this.points.material.uniforms.uPad.value.set(x, z); }
 
   reset(rng = this.rng) {
     this.rng = rng;
@@ -902,7 +946,19 @@ const VAPOR_VERT = /* glsl */`
   uniform sampler2D uPath;
   uniform vec3 uPathT;
   varying vec2 vUv;
-  varying float vAlpha, vRot;
+  varying float vAlpha, vRot, vGround;
+  // The ground a puff can sink into, in world metres: grade, and the Pad 2 plateau (5 m over
+  // the trench's 0,8 m floor, the 2,5 m berm and its 1:3 embankment; pad.js). The cloud writes
+  // no depth and the ground does, so a puff crossing it was cut along a hard line; fading the
+  // part of each puff within a few metres of the surface softens that line into a base.
+  uniform vec2 uPad;
+  float groundUnder(vec2 w) {
+    vec2 l = abs(w - uPad);
+    if (l.x < 64.0 && l.y < 46.0) return l.x < 11.0 ? 0.8 : 5.0;
+    if (l.x < 74.0 && l.y < 52.0) return 2.5;
+    float d = length(max(l - vec2(74.0, 52.0), 0.0));
+    return 2.5 * (1.0 - smoothstep(0.0, 7.5, d));
+  }
   vec3 pathAt(float t) {
     float u = clamp((t - uPathT.x) / (uPathT.y - uPathT.x), 0.0, 1.0) * (uPathT.z - 1.0);
     float i = floor(u);
@@ -926,6 +982,10 @@ const VAPOR_VERT = /* glsl */`
     vec3 c = (modelViewMatrix * vec4(p, 1.0)).xyz;
     float s = sin(vRot), q = cos(vRot);
     vec2 d = vec2(position.x * q - position.y * s, position.x * s + position.y * q) * size;
+    vec3 wc = (modelMatrix * vec4(p, 1.0)).xyz
+      + vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]) * d.x
+      + vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]) * d.y;
+    vGround = (wc.y - groundUnder(wc.xz)) / max(size, 0.5);
     vAlpha *= smoothstep(1.0, 8.0, -c.z);
     gl_Position = projectionMatrix * vec4(c + vec3(d, 0.0), 1.0);
   }`;
@@ -933,10 +993,11 @@ const VAPOR_FRAG = /* glsl */`
   uniform sampler2D uMap;
   uniform vec3 uSunDir, uSun, uShade;
   varying vec2 vUv;
-  varying float vAlpha, vRot;
+  varying float vAlpha, vRot, vGround;
   void main() {
     vec4 t = texture2D(uMap, vUv);
-    float a = t.a * vAlpha;
+    // Soft outline (the dome's thin edge) and soft contact with the ground, as for the cloud.
+    float a = t.a * vAlpha * mix(0.45, 1.0, smoothstep(0.18, 0.62, t.b)) * smoothstep(-0.02, 0.15, vGround);
     if (a < 0.004) discard;
     // Softer relief than the trench cloud: venting vapour is thin, and full-strength normals
     // outlined every translucent puff where they overlap.
@@ -969,7 +1030,7 @@ export class Vapor {
    * @param {number} [o.fadeIn] share of a puff's life it takes to fade in (a trail wants it
    *   visible from the moment it leaves the source)
    */
-  constructor({ emitters, rng, accel = [0.6, -0.4, 0.2], tau = 1.2, opacity = 0.55, name = 'vapor', path = null, colors = [0xf6f6f4, 0x959ba4], fadeIn = 0.1 }) {
+  constructor({ emitters, rng, accel = [0.6, -0.4, 0.2], tau = 1.2, opacity = 0.55, name = 'vapor', path = null, colors = [0xf6f6f4, 0x959ba4], fadeIn = 0.1, pad = null }) {
     const n = emitters.reduce((s, e) => s + e.count, 0);
     const origin = new Float32Array(n * 3), vel = new Float32Array(n * 3);
     const params = new Float32Array(n * 4), win = new Float32Array(n * 2);
@@ -1007,6 +1068,7 @@ export class Vapor {
         uSun: { value: new THREE.Color(colors[0]) }, uShade: { value: new THREE.Color(colors[1]) },
         uPath: { value: path ? pathTexture(path.points) : (_noPath ??= pathTexture(new Float32Array(3))) },
         uPathT: { value: new THREE.Vector3(path?.t0 ?? 0, path?.t1 ?? 1, path ? path.points.length / 3 : 0) },
+        uPad: { value: new THREE.Vector2(pad?.[0] ?? 0, pad?.[1] ?? 0) },
       },
       vertexShader: VAPOR_VERT, fragmentShader: VAPOR_FRAG,
       transparent: true, depthWrite: false,

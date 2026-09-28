@@ -30,6 +30,7 @@ import { buildEngineHall } from './vehicles/enginehall.js';
 import { buildOrbitalBackdrop } from './core/backdrop.js';
 import { buildLaunchMount, buildPedestal, buildHumanCrowd } from './vehicles/common.js';
 import { seeded, mergeAll } from './geometry/utils.js';
+import { terrainHeight } from './core/terrain.js';
 import { buildLaunchComplex, PAD } from './vehicles/pad.js';
 import { verifyExhibits, verifyScene, verifyPad, verifyInterfaces } from './data/verify.js';
 import { createLaunch, EVENTS, MILESTONES, ENGINE_LAYOUT, altitudeAt, boosterAltAt } from './sim/launch.js';
@@ -106,6 +107,24 @@ const LAYOUT = {
 // Recomposed again when Engine Row became the seventh exhibit at x = 163: the row now spans
 // nearly 300 m, so the frame has to sit further back and centre on the middle of it.
 const OVERVIEW = { pos: [3, 72, 330], target: [-1, 39, -68] };
+/**
+ * The overview for the window actually open. The authored frame spans the row for a landscape
+ * window; on a phone held upright the horizontal field of view is a third of that, and the
+ * overview showed the pad and a quarter of the row under a title promising eight exhibits.
+ * The camera backs off along its own line of sight until the row's ends (plus a margin) fit
+ * the horizontal field of view, and never comes closer than authored.
+ */
+const ROW_HALF = 178;
+function overviewFor(aspect, fovDeg = 42) {
+  const [px, py, pz] = OVERVIEW.pos, [tx, ty, tz] = OVERVIEW.target;
+  const d0 = Math.hypot(px - tx, py - ty, pz - tz);
+  const tanH = Math.tan(THREE.MathUtils.degToRad(fovDeg / 2)) * aspect;
+  // The camera's distance to the row (z = 0) is tz + (pz − tz)·k along the scaled line of sight.
+  const need = ROW_HALF / (tanH * 0.94);
+  const k = THREE.MathUtils.clamp((need - tz) / (pz - tz), 1, 3.4);
+  const pos = [tx + (px - tx) * k, ty + (py - ty) * k, tz + (pz - tz) * k];
+  return { pos, target: OVERVIEW.target, scale: k, d: d0 * k };
+}
 
 // Cylinders used to hide annotations that sit behind a vehicle. CSS2D labels always draw on
 // top of the scene, so without this the far-side callouts read as if they were in front.
@@ -167,7 +186,9 @@ async function main() {
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.15, 9000);
-  camera.position.set(...OVERVIEW.pos);
+  camera.position.set(...overviewFor(window.innerWidth / window.innerHeight).pos);
+  // Where the overview last put the camera, so a resize can tell whether the visitor moved.
+  let lastOverview = camera.position.clone();
 
   const rig = new CameraRig(camera, canvas);
   rig.target.set(...OVERVIEW.target);
@@ -184,6 +205,7 @@ async function main() {
     onPreset: (id, presetId) => goPreset(id, presetId),
     onToggle: (name, value) => setToggle(name, value),
     onMode: () => toggleMode(),
+    onWalk: () => toggleWalk(),
     onTour: () => toggleTour(),
     onHelp: () => { rig.keys.clear(); rig.velocity.set(0, 0, 0); },
     // setSun regenerates the PMREM environment map, which is far too expensive to do on every
@@ -197,6 +219,9 @@ async function main() {
     onLaunch: () => toggleLaunch(),
     onLaunchAbort: () => launch?.reset(),
     onLaunchSpeed: (k) => launch?.setSpeed(k),
+    onLaunchPause: (on) => launch?.setPaused(on),
+    onLaunchSeek: (t) => { if (launch?.running) launch.seek(t); },
+    onLaunchRestart: () => { if (!launch?.running) return; launch.setPaused(false); launch.seek(EVENTS.start); },
     onLaunchSound: (on) => sound?.setEnabled(on),
   });
   rig.onModeChange = (m) => hud.setMode(m);
@@ -728,6 +753,12 @@ async function main() {
     claimUserControl();
     rig.setMode(rig.mode === 'fly' ? 'orbit' : 'fly');
   }
+  // Walking at eye height is the one view that shows what 1:1 means: a 70 m rocket from where a
+  // visitor stands. V toggles it; a double-click walks to the point clicked.
+  function toggleWalk() {
+    claimUserControl();
+    rig.setMode(rig.mode === 'walk' ? 'orbit' : 'walk');
+  }
 
   function toggleLaunch() {
     if (launch.running) { launch.reset(); return; }
@@ -777,7 +808,7 @@ async function main() {
     // Picking a vehicle is a request to look at the museum, so it ends whatever was driving.
     enforce(view.select(id, 'user'));
     syncHud();
-    if (!id) { rig.flyTo(OVERVIEW.pos, OVERVIEW.target, 2.0); return; }
+    if (!id) { const o = overviewFor(camera.aspect, camera.fov); rig.flyTo(o.pos, o.target, 2.0); lastOverview = new THREE.Vector3(...o.pos); return; }
     const w = worldPreset(id, view.preset);
     rig.flyTo(w.pos, w.target, 1.9);
   }
@@ -792,7 +823,9 @@ async function main() {
     if (!id) {
       enforce(view.select(null, owner));
       syncHud();
-      rig.jumpTo(OVERVIEW.pos, OVERVIEW.target);
+      const o = overviewFor(camera.aspect, camera.fov);
+      rig.jumpTo(o.pos, o.target);
+      lastOverview = new THREE.Vector3(...o.pos);
       return;
     }
     enforce(view.goPreset(id, presetId ?? 'overview', owner));
@@ -804,17 +837,33 @@ async function main() {
   // A museum has a route through it. This one walks every exhibit, stopping where the authored
   // views already point, and hands the camera straight back the moment the visitor touches it —
   // the same courtesy the launch sequence extends.
+  // Each stop says one thing worth knowing about what is on screen, and where it comes from.
+  // Every figure here is one the data sheet already carries with that source; an estimate or a
+  // reconstruction says so.
   const TOUR = [
-    ['starship', 'site', 7], ['starship', 'engines', 5], ['starship', 'tiles', 5],
-    ['starship', 'flaps', 5], ['starship', 'trench', 5],
-    ['falcon9', 'overview', 5], ['falcon9', 'octaweb', 4], ['falcon9', 'interstage', 4],
-    ['falconheavy', 'overview', 5], ['falconheavy', 'engines', 4],
-    ['dragon', 'overview', 5], ['dragon', 'superdraco', 4], ['dragon', 'trunk', 4],
-    ['starlink', 'overview', 5], ['starlink', 'antennas', 4],
-    ['roadster', 'overview', 5], ['roadster', 'detail', 4], ['roadster', 'starman', 4],
-    ['roadster', 'earth', 6],
-    ['engines', 'overview', 5], ['engines', 'rvac', 4],
-    ['falcon1', 'overview', 5], ['falcon1', 'cutaway', 5],
+    ['starship', 'site', 8, 'Pad 2 at Starbase, rebuilt at 1:1: a square, water-cooled launch mount with 20 hold-down clamps over a bidirectional flame trench, and catch arms about 26 m long. The tower\'s ≈144.5 m is an estimate.', 'nsf_pad2'],
+    ['starship', 'engines', 6, '33 Raptor 3 hang in the open below Super Heavy\'s thrust ring. Each Raptor 3 is 1.3 m across, 2.9 m tall and gives 250 tf.', 'spacex_starship'],
+    ['starship', 'tiles', 6, 'The real ship carries about 18,000 hexagonal tiles; 13,361 are modelled here, each 0.26 m across the flats.', 'wiki_starship'],
+    ['starship', 'flaps', 6, 'Two forward flaps on the leeward side and two aft flaps steer the ship back through the atmosphere. On V3 each aft flap has one actuator with three motors.', 'spacex_v3'],
+    ['starship', 'trench', 6, 'The flame trench: a concrete bathtub lined with stainless steel, open at both ends, with a deflector of steel pipes in the middle. Its 22 m width and 4.2 m depth are reconstructed.', 'nsf_pad2'],
+    ['falcon9', 'overview', 6, 'Falcon 9 Block 5: 70 m tall and 3.66 m across (12 ft), nine Merlin 1D on the first stage and one Merlin Vacuum above.', 'spacex_f9'],
+    ['falcon9', 'octaweb', 5, 'The Octaweb: eight Merlin 1D round a centre engine, 845 kN each at sea level.', 'wiki_merlin'],
+    ['falcon9', 'interstage', 5, 'The black interstage carries the four titanium grid fins at its base and the pneumatic pushers that separate the stages.', 'wiki_f9b5'],
+    ['falconheavy', 'overview', 6, 'Falcon Heavy: three first-stage cores, 27 Merlins, 12.2 m wide and 70 m tall.', 'spacex_fh'],
+    ['falconheavy', 'engines', 5, '27 Merlin 1D: 22,819 kN together at sea level.', 'spacex_fh'],
+    ['dragon', 'overview', 6, 'Crew Dragon: 8.1 m with its trunk and 4 m across the heat shield; up to seven crew, four on space-station missions.', 'spacex_dragon'],
+    ['dragon', 'superdraco', 5, 'Eight SuperDraco escape engines in four pairs, 71 kN each. The two windows sit either side of the hatch.', 'spacex_dragon'],
+    ['dragon', 'trunk', 5, 'The trunk is half solar array and half radiator, and is jettisoned before re-entry.', 'nasa_ccp_presskit'],
+    ['starlink', 'overview', 6, 'Starlink V2 Mini: two solar wings of 52.5 m² each, about 30 m tip to tip.', 'teslarati_v2mini'],
+    ['starlink', 'antennas', 5, 'The Earth-facing side of the bus, where the phased-array antennas are.', null],
+    ['roadster', 'overview', 6, 'Tesla Roadster, first generation: 3.946 m long and 1.851 m across the mirrors. It flew on the first Falcon Heavy on 6 February 2018.', 'tesla_roadster_sm'],
+    ['roadster', 'detail', 5, 'An 871 mm front overhang and a 2,351 mm wheelbase, from Tesla\'s own service manual.', 'tesla_roadster_sm'],
+    ['roadster', 'starman', 5, 'Starman: a mannequin in a SpaceX pressure suit, at the wheel.', 'wiki_roadster'],
+    ['roadster', 'earth', 7, 'In orbit, on its payload adapter. The Earth behind it is illustrative, not a map.', 'spacex_fh_demo'],
+    ['engines', 'overview', 6, 'Raptor 3, Raptor Vacuum and Merlin 1D side by side, all at 1:1.', 'spacex_starship'],
+    ['engines', 'rvac', 5, 'Raptor Vacuum: a 2.3 m exit, 4.4 m tall, 275 tf. Its extension is cooled by radiating heat away.', 'spacex_starship'],
+    ['falcon1', 'overview', 6, 'Falcon 1, 2008 configuration: 21.98 m from nozzle exit to tip and 1.681 m across, from the dimensioned drawing in its 2008 user\'s guide.', 'spacex_falcon1_2008'],
+    ['falcon1', 'cutaway', 6, 'An educational cutaway of the second stage, with its pressure-fed Kestrel engine inside the interstage.', 'spacex_falcon1_2008'],
   ];
   let tourAt = -1, tourTimer = 0;
 
@@ -828,9 +877,9 @@ async function main() {
       jump(null, undefined, 'user');
       return;
     }
-    const [id, preset, hold] = TOUR[tourAt];
+    const [id, preset, hold, text, src] = TOUR[tourAt];
     jump(id, preset, 'tour');
-    hud.setTour({ step: tourAt + 1, total: TOUR.length });
+    hud.setTour({ step: tourAt + 1, total: TOUR.length, name: exhibits[id].data.name, text, src });
     tourTimer = window.setTimeout(tourStep, hold * 1000);
   }
   function startTour() {
@@ -878,7 +927,7 @@ async function main() {
   const _ndc = new THREE.Vector2();
   const shown = (o) => { for (let n = o; n; n = n.parent) if (!n.visible) return false; return true; };
   canvas.addEventListener('dblclick', (e) => {
-    if (rig.mode !== 'orbit' || renderPass.camera !== camera) return;
+    if (rig.mode === 'fly' || renderPass.camera !== camera) return;
     const r = canvas.getBoundingClientRect();
     _ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     _pick.setFromCamera(_ndc, camera);
@@ -887,6 +936,7 @@ async function main() {
       (h.object.isMesh || h.object.isInstancedMesh) && shown(h.object)
       && !h.object.material?.transparent && h.object.material?.depthWrite !== false);
     if (!hit) return;
+    if (rig.mode === 'walk') { rig.walkTo(hit.point); return; }
     claimUserControl();
     rig.focusOn(hit.point);
   });
@@ -905,6 +955,7 @@ async function main() {
     if (k >= '1' && k <= String(VEHICLES.length)) select(VEHICLES[Number(k) - 1].id);
     else if (k === '0') select(null);
     else if (k === 'f') toggleMode();
+    else if (k === 'v') toggleWalk();
     else if (k === 'g') toggleLaunch();
     else if (k === 'p') toggleTour();
     else if (k === 'l') setToggle('labels', !state.labels);
@@ -912,7 +963,54 @@ async function main() {
     else if (k === 't') hud.toggleSheet();
     else if (k === 'h') hud.showHelp(document.getElementById('help').classList.contains('hidden'));
     else if (k === 'escape') hud.showHelp(false);
+    // Mission transport, only while the sequence runs. Space is free flight's "up", and on a
+    // focused button it is the button's own click, so it pauses only outside both.
+    else if (launch.running && (k === 'k' || (k === ' ' && rig.mode !== 'fly' && e.target.tagName !== 'BUTTON'))) {
+      e.preventDefault();
+      launch.setPaused(!launch.state.paused);
+    } else if (launch.running && rig.mode === 'orbit' && (k === 'arrowleft' || k === 'arrowright')) {
+      const t = hud.milestoneStep(launch.state.t, k === 'arrowright' ? 1 : -1);
+      if (t !== null) { e.preventDefault(); launch.seek(t); }
+    }
   });
+
+  // ---- Ground for the free cameras ----
+  // What a visitor stands on: the terrain function the ground mesh itself is built from, and
+  // the pad's two concrete levels with the 1:3 earth embankment round them (pad.js). Analytic,
+  // so it costs nothing per frame and cannot disagree with a raycast against a hidden mesh.
+  {
+    const P = exhibits.starship.lay, tw = PAD.trenchHalfW, RUN = PAD.bermY * 3;
+    const padGround = (x, z) => {
+      const lx = Math.abs(x - P.x), lz = Math.abs(z - P.z);
+      if (lx < 64 && lz < 46) return lx < tw ? PAD.trenchFloorY : PAD.padY;
+      if (lx < 74 && lz < 52) return PAD.bermY;
+      const d = Math.hypot(Math.max(0, lx - 74), Math.max(0, lz - 52));
+      return d < RUN ? PAD.bermY * (1 - THREE.MathUtils.smoothstep(d, 0, RUN)) : -Infinity;
+    };
+    rig.groundAt = (x, z) => Math.max(terrainHeight(x, z), padGround(x, z), 0);
+    // Where a walking visitor cannot go: the mounts and plinths, the launch mount and the tower
+    // base. Circles round each footprint, a little generous.
+    const obs = [];
+    for (const [id, lay] of Object.entries(LAYOUT)) {
+      if (lay.pad) {
+        obs.push([lay.x, lay.z, 18], [lay.x + PAD.towerX - 3, lay.z, 12]);
+      } else if (lay.launchMount) {
+        obs.push([lay.x, lay.z, Math.hypot(lay.launchMount.halfX, lay.launchMount.halfZ) + 0.6]);
+      } else if (Array.isArray(OCCLUDER[id])) {
+        const yaw = THREE.MathUtils.degToRad(lay.yaw ?? 0);
+        for (const [ox, oz, r] of OCCLUDER[id]) obs.push([lay.x + ox * Math.cos(yaw) + oz * Math.sin(yaw), lay.z - ox * Math.sin(yaw) + oz * Math.cos(yaw), r + 0.5]);
+      } else if (id === 'dragon') obs.push([lay.x, lay.z, 3.0]);
+      else if (id === 'roadster') obs.push([lay.x, lay.z, 3.1]);
+      else if (id === 'starlink') obs.push([lay.x, lay.z, 1.2]);
+    }
+    rig.obstacles = obs;
+  }
+
+  // A lost and restored context comes back without the reflection probe (a render target has
+  // no source to re-upload), which darkened the whole ground by half. Named so the gate can
+  // take it away and prove that its own test notices.
+  function onContextRestored() { env.rebuildProbe(); }
+  canvas.addEventListener('webglcontextrestored', onContextRestored);
 
   window.addEventListener('resize', () => {
     const w = window.innerWidth, h = window.innerHeight;
@@ -945,6 +1043,15 @@ async function main() {
     camera.updateProjectionMatrix();
   }
   window.addEventListener('resize', () => { viewShift = -1; });
+  // Turning a phone while looking at the overview re-frames it for the new shape, as long as
+  // the camera is still where the overview put it (a visitor who has moved keeps their view).
+  window.addEventListener('resize', () => {
+    if (view.exhibit || rig.mode !== 'orbit' || launch.running || !lastOverview) return;
+    if (camera.position.distanceTo(lastOverview) > 1) return;
+    const o = overviewFor(window.innerWidth / window.innerHeight, camera.fov);
+    rig.jumpTo(o.pos, o.target);
+    lastOverview = new THREE.Vector3(...o.pos);
+  });
 
   // ---- Loop ----
   const clock = new THREE.Clock();
@@ -1050,7 +1157,42 @@ async function main() {
     clock.getDelta();            // drop the hidden gap from the next frame's delta…
     missionClock.discard();      // …and from the mission, even if rAF already ran
   });
+  // ---- ?perf: frame-rate meter for real hardware ----
+  // The gate runs on a software rasteriser whose milliseconds say nothing about a GPU, so the
+  // only way to know what a visitor gets is to measure on their machine. With ?perf in the URL
+  // a small readout shows frames per second, the mean and 95th-percentile frame time over the
+  // last two seconds, draw calls and triangles for the whole frame (every composer pass), the
+  // quality tier and the GPU the browser reports. Nothing is measured without the flag.
+  const perf = params.has('perf') ? (() => {
+    const box = document.createElement('div');
+    box.className = 'perf-meter';
+    box.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(box);
+    renderer.info.autoReset = false;
+    const times = [];
+    let last = performance.now(), shown = 0;
+    const out = { fps: 0, mean: 0, p95: 0, calls: 0, tris: 0 };
+    return {
+      out,
+      begin() { renderer.info.reset(); },
+      end() {
+        const now = performance.now();
+        times.push(now - last); last = now;
+        while (times.length > 240 || times.reduce((a, b) => a + b, 0) > 2000) times.shift();
+        out.calls = renderer.info.render.calls; out.tris = renderer.info.render.triangles;
+        if (now - shown < 500) return;
+        shown = now;
+        const sorted = [...times].sort((a, b) => a - b);
+        out.mean = times.reduce((a, b) => a + b, 0) / times.length;
+        out.p95 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))];
+        out.fps = 1000 / out.mean;
+        box.textContent = `${out.fps.toFixed(0)} fps · ${out.mean.toFixed(1)} ms (p95 ${out.p95.toFixed(1)}) · ${out.calls} calls · ${(out.tris / 1e6).toFixed(2)} M tris · ${quality.name}${quality.forced ? ' (forced)' : ''} · ${quality.probe?.renderer || 'GPU not reported'}`;
+      },
+    };
+  })() : null;
+
   function frame() {
+    perf?.begin();
     const steps = missionClock.step(clock.getDelta());
     const dt = steps.view;
     rig.update(dt);
@@ -1060,8 +1202,9 @@ async function main() {
     WAVE_TIME.value += dt;
     // The sky is a finite box; centring it on the viewer is what lets it survive an ascent.
     env.followCamera(camera);
-    const target = rig.mode === 'fly' ? tmp.copy(camera.position).addScaledVector(camera.getWorldDirection(_fwd), 25) : rig.target;
-    const dist = rig.mode === 'fly' ? 25 : rig.distance;
+    const free = rig.mode !== 'orbit';
+    const target = free ? tmp.copy(camera.position).addScaledVector(camera.getWorldDirection(_fwd), rig.mode === 'walk' ? 12 : 25) : rig.target;
+    const dist = free ? (rig.mode === 'walk' ? 12 : 25) : rig.distance;
     // Depth precision goes as near/d², and a fixed 0.15 m near plane left ~0.6 m of depth
     // resolution at the 400 m overview: slabs, road paint, trench armour and the waterline
     // shimmered against what they sit on. The near plane now follows the orbit distance —
@@ -1089,6 +1232,7 @@ async function main() {
     composer.render();
     labelRenderer.render(scene, camera);
     settleLabels();
+    perf?.end();
     requestAnimationFrame(frame);
   }
   frame();
@@ -1174,7 +1318,7 @@ async function main() {
   window.__vc = {
     M, scene, camera, rig, exhibits, complex, launch, select, goPreset, jump, renderer, env,
     setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour,
-    claimUserControl, tourRunToEnd, toggleMode,
+    claimUserControl, tourRunToEnd, toggleMode, toggleWalk,
     // Exposed so a tool can render a frame and read it back in the same task, before the
     // drawing buffer is presented and cleared. Comparing the two states of a level-of-detail
     // swap from one camera is the only way to measure whether the switch is visible, and it
@@ -1182,9 +1326,9 @@ async function main() {
     composer,
     // The state machine itself, so the gate can assert on transitions rather than on the
     // scene's reaction to them.
-    view, viewState: () => view.snapshot(),
-    quality, lod, ao, hud,
-    get tourAt() { return tourAt; },
+    view, viewState: () => view.snapshot(), overviewFor,
+    quality, lod, ao, hud, onContextRestored, get perf() { return perf?.out ?? null; }, get sound() { return sound; },
+    get tourAt() { return tourAt; }, TOUR,
   };
   if (params.has('verify')) verify();
   if (params.has('vehicle')) {

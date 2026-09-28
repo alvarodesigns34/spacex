@@ -3,7 +3,7 @@
  */
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
-import { mesh, mergeAll, mat4, chunkedInstances } from '../geometry/utils.js';
+import { mergeAll, chunkedInstances } from '../geometry/utils.js';
 import { noise2 } from '../materials/textures.js';
 import { waveNormals, grassNormals } from '../materials/library.js';
 import { createClouds } from './clouds.js';
@@ -535,6 +535,16 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   function setAltitude(h) { air.altitude = h; applyAtmosphere(); }
 
   /**
+   * The reflection probe is the one piece of lighting that lives only on the GPU: a render
+   * target filled once per sun position. When the browser loses the WebGL context (a driver
+   * reset, a GPU switch, a phone reclaiming memory) and gives it back, three.js re-uploads
+   * every texture it has the source for, but a render target has no source, so the probe came
+   * back empty and the ground lost more than half its light (luma 108 → 49 on the Falcon 9
+   * view). This rebuilds it for the sun that is set.
+   */
+  function rebuildProbe() { applyAtmosphere({ rebuildProbe: true }); }
+
+  /**
    * Moving the Sun changes two things at very different prices. The sky uniforms, the light
    * directions, the fog and the exposure are a handful of writes. The reflection probe is a
    * full PMREM pass over a private scene — and the slider fires on every input event, so
@@ -629,7 +639,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   setSun(20, 34, { immediate: true });
 
   return {
-    sun, sky, hemi, ground, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation,
+    sun, sky, hemi, ground, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation, rebuildProbe,
     SUN_MIN, SUN_MAX, get night() { return nightK; },
     get inSpace() { return inSpace; }, get sunDir() { return sunDir; },
   };

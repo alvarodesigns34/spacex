@@ -22,6 +22,8 @@ registerHooks({
     if (mutant === 'speed') source = source.replace('    advanceCloud(t);\n\n    if (t >=', '    advanceCloud(prev + Math.min(dt * state.speed, 0.12));\n\n    if (t >=');
     if (mutant === 'staging') source = source.replace('PROFILE.down[EVENTS.separation / PROFILE.step]', '84000');
     // The defect found in review: positions met at staging but the velocity did not.
+    // The defect found in the 28-09 audit: the ship's acceleration fell while it burned.
+    if (mutant === 'shipmass') source = source.replace('if (burning) m = Math.max(S.dry, m - thr * mdot * dt);', '');
     if (mutant === 'kink') source = source.replace('v0 * Math.sin(p0) + R * w0 * Math.cos(p0)', '0.55 * v0 * Math.sin(p0) + R * w0 * Math.cos(p0)');
     return { ...result, source };
   },
@@ -31,7 +33,7 @@ globalThis.document = { createElement: () => ({ getContext: () => ({
   createImageData: (w, h) => ({ data: new Uint8ClampedArray(w * h * 4) }), putImageData() {},
 }) }) };
 const THREE = await import('three');
-const { createLaunch, altitudeAt, downrangeAt, pitchAt, speedAt, boosterAltAt, boosterDownAt, boosterPitchAt, boosterSpeedAt, EVENTS } = await import('../src/sim/launch.js');
+const { createLaunch, altitudeAt, downrangeAt, pitchAt, speedAt, boosterAltAt, boosterDownAt, boosterPitchAt, boosterSpeedAt, EVENTS, shipMassAt, shipThrustAccelAt, shipMassFlow, SHIP_ASSUMED } = await import('../src/sim/launch.js');
 for (const [name, before, after] of [['altitude', altitudeAt, boosterAltAt], ['downrange', downrangeAt, boosterDownAt], ['pitch', pitchAt, boosterPitchAt]]) {
   assert.ok(Math.abs(before(160) - after(160)) < 1e-9, `staging ${name} must be continuous`);
 }
@@ -69,6 +71,33 @@ for (const [name, before, after] of [['altitude', altitudeAt, boosterAltAt], ['d
   assert.ok(Math.abs(boosterDownAt(EVENTS.catch)) < 0.05 && Math.abs(boosterAltAt(EVENTS.catch) - 22) < 0.05 && boosterSpeedAt(EVENTS.catch) < 0.1, 'booster at rest in the arms at the catch');
   console.log(`PASS trajectory: max ${worstA[1].toFixed(0)} m/s² speed change, ${worstV[1].toFixed(0)} m/s² vector change, ${THREE.MathUtils.radToDeg(worstP[1]).toFixed(0)}°/s attitude`);
 }
+// The ship after separation is a rocket, not a curve: its mass falls at the published thrust
+// over the assumed Isp, so its thrust acceleration RISES as it burns (the old authored curve
+// had it falling from 0,98 to 0,79 g); it stays below orbital speed and below any suborbital
+// flight's altitude; its position-derived speed matches the panel's; and it never turns
+// faster than 3°/s.
+{
+  const G0 = 9.80665;
+  let prevA = 0, worstP = 0;
+  for (let t = EVENTS.separation + 3; t <= EVENTS.end - 0.25; t += 0.5) {
+    const a = shipThrustAccelAt(t);
+    assert.ok(a >= prevA - 1e-6, `ship thrust acceleration must rise while it burns: ${a.toFixed(2)} after ${prevA.toFixed(2)} m/s² at T+${t}`);
+    prevA = a;
+    const expect = SHIP_ASSUMED.propellant + SHIP_ASSUMED.dry - shipMassFlow() * (t - EVENTS.separation);
+    assert.ok(Math.abs(shipMassAt(t) - expect) < 0.01 * expect, `ship mass follows the mass flow at T+${t}`);
+    const H = 0.05;
+    const v = Math.hypot((downrangeAt(t + H) - downrangeAt(t - H)) / (2 * H), (altitudeAt(t + H) - altitudeAt(t - H)) / (2 * H));
+    assert.ok(Math.abs(v - speedAt(t)) < 2, `ship panel speed matches its motion at T+${t}: ${v.toFixed(1)} vs ${speedAt(t).toFixed(1)}`);
+    worstP = Math.max(worstP, Math.abs(pitchAt(t + 0.25) - pitchAt(t - 0.25)) / 0.5);
+  }
+  const h = altitudeAt(EVENTS.end), v = speedAt(EVENTS.end);
+  const orbital = Math.sqrt(3.986004418e14 / (6371e3 + h));
+  assert.ok(h < 200e3 && v < orbital, `ship stays suborbital: ${(h / 1e3).toFixed(0)} km, ${v.toFixed(0)} of ${orbital.toFixed(0)} m/s`);
+  assert.ok(prevA / G0 < 3.5, `ship ends under 3,5 g: ${(prevA / G0).toFixed(2)} g`);
+  assert.ok(worstP < THREE.MathUtils.degToRad(3.2), `ship attitude slews ≤ 3°/s: ${THREE.MathUtils.radToDeg(worstP).toFixed(2)}°/s`);
+  assert.ok(Math.abs(pitchAt(EVENTS.separation) - boosterPitchAt(EVENTS.separation)) < 1e-9, 'ship and booster share the attitude at staging');
+  console.log(`PASS ship after staging: ${(prevA / G0).toFixed(2)} g at the end, ${(h / 1e3).toFixed(0)} km, ${(v * 3.6).toFixed(0)} km/h`);
+}
 function fixture() {
   const scene = new THREE.Scene(), model = new THREE.Group(), group = new THREE.Group();
   for (const name of ['ship', 'superheavy']) { const part = new THREE.Group(); part.name = name; model.add(part); }
@@ -101,7 +130,7 @@ for (const t of [0, 6, 36, 45, 100, 407, 424]) {
 launch.reset(false); assert.equal(snapshot().count, 0, 'reset clears all particles');
 console.log('PASS deterministic clouds, all playback rates, smoke expiry, reset and staging continuity');
 if (!mutant) {
-  for (const name of ['random', 'frozen', 'speed', 'staging', 'kink']) {
+  for (const name of ['random', 'frozen', 'speed', 'staging', 'kink', 'shipmass']) {
     const run = spawnSync(process.execPath, [fileURLToPath(import.meta.url), `--mutant=${name}`], { encoding: 'utf8' });
     assert.notEqual(run.status, 0, `regression test must reject sabotage: ${name}`);
     assert.match(run.stderr, /AssertionError/, `sabotage ${name} must fail an assertion, not crash`);

@@ -15,7 +15,6 @@
 import { createServer } from 'node:http';
 import { staticHandler } from './static.mjs';
 import { readFile, writeFile } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { sceneCensus, bootAtQuality } from './census.mjs';

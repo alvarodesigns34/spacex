@@ -4,8 +4,8 @@
  */
 import { createServer } from 'node:http';
 import { staticHandler } from './static.mjs';
-import { readFile, mkdir, writeFile } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
@@ -27,7 +27,7 @@ const report = (ok, label, detail) => {
   console.log(`${ok ? 'PASS' : 'FAIL'} ${label}${detail ? ` ${JSON.stringify(detail)}` : ''}`);
 };
 const bounds = () => page.evaluate(() => {
-  const selectors = ['.hud-header', '.sheet', '.rail', '.tools', '.presets', '.mission', '.coach'];
+  const selectors = ['.hud-header', '.sheet', '.rail', '.tools', '.presets', '.mission', '.coach', '.tour-card'];
   const boxes = {};
   for (const selector of selectors) {
     const el = document.querySelector(selector);
@@ -37,7 +37,8 @@ const bounds = () => page.evaluate(() => {
   }
   const outside = Object.entries(boxes).filter(([, r]) => r.x < -1 || r.y < -1 || r.right > innerWidth + 1 || r.bottom > innerHeight + 1).map(([s]) => s);
   const pairs = [['.hud-header', '.sheet'], ['.rail', '.tools'], ['.rail', '.presets'], ['.tools', '.presets'], ['.mission', '.tools'], ['.mission', '.rail'], ['.mission', '.sheet'],
-    ['.coach', '.hud-header'], ['.coach', '.sheet'], ['.coach', '.rail'], ['.coach', '.tools'], ['.coach', '.presets']];
+    ['.coach', '.hud-header'], ['.coach', '.sheet'], ['.coach', '.rail'], ['.coach', '.tools'], ['.coach', '.presets'],
+    ['.tour-card', '.hud-header'], ['.tour-card', '.sheet'], ['.tour-card', '.rail'], ['.tour-card', '.tools'], ['.tour-card', '.presets']];
   const overlap = pairs.filter(([a, b]) => {
     const p = boxes[a], q = boxes[b];
     return p && q && Math.min(p.right, q.right) - Math.max(p.x, q.x) > 1 && Math.min(p.bottom, q.bottom) - Math.max(p.y, q.y) > 1;
@@ -247,6 +248,175 @@ try {
   const broken = await bounds();
   report(broken.overlap.some(p => p.includes('.hud-header') && p.includes('.sheet')), 'Negative control rejects old narrow header/sheet overlap', broken.overlap);
   await sabotage.evaluate(el => el.remove());
+
+  // ---- Round of 28 Sep 2026 -------------------------------------------------------------
+  // Everything below is driven by real keys and clicks where a visitor would use them.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const settle = (ms = 400) => page.evaluate(async (ms) => { const f = () => new Promise(r => requestAnimationFrame(r)); await f(); await new Promise(r => setTimeout(r, ms)); await f(); }, ms);
+
+  // Mission transport: pause, slow motion, seek on the profile, milestone keys, restart.
+  await page.evaluate(() => { const v = window.__vc; v.launch.reset(false); v.jump('starship', 'overview'); document.activeElement?.blur?.(); });
+  await page.keyboard.press('g');
+  await page.waitForFunction(() => window.__vc.launch.running);
+  await page.click('#mission-pause');
+  const p0 = await page.evaluate(() => window.__vc.launch.state.t);
+  await page.waitForTimeout(1500);
+  const paused = await page.evaluate(() => ({ t: window.__vc.launch.state.t, p: window.__vc.launch.state.paused, pressed: document.getElementById('mission-pause').getAttribute('aria-pressed') }));
+  report(paused.p && paused.pressed === 'true' && paused.t === p0, 'Pause holds the mission clock and says so', { p0, paused });
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('k');
+  // Software frames take seconds at this size: wait for the clock to move, not a fixed delay.
+  await page.waitForFunction((p0) => window.__vc.launch.state.t > p0, p0, { timeout: 60000 }).catch(() => {});
+  const resumed = await page.evaluate(() => ({ t: window.__vc.launch.state.t, p: window.__vc.launch.state.paused }));
+  report(!resumed.p && resumed.t > p0, 'K resumes the clock', { p0, resumed });
+  await page.click('#mission-speeds button[data-k="0.25"]');
+  report(await page.evaluate(() => window.__vc.launch.state.speed === 0.25 && document.querySelector('#mission-speeds button[data-k="0.25"]').getAttribute('aria-pressed') === 'true'), 'Slow motion ×¼ is applied and pressed');
+  const box = await page.locator('#mission-plot').boundingBox();
+  await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
+  await page.waitForFunction(() => window.__vc.launch.state.t > 150, null, { timeout: 60000 }).catch(() => {});
+  const seekT = await page.evaluate(() => window.__vc.launch.state.t);
+  const mid = -40 + 0.5 * (436 + 40);
+  report(Math.abs(seekT - mid) < 4, 'A click on the flight profile jumps the mission there', { seekT, want: mid });
+  await page.evaluate(() => { window.__vc.launch.setPaused(true); document.activeElement?.blur?.(); });
+  await page.keyboard.press('ArrowRight');
+  const step = await page.evaluate(() => ({ t: window.__vc.launch.state.t, next: window.__vc.hud.milestoneStep(window.__vc.launch.state.t - 1, 1) }));
+  report(Math.abs(step.t - step.next) < 1e-6 && step.t > seekT, '→ jumps to the next milestone', step);
+  await page.click('#mission-restart');
+  await page.waitForTimeout(300);
+  report(await page.evaluate(() => window.__vc.launch.state.t < -38 && !window.__vc.launch.state.paused), 'Restart goes back to T−40 and runs');
+  const tour0 = await bounds();
+  report(!tour0.outside.length && !tour0.overlap.length, '1440x900 launch controls with the transport row', tour0);
+  await page.evaluate(() => { document.activeElement?.blur?.(); });
+  await page.keyboard.press('g');
+  await page.waitForFunction(() => !window.__vc.launch.running);
+
+  // Hidden tab: the audio context is suspended, and resumed on return.
+  await page.evaluate(() => { const v = window.__vc; v.launch.reset(false); v.launch.start(); });
+  await page.evaluate(() => { const b = document.getElementById('mission-sound'); if (b.getAttribute('aria-pressed') !== 'true') b.click(); });
+  await page.waitForTimeout(500);
+  const audio = await page.evaluate(async () => {
+    const v = window.__vc, st = () => v.sound.contextState;
+    const set = (hidden) => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden }); document.dispatchEvent(new Event('visibilitychange')); };
+    const before = st();
+    set(true); await new Promise(r => setTimeout(r, 400)); const hidden = st();
+    set(false); await new Promise(r => setTimeout(r, 400)); const shown = st();
+    delete document.hidden;
+    document.getElementById('mission-sound').click();
+    v.launch.reset(false);
+    return { before, hidden, shown };
+  });
+  report(audio.hidden === 'suspended' && audio.shown === 'running', 'Sound is suspended while the tab is hidden and resumes on return', audio);
+
+  // Free flight: the floor is the ground, not a flat 0,4 m (a loma rises ~7 m here).
+  await page.evaluate(() => { window.__vc.__ground = window.__vc.rig.groundAt; });
+  const measureFly = async (sabotage) => {
+    const g = await page.evaluate((sabotage) => {
+      const v = window.__vc; const g = v.__ground(730, 340);
+      v.rig.groundAt = sabotage ? () => 0 : v.__ground;
+      if (v.rig.mode !== 'fly') v.toggleMode();
+      v.camera.position.set(730, g + 3, 340); v.rig.look.pitch = -0.3;
+      document.activeElement?.blur?.();
+      return g;
+    }, sabotage);
+    // The key is held for real; the rig is stepped here, because a software frame advances the
+    // view by at most 0,05 s and a wall-clock wait would move the camera a few centimetres.
+    await page.keyboard.down('q');
+    await page.evaluate(() => { for (let i = 0; i < 60; i++) window.__vc.rig.update(0.05); });
+    await page.keyboard.up('q');
+    const y = await page.evaluate(() => { const v = window.__vc; const y = v.camera.position.y; v.rig.groundAt = v.__ground; return y; });
+    return { g, y };
+  };
+  const flyOk = await measureFly(false);
+  report(flyOk.g > 3 && flyOk.y >= flyOk.g + 0.39, 'Free flight stops at the ground over a loma', flyOk);
+  const flyBad = await measureFly(true);
+  await page.evaluate(() => { const v = window.__vc; if (v.rig.mode === 'fly') v.toggleMode(); });
+  report(flyBad.y < flyBad.g, 'Negative control: a flat floor sinks into the loma', flyBad);
+
+  // Walking: eye height over the ground, moving on W, stopped by an exhibit's footprint.
+  await page.evaluate(() => { const v = window.__vc; v.jump('falcon9', 'overview'); document.activeElement?.blur?.(); });
+  await page.keyboard.press('v');
+  const w0 = await page.evaluate(() => { const v = window.__vc, p = v.camera.position; return { mode: v.rig.mode, eye: p.y - v.rig.groundAt(p.x, p.z), x: p.x, z: p.z }; });
+  report(w0.mode === 'walk' && Math.abs(w0.eye - 1.7) < 0.05 , 'V walks at 1.7 m eye height', w0);
+  await page.evaluate(() => { const v = window.__vc; v.camera.position.set(-135, 1.7, 30); v.rig.look.yaw = 0; v.rig.look.pitch = 0; });
+  await page.keyboard.down('w'); await page.keyboard.down('Shift');
+  await page.evaluate(() => { for (let i = 0; i < 250; i++) window.__vc.rig.update(0.05); });
+  await page.keyboard.up('Shift'); await page.keyboard.up('w');
+  const w1 = await page.evaluate(() => { const v = window.__vc, p = v.camera.position; return { z: p.z, x: p.x, eye: p.y - v.rig.groundAt(p.x, p.z), r: Math.hypot(p.x + 135, p.z) }; });
+  report(w1.z < 29 && w1.r >= 9.2 && Math.abs(w1.eye - 1.7) < 0.1, 'Walking moves on W and stops at the Falcon 9 mount', w1);
+  await page.keyboard.press('v');
+  report(await page.evaluate(() => window.__vc.rig.mode === 'orbit'), 'V again returns to orbit');
+
+  // Guided tour: a caption with its source, clear of the rest of the HUD.
+  for (const [w, h] of [[1440, 900], [390, 844], [834, 1112]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.evaluate(() => { const v = window.__vc; if (v.tourAt >= 0) v.claimUserControl(); v.startTour(); });
+    await settle();
+    const card = await page.evaluate(() => ({ shown: !document.getElementById('tour-card').classList.contains('hidden'), text: document.getElementById('tour-text').textContent, src: document.getElementById('tour-src').textContent }));
+    const tb = await bounds();
+    report(card.shown && card.text.length > 40 && /^Source: /.test(card.src) && !tb.outside.length && !tb.overlap.length, `${w}x${h} guided tour caption with its source, no overlap`, { card, overlap: tb.overlap, outside: tb.outside });
+    await page.evaluate(() => window.__vc.claimUserControl());
+  }
+  report(await page.evaluate(() => document.getElementById('tour-card').classList.contains('hidden')), 'Ending the tour puts its caption away');
+
+  // A phone held sideways: the mission panel starts folded to the clock and the controls, and
+  // unfolds on its button.
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => window.__vc && !document.getElementById('loading'), null, { timeout: 300000 });
+  await page.evaluate(() => { window.__vc.hud.hideCoach(); window.__vc.launch.seek(6); });
+  await settle();
+  const fold0 = await page.evaluate(() => ({ compact: document.getElementById('mission').classList.contains('is-compact'), h: document.getElementById('mission').getBoundingClientRect().height }));
+  await page.click('#mission-fold');
+  await settle();
+  const fold1 = await page.evaluate(() => ({ compact: document.getElementById('mission').classList.contains('is-compact'), h: document.getElementById('mission').getBoundingClientRect().height, exp: document.getElementById('mission-fold').getAttribute('aria-expanded') }));
+  report(fold0.compact && fold0.h < 160 && !fold1.compact && fold1.h > fold0.h && fold1.exp === 'true', '844x390 mission panel starts folded and unfolds', { fold0, fold1 });
+  await page.evaluate(() => window.__vc.launch.reset(false));
+
+  // Upright phone: the overview takes in the whole row. Every exhibit projects inside the
+  // frame; the authored landscape frame, the negative control, leaves most of them outside.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForFunction(() => Math.abs(window.__vc.camera.aspect - 390 / 844) < 1e-3);
+  await page.evaluate(() => window.__vc.jump(null));
+  await settle();
+  const fit = await page.evaluate(async () => {
+    const v = window.__vc; const THREE = await import('three');
+    const inside = () => Object.values(v.exhibits).filter(ex => ex.lay.z === 0).map(ex => {
+      const p = new THREE.Vector3(ex.lay.x, 4, ex.lay.z).project(v.camera); return Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1;
+    });
+    v.camera.updateMatrixWorld(); const now = inside();
+    const o = v.overviewFor(1.6); v.rig.jumpTo(o.pos, o.target); v.camera.updateMatrixWorld();
+    const old = inside();
+    v.jump(null);
+    return { now: now.filter(Boolean).length, old: old.filter(Boolean).length, total: now.length };
+  });
+  report(fit.now === fit.total, '390x844 overview frames every exhibit in the row', fit);
+  report(fit.old < fit.total, 'Negative control: the landscape overview on a phone leaves exhibits out', fit);
+
+  // A lost and restored WebGL context keeps the lighting (the reflection probe is rebuilt).
+  await page.setViewportSize({ width: 960, height: 540 });
+  const lumaAfterRestore = (sabotage) => page.evaluate(async (sabotage) => {
+    const v = window.__vc; const c = v.renderer.domElement;
+    v.jump('falcon9', 'overview');
+    const luma = () => {
+      v.camera.updateMatrixWorld(); v.composer.render();
+      const t = document.createElement('canvas'); t.width = 96; t.height = 54;
+      const g = t.getContext('2d'); g.drawImage(c, 0, 0, 96, 54); const d = g.getImageData(0, 36, 96, 18).data;
+      let s = 0; for (let i = 0; i < d.length; i += 4) s += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+      return s / (d.length / 4);
+    };
+    const before = luma();
+    if (sabotage) c.removeEventListener('webglcontextrestored', v.onContextRestored);
+    const ext = v.renderer.getContext().getExtension('WEBGL_lose_context');
+    ext.loseContext(); await new Promise(r => setTimeout(r, 1200));
+    ext.restoreContext(); await new Promise(r => setTimeout(r, 3000));
+    const after = luma();
+    if (sabotage) { c.addEventListener('webglcontextrestored', v.onContextRestored); v.env.rebuildProbe(); }
+    return { before: +before.toFixed(1), after: +after.toFixed(1) };
+  }, sabotage);
+  const ctxOk = await lumaAfterRestore(false);
+  report(Math.abs(ctxOk.after - ctxOk.before) < 0.08 * ctxOk.before, 'A restored WebGL context keeps the ground lit', ctxOk);
+  const ctxBad = await lumaAfterRestore(true);
+  report(ctxBad.after < 0.8 * ctxBad.before, 'Negative control: without the probe rebuild the ground goes dark', ctxBad);
   report(!errors.length, 'No uncaught application errors', errors);
 } catch (e) { report(false, 'UX check exception', e.stack); }
 finally {

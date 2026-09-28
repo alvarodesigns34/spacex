@@ -10,12 +10,12 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
    - el texto de la interfaz de la simulación sigue en inglés;
    - los comentarios del código siguen el estilo existente (en inglés);
    - los mensajes de commit se escriben en inglés, como todos los del historial.
-2. **No crear pull requests.** Empujar siempre el mismo commit a estas **tres ramas**:
+2. **No crear pull requests.** Empujar siempre el mismo commit a estas **tres ramas** (y a la de la sesión):
    - `claude/dreamy-bell-qn1eth`
    - `grok/sun18-audit-10c9929`
    - `claude/spacex-vehicle-center-3d-48zlkm` (la rama por defecto; la que despliega Pages)
 
-   y, además, a la rama que te asigne la sesión (en la última fue `claude/new-session-pnlz3h`).
+   y, además, a la rama que te asigne la sesión (en la del 28-09 fue `claude/elegant-ptolemy-l99qgo`).
 3. **Antes de cada commit, `npm run check` tiene que terminar con código 0.** Tarda unos 25 minutos. Nunca confirmes sin él.
 4. **Tras cada push, comprueba que GitHub Pages sirve la versión nueva:** https://alvarodesigns34.github.io/spacex/
 5. **No regenerar la galería de capturas** (`docs/screenshots`, `docs/hud`, `npm run shots`) **hasta que yo lo apruebe explícitamente** en cada ocasión. Estado: ver la sección 4.
@@ -206,26 +206,26 @@ c5b86c6 Close the tank-farm domes; carbon louvre panel on the Roadster bonnet
 
 ## 4. Estado actual y pendientes
 
-- **Último cambio de código:** `1144807`, en las cuatro ramas (el commit siguiente solo actualiza este documento). Check verde. Pages sirve esta versión, y se verificó en la web publicada con teclado y ratón reales (teclas 1–8 y 0, vistas, P, F, G a ×10, extremos del sol) a 1440×900, 834×1112 y 390×844, sin errores de consola.
-- **Galería:** se regeneró en `b1f09d3` (con aprobación). Después cambió el aspecto del HUD (paneles al 88 % de opacidad, grises más claros, telemetría ≥ 11 px, horas del modelo con ≈), así que las capturas con panel (`docs/hud` y las del lanzamiento) muestran la paleta anterior. **Regenerarlas necesita mi aprobación.**
-- **Hecho en las últimas rondas** (el detalle está en el README, secciones *Revisión corriendo la simulación* y *Segunda auditoría externa de ChatGPT*):
-  - capa de datos canónica con grados A/B/C/D (`src/data/figures.js`) y `tools/provenance-check.mjs`, que también rechaza atribuciones retiradas, cifras reconstruidas sin ≈ en etiquetas 3D y contradicciones concretas del README;
-  - salto de nivel de detalle dentro del check (`tools/lod-pop.mjs`);
-  - regreso del propulsor con arrastre resuelto (transónico 5 s antes del encendido, como el vuelo 7), humo y penacho de aterrizaje, escarcha blanca, marisma con canales, interetapa blanca del núcleo central del Falcon Heavy;
-  - reloj de misión independiente de los fotogramas (`src/sim/missionClock.js`);
-  - accesibilidad: selecciones con `aria-pressed`, contraste AA medido sobre cielo blanco, atajos de teclado que funcionan con el deslizador del sol enfocado.
-- **No hacer:** el regulador de calidad adaptativo (lo descartaste expresamente: el rendimiento es bueno). No reintroducir stencil en el render target MSAA: hundió la escena a ~10 fps en GPU real.
+- **Ronda del 28 de septiembre de 2026** (detalle en el README, sección *Auditoría y mejoras del 28 de septiembre de 2026*):
+  - la **nave tras la separación** se integra como un cohete (`SHIP_ASSUMED` y `buildProfile` en `launch.js`): empuje y propelente publicados, masa en seco e Isp supuestos (≈), guiado de tangente lineal resuelto por Newton para nivelarse a ≈150 km. `pitchAt` es ahora la **actitud** (empuje) y `flightPathAt` la dirección de la velocidad;
+  - **contexto WebGL**: `env.rebuildProbe()` al recuperarlo (`onContextRestored` en `main.js`);
+  - **audio** suspendido con la pestaña oculta (`sound.js`);
+  - **cámara**: `rig.groundAt` (terreno + pad, analítico) como suelo del vuelo libre; **modo paseo** (`V`, `rig.mode === 'walk'`, ojos a 1,7 m, obstáculos en `rig.obstacles`, doble clic para caminar a un punto);
+  - **vista general** que se adapta al formato (`overviewFor(aspect)`), y se reencuadra al girar el móvil;
+  - **panel de misión**: pausa (K / espacio), ×¼, reinicio, clic/arrastre en el perfil para saltar, ←/→ entre hitos, plegable (empieza plegado con < 600 px de alto);
+  - **visita guiada** con texto y fuente por parada (`TOUR` en `main.js`, comprobada por `provenance-check`);
+  - **humo y vapor**: contacto suave con el suelo (`groundUnder` en los sombreadores de `plume.js`, uniforme `uPad`), bordes suaves, chorros turbulentos (`turbulence` en `EngineJets`);
+  - **herramientas**: `?perf` (medidor de fps), ESLint (`eslint.config.js`, primer paso de `npm run check`), CI en cuatro trabajos paralelos (`check:static`, `check:scene`, `check:ux`, `check:lod`), historial del README movido a `docs/historial.md`.
+- **Galería:** sigue sin regenerar desde `b1f09d3` y ahora está más desfasada (fila de transporte del panel, botón *Walk*, trayectoria de la nave tras T+2:40). **Regenerarla necesita aprobación del usuario.**
+- **Red de esta sesión:** solo GitHub y npm. No se pudo contrastar ninguna fuente ni comprobar Pages con `curl`; el estado de Pages se comprueba con `mcp__github__actions_list` (ejecuciones del flujo).
+- **No hacer:** el regulador de calidad adaptativo (descartado por el usuario). No reintroducir stencil en el render target MSAA (hundió la escena a ~10 fps en GPU real). Por la misma razón, **no añadir una textura de profundidad** a ese render target para «partículas suaves»: obligaría a resolver una profundidad multimuestreada en cada fotograma, el mismo tipo de coste.
 - **Pendientes abiertos, todos a la espera de evidencia:**
-  - **altura de la torre:** los 474 ft solo aparecen en una wiki de aficionados que cita registros de la FAA no localizados (grado D, ≈); buscar el registro OE/AAA primario;
-  - **giro de la pila (0°):** inferido de una sola foto oblicua (±20°); confirmar con más vistas antes de ajustarlo;
-  - **paso de 13 a 3 motores en ≈T+6:37:** lectura no verificada de imágenes de terceros; contrastar fotograma a fotograma con el vídeo original del vuelo 5;
-  - **pinzas del Falcon 1 en Omelek:** sin foto accesible (el repositorio con el artículo de SpaceX exige verificación antibots);
-  - **Dragon:** número y posición de ventanas;
-  - **penacho del boostback a gran altura:** sin referencia oficial;
-  - propuestas de la primera auditoría de ChatGPT aún sin abordar: modo físico 3-DOF, modularizar los archivos grandes, ESLint/`@ts-check`, mover el historial del README a `docs/`, pruebas en WebKit/Firefox, `prefers-reduced-motion`, variante exacta de Starlink.
-- **Última petición general del usuario:** revisión completa y ambiciosa, siempre con evidencia y sin inventar.
-
----
+  - **altura de la torre** (≈144,5 m, grado D): buscar el registro OE/AAA primario de la FAA;
+  - **giro de la pila (0°)**: una sola foto oblicua (±20°);
+  - **paso de 13 a 3 motores en ≈T+6:37**: sin contrastar con el vídeo original del vuelo 5;
+  - **nave tras la separación**: contrastar velocidad y altitud con la telemetría de las retransmisiones y afinar masa en seco, Isp y altitud de nivelación (hoy supuestos);
+  - **pinzas del Falcon 1 en Omelek**, **ventanas del Dragon** (tercera ventana), **penacho del boostback a gran altura**;
+  - propuestas estructurales aún sin abordar: modularizar los archivos grandes (`roadster.js` ≈3 700 líneas, `launch.js`, `main.js`), `@ts-check`, pruebas en WebKit y Firefox, variante exacta de Starlink. (`prefers-reduced-motion` ya está implementado: CSS, barridos de cámara y vibración del lanzamiento.)
 
 ## 5. Datos y convenciones técnicas útiles
 

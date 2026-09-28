@@ -14,8 +14,6 @@
  */
 import { createServer } from 'node:http';
 import { staticHandler } from './static.mjs';
-import { readFile } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 

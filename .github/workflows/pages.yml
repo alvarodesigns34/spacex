@@ -19,8 +19,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The gate in four parts that run side by side: one runner took ~13 min for the whole of
+  # `npm run check`, most of it the scene walk and the interface checks one after the other.
+  # The deploy waits for all four; `npm run check` still runs the lot locally.
   check:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        part:
+          - { name: static, run: 'npm run check:static', browser: false }
+          - { name: scene, run: 'npm run check:scene', browser: true }
+          - { name: interface, run: 'npm run check:ux', browser: true }
+          - { name: level-of-detail, run: 'npm run check:lod', browser: true }
+    name: check (${{ matrix.part.name }})
     steps:
       - uses: actions/checkout@v4
       # Gate every change on the app actually building a valid scene: the dimensional table,
@@ -28,9 +40,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: npx playwright install --with-deps chromium
-      - run: npm run check
+      - if: matrix.part.browser
+        run: npx playwright install --with-deps chromium
+      - run: ${{ matrix.part.run }}
 
   deploy:
     # The github-pages environment only accepts production deployments. Keep feature-branch

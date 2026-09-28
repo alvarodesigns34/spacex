@@ -166,7 +166,7 @@ function buildGround(M) {
     const n = pts.length, row = ROWS + 1;
     for (let i = 0; i < n; i++) {
       const j = (i + 1) % n;
-      const [xi, zi, , nzi] = pts[i], [xj, , , nzj] = pts[j];
+      const [xi, , , nzi] = pts[i], [xj, , , nzj] = pts[j];
       // Leave the trench mouths open on the two z faces.
       if (nzi !== 0 && nzj !== 0 && Math.abs(nzi) > 0.99 && (Math.abs(xi) < MOUTH || Math.abs(xj) < MOUTH)) continue;
       for (let r = 0; r < ROWS; r++) {

@@ -19,7 +19,7 @@ export class CameraRig {
     this.orbit.enableDamping = true;
     this.orbit.dampingFactor = 0.07;
     this.orbit.minDistance = 0.6;
-    this.orbit.maxDistance = 1200;
+    this.orbit.maxDistance = 1600;
     this.minHeight = 0.35;   // apron clearance, enforced through maxPolarAngle each frame
     this.orbit.zoomSpeed = 0.9;
     this.orbit.rotateSpeed = 0.7;
@@ -32,6 +32,14 @@ export class CameraRig {
     this.keys = new Set();
     this.look = { yaw: 0, pitch: 0, dragging: false, lastX: 0, lastY: 0 };
     this.flySpeed = 14;      // m/s base
+    // Walking: a visitor's eye height and pace, on the same ground the scene is built on.
+    // groundAt(x, z) and obstacles ([x, z, r] circles the visitor cannot walk into) are
+    // supplied by main.js, which knows the terrain, the pad and the exhibits.
+    this.eyeHeight = 1.7;
+    this.walkSpeed = 1.4;    // m/s, an unhurried walk; Shift runs at ×3
+    this.groundAt = () => 0;
+    this.obstacles = [];
+    this.walkGoal = null;    // a point the visitor double-clicked, walked to at walking pace
     this.velocity = new THREE.Vector3();
     this.transition = null;
     this.onModeChange = null;
@@ -55,8 +63,8 @@ export class CameraRig {
     // Text fields keep their keys; the Sun slider (a range input) does not type, so flying on
     // after touching it must still work.
     const typing = (t) => t.tagName === 'TEXTAREA' || t.isContentEditable || (t.tagName === 'INPUT' && t.type !== 'range');
-    const claim = (e) => { if (this.mode === 'fly' && FLY_KEYS.has(e.code) && !typing(e.target)) e.preventDefault(); };
-    this._onKeyDown = (e) => { if (typing(e.target)) return; claim(e); this.keys.add(e.code); };
+    const claim = (e) => { if (this.mode !== 'orbit' && FLY_KEYS.has(e.code) && !typing(e.target)) e.preventDefault(); };
+    this._onKeyDown = (e) => { if (typing(e.target)) return; claim(e); this.keys.add(e.code); if (FLY_KEYS.has(e.code)) this.walkGoal = null; };
     this._onKeyUp = (e) => { claim(e); this.keys.delete(e.code); };
     // A keyup that lands on another window never reaches us, so the key stays in the set and
     // the camera flies on by itself when the tab comes back. Alt-Tab away mid-flight and the
@@ -66,10 +74,10 @@ export class CameraRig {
     // Without the cancel, update() kept lerping towards the old target for the rest of the
     // 1.5-2 s flight and overwrote the drag every frame — the rig promises "the first input
     // hands control back", and on the most-used path in the page it did not keep that promise.
-    this._onPointerDown = (e) => { this.takeOver(); if (this.mode !== 'fly') return; this.look.dragging = true; this.look.lastX = e.clientX; this.look.lastY = e.clientY; dom.setPointerCapture?.(e.pointerId); };
+    this._onPointerDown = (e) => { this.takeOver(); if (this.mode === 'orbit') return; this.look.dragging = true; this.look.lastX = e.clientX; this.look.lastY = e.clientY; dom.setPointerCapture?.(e.pointerId); };
     this._onPointerUp = () => { this.look.dragging = false; };
     this._onPointerMove = (e) => {
-      if (this.mode !== 'fly' || !this.look.dragging) return;
+      if (this.mode === 'orbit' || !this.look.dragging) return;
       const dx = e.clientX - this.look.lastX, dy = e.clientY - this.look.lastY;
       this.look.lastX = e.clientX; this.look.lastY = e.clientY;
       this.look.yaw -= dx * 0.0022;
@@ -97,8 +105,22 @@ export class CameraRig {
     this.releaseExternal();
     this.keys.clear();
     this.velocity.set(0, 0, 0);
+    this.walkGoal = null;
+    const from = this.mode;
     this.mode = mode;
-    if (mode === 'fly') {
+    if (mode === 'walk' && from === 'orbit') {
+      // Step down onto the ground in front of what the orbit was looking at: back from the
+      // target towards the camera, far enough to take it in, at eye height, facing it.
+      this._endTransition();
+      const t = this.orbit.target, c = this.camera.position;
+      const dx = c.x - t.x, dz = c.z - t.z, h = Math.hypot(dx, dz) || 1;
+      const back = THREE.MathUtils.clamp(this.distance * 0.6, 8, 40);
+      let x = t.x + (dx / h) * back, z = t.z + (dz / h) * back;
+      [x, z] = this._clear(x, z);
+      c.set(x, this.groundAt(x, z) + this.eyeHeight, z);
+      this.camera.lookAt(t.x, Math.max(t.y, c.y), t.z);
+    }
+    if (mode === 'fly' || mode === 'walk') {
       this._endTransition();
       this.orbit.enabled = false;
       // derive yaw/pitch from the current view direction
@@ -106,6 +128,10 @@ export class CameraRig {
       this.camera.getWorldDirection(dir);
       this.look.yaw = Math.atan2(-dir.x, -dir.z);
       this.look.pitch = Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1));
+      if (mode === 'walk') {
+        const p = this.camera.position;
+        p.y = this.groundAt(p.x, p.z) + this.eyeHeight;
+      }
     } else {
       // keep the orbit target ahead of the camera
       const dir = this._dir;
@@ -132,6 +158,21 @@ export class CameraRig {
     tr.resolve();
   }
 
+  /** Pushes a ground point out of every obstacle circle it falls inside. */
+  _clear(x, z) {
+    for (const [ox, oz, r] of this.obstacles) {
+      const dx = x - ox, dz = z - oz, d = Math.hypot(dx, dz);
+      if (d < r) { const k = d > 1e-6 ? r / d : 1; x = ox + (d > 1e-6 ? dx : r) * k; z = oz + (d > 1e-6 ? dz * k : 0); }
+    }
+    return [x, z];
+  }
+
+  /** Walks to a point on the ground at walking pace (double-click in walk mode). */
+  walkTo(point) {
+    if (this.mode !== 'walk') return;
+    this.walkGoal = new THREE.Vector2(point.x, point.z);
+  }
+
   flyTo(position, target, duration = 1.7) {
     // prefers-reduced-motion only killed CSS transitions; a 1,7 s camera sweep across a 300 m
     // scene is the strongest motion the page produces, so honour the setting here too.
@@ -140,7 +181,7 @@ export class CameraRig {
     const fromT = this.orbit.target.clone();
     const to = new THREE.Vector3(...position);
     const toT = new THREE.Vector3(...target);
-    if (this.mode === 'fly') this.setMode('orbit');
+    if (this.mode !== 'orbit') this.setMode('orbit');
     this._endTransition();
     return new Promise((resolve) => {
       // A straight line between two framings cut through whatever stood between them — the
@@ -168,7 +209,7 @@ export class CameraRig {
 
   jumpTo(position, target) {
     this._endTransition();
-    if (this.mode === 'fly') this.setMode('orbit');
+    if (this.mode !== 'orbit') this.setMode('orbit');
     this.camera.position.set(...position);
     this.orbit.target.set(...target);
     this.applyPolarLimit();
@@ -201,7 +242,7 @@ export class CameraRig {
     this.external = false;
     this._endTransition();
     this.orbit.enabled = this.mode === 'orbit';
-    if (this.mode === 'fly') {
+    if (this.mode !== 'orbit') {
       // Free flight steers from yaw/pitch, so it has to adopt the direction the scripted shot
       // left the camera pointing. Without this the view snapped back to whatever the fly
       // integrator last believed the moment control came back.
@@ -244,6 +285,8 @@ export class CameraRig {
       return;
     }
 
+    if (this.mode === 'walk') { this._walk(dt); return; }
+
     // ---- free-fly ----
     // Scratch vectors, not fresh ones. Four Vector3 per frame is a small allocation and an
     // unbounded one: free flight runs for as long as the visitor holds W, so it is a steady
@@ -268,7 +311,43 @@ export class CameraRig {
     const a = 1 - Math.exp(-dt * 9);
     this.velocity.lerp(wish, a);
     cam.position.addScaledVector(this.velocity, dt);
-    if (cam.position.y < 0.4) cam.position.y = 0.4;
+    // The floor is the ground under the camera, not a flat 0,4 m: the lomas rise to ~7 m and
+    // the pad to 5 m, and the camera used to fly straight through them.
+    const floor = this.groundAt(cam.position.x, cam.position.z) + 0.4;
+    if (cam.position.y < floor) cam.position.y = floor;
+  }
+
+  /** Walking: horizontal moves at a visitor's pace, eyes 1,7 m over whatever is underfoot. */
+  _walk(dt) {
+    const cam = this.camera;
+    cam.rotation.set(this.look.pitch, this.look.yaw, 0, 'YXZ');
+    const fwd = this._fwd.set(-Math.sin(this.look.yaw), 0, -Math.cos(this.look.yaw));
+    const right = this._right.set(Math.cos(this.look.yaw), 0, -Math.sin(this.look.yaw));
+    const wish = this._wish.set(0, 0, 0);
+    if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) wish.add(fwd);
+    if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) wish.sub(fwd);
+    if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) wish.add(right);
+    if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) wish.sub(right);
+    let speed = this.walkSpeed;
+    if (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')) speed *= 3;
+    if (this.walkGoal && wish.lengthSq() === 0) {
+      const dx = this.walkGoal.x - cam.position.x, dz = this.walkGoal.y - cam.position.z, d = Math.hypot(dx, dz);
+      if (d < 0.4) this.walkGoal = null;
+      else { wish.set(dx / d, 0, dz / d); speed = this.walkSpeed * THREE.MathUtils.clamp(d / 3, 0.4, 3); }
+    }
+    if (wish.lengthSq() > 0) wish.normalize().multiplyScalar(speed);
+    this.velocity.lerp(wish, 1 - Math.exp(-dt * 8));
+    const p = cam.position;
+    const g0 = this.groundAt(p.x, p.z);
+    let nx = p.x + this.velocity.x * dt, nz = p.z + this.velocity.z * dt;
+    [nx, nz] = this._clear(nx, nz);
+    // A step taller than a kerb (the pad's 2,5 m retaining faces) is a wall, not a slope.
+    const g1 = this.groundAt(nx, nz);
+    if (g1 - g0 > 0.6) { this.velocity.set(0, 0, 0); this.walkGoal = null; nx = p.x; nz = p.z; }
+    p.x = nx; p.z = nz;
+    const want = this.groundAt(p.x, p.z) + this.eyeHeight;
+    // Stepping down is quick and stepping up quicker, so the eye never goes under the ground.
+    p.y = want > p.y ? want : p.y + (want - p.y) * (1 - Math.exp(-dt * 10));
   }
 
   dispose() {

@@ -119,7 +119,7 @@ body.is-flying .minimap, body.is-orbital .minimap { display: none; }
 .tool input[type="range"] { width: 90px; accent-color: var(--accent); }
 .tool-btn { background: rgba(236, 233, 226, 0.03); border: 1px solid var(--surface-line); border-radius: var(--radius-ctl); }
 .tool-btn:hover { color: var(--ink); border-color: var(--ink-muted); background: var(--surface-hover); }
-#hud.fly #mode-btn { color: var(--accent); border-color: var(--accent); }
+#hud.fly #mode-btn, #hud.walk #walk-btn { color: var(--accent); border-color: var(--accent); }
 
 /* Scale bar */
 .scale { position: absolute; left: 24px; bottom: 28px; display: flex; flex-direction: column; gap: 6px; padding: 26px 14px 10px; background: var(--surface-solid); border: 1px solid var(--surface-line); border-radius: var(--radius-panel); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); box-shadow: var(--shadow-panel); }
@@ -133,7 +133,9 @@ body.is-flying .minimap, body.is-orbital .minimap { display: none; }
 .label-leader { width: 16px; height: 1px; background: var(--accent); opacity: 0.9; flex: none; }
 .label-text { padding: 3px 9px; background: rgba(15, 16, 18, 0.78); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); border-radius: 999px; font-size: 0.74rem; color: var(--ink); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 .label.is-culled { visibility: hidden; }
-.ruler-label { font-family: var(--font-mono); font-size: 0.76rem; color: var(--accent); white-space: nowrap; transform: translate(4px, 0); text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
+.ruler-label { font-family: var(--font-mono); font-size: 0.76rem; color: var(--accent); white-space: nowrap; transform: translate(4px, 0);
+  /* A dark halo all round, not a drop shadow: amber on a white sky dropped under 2:1 contrast. */
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.9), 0 0 4px rgba(0, 0, 0, 0.75), 0 1px 2px rgba(0, 0, 0, 0.8); }
 .ruler-top { font-size: 0.9rem; font-weight: 500; transform: translate(0, 0); }
 
 /* Help */
@@ -275,6 +277,9 @@ body:has(.mission:not(.hidden)) #dock { display: none !important; }
 .mission-clock { font-family: var(--font-mono); font-size: 1.28rem; font-variant-numeric: tabular-nums; color: var(--ink); letter-spacing: 0.02em; }
 .mission-phase { font-size: 0.84rem; color: var(--accent); letter-spacing: 0.03em; }
 .mission-head { flex-wrap: wrap; row-gap: 2px; }
+.mission-fold { margin-left: auto; width: 28px; height: 28px; font-size: 1rem; line-height: 1; align-self: center; color: var(--ink); }
+.mission.is-compact .mission-kind, .mission.is-compact .mission-telemetry,
+.mission.is-compact .mission-plot, .mission.is-compact .mission-note { display: none; }
 .mission-next { flex-basis: 100%; font-size: 0.78rem; letter-spacing: 0.04em; color: var(--ink-muted); font-variant-numeric: tabular-nums; min-height: 1em; }
 /* Two vehicles side by side, as the webcast carries them: engine dial, name, speed, altitude. */
 .mission-telemetry { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -307,10 +312,22 @@ body:has(.mission:not(.hidden)) #dock { display: none !important; }
   .mt-row b { font-size: 0.82rem; }
   .callout { font-size: 0.74rem; letter-spacing: 0.12em; top: 14vh; }
 }
-.mission-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.mission-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 8px; }
+.mission-pause, .mission-restart { font-size: 0.78rem; padding: 5px 12px; min-height: 28px; cursor: pointer; background: transparent; color: var(--ink-muted); border: 1px solid var(--surface-line); border-radius: 999px; }
+.mission-pause kbd { margin-left: 4px; }
+.mission-pause.active { color: var(--ink); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.mission-pause:hover, .mission-restart:hover { color: var(--ink); border-color: var(--ink-muted); }
+/* The profile doubles as the timeline. */
+.mission-plot svg { cursor: pointer; touch-action: none; }
+/* Touch: the transport controls were 34 × 27 px; WCAG 2.2 asks for at least 24 px and a
+   finger wants more. */
+@media (pointer: coarse) {
+  .mission-speeds button, .mission-pause, .mission-restart, .mission-sound, .mission-abort, .mission-fold { min-height: 36px; min-width: 36px; }
+  .mission-pause kbd { display: none; }
+}
 .mission-speeds { display: inline-flex; gap: 2px; }
 .mission-speeds button {
-  font-family: var(--font-mono); font-size: 0.76rem; padding: 4px 9px; cursor: pointer;
+  font-family: var(--font-mono); font-size: 0.76rem; padding: 4px 9px; min-height: 26px; cursor: pointer;
   background: transparent; color: var(--ink-faint);
   border: 1px solid var(--surface-line); border-radius: 999px;
 }
@@ -417,3 +434,31 @@ body.is-flying .rail { display: none; }
 }
 @media (max-height: 600px) and (min-width: 600px) { .coach { display: none; } }
 @media (prefers-reduced-motion: reduce) { .coach { animation: none; } }
+
+/* Guided tour caption: what the stop shows, and where the figure comes from. Top centre on a
+   desktop, between the header and the data sheet; above the dock on a phone. */
+.tour-card {
+  /* Between the header (right edge 256 px) and the collapsed data sheet (380 px wide at the
+     right), centred in what is left and never wider than a comfortable line. */
+  position: absolute; top: 24px; left: 280px; right: 428px; margin: 0 auto; max-width: 460px; padding: 12px 16px;
+  background: var(--surface-solid); border: 1px solid var(--surface-line); border-radius: var(--radius-panel);
+  backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); box-shadow: var(--shadow-panel);
+}
+.tour-text { margin: 6px 0 6px; font-size: 0.86rem; line-height: 1.45; color: var(--ink); }
+.tour-src { font-size: 0.76rem; color: var(--ink-muted); }
+/* Tablet: the collapsed sheet is 320 px wide here and leaves no room beside the header, so
+   the caption goes under the sheet, right of the vehicle rail. */
+@media (max-width: 1100px) and (min-width: 821px) {
+  .tour-card { top: 96px; left: 280px; right: 24px; max-width: none; }
+}
+@media (max-width: 820px) {
+  .tour-card { top: auto; bottom: 76px; left: 8px; right: 8px; max-width: none; margin: 0; }
+}
+body.is-touring .coach { display: none; }
+
+/* ?perf readout: small, out of the way, never taking pointer input. */
+.perf-meter {
+  position: fixed; left: 50%; bottom: 6px; transform: translateX(-50%); z-index: 50; pointer-events: none;
+  font-family: var(--font-mono); font-size: 11px; color: #e8e6e0; background: rgba(12, 14, 18, 0.82);
+  padding: 3px 8px; border-radius: 6px; white-space: nowrap; max-width: calc(100vw - 16px); overflow: hidden; text-overflow: ellipsis;
+}

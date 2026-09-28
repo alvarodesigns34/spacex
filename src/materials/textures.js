@@ -265,7 +265,6 @@ export function makeSteel({ size = 768, ring = 1.83, heat = 0, soot = 0 } = {}) 
 export function makeFalconBody({ w = 1024, h = 2048, height = 41.2, name = 'FALCON 9', flown = false } = {}) {
   const map = canvas(w, h);
   const rough = canvas(Math.round(w / 2), Math.round(h / 2));
-  const circumference = Math.PI * 3.7;
   // Panel (barrel section) lines every ~2.4 m in height, plus 4 longitudinal welds (approximation).
   const panelPitch = 2.4 / height;
   // Soot on a flight-proven booster, as photographed after landing (Commons, B1019 at LZ-1, and

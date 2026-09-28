@@ -24,8 +24,7 @@
  */
 import { createServer } from 'node:http';
 import { staticHandler } from './static.mjs';
-import { readFile, mkdir } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
+import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { bootAtQuality } from './census.mjs';

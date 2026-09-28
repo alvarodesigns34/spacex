@@ -7,7 +7,7 @@ import { SOURCES, SOURCE_LABEL } from '../data/specs.js';
 const fmtHeight = (h) => `${h >= 10 ? Math.round(h) : h} m`;
 const THREE_DEG20 = Math.PI / 9;
 
-export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSun, onReset, onLaunch, onLaunchAbort, onLaunchSpeed, onLaunchSound, onTour, onHelp }) {
+export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWalk, onSun, onReset, onLaunch, onLaunchAbort, onLaunchSpeed, onLaunchSound, onLaunchPause, onLaunchSeek, onLaunchRestart, onTour, onHelp }) {
   const root = document.getElementById('hud');
   root.innerHTML = `
     <header class="hud-header">
@@ -47,6 +47,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       <button class="tool tool-btn tool-launch" id="launch-btn" title="Starship launch sequence from Pad 2 (G)">Starship · Launch <kbd>G</kbd></button>
       <button class="tool tool-btn" id="tour-btn" title="Guided tour of the centre (P)">Tour <kbd>P</kbd></button>
       <button class="tool tool-btn" id="mode-btn" title="Switch camera mode (F)">Orbit <kbd>F</kbd></button>
+      <button class="tool tool-btn" id="walk-btn" type="button" aria-pressed="false" title="Walk the apron at eye height, 1.7 m (V)">Walk <kbd>V</kbd></button>
       <button class="tool tool-btn" id="clean-btn" type="button" aria-pressed="false" title="Hide the interface">Clean scene</button>
       <button class="tool tool-btn" id="help-btn" title="Help (H)">Help <kbd>H</kbd></button>
     </div>
@@ -62,6 +63,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       <div class="mission-head">
         <span class="mission-clock" id="mission-clock">T−00:00:40</span>
         <span class="mission-phase" id="mission-phase">Terminal count</span>
+        <button type="button" class="icon-btn mission-fold" id="mission-fold" aria-expanded="true" aria-controls="mission" title="Fold the panel to the clock and the controls">–</button>
         <span class="mission-next" id="mission-next"></span>
       </div>
       <p class="mission-kind">Composite demo, not one flight: V3 on Pad 2 · count and ascent timed to flight 7 · catch to flight 5 · return computed</p>
@@ -83,20 +85,28 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
           </div>
         </div>
       </div>
-      <figure class="mission-plot" aria-label="Altitude profile of the flight">
-        <svg id="mission-plot" viewBox="0 0 400 74" preserveAspectRatio="none"></svg>
+      <figure class="mission-plot" aria-label="Altitude profile of the flight · click to jump to that moment">
+        <svg id="mission-plot" viewBox="0 0 400 74" preserveAspectRatio="none"><title>Click or drag to jump to that moment · ← → step between milestones</title></svg>
         <figcaption><span class="mp-ship">Ship</span><span class="mp-booster">Booster</span><span class="mp-scale">altitude, square-root scale</span></figcaption>
       </figure>
       <div class="mission-foot">
+        <button type="button" class="mission-pause" id="mission-pause" aria-pressed="false" title="Pause the mission clock (K)">Pause <kbd>K</kbd></button>
         <div class="mission-speeds" id="mission-speeds" role="group" aria-label="Playback speed">
-          <button type="button" data-k="1" class="active" aria-pressed="true" aria-label="Speed ×1">×1</button><button type="button" data-k="2" aria-pressed="false" aria-label="Speed ×2">×2</button><button type="button" data-k="5" aria-pressed="false" aria-label="Speed ×5">×5</button><button type="button" data-k="10" aria-pressed="false" aria-label="Speed ×10">×10</button>
+          <button type="button" data-k="0.25" aria-pressed="false" aria-label="Speed ×0.25, slow motion">×¼</button><button type="button" data-k="1" class="active" aria-pressed="true" aria-label="Speed ×1">×1</button><button type="button" data-k="2" aria-pressed="false" aria-label="Speed ×2">×2</button><button type="button" data-k="5" aria-pressed="false" aria-label="Speed ×5">×5</button><button type="button" data-k="10" aria-pressed="false" aria-label="Speed ×10">×10</button>
         </div>
         <button class="mission-sound" id="mission-sound" aria-pressed="false" title="Engine sound, delayed by distance at the speed of sound">Sound off</button>
+        <button type="button" class="mission-restart" id="mission-restart" title="Back to T−40 and run again">Restart</button>
         <button class="mission-abort" id="mission-abort">End</button>
       </div>
-      <details class="mission-note"><summary>Composite demonstration · sources and limits</summary><p><b>Not a reconstruction of one flight.</b> The vehicle and the pad are the V3 / Pad 2 configuration that debuted on flight 12 (22 May 2026), but that flight did <i>not</i> attempt a catch: booster 19 was sent to the Gulf and its landing burn failed to relight. So the terminal count and the ascent milestones are flight 7's (GO for launch T−0:30 · flame deflector T−0:10 · ignition T−0:03 · liftoff T+0:02 · Max-Q 1:02 · MECO 2:32 · hot-staging 2:40) and the return milestones are flight 5's, the flight on which a booster was first caught (boostback 2:45–3:41, landing burn 6:30, caught 6:54). Between the milestones, the ascent's speed curve, gravity turn and separation speed are authored. The booster's return is <i>computed</i> from that state with gravity, drag and two burns; their size and direction and the drag are solved so the cited times are met and the booster goes transonic five seconds before its landing burn, as flight 7's did (T+6:26, burn T+6:31). The centre three then ease it into the arms over the last 17 s. Mass, drag and the resulting apogee (≈ 83 km) are assumptions and results, not flight data. Tower clear, supersonic, booster apogee and booster transonic are read off this model, not cited, and the panel marks their times ≈: the transonic crossing (≈T+6:25) is the model's, tuned to the flight-7 interval, not flight 7's own T+6:26. The sound, when on, is synthesised: a rumble and crackle that reach the camera at 343 m/s.</p></details>
+      <details class="mission-note"><summary>Composite demonstration · sources and limits</summary><p><b>Not a reconstruction of one flight.</b> The vehicle and the pad are the V3 / Pad 2 configuration that debuted on flight 12 (22 May 2026), but that flight did <i>not</i> attempt a catch: booster 19 was sent to the Gulf and its landing burn failed to relight. So the terminal count and the ascent milestones are flight 7's (GO for launch T−0:30 · flame deflector T−0:10 · ignition T−0:03 · liftoff T+0:02 · Max-Q 1:02 · MECO 2:32 · hot-staging 2:40) and the return milestones are flight 5's, the flight on which a booster was first caught (boostback 2:45–3:41, landing burn 6:30, caught 6:54). Between the milestones, the ascent's speed curve, gravity turn and separation speed are authored. After separation the ship is <i>integrated</i> as a rocket from its published thrust and propellant, with its dry mass and specific impulses assumed, steered to level off near 150 km: its speed and height are results, not telemetry. The booster's return is <i>computed</i> from that state with gravity, drag and two burns; their size and direction and the drag are solved so the cited times are met and the booster goes transonic five seconds before its landing burn, as flight 7's did (T+6:26, burn T+6:31). The centre three then ease it into the arms over the last 17 s. Mass, drag and the resulting apogee (≈ 83 km) are assumptions and results, not flight data. Tower clear, supersonic, booster apogee and booster transonic are read off this model, not cited, and the panel marks their times ≈: the transonic crossing (≈T+6:25) is the model's, tuned to the flight-7 interval, not flight 7's own T+6:26. The sound, when on, is synthesised: a rumble and crackle that reach the camera at 343 m/s.</p></details>
     </div>
     <div class="callout" id="callout" aria-live="polite"></div>
+
+    <aside class="tour-card hidden" id="tour-card" aria-live="polite" aria-label="Guided tour">
+      <div class="eyebrow" id="tour-step"></div>
+      <p class="tour-text" id="tour-text"></p>
+      <a class="tour-src" id="tour-src" target="_blank" rel="noopener"></a>
+    </aside>
 
     <div class="scale" id="scale">
       <div class="scale-bar"><span id="scale-label">10 m</span></div>
@@ -115,13 +125,15 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
         <div class="eyebrow">Controls</div>
         <table>
           <tr><td>Drag</td><td>orbit · <em>wheel</em> zoom towards the cursor · <em>right button</em> pan</td></tr>
-          <tr><td>Double-click</td><td>orbit around the point you clicked</td></tr>
+          <tr><td>Double-click</td><td>orbit around the point you clicked · walking: walk there</td></tr>
+          <tr><td><kbd>V</kbd></td><td>walk at eye height (1.7 m): <kbd>W A S D</kbd> or arrows · drag to look · <kbd>Shift</kbd> runs · double-click (or double-tap) to walk to a spot</td></tr>
           <tr><td><kbd>F</kbd></td><td>free flight: <kbd>W A S D</kbd> move · <kbd>Q</kbd>/<kbd>E</kbd> (or <kbd>C</kbd>/<kbd>space</kbd>) down/up · drag to look · <kbd>Shift</kbd> ×4 · <kbd>Ctrl</kbd> ×0.2 · wheel adjusts speed</td></tr>
           <tr><td><kbd>1</kbd>–<kbd>${vehicles.length}</kbd></td><td>select exhibit</td></tr>
           <tr><td><kbd>L</kbd> <kbd>R</kbd> <kbd>T</kbd></td><td>labels · ruler · data sheet</td></tr>
           <tr><td><kbd>0</kbd></td><td>overview of the centre</td></tr>
           <tr><td><kbd>P</kbd></td><td>guided tour — the camera walks the centre stop by stop; any drag, scroll or click ends it</td></tr>
           <tr><td><kbd>G</kbd></td><td>Starship launch sequence · during the countdown and ascent, dragging or scrolling hands the camera back to you without stopping it</td></tr>
+          <tr><td><kbd>K</kbd> <kbd>←</kbd> <kbd>→</kbd></td><td>during the launch: pause · previous / next milestone · click the flight profile to jump anywhere</td></tr>
         </table>
         <p class="help-note">1:1 scale — one scene unit is one metre. Figures marked <span class="chip chip-approx">≈</span> have no exact published value and were reconstructed from imagery.</p>
         <button class="btn" id="help-close">Close</button>
@@ -235,12 +247,23 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
   el('#tg-humans').addEventListener('change', (e) => onToggle('humans', e.target.checked));
   el('#sun').addEventListener('input', (e) => onSun(Number(e.target.value)));
   el('#mode-btn').addEventListener('click', () => onMode());
+  el('#walk-btn').addEventListener('click', () => onWalk?.());
   const tourBtn = el('#tour-btn');
   tourBtn.addEventListener('click', () => onTour?.());
   /** null ends the tour; otherwise {step, total} lights the button and shows progress. */
+  const tourCard = el('#tour-card');
   function setTour(st) {
     tourBtn.classList.toggle('is-live', !!st);
     tourBtn.innerHTML = st ? `Tour ${st.step}/${st.total} <kbd>P</kbd>` : 'Tour <kbd>P</kbd>';
+    tourCard.classList.toggle('hidden', !st?.text);
+    document.body.classList.toggle('is-touring', !!st);
+    if (!st?.text) return;
+    hideCoach();
+    el('#tour-step').textContent = `Tour · ${st.step} of ${st.total} · ${st.name ?? ''}`;
+    el('#tour-text').textContent = st.text;
+    const src = el('#tour-src'), ref = SOURCES[st.src];
+    src.textContent = ref ? `Source: ${ref.label}` : '';
+    if (ref) src.href = ref.url; else src.removeAttribute('href');
   }
   // ---- Help dialog -----------------------------------------------------------------------
   // It declares aria-modal, so it has to behave like one: focus moves into it when it opens,
@@ -333,6 +356,27 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
   const speeds = [...root.querySelectorAll('#mission-speeds button')];
   launchBtn.addEventListener('click', () => onLaunch?.());
   el('#mission-abort').addEventListener('click', () => onLaunchAbort?.());
+  el('#mission-restart').addEventListener('click', () => onLaunchRestart?.());
+  // The panel can fold down to the clock, the phase and the transport row. On a phone held
+  // sideways it starts folded: expanded, it covered all but the top 70 px of an 844 × 390
+  // screen and the rocket it describes.
+  const foldBtn = el('#mission-fold');
+  function foldMission(on) {
+    mission.classList.toggle('is-compact', on);
+    foldBtn.setAttribute('aria-expanded', String(!on));
+    foldBtn.textContent = on ? '+' : '–';
+    foldBtn.setAttribute('aria-label', on ? 'Expand the mission panel' : 'Fold the mission panel');
+  }
+  foldBtn.addEventListener('click', () => foldMission(!mission.classList.contains('is-compact')));
+  foldMission(matchMedia('(max-height: 600px)').matches);
+  const pauseBtn = el('#mission-pause');
+  pauseBtn.addEventListener('click', () => onLaunchPause?.(pauseBtn.getAttribute('aria-pressed') !== 'true'));
+  function showPaused(on) {
+    if (pauseBtn.getAttribute('aria-pressed') === String(on)) return;
+    pauseBtn.setAttribute('aria-pressed', String(on));
+    pauseBtn.classList.toggle('active', on);
+    pauseBtn.innerHTML = `${on ? 'Resume' : 'Pause'} <kbd>K</kbd>`;
+  }
   // Sound is opt-in: nothing plays until this is pressed, and the choice is remembered.
   function setSound(on) {
     soundBtn.setAttribute('aria-pressed', String(on));
@@ -425,6 +469,29 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
     c.setAttribute('y1', 0); c.setAttribute('y2', 74); c.setAttribute('class', 'mp-cursor'); c.id = 'mp-cursor';
     plot.appendChild(c);
   }
+  // The profile is also the timeline: a click or a drag seeks the mission there. seek() is
+  // deterministic (the cloud is re-simulated from ignition), so a jump lands on the frame the
+  // playback would have reached. Drags are coalesced to one seek per animation frame.
+  let seekRaf = 0, seekWant = null;
+  const tAtPointer = (e) => {
+    const r = plot.getBoundingClientRect();
+    const u = Math.max(0, Math.min(1, (e.clientX - r.left) / Math.max(1, r.width)));
+    return plotSpan ? plotSpan.t0 + u * (plotSpan.t1 - plotSpan.t0) : null;
+  };
+  const queueSeek = (t) => {
+    if (t === null) return;
+    seekWant = t;
+    if (seekRaf) return;
+    seekRaf = requestAnimationFrame(() => { seekRaf = 0; onLaunchSeek?.(seekWant); });
+  };
+  plot.addEventListener('pointerdown', (e) => { plot.setPointerCapture?.(e.pointerId); queueSeek(tAtPointer(e)); });
+  plot.addEventListener('pointermove', (e) => { if (plot.hasPointerCapture?.(e.pointerId)) queueSeek(tAtPointer(e)); });
+  /** The milestone before or after t, for the arrow keys. */
+  function milestoneStep(t, dir) {
+    const ts = milestones.map(m => m[0]);
+    if (dir > 0) return ts.find(x => x > t + 0.5) ?? null;
+    return [...ts].reverse().find(x => x < t - 0.5) ?? plotSpan?.t0 ?? null;
+  }
   /** Called every frame while a sequence runs; null puts the panel away. */
   function setMission(st) {
     if (!st) {
@@ -466,6 +533,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
       if (hit) showCallout(hit[1]);
     }
     lastT = st.t;
+    showPaused(!!st.paused);
     for (const b of speeds) {
       const on = Number(b.dataset.k) === st.speed;
       b.classList.toggle('active', on);
@@ -481,6 +549,8 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
   function setMode(mode) {
     el('#mode-btn').innerHTML = (mode === 'fly' ? 'Free flight' : 'Orbit') + ' <kbd>F</kbd>';
     root.classList.toggle('fly', mode === 'fly');
+    root.classList.toggle('walk', mode === 'walk');
+    el('#walk-btn').setAttribute('aria-pressed', String(mode === 'walk'));
   }
 
   const scaleLabel = el('#scale-label');
@@ -614,5 +684,5 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onSu
   };
   root.querySelector('#coach-close').addEventListener('click', hideCoach);
 
-  return { setActive, setPreset, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setTrajectory, setTour, showHelp, setMap, setMapCamera, showCoach, hideCoach, soundWanted };
+  return { setActive, setPreset, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setTrajectory, setTour, showHelp, setMap, setMapCamera, showCoach, hideCoach, soundWanted, milestoneStep };
 }
