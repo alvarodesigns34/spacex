@@ -254,7 +254,7 @@ const mutants = [
   ['fila del pad con la zanja antigua', withVehicles(v => { const r = v.find(x => x.id === 'starship').specs.find(x => (x.pad ?? []).includes('trenchDepth')); r.value = r.value.replace('4.2 m deep', '8.2 m deep'); })],
   ['cabecera de la ficha escrita a mano', withVehicles(v => { v.find(x => x.id === 'falcon9').footprint = 3.7; })],
   ['cifra sin fila en la ficha', withVehicles(v => { for (const r of v.find(x => x.id === 'engines').specs) delete r.fig; })],
-  ['recuento de losetas antiguo en la ficha', withVehicles(v => { const r = v.find(x => x.id === 'starship').specs.find(x => x.label === 'Heat shield'); r.value = r.value.replace('13,361', '13,132'); })],
+  ['recuento de losetas antiguo en la ficha', withVehicles(v => { const r = v.find(x => x.id === 'starship').specs.find(x => x.label === 'Heat shield'); r.value = r.value.replace('13,267', '13,132'); })],
   ['etiqueta 3-D con la zanja antigua', { ...base, builders: { ...BUILDERS, 'pad.js': BUILDERS['pad.js'] + "\n{ label: 'Bidirectional flame trench · 8.2 m', position: [0, 0, 0] }" } }],
   ['fuente inexistente', { ...base, figures: { ...FIGURES, dragon: { ...FIGURES.dragon, height: { ...FIGURES.dragon.height, ref: 'no_such_source' } } } }],
   // The round of 27 Sep 2026: each drift that was found, put back.

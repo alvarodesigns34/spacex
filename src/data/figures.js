@@ -99,7 +99,7 @@ export const COUNTS = {
     { key: 'engineCount', want: 39, grade: 'A', ref: 'spacex_starship', label: 'Raptor · 33 + 3 + 3 (spacex.com)' },
     // The model's own count, not a published one (Wikipedia gives ≈18,000 for the real ship):
     // held exactly so the figure the sheet and the loading screen state cannot drift.
-    { key: 'tileCount', want: 13361, grade: 'D', label: 'losetas modeladas', sheet: 'Heat shield' },
+    { key: 'tileCount', want: 13267, grade: 'D', label: 'losetas modeladas', sheet: 'Heat shield' },
   ],
   // Nine Merlin 1D on the first stage and one Merlin Vacuum on the second.
   falcon9: [{ key: 'engineCount', want: 10, grade: 'A', ref: 'spacex_f9', label: 'Merlin · 9 + 1 MVac (spacex.com)' }],

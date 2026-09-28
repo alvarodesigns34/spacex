@@ -438,7 +438,10 @@ export function makeWhitePaint({ size = 512, tile = 2.0, grid = 0, tone = 0.94, 
 //  becomes a speckled smear with a frayed edge. This bakes the same mosaic into a tileable
 //  map so the far view gets a clean panel, and the instanced tiles are kept for close range.
 // =====================================================================================
-export function makeTpsPattern({ size = 512, circumradius = 0.152, gap = 1.012, cols = 4, rows = 4 } = {}) {
+// 16 × 16 tiles, not 4 × 4: with a four-tile period the tile-to-tile tone variation repeated
+// every metre, and down a 50 m barrel that repetition read as vertical stripes. Rows must stay
+// even for the staggered lattice to wrap.
+export function makeTpsPattern({ size = 1024, circumradius = 0.152, gap = 1.012, cols = 16, rows = 16 } = {}) {
   const w = Math.sqrt(3) * circumradius * gap;   // column pitch (flat to flat)
   const dy = 1.5 * circumradius * gap;           // row pitch
   const W = cols * w, H = rows * dy;             // physical size the texture covers
@@ -466,15 +469,22 @@ export function makeTpsPattern({ size = 512, circumradius = 0.152, gap = 1.012, 
     }
     return { d1, seam: d2 - d1, ca, cb };
   };
-  const seamWidth = circumradius * 0.09;
+  const seamWidth = circumradius * 0.12;
   shade(map, (px, py, u, v) => {
     const { seam, ca, cb } = cell(u * W, v * H);
-    const tone = 0.131 + (hash(ca, cb) - 0.5) * 0.045 + (fbm(u * 2.5, v * 2.5, 3) - 0.5) * 0.03;
+    // Tile-to-tile tone plus patches a few tiles across, both hashed on the wrapped lattice
+    // index so the map tiles seamlessly (a plain fbm of u, v would not wrap). The photographs
+    // show exactly that: single tiles lighter or darker than their neighbours, and replaced
+    // patches of a slightly different shade.
+    const ia = ((ca % cols) + cols) % cols, ib = ((cb % rows) + rows) % rows;
+    const patch = hash(Math.floor(ia / 4) + 101, Math.floor(ib / 3) + 57) - 0.5;
+    const tone = 0.131 + (hash(ia, ib) - 0.5) * 0.06 + patch * 0.03;
     const g = Math.min(1, seam / seamWidth);            // 0 on the seam, 1 in the tile
-    // The joints are pale (the instanced tiles' chamfered edges), but the baked seam is
-    // several times wider than a real 3 mm joint, so it is only lifted a little: at the switch
-    // distance a joint is a fraction of a pixel and only its share of the average survives.
-    const c = tone * (g + 1.35 * (1 - g));
+    // The joints are pale (the instanced tiles' chamfered edges catch the sky). The baked seam
+    // is wider than a real 3 mm joint, and lifted enough that the lattice still reads once the
+    // shell takes over: a flat, barely lifted seam made the far state look like a plain grey
+    // skin from a couple of hundred metres, where the eye still expects to see the mosaic.
+    const c = tone * (g + 1.75 * (1 - g));
     return [clamp(c * 246), clamp(c * 250), clamp(c * 262)];
   });
   shade(rough, (px, py, u, v) => {

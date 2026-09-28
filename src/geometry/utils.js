@@ -359,11 +359,15 @@ export function tileSurfaceOfRevolution(mesh, profile, opts) {
     const span = full ? Math.PI * 2 : 2 * half;
     const count = Math.max(full ? 3 : 1, Math.round(span / dphi));
     const step = span / count;
+    // Alternate rows sit half a column over: that is what lets pointy-top hexagons at a row
+    // pitch of 1.5 R nest. Partial arcs (the windward half of the ship) used to shift odd rows
+    // by only a QUARTER column, so every tile's upper and lower points stood on its neighbours
+    // — a regular overlap over the whole belly, sawtoothed where the faces fought for depth.
     const offset = (row % 2) * 0.5;
     for (let k = 0; k < count; k++) {
       const phi = full
         ? phiCenter + step * (k + offset)
-        : phiCenter - half + step * (k + 0.5 + offset * 0.5);
+        : phiCenter - half + step * (k + 0.5 + offset);
       if (!full && phi > phiCenter + half - step * 0.25) continue;
       if (maskFn && !maskFn(y, phi)) continue;
       if (i >= mesh.count) return i;

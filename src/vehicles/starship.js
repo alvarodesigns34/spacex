@@ -33,7 +33,7 @@ const RACE_PHI = Math.PI * 0.78;
 const DOOR_PHI = Math.PI * 1.18;
 
 // Tile geometry: reported ≈12 in (0.305 m) point to point → circumradius ≈0.152 m,
-// ≈0.264 m across the flats. Instanced; 13 361 of them cover the ship (userData.tileCount, checked by verify.js).
+// ≈0.264 m across the flats. Instanced; 13 267 of them cover the ship (userData.tileCount, checked by verify.js).
 const TILE_R = 0.152;
 const TILE_T = 0.016;
 
@@ -750,10 +750,14 @@ export function buildShip(M) {
   // the mosaic and its grooves are then a signal finer than the sampling grid, and it aliases
   // into a field of bright speckle that is both wrong and noticeably lighter than the baked
   // shell it replaced — visible as a hard pop across the whole windward face at about ninety
-  // metres. `bias` is a multiplier on the threshold, so 2.1 holds the shell until a tile is
-  // about seven pixels, where the hexagons and their grooves actually resolve. It is also the
-  // cheaper setting: the one-mesh shell covers more of the range, not less.
-  g.userData.lod = { name: 'tps', near: [tiles, backing], far, state: true, feature: TILE_R * 2, bias: 2.1 };
+  // metres. `bias` is a multiplier on the threshold. At 2.1 the shell held until a tile was
+  // about seven pixels, but its baked mosaic was then too faint to read as hexagons, and the
+  // swap felt like "detail only within a few metres". 1.5 swaps at about five pixels a tile,
+  // still clear of the speckle (renders at 40, 60 and 100 m), and the shell now carries a
+  // mosaic that reads as one: pale joints, tile-to-tile tone, no short repeat. Past about
+  // 150 m a 0.26 m tile is under two pixels and no rendering can draw its outline; what is
+  // left to show there is the tone of the field, which is what the shell's mip chain gives.
+  g.userData.lod = { name: 'tps', near: [tiles, backing], far, state: true, feature: TILE_R * 2, bias: 1.5 };
 
   // Leeward raceway over the LOX downcomer, stopping below the forward flaps.
   const raceLen = barrelTop - skirtTop - 2.4;
@@ -829,7 +833,7 @@ export function buildShip(M) {
 
   g.userData.annotations = [
     { label: '3 Raptor + 3 Raptor Vacuum', position: [0, -0.4, 5.0] },
-    { label: 'Heat shield · 13,361 hexagonal tiles modelled', position: [0, 27, R + 0.7] },
+    { label: 'Heat shield · 13,267 hexagonal tiles modelled', position: [0, 27, R + 0.7] },
     { label: 'Aft flap', position: [R + 4.4, rings(1) + 3.5, 1.2] },
     { label: 'Forward flap (leeward side)', position: [Math.sin(fwdPhi) * (R + 2.4), fwdBase + 3.2, Math.cos(fwdPhi) * (R + 2.4)] },
     { label: 'Payload bay', position: [0, doorY, -(R + 0.9)] },

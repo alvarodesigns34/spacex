@@ -303,7 +303,7 @@ async function main() {
 
   const builders = {
     falcon1: [buildFalcon1, 'Falcon 1 · historical exhibit…'],
-    starship: [buildStarship, 'Starship and Super Heavy · 13,361 instanced tiles…'],
+    starship: [buildStarship, 'Starship and Super Heavy · 13,267 instanced tiles…'],
     falcon9: [buildFalcon9, 'Falcon 9…'],
     falconheavy: [buildFalconHeavy, 'Falcon Heavy…'],
     dragon: [buildDragon, 'Dragon…'],
@@ -433,7 +433,7 @@ async function main() {
     }
     // ---- Level of detail ------------------------------------------------------------
     // Two ways a vehicle takes part. A builder may publish a near/far PAIR — Starship's heat
-    // shield does, swapping 13,361 instanced hexagons for one textured shell — or it may
+    // shield does, swapping 13,267 instanced hexagons for one textured shell — or it may
     // simply name groups that stop being worth drawing below a pixel threshold. Both are
     // registered against the exhibit's live position, because a vehicle in flight is not
     // where its mount is.
@@ -869,7 +869,7 @@ async function main() {
   const TOUR = [
     ['starship', 'site', 8, 'Pad 2 at Starbase, rebuilt at 1:1: a square, water-cooled launch mount with 20 hold-down clamps over a bidirectional flame trench, and catch arms about 26 m long. The tower\'s ≈144.5 m is an estimate.', 'nsf_pad2'],
     ['starship', 'engines', 6, '33 Raptor 3 hang in the open below Super Heavy\'s thrust ring. Each Raptor 3 is 1.3 m across, 2.9 m tall and gives 250 tf.', 'spacex_starship'],
-    ['starship', 'tiles', 6, 'The real ship carries about 18,000 hexagonal tiles; 13,361 are modelled here, each 0.26 m across the flats.', 'wiki_starship'],
+    ['starship', 'tiles', 6, 'The real ship carries about 18,000 hexagonal tiles; 13,267 are modelled here, each 0.26 m across the flats.', 'wiki_starship'],
     ['starship', 'flaps', 6, 'Two forward flaps on the leeward side and two aft flaps steer the ship back through the atmosphere. On V3 each aft flap has one actuator with three motors.', 'spacex_v3'],
     ['starship', 'trench', 6, 'The flame trench: a concrete bathtub lined with stainless steel, open at both ends, with a deflector of steel pipes in the middle. Its 22 m width and 4.2 m depth are reconstructed.', 'nsf_pad2'],
     ['falcon9', 'overview', 6, 'Falcon 9 Block 5: 70 m tall and 3.66 m across (12 ft), nine Merlin 1D on the first stage and one Merlin Vacuum above.', 'spacex_f9'],

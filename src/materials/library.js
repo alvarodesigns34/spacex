@@ -263,7 +263,8 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
     // the faces clear of it the field is lighter again, and 1.75 matched it within 1/255 — seen
     // obliquely, as the old display yaw showed it. Face-on, as the belly now faces the exhibit
     // row, the tile chamfers catch more light and the field was 8/255 lighter than the shell:
-    // 2.3 holds face-on, oblique and from above within ±2.
+    // 2.3 holds face-on, oblique and from above within ±2. With the 16 × 16 map and its paler
+    // joints (September 2026) it still holds: the shell is 0.9 and 3.1/255 lighter at 45 m.
     color: new THREE.Color(2.3, 2.3, 2.38),
     normalScale: new THREE.Vector2(0.5, 0.5), roughness: 0.84, metalness: 0.0, envMapIntensity: 0.9,
     // It sits a couple of centimetres off the hull it covers; at a few hundred metres that is
