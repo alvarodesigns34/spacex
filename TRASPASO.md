@@ -4,18 +4,56 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ---
 
+## ⭐ Empieza aquí (sesión local con Claude in Chrome, 29-09-2026 por la noche)
+
+Hasta ahora trabajábamos en un contenedor en la nube. **A partir de aquí sigues en local**, en mi ordenador, con **Claude in Chrome**. Eso cambia varias cosas:
+
+1. **Lo primero de todo: confirma que Claude in Chrome te funciona** (abre una pestaña, navega a https://alvarodesigns34.github.io/spacex/ y haz una captura). Si no te funciona, dímelo antes de seguir.
+2. **Pon el repo al día:** `git fetch --all` y trabaja sobre `claude/spacex-vehicle-center-3d-48zlkm` (rama por defecto; último commit de la sesión en la nube: `326293e`). `npm install` si hace falta. Para Playwright en local sí puedes instalar su navegador (`npx playwright install chromium`); lo de `/opt/pw-browsers` y la CA del proxy (sección 2) era solo del contenedor.
+3. **Qué ganas con Chrome:**
+   - **Investigar**: navegas como una persona (spacex.com, NASA, Wikipedia, NSF, RingWatchers, Flickr de SpaceX, X/Twitter de SpaceX, patentes en Google Patents, Car and Driver…). En la nube, muchas webs cortaban la conexión o daban 403 a scripts. **Sigue sin eludirse ninguna protección antibots ni inicios de sesión que no sean míos.**
+   - **Revisar la simulación a mano y rápido**: ábrela en Chrome (Pages, o en local con `npm run serve` → http://localhost:8080; en Windows puede ser `py -m http.server 8080`), muévete, pulsa teclas, y usa la consola con `window.__vc` (sección 1) para saltar a encuadres (`v.jump('falcon9','legs')`), a instantes del lanzamiento (`v.launch.seek(421)`) o fijar el nivel de detalle. Es mucho más rápido que renderizar con `_frames.mjs` (18–40 s por fotograma en el contenedor).
+   - `_frames.mjs`, `_probe.mjs` y `_web.mjs` (anexo) siguen sirviendo para capturas deterministas y comparaciones antes/después; recréalas si no están (no están en el repo).
+4. **Ramas:** empuja el mismo commit a las **cuatro**: `claude/spacex-vehicle-center-3d-48zlkm` (Pages), `claude/dreamy-bell-qn1eth`, `grok/sun18-audit-10c9929` y `claude/elegant-ptolemy-l99qgo`, más la rama que te asigne tu sesión si te asigna una. Sin pull requests.
+5. **Galería**: sigue **sin regenerar** (lleva desfasada desde `b1f09d3`). No la regeneres sin mi aprobación explícita.
+
+### La tarea en curso (lo que te toca hacer)
+
+Mi último encargo, literal: **«una ronda total y ambiciosa de realismo absoluto vehículo por vehículo consultando proporciones, texturas, planos, formas, etc. Y luego, mejora del entorno máxima, del HUD, del lanzamiento y que se vean más cosas, también.»**
+
+Estado: **no se había tocado código todavía para esta ronda.** Iba a empezar renderizando todos los encuadres (`presets`) de cada vehículo para localizar defectos. Plan propuesto (ajústalo con criterio):
+
+1. **Vehículo por vehículo** (orden sugerido: Falcon 9 → Falcon Heavy → Dragon → Falcon 1 → Starlink → Roadster → Starship/Super Heavy → motores). Para cada uno:
+   - reúne **planos y cotas**: Falcon User's Guide 2025 (spacex.com, con dibujos acotados de cofia, adaptadores y etapas), guía de Falcon 1 2008, prensa de la demo del Falcon Heavy, NASA (NTRS, images.nasa.gov) para Dragon, **patentes de SpaceX** con dibujos (rejillas, patas, brazos de captura, conexiones rápidas: Google Patents desde Chrome), **RingWatchers** (anillos y estaciones de Starship/Super Heavy), manual de servicio del Roadster (service.tesla.com), Car and Driver / MotorTrend (cotas del Roadster), Leitenberger y planet4589 (masas y dimensiones);
+   - compara con **fotos de alta resolución** (NASA y Commons se pueden guardar como referencia; las de SpaceX/NSF/Flickr, solo mirarlas: nunca al repo);
+   - corrige **proporciones, formas, detalles, materiales y texturas**, con la cifra y su fuente en `specs.js` (`SOURCES`, filas con `ref`, `approx` cuando toque) y en `data/verify.js` si es una cota comprobable;
+   - verifica con `node tools/check.mjs` y visualmente.
+2. **Entorno**: al máximo de realismo sin añadir objetos ni plantas nuevas (regla 7). Ideas con fuente: el relieve real de Boca Chica (lidar/DEM del USGS: `tnmaccess.nationalmap.gov`), colores del suelo y del agua según fotos, la orientación de la costa (ver pendientes).
+3. **HUD**: más claro y útil (sin romper `ux-check` ni el contraste AA).
+4. **Lanzamiento y «que se vean más cosas»**: ver pendientes abajo; valorar un capítulo de **reentrada de la nave** si hay cronología publicada (vuelo 14, spacex.com).
+
+### Pendientes y hallazgos concretos de la última sesión
+
+- **Aproximación final del propulsor**: en la foto de SpaceX del vuelo 5 (Commons, «Starship Booster Return on Final Approach (54063904149).jpg») el propulsor llega **inclinado ≈15°** hacia la torre y hace el desvío al final; en el modelo baja casi vertical. El regreso es una integración 2-D en `launch.js` (boostback + aterrizaje resueltos por Newton).
+- En esa misma foto, el **agua del deluge de la mesa está funcionando durante la captura** (Pad 1). En el Pad 2 no está confirmado: no lo añadas sin fuente.
+- **Orientación geográfica del sitio**: la Tierra vista desde altura ya es la real (`data/gulf.js`, eje aguas abajo +X con azimut ≈100,8°), pero el sitio 1:1 tiene su costa en −Z (plausible, no real), así que la costa local y la del globo no coinciden entre 9 y 20 km. Arreglarlo del todo implica reorientar el recinto: decisión grande, consúltamela.
+- **Pinzas del Falcon 1 en Omelek** y **tercera ventana de la Dragon**: sin fuente todavía (ver README).
+- **Telemetría real**: SpaceX no la publica como datos; las curvas son del modelo. En las retransmisiones del vuelo 14 se ven velocidad y altitud en pantalla: con Chrome podrías leer algunos valores y contrastar el perfil (anotándolo como lectura de vídeo).
+- Las rondas del 29-09 (torre girada, deluge y parque de tanques desde OSM, encendido simultáneo, tinte del acero, humo del aterrizaje, separación en caliente, halo de vacío, Tierra real) están en el README y en la sección 4.
+
+---
+
 ## 0. Reglas innegociables (léelas primero)
 
 1. **Habla SIEMPRE en español conmigo.** Ni una palabra en inglés en mensajes, resúmenes, preguntas, avisos de progreso ni descripciones de comandos. Está en `CLAUDE.md` del repo y en mi `~/.claude/CLAUDE.md`. Excepciones:
    - el texto de la interfaz de la simulación sigue en inglés;
    - los comentarios del código siguen el estilo existente (en inglés);
    - los mensajes de commit se escriben en inglés, como todos los del historial.
-2. **No crear pull requests.** Empujar siempre el mismo commit a estas **tres ramas** (y a la de la sesión):
+2. **No crear pull requests.** Empujar siempre el mismo commit a estas **cuatro ramas** (y a la de la sesión, si te asigna otra):
    - `claude/dreamy-bell-qn1eth`
    - `grok/sun18-audit-10c9929`
+   - `claude/elegant-ptolemy-l99qgo`
    - `claude/spacex-vehicle-center-3d-48zlkm` (la rama por defecto; la que despliega Pages)
-
-   y, además, a la rama que te asigne la sesión (en la del 28-09 fue `claude/elegant-ptolemy-l99qgo`).
 3. **Antes de cada commit, `npm run check` tiene que terminar con código 0.** Tarda unos 25 minutos. Nunca confirmes sin él.
 4. **Tras cada push, comprueba que GitHub Pages sirve la versión nueva:** https://alvarodesigns34.github.io/spacex/
 5. **No regenerar la galería de capturas** (`docs/screenshots`, `docs/hud`, `npm run shots`) **hasta que yo lo apruebe explícitamente** en cada ocasión. Estado: ver la sección 4.
@@ -112,25 +150,36 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
   until grep -q '^EXIT' $S/check.log; do sleep 10; done   # (con timeout ≤ 590 s por llamada)
   ```
   **No edites archivos servidos mientras corre el check** (el servidor sirve en vivo).
-- **Push a las tres ramas con reintentos:**
+- **Push a las cuatro ramas con reintentos:**
   ```
-  for b in claude/dreamy-bell-qn1eth grok/sun18-audit-10c9929 claude/spacex-vehicle-center-3d-48zlkm; do for d in 2 4 8 16; do git push -q origin HEAD:$b 2>/dev/null && { echo "ok $b"; break; } || sleep $d; done; done
+  for b in claude/dreamy-bell-qn1eth grok/sun18-audit-10c9929 claude/elegant-ptolemy-l99qgo claude/spacex-vehicle-center-3d-48zlkm; do for d in 2 4 8 16; do git push -q origin HEAD:$b 2>/dev/null && { echo "ok $b"; break; } || sleep $d; done; done
   ```
 - **Comprobar Pages**: hacer `curl` a un archivo cambiado con `?x=$RANDOM` hasta que contenga el texto nuevo. El workflow tarda unos 12 minutos porque ejecuta el check antes de desplegar.
 - **Estilo de respuesta que quiero**: en español, claro y honesto. Si algo falla, lo digo con la salida. Pequeños avisos de progreso mientras trabajas en tareas largas.
-- **Entorno**: contenedor remoto. Chromium en `/opt/pw-browsers`; no ejecutar `playwright install`. Para que Chromium navegue por el proxy hace falta la CA en NSS:
+- **Entorno (solo en el contenedor en la nube; en local no aplica)**: Chromium en `/opt/pw-browsers`; no ejecutar `playwright install`. Para que Chromium navegue por el proxy hace falta la CA en NSS:
   ```
   apt-get install -y libnss3-tools   # si falta certutil
   mkdir -p /root/.pki/nssdb && certutil -A -d sql:/root/.pki/nssdb -n ccr-agent-proxy -t "C,," -i /root/.ccr/agent-proxy-ca.crt
   ```
   y lanzar con `proxy: { server: process.env.HTTPS_PROXY }`.
-- **Sin `gh` CLI**: GitHub se usa mediante las herramientas MCP `mcp__github__*`. Por ejemplo, `actions_list` para ver las ejecuciones del workflow.
+- **En la nube no había `gh` CLI**: GitHub se usaba con las herramientas MCP `mcp__github__*` (en local, `gh` si está instalado, o la web en Chrome). Por ejemplo, `actions_list` para ver las ejecuciones del workflow.
 
 ---
 
 ## 3. Historia del trabajo (resumen cronológico)
 
-Hay 118 commits. Los más recientes:
+Commits del 29-09-2026 (los últimos; detalle en el README y en la sección 4):
+
+```
+326293e The real Gulf of Mexico under the flight; landing smoke, hot-staging vents and vacuum halo matched to photographs
+1b0baf3 Pad 2 tower at its traced angle to the trench; deluge and propellant farm from OSM footprints; V3 simultaneous ignition; measured stainless tint
+1e84d68 Launch sequence on SpaceX's flight 14 timeline; tower height from the FAA; vacuum plumes
+e1ed5f0 Fire that reads as fire; smoke grows from its source; walk picks through the fence; tank farm labels; quick guide
+9ae2f44 Heat shield tiles no longer overlap; far mosaic reads as hexagons
+046ee5e Launch camera rides with the rocket; hot staging clipped at the booster dome and ship pivots on itself; …
+```
+
+Anteriores:
 
 ```
 6ec11a5 Document the Falcon 9 stations against the FH demo photograph; README: external audit outcomes
@@ -250,9 +299,9 @@ c5b86c6 Close the tank-farm domes; carbon louvre panel on the Roadster bonnet
   - Humo del aterrizaje, respiraderos de la separación (`uWarm`/`uTail` propios), borde del resplandor `0xff9a44` y halo de vacío azul (`palette.vac`).
   - `lod-pop.mjs`: los encuadres de losetas giran con `model.rotation.y` del expositor.
 - **Red y navegador:** el entorno usa ahora una lista *Custom* de dominios (spacex.com, Wikipedia, Commons, upload.wikimedia.org, NSF, nasa.gov, faa.gov, github.io). Para que Chromium de Playwright confíe en el proxy hay que registrar su CA en el almacén NSS: `certutil -A -d sql:/root/.pki/nssdb -n ccr-agent-proxy -t "C,," -i /root/.ccr/agent-proxy-ca.crt` (`certutil` viene de `libnss3-tools`). Wikimedia devuelve 429 a agentes genéricos: usar miniaturas estándar (`/thumb/…/1280px-…`) y un agente descriptivo sin datos personales («VehicleCenterResearch/1.0 (educational 3D model)»). Los PDF de la FAA se leen con `pdftotext` (`poppler-utils`).
-- **Búsqueda web:** en esta sesión `WebSearch` funciona (resúmenes con enlaces); `WebFetch` y `curl` a spacex.com, Wikipedia, NASA, NSF o github.io están bloqueados. Lo leído por resúmenes se cita como tal.
+- **Búsqueda web (histórico):** en algunas sesiones en la nube solo funcionaban los resúmenes de `WebSearch`; lo leído así se cita como tal. En local, con Chrome, lee la fuente directamente.
 - **Galería:** sigue sin regenerar desde `b1f09d3` y ahora está más desfasada (fila de transporte del panel, botón *Walk*, trayectoria de la nave tras T+2:40, fuego nuevo, botón *Guide*, encuadre *Tank farm*). **Regenerarla necesita aprobación del usuario.**
-- **Red de esta sesión:** solo GitHub y npm. No se pudo contrastar ninguna fuente ni comprobar Pages con `curl`; el estado de Pages se comprueba con `mcp__github__actions_list` (ejecuciones del flujo).
+- **Red (histórico, contenedor en la nube):** la red estaba limitada a una lista de dominios; en local no hay esa limitación.
 - **No hacer:** el regulador de calidad adaptativo (descartado por el usuario). No reintroducir stencil en el render target MSAA (hundió la escena a ~10 fps en GPU real). Por la misma razón, **no añadir una textura de profundidad** a ese render target para «partículas suaves»: obligaría a resolver una profundidad multimuestreada en cada fotograma, el mismo tipo de coste.
 - **Pendientes abiertos, todos a la espera de evidencia:**
   - **altura de la torre**: resuelta con la FAA (≈480 ft + 10 ft, 2022); el registro OE/AAA concreto de la torre del Pad 2 sigue sin localizar (daría la cifra construida, no la planificada);
