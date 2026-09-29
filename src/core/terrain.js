@@ -15,24 +15,50 @@
  * are) are NOT a survey: placed plausibly, clear of the built site, and flagged as reconstructed.
  */
 import { noise2 } from '../materials/textures.js';
+import { LAUNCH_SITE } from '../data/gulf.js';
 
 const smooth = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
 
-/** The Gulf shore's world z at world x (the same line environment.js builds the beach on). */
-export function shoreZ(x) {
-  return -670 + 0.22 * x + 46 * (noise2(x / 280 + 3.1, 7.7) - 0.5) + 18 * (noise2(x / 90, 1.3) - 0.5);
+/**
+ * The coast's own frame. At Boca Chica the Gulf beach runs almost due north–south: Natural
+ * Earth's coastline (data/gulf.js) between 25,97° N and 26,08° N bears ≈355°, so the sea lies
+ * to the east, its normal on an azimuth of ≈85°. The scene's +X is the launch azimuth
+ * (100,8°, gulf.js), which puts that normal 74,5° clockwise of the scene's −Z, seen from
+ * above. Until 29 September 2026 the shore ran along the scene's X axis, with the sea at −Z:
+ * due NNE of the pad, 90° from where it is, so the rocket flew along the beach instead of out
+ * over the Gulf, and the local coast and the real one on the globe did not meet.
+ *
+ * (u, w): u along the shore, w inland; the pad (0, −185) keeps w = −185, so its distance to
+ * the water — "a few hundred yards", as cited in the README — is what it was.
+ */
+export const SHORE_NORMAL_AZ = 85.3;
+const BETA = (SHORE_NORMAL_AZ - (LAUNCH_SITE.azimuthDeg - 90)) * Math.PI / 180;
+const CB = Math.cos(BETA), SB = Math.sin(BETA), PAD_Z = -185;
+/** World (x, z) → coast [u, w]. */
+export function toCoast(x, z) { const dz = z - PAD_Z; return [CB * x + SB * dz, PAD_Z - SB * x + CB * dz]; }
+/** Coast (u, w) → world [x, z]. */
+export function fromCoast(u, w) { const dw = w - PAD_Z; return [CB * u - SB * dw, PAD_Z + SB * u + CB * dw]; }
+
+/** The shoreline's w at u, in the coast frame (the line environment.js builds the beach on). */
+export function shoreZ(u) {
+  return -670 + 46 * (noise2(u / 280 + 3.1, 7.7) - 0.5) + 18 * (noise2(u / 90, 1.3) - 0.5);
 }
+/** Metres seaward of the shoreline at world (x, z); negative inland. */
+export function seaward(x, z) { const [u, w] = toCoast(x, z); return shoreZ(u) - w; }
 
 /**
  * Lomas: [x, z, half-length, half-width, height, axis angle]. Elongated along the prevailing
  * wind, a few metres high, all at least a few hundred metres inland of the beach and clear of
  * the exhibits, the pad and the pools. Reconstructed, not surveyed.
  */
+// Four of them stood east of the site until the coast was turned to its real bearing
+// (29 Sep 2026), where they would now be under the Gulf; they were moved inland, west,
+// which is where the lomas of Boca Chica are.
 export const LOMAS = [
-  [-760, 200, 190, 80, 6.0, 0.4], [-640, -430, 140, 62, 4.5, 1.1], [720, 340, 220, 90, 7.0, -0.3],
-  [900, -90, 160, 70, 5.0, 0.9], [-1120, -150, 260, 105, 8.0, 0.2], [320, 740, 240, 95, 6.0, 0.15],
-  [-400, 800, 200, 85, 5.5, -0.5], [1280, 520, 270, 115, 9.0, 0.6], [-1420, 620, 310, 125, 8.5, -0.2],
-  [110, 1320, 300, 130, 7.0, 0.1], [1350, 160, 180, 80, 5.0, 1.2], [-980, 420, 150, 70, 4.0, 0.8],
+  [-760, 200, 190, 80, 6.0, 0.4], [-640, -430, 140, 62, 4.5, 1.1], [-560, 660, 220, 90, 7.0, -0.3],
+  [-1300, -520, 160, 70, 5.0, 0.9], [-1120, -150, 260, 105, 8.0, 0.2], [320, 740, 240, 95, 6.0, 0.15],
+  [-400, 800, 200, 85, 5.5, -0.5], [-1700, 160, 270, 115, 9.0, 0.6], [-1420, 620, 310, 125, 8.5, -0.2],
+  [110, 1320, 300, 130, 7.0, 0.1], [-950, -820, 180, 80, 5.0, 1.2], [-980, 420, 150, 70, 4.0, 0.8],
   [560, 980, 180, 80, 5.0, -0.7], [-160, 1050, 170, 75, 4.5, 0.3],
 ];
 
@@ -48,7 +74,7 @@ export const POOL_SPEC = [
   if (Math.abs(z) < 75 + R && x > -230 - R && x < 240 + R) return false;       // exhibit row and road
   if (x > 25 - R && x < 75 + R && z > -135 - R && z < 40 + R) return false;       // access road
   if (Math.hypot(x, z + 185) < R + 165) return false;                              // Pad 2 and its berm
-  return z - R > -470;                                                             // clear of the dunes and beach
+  return -seaward(x, z) - R > 200;                                                 // clear of the dunes and beach
 });
 /** Each pool's stretch (1,5–2,3 × along its own axis) and its long half-axis reach. */
 export const poolStretch = (seed) => 1.5 + 0.8 * noise2(seed * 3.7, 0.5);
@@ -71,7 +97,7 @@ export function siteMask(x, z) {
 
 /** 0 on the beach and the foredune, 1 from ~260 m inland of the waterline. */
 export function inland(x, z) {
-  return smooth(160, 260, z - shoreZ(x));
+  return smooth(160, 260, -seaward(x, z));
 }
 
 /** 0..1 how far up a loma this point is (1 at the crest), and the loma's height there. */

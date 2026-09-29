@@ -20,7 +20,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mesh, mergeAll, mat4, boxUV, chunkedInstances } from '../geometry/utils.js';
 import { noise2, canvas, toTexture } from '../materials/textures.js';
-import { POOL_SPEC, poolStretch, terrainHeight } from './terrain.js';
+import { POOL_SPEC, poolStretch, terrainHeight, seaward } from './terrain.js';
 import { waveNormals, grassNormals } from '../materials/library.js';
 
 function quad(x0, z0, x1, z1, y) {
@@ -629,7 +629,7 @@ export function dressCampus(scene, M, { stops = [], quality = 'high' } = {}) {
       if (z > -24 && z < 38 && x > -195 && x < 205) continue;          // site and road
       if (x > 40 && x < 60 && z > -125 && z < 40) continue;            // access road
       if (Math.hypot(x, z + 185) < 175) continue;                      // pad and berm
-      if (z < -440) continue;                                          // dunes and beach
+      if (seaward(x, z) > -230) continue;                              // dunes and beach
       if (ponds.some(([px, pz, pr]) => Math.hypot(x - px, z - pz) < pr * 1.1)) continue;
       // Patchy, not uniform: keep a point only where a low-frequency field says grass.
       if (noise2(x / 60 + 3, z / 60 - 5) < 0.38) continue;

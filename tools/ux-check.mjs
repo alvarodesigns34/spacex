@@ -289,10 +289,10 @@ try {
   await page.evaluate(() => { window.__vc.__ground = window.__vc.rig.groundAt; });
   const measureFly = async (sabotage) => {
     const g = await page.evaluate((sabotage) => {
-      const v = window.__vc; const g = v.__ground(730, 340);
+      const v = window.__vc; const g = v.__ground(-760, 200);
       v.rig.groundAt = sabotage ? () => 0 : v.__ground;
       if (v.rig.mode !== 'fly') v.toggleMode();
-      v.camera.position.set(730, g + 3, 340); v.rig.look.pitch = -0.3;
+      v.camera.position.set(-760, g + 3, 200); v.rig.look.pitch = -0.3;
       document.activeElement?.blur?.();
       return g;
     }, sabotage);

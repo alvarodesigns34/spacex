@@ -1501,7 +1501,7 @@ const EARTH_VERT = /* glsl */`
   }`;
 const EARTH_FRAG = /* glsl */`
   uniform vec3 uSun, uCam, uCentre;
-  uniform float uOpacity, uMapped;
+  uniform float uOpacity, uMapped, uOcean;
   uniform mat3 uGeo;
   uniform sampler2D uColour, uLand;
   uniform vec4 uBox;   // lon0, lat0, lon span, lat span (radians)
@@ -1515,7 +1515,9 @@ const EARTH_FRAG = /* glsl */`
   float fbm3(vec3 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 5; i++) { s += a * n3(p); p *= 2.07; a *= 0.5; } return s; }
   void main() {
     vec3 n = normalize(vN);
-    float land = fbm3(n * 9.0 + 3.1) - 0.56;
+    // Open ocean only, for the re-entry over the northern Pacific: no map there, and no
+    // invented continents either.
+    float land = uOcean > 0.5 ? -1.0 : fbm3(n * 9.0 + 3.1) - 0.56;
     float cloud = smoothstep(0.52, 0.72, fbm3(n * 22.0 + vec3(7.0, 1.0, 4.0)));
     vec3 ocean = vec3(0.02, 0.09, 0.2);
     vec3 ground = mix(vec3(0.16, 0.18, 0.1), vec3(0.34, 0.3, 0.2), fbm3(n * 40.0));
@@ -1617,7 +1619,8 @@ function earthCap(rings = 200, segments = 192, maxDeg = 25) {
 }
 
 export class FlightEarth {
-  constructor() {
+  /** @param {object} [o] ocean: true draws open ocean everywhere and skips the Gulf map */
+  constructor({ ocean = false } = {}) {
     this.group = new THREE.Group();
     this.group.name = 'flight-earth';
     this.group.visible = false;
@@ -1625,7 +1628,7 @@ export class FlightEarth {
     const uni = {
       uCentre: { value: new THREE.Vector3() }, uCam: { value: new THREE.Vector3() },
       uSun: { value: new THREE.Vector3(0, 1, 0) }, uOpacity: { value: 0 },
-      uGeo: { value: new THREE.Matrix3() }, uMapped: { value: 0 },
+      uGeo: { value: new THREE.Matrix3() }, uMapped: { value: 0 }, uOcean: { value: ocean ? 1 : 0 },
       uColour: { value: null }, uLand: { value: null },
       uBox: { value: new THREE.Vector4(GULF.lon0 * d2r, GULF.lat0 * d2r, (GULF.lon1 - GULF.lon0) * d2r, (GULF.lat1 - GULF.lat0) * d2r) },
     };
@@ -1660,7 +1663,7 @@ export class FlightEarth {
 
   /** Draws the land mask from the coastline rings and loads the colour mosaic, once. */
   loadMap() {
-    if (this.u.uLand.value || this.noMap) return;
+    if (this.u.uLand.value || this.noMap || this.u.uOcean.value > 0.5) return;
     const W = 2048, H = Math.round(W * (GULF.lat1 - GULF.lat0) / (GULF.lon1 - GULF.lon0));
     const cv = document.createElement('canvas');
     cv.width = W; cv.height = H;

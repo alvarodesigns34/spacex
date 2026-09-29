@@ -7,7 +7,7 @@ import { mergeAll, chunkedInstances } from '../geometry/utils.js';
 import { noise2 } from '../materials/textures.js';
 import { waveNormals, grassNormals } from '../materials/library.js';
 import { createClouds } from './clouds.js';
-import { shoreZ, terrainHeight, thicket, marsh } from './terrain.js';
+import { shoreZ, seaward, fromCoast, terrainHeight, thicket, marsh } from './terrain.js';
 
 /**
  * The Gulf shore. Starbase stands on the coast at Boca Chica, and the plain runs out into a
@@ -32,7 +32,7 @@ function coastalDisc(radius, rings, segs) {
     pos[k * 3] = x;
     pos[k * 3 + 1] = y;
     // Local y is world −z once the disc is laid flat; local z becomes height.
-    const past = shoreZ(x) - -y;                 // metres seaward of the shoreline
+    const past = seaward(x, -y);                 // metres seaward of the shoreline
     pos[k * 3 + 2] = past > 0 ? -9 * THREE.MathUtils.smoothstep(past, 0, 180) : 0.35 * THREE.MathUtils.smoothstep(-past, 0, 60) * (1 - THREE.MathUtils.smoothstep(-past, 60, 160));
     // The lomas and the plain's micro-relief (terrain.js), zero on the site and the beach.
     pos[k * 3 + 2] += terrainHeight(x, -y);
@@ -242,11 +242,13 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     // distance offshore (aSea), so the shallow shelf and the surf can be graded by it. Rows
     // past the edge of the disc are pulled back onto the circle.
     const SEA_ROWS = [-5, 0, 4, 9, 15, 22, 30, 40, 55, 75, 100, 140, 200, 300, 450, 700, 1000, 1500, 2200, 3200, 4600];
+    // Built in the coast frame (terrain.js): u along the shore, the rows running out to sea.
     const xs = [];
-    for (let x = -GROUND_R; x <= GROUND_R; x += 20) xs.push(x);
+    for (let u = -GROUND_R * 1.4; u <= GROUND_R * 1.4; u += 20) xs.push(u);
     const wpos = [], wsea = [], widx = [];
-    for (const d of SEA_ROWS) for (const x of xs) {
-      let px = x, py = -shoreZ(x) + WATERLINE + d;
+    for (const d of SEA_ROWS) for (const u of xs) {
+      const [wx, wz] = fromCoast(u, shoreZ(u) - WATERLINE - d);
+      let px = wx, py = -wz;
       const r = Math.hypot(px, py);
       if (r > GROUND_R) { px *= GROUND_R / r; py *= GROUND_R / r; }
       wpos.push(px, py, -0.9); wsea.push(d);
@@ -254,8 +256,8 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     const nx = xs.length;
     for (let j = 0; j < SEA_ROWS.length - 1; j++) for (let i = 0; i < nx - 1; i++) {
       const a0 = j * nx + i, b0 = a0 + nx;
-      // Counter-clockwise seen from above (+z here), by construction: x grows along a row and
-      // the rows run seaward in +y. A check on one vertex's normal is not enough — the rows
+      // Counter-clockwise seen from above (+z here), by construction: u grows along a row and
+      // the rows run seaward, the coast frame being a rotation of the world's. A check on one vertex's normal is not enough — the rows
       // pulled onto the disc's edge make degenerate triangles there, and it guessed wrong.
       widx.push(a0, a0 + 1, b0, a0 + 1, b0 + 1, b0);
     }
@@ -303,22 +305,24 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     const dpos = [], dcol = [], duv = [], dshore = [], didx = [];
     const tufts = [];
     let cols = 0;
-    for (let x = -GROUND_R; x <= GROUND_R; x += STEP) {
-      const zc = shoreZ(x) + 35.3 - DUNE_C;           // world z of the crest line
-      if (Math.hypot(x, zc) > GROUND_R - 60) { if (cols) break; continue; }
-      const H = duneH(x);
+    for (let u = -GROUND_R * 1.4; u <= GROUND_R * 1.4; u += STEP) {
+      const zc = shoreZ(u) + 35.3 - DUNE_C;           // coast w of the crest line
+      const [cx, cz] = fromCoast(u, zc);
+      if (Math.hypot(cx, cz) > GROUND_R - 60) { if (cols) break; continue; }
+      const H = duneH(u);
       for (let r = 0; r <= ROWS; r++) {
         const d = -HALF + (2 * HALF * r) / ROWS;       // + is seaward
         const wz = zc - d;
-        const past = shoreZ(x) - wz;
+        const past = shoreZ(u) - wz;
+        const [px, pz] = fromCoast(u, wz);
         // Sunk 0.35 m wherever the dune does not actually rise, so the strip meets the coarse
         // ground under its surface. The sink used to follow the profile's shape, not the rise:
         // in a blowout (H → 0) the strip lay exactly ON the ground and the two surfaces fought
         // for the depth buffer, a patchwork of sand and green blotches along the coast.
         const rise = H * bump(d);
         const h = groundHeight(past) + rise - 0.35 * (1 - THREE.MathUtils.smoothstep(rise, 0.05, 0.4));
-        dpos.push(x, -wz, h);
-        duv.push(x, wz * -1);
+        dpos.push(px, -pz, h);
+        duv.push(px, -pz);
         const lift = 1 + 0.12 * bump(d);
         dcol.push(lift, lift, lift * 0.97);
         // Seaward face bare dry sand; the crest and back slope sand held by sparse grass, not a
@@ -327,11 +331,13 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
       }
       // Beach grass on the crest and the back slope, thinning towards the edges.
       for (let k = 0; k < 11; k++) {
-        const n = noise2(x * 0.37 + k * 13.1, 3.3 + k);
-        const d = -HALF * 0.9 + noise2(x * 0.61 + k * 5.3, 9.9 + k) * HALF * 1.6;
+        const n = noise2(u * 0.37 + k * 13.1, 3.3 + k);
+        const d = -HALF * 0.9 + noise2(u * 0.61 + k * 5.3, 9.9 + k) * HALF * 1.6;
         if (bump(d) * H < 0.6 || d > 16) continue;
-        const wz = zc - d + (noise2(x * 0.9, k * 7.7) - 0.5) * 3;
-        tufts.push([x + (noise2(x * 0.5, k) - 0.5) * STEP, -wz, groundHeight(shoreZ(x) - wz) + H * bump(d) - 0.1, 0.6 + n]);
+        const wz = zc - d + (noise2(u * 0.9, k * 7.7) - 0.5) * 3;
+        const uu = u + (noise2(u * 0.5, k) - 0.5) * STEP;
+        const [tx, tz] = fromCoast(uu, wz);
+        tufts.push([tx, -tz, groundHeight(shoreZ(uu) - wz) + H * bump(d) - 0.1, 0.6 + n]);
       }
       cols++;
     }

@@ -13,8 +13,11 @@
  * Each shot also declares the whole state it wants rather than inheriting whatever the
  * previous shot left behind, so a manifest reordered or run alone produces the same frames:
  *
- *   { name, jump:[id, preset] (+ pos+target to reframe) | pos+target | ortho | seek,
+ *   { name, jump:[id, preset] (+ pos+target to reframe) | pos+target | ortho | seek | reentry,
  *     sun, labels, ruler, humans, launch, wait }
+ *
+ * `reentry` is a mission time in the re-entry chapter (reentry.js), with `cam` the camera
+ * ('director' by default, 'onboard' or 'chase').
  */
 import { createServer } from 'node:http';
 import { staticHandler } from './static.mjs';
@@ -76,6 +79,7 @@ for (const s of shots) {
     else { try { localStorage.removeItem('vc-coach-seen-1'); } catch { /* storage unavailable */ } v.hud?.showCoach?.(0); }
     // Reset the state a previous shot may have left, so order cannot change a frame.
     if (s.seek === undefined) v.launch.reset(false);
+    if (s.reentry === undefined && v.reentry?.running) v.reentry.reset(false);
     v.ortho(null);
     v.env.setSun(s.sun ?? sun, 34);
     v.setToggle('labels', s.labels ?? true);
@@ -88,7 +92,13 @@ for (const s of shots) {
     if (s.sheet === 'open' && sheet.classList.contains('collapsed')) document.getElementById('sheet-toggle').click();
     else if (s.sheet === 'closed' && !sheet.classList.contains('collapsed')) document.getElementById('sheet-toggle').click();
 
-    if (s.seek !== undefined) {
+    if (s.reentry !== undefined) {
+      v.reentry.start();
+      v.reentry.setSpeed(0);
+      v.reentry.setFollow(s.cam ?? 'director');
+      v.reentry.seek(s.reentry);
+    }
+    else if (s.seek !== undefined) {
       v.launch.setSpeed(s.speed ?? 1);
       v.launch.seek(s.seek);
       v.__shotSpeed = v.launch.state.speed;

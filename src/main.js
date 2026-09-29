@@ -36,6 +36,8 @@ import { verifyExhibits, verifyScene, verifyPad, verifyInterfaces } from './data
 import { createLaunch, EVENTS, MILESTONES, ENGINE_LAYOUT, altitudeAt, boosterAltAt } from './sim/launch.js';
 import { createMissionClock } from './sim/missionClock.js';
 import { createLaunchSound } from './sim/sound.js';
+import { createReentry } from './sim/reentry.js';
+import { CHAPTER as REENTRY_CHAPTER, MILESTONES_RE, reentryAltAt } from './sim/reentryFlight.js';
 
 // Exhibit layout (world X, metres). Mount heights are presentation choices.
 // `yaw` turns an exhibit on its mount. Starship is asymmetric — heat shield on the belly,
@@ -221,11 +223,13 @@ async function main() {
     },
     onReset: () => select(null),
     onLaunch: () => toggleLaunch(),
-    onLaunchAbort: () => launch?.reset(),
-    onLaunchSpeed: (k) => launch?.setSpeed(k),
-    onLaunchPause: (on) => launch?.setPaused(on),
-    onLaunchSeek: (t) => { if (launch?.running) launch.seek(t); },
-    onLaunchRestart: () => { if (!launch?.running) return; launch.setPaused(false); launch.seek(EVENTS.start); },
+    onReentry: () => toggleReentry(),
+    // The panel drives whichever sequence is playing: the launch, or the re-entry chapter.
+    onLaunchAbort: () => seq()?.reset(),
+    onLaunchSpeed: (k) => seq()?.setSpeed(k),
+    onLaunchPause: (on) => seq()?.setPaused(on),
+    onLaunchSeek: (t) => { if (seq()?.running) seq().seek(t); },
+    onLaunchRestart: () => { const a = seq(); if (!a?.running) return; a.setPaused(false); a.seek(a === launch ? EVENTS.start : REENTRY_CHAPTER.start); },
     onLaunchCamera: () => cycleLaunchCamera(),
     onLaunchSound: (on) => sound?.setEnabled(on),
   });
@@ -531,22 +535,25 @@ async function main() {
     // showing Starship while it runs. Only the button path used to select it, so a launch
     // started any other way flew under an "Overview" header with the overview's rail lit.
     onStart: () => {
+      if (reentry?.running) reentry.reset(false);
       if (view.exhibit !== 'starship') { enforce(view.select('starship', 'launch')); syncHud(); }
       enforce(view.claim('launch'));
+      hud.setMissionText(null);
+      showLaunchTrajectory();
     },
     onState: (st) => hud.setMission(st.running ? st : null),
     // The sequence ends with the booster in the arms, seven minutes in; the ship's flight goes
     // on for most of an hour, and a visitor watching the ship vanish deserves to know that.
     onFinish: (completed) => {
       goPreset('starship', 'site');
-      if (completed) hud.notice('The ship flies on: on the test flights it coasts for most of an hour, re-enters and splashes down in the ocean. This sequence ends with the booster caught.', 9000);
+      if (completed) hud.notice('The ship flies on: on flight 14 it reached orbit, deployed its payload and came back nine and a half hours in, splashing down in the Pacific. Press X to watch its re-entry.', 9000);
     },
   });
   launch.setVisibilityHook((flying) => view.setFlying(flying));
   // Opt-in engine sound. Assigned here, after the HUD that toggles it, hence `let` above.
   sound = createLaunchSound({ launch, camera });
-  {
-    const samples = (f, a, b) => Array.from({ length: 220 }, (_, i) => { const t = a + (b - a) * i / 219; return [t, f(t)]; });
+  const samples = (f, a, b) => Array.from({ length: 220 }, (_, i) => { const t = a + (b - a) * i / 219; return [t, f(t)]; });
+  function showLaunchTrajectory() {
     hud.setTrajectory({
       t0: EVENTS.start, t1: EVENTS.end,
       ship: samples(altitudeAt, EVENTS.start, EVENTS.end),
@@ -555,6 +562,38 @@ async function main() {
       engines: ENGINE_LAYOUT,
     });
   }
+  showLaunchTrajectory();
+
+  // ---- Re-entry chapter ----
+  // Flight 14's ship coming home: entry, plasma, the belly flop, the flip and the splash in the
+  // northern Pacific, on SpaceX's own timeline (reentry.js, reentryFlight.js).
+  const REENTRY_TEXT = {
+    kind: 'Flight 14 re-entry (SpaceX timeline) · northern Pacific · trajectory computed, not telemetry',
+    note: '<summary>Flight 14 re-entry · sources and limits</summary><p><b>Every time on this clock is SpaceX\'s own</b>, from its published flight 14 timeline (28 September 2026): deorbit burn T+8:52:37–8:52:48 · entry T+9:28:56 · transonic 9:47:29 · subsonic 9:48:07 · landing burn 9:50:11 · landing flip 9:50:13 · three to two engines 9:50:21 · two to one 9:50:28 · splashdown 9:50:30, in the northern Pacific. The state at entry is <i>derived</i>: an assumed 200 km orbit and ≈190 t ship, the 11 s burn on one 250 tf Raptor, and vis-viva give ≈7.74 km/s at −1.6° at 120 km. The glide is <i>integrated</i> over a spherical Earth, and its drag, lift-to-drag ratio and belly-flop drag are <i>solved</i> so it goes through Mach 1 and Mach 0.8 at the transonic and subsonic calls and reaches the landing burn at the height a smooth 19 s burn needs. Speeds and heights are the model\'s, not telemetry; the ≈60° angle of attack, the plasma colours and the camera positions are read off SpaceX\'s on-board views, approximately. The ocean and the clouds are generic.</p>',
+  };
+  const reentry = createReentry({
+    scene, exhibits, complex, env, rig, camera, M,
+    onStart: () => {
+      if (launch.running) launch.reset(false);
+      if (view.exhibit !== 'starship') { enforce(view.select('starship', 'launch')); syncHud(); }
+      enforce(view.claim('launch'));
+      hud.setMissionText(REENTRY_TEXT);
+      hud.setTrajectory({
+        t0: REENTRY_CHAPTER.start, t1: REENTRY_CHAPTER.end,
+        ship: samples(reentryAltAt, REENTRY_CHAPTER.start, REENTRY_CHAPTER.end), booster: [],
+        events: MILESTONES_RE.map(m => [m.t, m.label]),
+      });
+    },
+    onState: (st) => hud.setMission(st.running ? st : null),
+    onFinish: (completed) => {
+      hud.setMissionText(null);
+      showLaunchTrajectory();
+      goPreset('starship', 'overview');
+      if (completed) hud.notice('Flight 14\'s ship splashed down on target in the northern Pacific, nine hours and fifty minutes after liftoff.', 8000);
+    },
+    visibilityHook: (flying) => view.setFlying(flying),
+  });
+  function seq() { return reentry?.running ? reentry : launch; }
 
   hud.setProgress('Compiling shaders…', 0.95);
   await nextFrame();
@@ -776,6 +815,11 @@ async function main() {
    * the camera can be turned freely, paused and resumed without losing the rocket.
    */
   function cycleLaunchCamera() {
+    if (reentry.running) {
+      const order = ['director', 'onboard', 'chase'];
+      reentry.setFollow(order[(order.indexOf(reentry.state.follow) + 1) % order.length]);
+      return;
+    }
     if (!launch.running) return;
     const st = launch.state;
     const next = st.director ? 'booster' : st.follow === 'booster' ? 'ship' : 'director';
@@ -791,6 +835,12 @@ async function main() {
     }
   }
 
+  function toggleReentry() {
+    if (reentry.running) { reentry.reset(); return; }
+    view.select('starship', 'launch');
+    hud.setActive('starship');
+    reentry.start();
+  }
   function toggleLaunch() {
     if (launch.running) { launch.reset(); return; }
     // A visitor who turned the sound on last time gets it again; this is a click or a key
@@ -991,7 +1041,8 @@ async function main() {
     const k = e.key.toLowerCase();
     if (k >= '1' && k <= String(VEHICLES.length)) select(VEHICLES[Number(k) - 1].id);
     else if (k === '0') select(null);
-    else if (k === 'c' && launch.running && rig.mode === 'orbit') cycleLaunchCamera();
+    else if (k === 'c' && (launch.running || reentry.running) && rig.mode === 'orbit') cycleLaunchCamera();
+    else if (k === 'x') toggleReentry();
     else if (k === 'f') toggleMode();
     else if (k === 'v') toggleWalk();
     else if (k === 'g') toggleLaunch();
@@ -1003,12 +1054,12 @@ async function main() {
     else if (k === 'escape') hud.showHelp(false);
     // Mission transport, only while the sequence runs. Space is free flight's "up", and on a
     // focused button it is the button's own click, so it pauses only outside both.
-    else if (launch.running && (k === 'k' || (k === ' ' && rig.mode !== 'fly' && e.target.tagName !== 'BUTTON'))) {
+    else if (seq().running && (k === 'k' || (k === ' ' && rig.mode !== 'fly' && e.target.tagName !== 'BUTTON'))) {
       e.preventDefault();
-      launch.setPaused(!launch.state.paused);
-    } else if (launch.running && rig.mode === 'orbit' && (k === 'arrowleft' || k === 'arrowright')) {
-      const t = hud.milestoneStep(launch.state.t, k === 'arrowright' ? 1 : -1);
-      if (t !== null) { e.preventDefault(); launch.seek(t); }
+      seq().setPaused(!seq().state.paused);
+    } else if (seq().running && rig.mode === 'orbit' && (k === 'arrowleft' || k === 'arrowright')) {
+      const t = hud.milestoneStep(seq().state.t, k === 'arrowright' ? 1 : -1);
+      if (t !== null) { e.preventDefault(); seq().seek(t); }
     }
   });
 
@@ -1305,6 +1356,7 @@ async function main() {
     const dt = steps.view;
     rig.update(dt);
     launch.update(steps.mission);
+    reentry.update(steps.mission);
     sound?.update();
     // Water keeps moving whatever the camera or the launch is doing.
     WAVE_TIME.value += dt;
@@ -1424,7 +1476,7 @@ async function main() {
   }
 
   window.__vc = {
-    M, scene, camera, rig, exhibits, complex, launch, select, goPreset, jump, renderer, env,
+    M, scene, camera, rig, exhibits, complex, launch, reentry, select, goPreset, jump, renderer, env,
     setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour,
     claimUserControl, tourRunToEnd, toggleMode, toggleWalk,
     walkRouteFor: (hit) => { const r = walkRoute(hit); rig.travelTo(r.route, r.look); return r; },

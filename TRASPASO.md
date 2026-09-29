@@ -4,6 +4,25 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ---
 
+## ⭐ Estado al cerrar la sesión local del 29-09-2026 (léelo primero)
+
+- **Navegador:** usa el **navegador integrado** de la app (herramientas `mcp__Claude_Browser__*`), tanto para la simulación como para investigar. Claude in Chrome se desconectaba con la página pesada y el usuario pidió cambiar. Sirve `http://127.0.0.1:8080/` con `node tools/_serve.mjs` (local, excluido en `.git/info/exclude`); en Windows no hay Python.
+- **Git en Windows:** este clon tiene `core.autocrlf=false` y el árbol en LF, como en CI. Con CRLF, dos controles negativos de `provenance-check` fallaban. Los scripts de edición van en archivos `.cjs` del scratchpad: los heredoc con comillas fallan en esta Bash.
+- **Comprobación en paralelo:** `sh /c/Users/preda/claudespacex/sync-check.sh` copia HEAD más los cambios al worktree `../spacex-check` (con `node_modules` enlazado) y ahí se corre `npm run check` en segundo plano. Así se puede seguir editando sin tocar lo que se sirve al check.
+- **Hecho en esta sesión** (commits `258e8e8`, `04dfa0f` y los siguientes; detalle en el README):
+  - Raptor Vacuum con tobera de «cubo» según la foto de la NASA;
+  - banda de aluminio y panel solar continuo en la Dragon;
+  - **desvío final del propulsor** con ≈15° de inclinación (pendiente cerrado);
+  - **Engine Row rehecha** con piezas de exposición detalladas (`engineExhibits.js`, `raptorStack.js`);
+  - **costa reorientada** (marco de costa en `terrain.js`, pendiente cerrado);
+  - **capítulo de reentrada** del vuelo 14 (tecla X; `reentry.js`, `reentryFlight.js`);
+  - galería regenerada con aprobación del usuario.
+- **Pendientes que quedan:**
+  - tercera ventana de la Dragon y pinzas del Falcon 1 en Omelek (sin fuente);
+  - color real del cabezal del Raptor 3 a contraluz (las fotos oficiales lo muestran oscuro);
+  - la telemetría real de las retransmisiones para contrastar los perfiles;
+  - la orientación del Pad 2 respecto a la geografía: la conversión OSM → marco de la zanja (sección 4) parece **especular** respecto a un mapa (determinante −1 con x = −(p·n), z = p·d). Merece comprobarse contra una imagen de satélite antes de tocar nada.
+
 ## ⭐ Empieza aquí (sesión local con Claude in Chrome, 29-09-2026 por la noche)
 
 Hasta ahora trabajábamos en un contenedor en la nube. **A partir de aquí sigues en local**, en mi ordenador, con **Claude in Chrome**. Eso cambia varias cosas:

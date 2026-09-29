@@ -12,5 +12,10 @@
   {"name": "launch-catch.jpg", "seek": 412, "wait": 1800},
   {"name": "launch-caught.jpg", "seek": 428, "wait": 1800},
   {"name": "launch-ship-cutoff.jpg", "seek": 490, "wait": 1800},
-  {"name": "launch-site.jpg", "jump": ["starship", "site"], "wait": 1400}
+  {"name": "launch-site.jpg", "jump": ["starship", "site"], "wait": 1400},
+  {"name": "reentry-onboard.jpg", "reentry": 34336, "cam": "onboard", "wait": 1800},
+  {"name": "reentry-plasma.jpg", "reentry": 34836, "cam": "chase", "wait": 1800},
+  {"name": "reentry-bellyflop.jpg", "reentry": 35336, "wait": 1800},
+  {"name": "reentry-flip.jpg", "reentry": 35417, "cam": "chase", "wait": 1800},
+  {"name": "reentry-splash.jpg", "reentry": 35430.5, "wait": 1800}
 ]
