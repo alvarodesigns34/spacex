@@ -617,7 +617,10 @@ try {
       const pins = [];
       v.scene.traverse(o => { if (o.name === 'catch-pin' && o.visible) pins.push(o); });
       if (pins.length !== 2) return { count: pins.length };
-      const inv = v.complex.matrixWorld.clone().invert();
+      // In the tower's frame: the arms run out along its X, either side of the mount on ±Z.
+      const frame = v.complex.getObjectByName('tower-frame') ?? v.complex;
+      frame.updateMatrixWorld(true);
+      const inv = frame.matrixWorld.clone().invert();
       const [a, b] = pins.map(p => p.getWorldPosition(p.position.clone()).applyMatrix4(inv));
       const mid = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 };
       const ang = Math.abs(Math.atan2(Math.abs(b.x - a.x), Math.abs(b.z - a.z))) * 180 / Math.PI;

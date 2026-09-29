@@ -42,8 +42,9 @@ const argOf = (f) => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : 
 
 /** Each swap, with a camera bearing that puts the affected surface across the frame. */
 const CASES = [
-  // The belly faces the exhibit row (+Z) since the stack's yaw follows the Pad 2 photograph:
-  // judged face-on from there and obliquely from the side away from the tower.
+  // Bearings in the model's own frame (belly towards +Z, tower on −X); `measure` turns them by
+  // the exhibit's yaw (STACK_YAW_DEG), so they stay on the belly whatever that yaw is: judged
+  // face-on and obliquely from the side away from the tower.
   { entry: 'starship-tps', exhibit: 'starship', at: [0, 95, 0], dir: [0.36, 0.11, 0.93] },
   { entry: 'starship-tps', exhibit: 'starship', at: [0, 95, 0], dir: [0.8, 0.11, 0.59] },
   // The Roadster's paint: 162 k triangles near, ≈3 k far, swept from the same surface.
@@ -72,7 +73,11 @@ if (missing.length) failed++;
 const measure = (c, mutate = false) => page.evaluate(([c, mutate]) => {
     const v = window.__vc;
     const e = v.exhibits[c.exhibit];
-    const ox = e.lay.x + c.at[0], oy = e.model.position.y + c.at[1], oz = e.lay.z + c.at[2];
+    const yaw = e.model.rotation.y, cy = Math.cos(yaw), sy = Math.sin(yaw);
+    // Model frame → world, as Object3D.rotation.y turns it.
+    const turn = ([x, y, z]) => [x * cy + z * sy, y, -x * sy + z * cy];
+    const [ax, ay, az] = turn(c.at), dir = turn(c.dir);
+    const ox = e.lay.x + ax, oy = e.model.position.y + ay, oz = e.lay.z + az;
     const entry = v.lod.entries.find(x => x.name === c.entry);
     if (!entry) return { error: `no entry ${c.entry}` };
 
@@ -80,7 +85,7 @@ const measure = (c, mutate = false) => page.evaluate(([c, mutate]) => {
     // exactly `enter` pixels. That is where the change happens, so that is where to judge it.
     const mpp = (2 * Math.tan((v.camera.fov * Math.PI / 180) / 2)) / window.innerHeight;
     const d = entry.feature / (v.lod.pixels * entry.bias * mpp);
-    v.rig.jumpTo([ox + c.dir[0] * d, oy + c.dir[1] * d, oz + c.dir[2] * d], [ox, oy, oz]);
+    v.rig.jumpTo([ox + dir[0] * d, oy + dir[1] * d, oz + dir[2] * d], [ox, oy, oz]);
     v.camera.updateMatrixWorld(true);
 
     const cv = document.createElement('canvas');

@@ -19,10 +19,10 @@
  *  - The air takes the top off with distance (absorption grows with frequency), so a far
  *    launch is a rumble; thin air at the source carries less, so the ship is silent in space.
  *  - An open-field reverberation: a long, low, diffuse echo off the land around the site.
- *  - Before ignition, the fuelled stack vents (cryogenic hiss, near the pad) and at T−10 the
- *    flame deflector's water comes on (a broadband rush). The staggered ignition (3 → 13 → 33
- *    engines) comes from the booster's throttle, so the roar rises in steps, each step opening
- *    with a low thump as the chambers light. One-shots: the
+ *  - Before ignition, the fuelled stack vents (cryogenic hiss, near the pad) and at T−17 the
+ *    flame diverter's water comes on (a broadband rush). Block 3 lights all 33 engines at once
+ *    (the booster's throttle), so the roar comes up in one surge over a second and a half,
+ *    opening with a low thump as the chambers light. One-shots: the
  *    hot-staging crack, and the returning booster's sonic booms, heard at the pad on every
  *    catch. The booms are timed from the model's own descent through Mach 1.2, delayed by the
  *    distance, and played as a triple N-wave.
@@ -258,7 +258,7 @@ export function createLaunchSound({ launch, camera }) {
         const cross = (te) => prev < te && th >= te;
         const lp = Math.max(200, Math.min(16000, 16000 * 250 / Math.max(d, 250)));
         const g = Math.min(1, REF_D / Math.max(d, 1));
-        if (i === 0) for (const [te, gt] of [[EVENTS.ignition, 0.5], [EVENTS.ignition + 0.9, 0.75], [EVENTS.ignition + 2, 1]]) {
+        if (i === 0) for (const [te, gt] of [[EVENTS.ignition + 0.2, 1]]) {
           if (cross(te)) play('thump', { gain: gt * Math.min(1, REF_D * 2 / Math.max(d, 1)), pan: s.panner, lowpass: lp });
         }
         if (i === 1 && cross(EVENTS.separation - 1.2)) play('crack', { gain: 0.9 * g * p + 0.05, pan: s.panner, lowpass: lp });

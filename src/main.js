@@ -31,7 +31,7 @@ import { buildOrbitalBackdrop } from './core/backdrop.js';
 import { buildLaunchMount, buildPedestal, buildHumanCrowd } from './vehicles/common.js';
 import { seeded, mergeAll } from './geometry/utils.js';
 import { terrainHeight } from './core/terrain.js';
-import { buildLaunchComplex, PAD } from './vehicles/pad.js';
+import { buildLaunchComplex, PAD, towerToPad } from './vehicles/pad.js';
 import { verifyExhibits, verifyScene, verifyPad, verifyInterfaces } from './data/verify.js';
 import { createLaunch, EVENTS, MILESTONES, ENGINE_LAYOUT, altitudeAt, boosterAltAt } from './sim/launch.js';
 import { createMissionClock } from './sim/missionClock.js';
@@ -1030,7 +1030,8 @@ async function main() {
     const obs = [];
     for (const [id, lay] of Object.entries(LAYOUT)) {
       if (lay.pad) {
-        obs.push([lay.x, lay.z, 18], [lay.x + PAD.towerX - 3, lay.z, 12]);
+        const [tx, , tz] = towerToPad([PAD.towerX - 3, 0, 0]);
+        obs.push([lay.x, lay.z, 18], [lay.x + tx, lay.z + tz, 12]);
       } else if (lay.launchMount) {
         obs.push([lay.x, lay.z, Math.hypot(lay.launchMount.halfX, lay.launchMount.halfZ) + 0.6]);
       } else if (Array.isArray(OCCLUDER[id])) {

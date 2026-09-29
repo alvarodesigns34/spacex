@@ -58,7 +58,14 @@ const TILE_T = 0.016;
  * frosted lee side away from it. The grid-fin trio is clocked against this angle so the catch
  * pins sit over the arms whatever it is.
  */
-export const STACK_YAW_DEG = 0;
+//
+// The pad frame is the flame trench's (it runs along Z). The tower is not square to it: on Pad 2
+// the tower–mount line meets the trench axis at ≈52,5°, from OpenStreetMap's traced footprints
+// (trench 84 × 18 m, tower 11,6 m square, 31 m from the trench centre) and an NSF aerial of the
+// trench under construction; Pad 1's footprints give ≈55°. The stack keeps its relation to the
+// tower (belly square to the tower–mount line), so it turns with the tower: −37,5° about Y
+// puts the tower at 52,5° to the trench. ≈, from traced footprints, not a survey.
+export const STACK_YAW_DEG = -37.5;
 export const RAPTOR_EXIT_R = 0.62;
 // Block 3 has no skirt round its engines: all 33 hang in the open below the black thrust
 // ring, powerheads and plumbing on show (NASASpaceflight, Booster 18/19 photographs, May 2026).
@@ -424,12 +431,12 @@ export function buildSuperHeavy(M) {
 
   // Grid fins: 3 in a T, catch pins integrated into the opposite pair and the third a rudder
   // (NSF, "Super Heavy Block 3", May 2026). The pins have to land on the catch arms, which run
-  // out from the tower along world X and sit either side of the mount on ±Z. The stack is
-  // yawed STACK_YAW_DEG on its mount, so the trio is clocked back by the same angle: pins at
-  // world 0°/180°, over the arms. The rudder is put on the side away from
+  // out from the tower along the tower frame's X and sit either side of the mount on its ±Z.
+  // The tower frame turns with the stack (both by STACK_YAW_DEG; pad.js), so in the stack's own
+  // frame the pins sit at 0°/180° whatever that yaw is. The rudder is put on the side away from
   // the tower; which side it faces on the real pad is not published.
   const finY = ringTop - 3.9;
-  const pinPhi = -THREE.MathUtils.degToRad(STACK_YAW_DEG);
+  const pinPhi = 0;
   const finPhis = [pinPhi, pinPhi + Math.PI / 2, pinPhi + Math.PI];
   finPhis.forEach((phi, i) => {
     const a = gridFinAssembly(M, { withPin: i !== 1 });

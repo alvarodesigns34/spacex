@@ -188,9 +188,13 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
   // Mill-finish 30X stainless: near-mirror on the panels, rough along every ring weld.
   // Anisotropy runs with the rolling direction (circumferential, the U axis of the metric
   // UVs), which stretches the sun's highlight vertically the way it does on the vehicle.
+  // The maps are neutral grey; the hue is the metal's own. Measured stainless reflectance
+  // (physicallybased.info: linear F0 0.669 / 0.639 / 0.598) is faintly warm — the ratios
+  // to its luminance are what the colour carries, so brightness stays with the maps.
+  const stainless = new THREE.Color().setRGB(1.041, 0.995, 0.932, THREE.LinearSRGBColorSpace);
   const steelBase = {
     // 0.86: a touch sharper than the map alone, so each plate's own sheen (ringsAndPlates) shows.
-    metalness: 1.0, roughness: 0.86, color: 0xffffff,
+    metalness: 1.0, roughness: 0.86, color: stainless,
     anisotropy: 0.62, anisotropyRotation: 0, envMapIntensity: 0.82,
     normalScale: new THREE.Vector2(0.85, 0.85),
   };
@@ -198,7 +202,7 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
   M.steelSkirt = new THREE.MeshPhysicalMaterial({ ...steelBase, anisotropy: 0.2, envMapIntensity: 0.7, map: T.steelSkirt.map, roughnessMap: T.steelSkirt.roughnessMap, normalMap: T.steelSkirt.normalMap });
   M.steelWarm = new THREE.MeshPhysicalMaterial({ ...steelBase, anisotropy: 0.3, envMapIntensity: 0.78, map: T.steelWarm.map, roughnessMap: T.steelWarm.roughnessMap, normalMap: T.steelWarm.normalMap });
   // Payload-bay door seam: the same steel, darkened, so the outline reads without a decal.
-  M.steelDoor = new THREE.MeshPhysicalMaterial({ ...steelBase, color: 0xeceded, map: T.steel.map, roughnessMap: T.steel.roughnessMap, normalMap: T.steel.normalMap });
+  M.steelDoor = new THREE.MeshPhysicalMaterial({ ...steelBase, color: new THREE.Color(0xeceded).multiply(stainless), map: T.steel.map, roughnessMap: T.steel.roughnessMap, normalMap: T.steel.normalMap });
   for (const m of [M.steel, M.steelSkirt, M.steelWarm, M.steelDoor]) ringsAndPlates(m);
   // The booster's own copies of the three steels, with the soot hook: the ship and the exhibit
   // keep the clean ones. `M.boosterSoot` is the shared amount the launch sequence drives.

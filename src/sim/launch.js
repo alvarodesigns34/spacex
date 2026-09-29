@@ -538,11 +538,8 @@ function boosterSpread(t) {
 /** How many booster engines are running, in lighting order (centre 3, inner 10, outer 20). */
 function boosterLit(t) {
   if (t < EVENTS.ignition) return 0;
-  if (t < EVENTS.liftoff) {
-    // The same staggered start as boosterThrottle: centre, then inner ring, then outer.
-    const u = (t - EVENTS.ignition) / (EVENTS.liftoff - EVENTS.ignition);
-    return u < 0.18 ? 3 : u < 0.4 ? 13 : 33;
-  }
+  // All 33 together on Block 3 (see boosterThrottle).
+  if (t < EVENTS.liftoff) return 33;
   if (t < EVENTS.meco) return 33;
   if (t < EVENTS.boostbackStart) return 5;
   if (t < EVENTS.boostbackStart + BOOSTBACK_33) return 33;
@@ -598,15 +595,14 @@ export const shipThrustAccelAt = (t) => (t < EVENTS.separation ? null : sample(P
 function boosterThrottle(t) {
   if (t < EVENTS.ignition) return 0;
   if (t < EVENTS.liftoff) {
-    // Thirty-three engines do not come up together. Ignition is a staggered sequence over
-    // about two seconds — the inner three, then the middle ten, then the outer twenty — and
-    // the stack sits on the clamps at full thrust for a moment before they let go. A single
-    // smoothstep made the thrust build like a dimmer, which is the one thing in the sequence
-    // that reads as an animation rather than as a machine starting.
+    // Block 3 lights all 33 at once: the new 50 m transfer tube and plumbing let "SpaceX ignite
+    // all 33 Raptor 3 engines simultaneously" (NASASpaceflight, "Super Heavy Block 3", May 2026),
+    // where Block 1 and 2 started the inner three, then the middle ten, then the outer twenty.
+    // Thrust comes up over about a second and a half — each engine's own start-up transient,
+    // with a little spread between them (≈) — and the stack sits on the clamps at full thrust
+    // before they let go at T−0.
     const u = THREE.MathUtils.clamp((t - EVENTS.ignition) / (EVENTS.liftoff - EVENTS.ignition), 0, 1);
-    const group = (start, share) =>
-      share * THREE.MathUtils.smoothstep(u, start, start + 0.2);
-    return Math.min(1, group(0.0, 3 / 33) + group(0.18, 10 / 33) + group(0.4, 20 / 33));
+    return THREE.MathUtils.smoothstep(u, 0.05, 0.55);
   }
   // The throttle bucket: down over the 16 s before Max-Q, back up over the 20 s after it; then
   // the last 8 s before MECO shut the cluster down to the five that stay lit through staging.

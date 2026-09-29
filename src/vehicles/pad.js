@@ -27,7 +27,7 @@
 import * as THREE from 'three';
 import { mesh, mergeAll, mat4, boxUV, tube, radial } from '../geometry/utils.js';
 import { dressPad } from './padDressing.js';
-import { RAPTOR_ENVELOPE_R, BOOSTER_R, BOOSTER_AFT } from './starship.js';
+import { RAPTOR_ENVELOPE_R, BOOSTER_R, BOOSTER_AFT, STACK_YAW_DEG } from './starship.js';
 
 // ---- Dimensions -------------------------------------------------------------------------
 export const PAD = {
@@ -63,8 +63,12 @@ export const PAD = {
   throatR: RAPTOR_ENVELOPE_R + 0.25,
   pierHalf: 2.0,          // 4 m square corner piers
   pierAt: 12.0,
-  // Tower (OLIT)
+  // Tower (OLIT), in its own frame: towerX from the mount centre along that frame's −X. The
+  // frame turns about the mount by towerYawDeg (the stack's yaw, starship.js), so the tower
+  // stands at ≈52,5° to the trench axis as on Pad 2 (OpenStreetMap footprints; NSF aerial).
+  // The ≈31 m the footprints give from tower centre to trench centre agrees with the 30 m here.
   towerX: -30.0,
+  towerYawDeg: STACK_YAW_DEG,
   towerHalf: 6.1,         // 12,2 m square truss
   // Truss and lightning rod, from the FAA's programmatic environmental assessment for Starbase
   // (June 2022, §2.1.4.3, "Integration Towers"): "Each tower would be approximately 480 feet
@@ -96,6 +100,11 @@ export const PAD = {
   farmX: 150.0,
 };
 PAD.towerH = PAD.section * PAD.sections + PAD.mast;   // ≈149,5 m (146,4 truss + 3,05 rod)
+/** A point in the tower's frame, [x, y, z], turned into the pad (trench) frame. */
+export function towerToPad([x, y, z]) {
+  const a = THREE.MathUtils.degToRad(PAD.towerYawDeg), c = Math.cos(a), s = Math.sin(a);
+  return [x * c + z * s, y, -x * s + z * c];
+}
 PAD.trenchDepth = PAD.padY - PAD.trenchFloorY;        // 4,2 m
 
 const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
@@ -818,18 +827,14 @@ function buildQdArm(M) {
  * Cryogenic tank farm, set back from the pad on the landward side.
  *
  * Cited (Wikipedia, SpaceX Starbase): the farm holds methane, liquid oxygen, water, nitrogen,
- * helium and hydraulic fluid; it includes a 95,000 US gal horizontal LOX tank and an 80,000
- * US gal methane tank; subcoolers beside it chill the propellant with liquid nitrogen.
- * Reconstructed: the row of tall vertical storage tanks, every position and diameter. The two
- * horizontal tanks take their LENGTH from the cited volume at an assumed 3.8 m diameter, so
- * their proportions follow the published capacity rather than a guess.
+ * helium and hydraulic fluid; subcoolers beside it chill the propellant with liquid nitrogen.
+ * Wikipedia also cites a 95,000 US gal horizontal LOX tank and an 80,000 US gal methane tank.
+ * The tanks themselves follow OpenStreetMap's traced footprints (see buildField): rows of
+ * horizontal tanks, not the vertical ones the model used to have.
  *
  * The two free-standing 150 m lightning masts that used to stand here are gone: no source
  * places any at Pad 2, and the one cited lightning rod is on top of the tower.
  */
-const GAL = 0.003785411784;   // m³ per US gallon
-/** Length of a cylinder with hemispherical heads that holds `m3` at radius r. */
-const capsuleLength = (m3, r) => (m3 - (4 / 3) * Math.PI * r ** 3) / (Math.PI * r * r);
 
 function buildField(M) {
   const g = new THREE.Group();
@@ -839,91 +844,91 @@ function buildField(M) {
   farm.name = 'pad-farm';
   farm.position.z = -70;
   const fx = PAD.farmX;
-  const slab = [block(fx - 18, fx + 34, -0.4, 1.2, -44, 44)];
-  farm.add(mesh(boxUV(mergeAll(slab)), M.concrete));
-
-  // Tall vertical storage: a shell with stiffening rings, a domed head, a railed roof
-  // platform and a caged ladder. Six in a row, as the old block-out had them.
-  const shells = [], rings = [], rails = [], pipes = [];
-  const R = 4.5, H = 21, y0 = 1.2;
-  for (let i = 0; i < 6; i++) {
-    const z = -32 + i * 13;
-    shells.push({ geometry: new THREE.CylinderGeometry(R, R, H, 40, 1, true), matrix: mat4([fx, y0 + H / 2, z]) });
-    // Domed head. It was a cap of the shell's own radius cut at 58°, whose rim is only 3.8 m
-    // across a 4.5 m shell: a 70 cm gap round the top, through which the open cylinder showed
-    // its missing back wall. The head's sphere is now sized so its rim IS the shell's rim.
-    const TH = Math.PI * 0.32, RS = R / Math.sin(TH);
-    shells.push({ geometry: new THREE.SphereGeometry(RS, 40, 10, 0, Math.PI * 2, 0, TH), matrix: mat4([fx, y0 + H - RS * Math.cos(TH), z]) });
-    // The shell's inside, so an open end never shows as a missing wall.
-    shells.push({ geometry: new THREE.CylinderGeometry(R - 0.02, R - 0.02, H, 40, 1, true).scale(-1, 1, 1), matrix: mat4([fx, y0 + H / 2, z]) });
-    for (let y = y0 + 2.5; y < y0 + H; y += 3.1) {
-      rings.push({ geometry: new THREE.TorusGeometry(R + 0.06, 0.09, 6, 48), matrix: mat4([fx, y, z], [Math.PI / 2, 0, 0]) });
-    }
-    rings.push({ geometry: new THREE.CylinderGeometry(R + 0.25, R + 0.4, 0.8, 40), matrix: mat4([fx, y0 + 0.4, z]) });   // skirt
-    // Roof rail round the head, and a caged ladder up the landward side.
-    const topY = y0 + H + 1.2;
-    rails.push({ geometry: new THREE.TorusGeometry(R * 0.72, 0.04, 4, 40), matrix: mat4([fx, topY + 1.0, z], [Math.PI / 2, 0, 0]) });
-    for (let k = 0; k < 12; k++) {
-      const a = (k / 12) * Math.PI * 2;
-      rails.push(rod([fx + Math.cos(a) * R * 0.72, topY - 0.6, z + Math.sin(a) * R * 0.72], [fx + Math.cos(a) * R * 0.72, topY + 1.0, z + Math.sin(a) * R * 0.72], 0.03));
-    }
-    rails.push(rod([fx + R + 0.35, y0, z - 0.3], [fx + R + 0.35, topY, z - 0.3], 0.035));
-    rails.push(rod([fx + R + 0.35, y0, z + 0.3], [fx + R + 0.35, topY, z + 0.3], 0.035));
-    for (let y = y0 + 2.4; y < topY; y += 1.2) {
-      rails.push({ geometry: new THREE.TorusGeometry(0.45, 0.025, 4, 12, Math.PI), matrix: mat4([fx + R + 0.55, y, z], [Math.PI / 2, 0, -Math.PI / 2]) });
-    }
-    // Fill and draw line from the base into the header.
-    pipes.push(rod([fx - R - 0.2, y0 + 1.4, z], [fx - R - 3.2, y0 + 1.4, z], 0.22, 10));
-  }
-  pipes.push(rod([fx - R - 3.2, y0 + 1.4, -42], [fx - R - 3.2, y0 + 1.4, 42], 0.32, 12));   // header
-
-  // The two cited horizontal tanks on saddles, alongside the row: LOX and methane.
-  const r = 1.9;
-  const horiz = [];
-  const saddles = [];
-  // Callouts, in the complex frame (the farm group sits at z = −70). Only what is cited is
-  // named: the contents of the farm as a whole, the two horizontal tanks with their published
-  // capacity, the subcoolers and the deluge water. The vertical row's layout is reconstructed,
-  // so it is labelled as the farm, not tank by tank.
-  const FZ = farm.position.z;
-  const notes = [
-    { label: 'Tank farm · methane, LOX, N₂, He', position: [fx, y0 + H + 7, FZ] },
+  // What the shared tank farm holds today, from OpenStreetMap's traced footprints (© OpenStreetMap
+  // contributors, ODbL; content tags on each tank): rows of long horizontal tanks on saddles,
+  // ≈48.6 m by ≈5.8 m, side by side at ≈6.45 m — ten of liquid oxygen, eight of liquid
+  // nitrogen, and methane in four of those plus two ≈50.3 × 6.5 m and two ≈31.5 × 8.0 m — with
+  // banks of ambient vaporizers (≈2.4 × 2.2 m footprints). Pad 2 shares these tanks with Pad 1
+  // and has its own pumps and subcoolers (NASASpaceflight). The row is laid straight here and
+  // set beside the pad rather than where it really is, 200–400 m off on the tower's side, which
+  // would put it across the exhibit row; the tanks, their order and sizes are the traced ones.
+  // Heights, heads, saddles and the vaporizers' height are reconstructed (≈).
+  // It replaces a reconstructed row of six tall vertical tanks that no source showed.
+  const ROW = [
+    ...Array(8).fill(['lox', 48.6, 5.8]), ...Array(4).fill(['ln2', 48.6, 5.7]), ...Array(2).fill(['lox', 48.6, 5.7]),
+    ...Array(4).fill(['ln2', 48.6, 5.7]), ...Array(2).fill(['ch4', 50.3, 6.5]), ...Array(4).fill(['ch4', 48.6, 5.7]),
+    ...Array(2).fill(['ch4', 31.5, 8.0]),
   ];
-  // [volume, start z, z of the gap in the vertical row that its line runs through]
-  for (const [gal, z, lineZ, what] of [[95000, -30, -25.5, 'LOX'], [80000, 6, 13.5, 'Methane']]) {
-    const len = capsuleLength(gal * GAL, r);
-    const x = fx + 19;
-    notes.push({ label: `${what} tank · ${gal.toLocaleString('en-US')} US gal`, position: [x, y0 + 2.6 + r + 2, FZ + z + len / 2] });
-    horiz.push({ geometry: new THREE.CylinderGeometry(r, r, len, 36), matrix: mat4([x, y0 + 2.6, z + len / 2], [Math.PI / 2, 0, 0]) });
-    for (const e of [0, len]) {
-      horiz.push({ geometry: new THREE.SphereGeometry(r, 36, 12), matrix: mat4([x, y0 + 2.6, z + e]) });
+  const PITCH = 6.45, y0 = 1.2;
+  const z0 = -((ROW.length - 1) * PITCH) / 2;
+  const cxRow = fx + 27;     // the row's near heads 2.7 m past farmX, where the pipe bridge lands
+  const slab = [block(fx - 4, fx + 58, -0.4, y0, z0 - 8, -z0 + 8)];
+  farm.add(mesh(boxUV(mergeAll(slab)), M.concrete));
+  const horiz = [], saddles = [], pipes = [], rails = [];
+  const rowZ = { lox: [], ln2: [], ch4: [] };
+  ROW.forEach(([kind, len, dia], i) => {
+    const r = dia / 2, z = z0 + i * PITCH, body = len - 2 * r, y = y0 + 1.1 + r;
+    rowZ[kind].push(z);
+    horiz.push({ geometry: new THREE.CylinderGeometry(r, r, body, 36), matrix: mat4([cxRow, y, z], [0, 0, Math.PI / 2]) });
+    for (const e of [-1, 1]) {
+      // Dished heads, not hemispheres: a head a third of the radius deep.
+      const head = new THREE.SphereGeometry(r, 36, 10, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.34, 1);
+      horiz.push({ geometry: head, matrix: mat4([cxRow + e * body / 2, y, z], [0, 0, -e * Math.PI / 2]) });
     }
-    for (let k = 0; k < 4; k++) {
-      const sz = z + len * (0.12 + 0.76 * (k / 3));
-      saddles.push(block(x - 1.6, x + 1.6, y0, y0 + 1.4, sz - 0.4, sz + 0.4));
+    const nS = Math.max(3, Math.round(len / 12));
+    for (let k = 0; k < nS; k++) {
+      const sx = cxRow + (k / (nS - 1) - 0.5) * body * 0.86;
+      saddles.push(block(sx - 0.45, sx + 0.45, y0, y0 + 1.1 + r * 0.45, z - r * 0.8, z + r * 0.8));
     }
-    pipes.push(rod([x - r, y0 + 2.6, lineZ], [fx - R - 3.2, y0 + 1.4, lineZ], 0.18, 8));
+    // Fill and draw line from the near head down to the header.
+    pipes.push(rod([cxRow - body / 2 - r * 0.34, y0 + 1.6, z], [fx - 1.5, y0 + 1.6, z], 0.16, 8));
+    // A walkway rail along the top.
+    rails.push(block(cxRow - body * 0.4, cxRow + body * 0.4, y + r + 0.9, y + r + 0.95, z - 0.03, z + 0.03));
+  });
+  pipes.push(rod([fx - 1.5, y0 + 1.6, z0 - 2], [fx - 1.5, y0 + 1.6, -z0 + 2], 0.32, 12));   // header
+
+  // Ambient vaporizers: finned columns in banks, near the oxygen and nitrogen tanks' far heads.
+  // Footprints traced; their ≈9 m height is reconstructed.
+  const vap = [];
+  const VAP_H = 9;
+  for (const kind of ['lox', 'ln2']) {
+    const zs = rowZ[kind], zc = (Math.min(...zs) + Math.max(...zs)) / 2;
+    for (let k = 0; k < 6; k++) {
+      const vx = cxRow + 28.5 + (k % 3) * 3.2, vz = zc + (Math.floor(k / 3) - 0.5) * 3.2;
+      for (let f = 0; f < 4; f++) {
+        const a = (f / 4) * Math.PI;
+        vap.push({ geometry: new THREE.BoxGeometry(2.3, VAP_H, 0.12), matrix: mat4([vx, y0 + VAP_H / 2, vz], [0, a, 0]) });
+      }
+    }
   }
 
   // Subcooler skids: a nitrogen tank and a boxed heat-exchanger/pump unit each. The
   // arrangement is reconstructed; that the subcoolers exist and use LN2 is cited.
   const units = [];
-  for (const [z, lineZ] of [[-38, -40], [38, 39]]) {
-    const x = fx + 29;
-    if (z < 0) notes.push({ label: 'Propellant subcoolers · liquid nitrogen', position: [x, y0 + 15, FZ + z + 4.2] });
+  const notes = [
+    { label: 'Tank farm · LOX, LN₂, CH₄ · shared with Pad 1', position: [cxRow, y0 + 16, z0 - 6] },
+    { label: 'Liquid oxygen · 10 horizontal tanks', position: [cxRow, y0 + 9, rowZ.lox[3]] },
+    { label: 'Liquid nitrogen · 8 horizontal tanks', position: [cxRow, y0 + 9, rowZ.ln2[5]] },
+    { label: 'Methane · 8 horizontal tanks', position: [cxRow, y0 + 10, rowZ.ch4[3]] },
+  ].map(n => ({ ...n, position: [n.position[0], n.position[1], n.position[2] + farm.position.z] }));
+  for (const [z, lineZ] of [[z0 - 12, z0 - 14], [-z0 + 12, -z0 + 14]]) {
+    const x = fx + 8;
+    if (z < 0) notes.push({ label: 'Propellant subcoolers · liquid nitrogen', position: [x, y0 + 15, z + 4.2 + farm.position.z] });
     units.push(block(x - 3.5, x + 3.5, y0, y0 + 3.6, z - 5, z + 1.5));
     units.push(block(x - 2.6, x + 2.6, y0 + 3.6, y0 + 4.2, z - 4.2, z + 0.7));
     horiz.push({ geometry: new THREE.CylinderGeometry(1.6, 1.6, 13, 28), matrix: mat4([x, y0 + 6.5, z + 4.2]) });
     horiz.push({ geometry: new THREE.SphereGeometry(1.6, 28, 8, 0, Math.PI * 2, 0, Math.PI / 2), matrix: mat4([x, y0 + 13, z + 4.2]) });
-    pipes.push(rod([x - 3.5, y0 + 2.2, lineZ], [fx - R - 3.2, y0 + 2.2, lineZ], 0.16, 8));
+    pipes.push(rod([x - 3.5, y0 + 2.2, lineZ], [fx - 1.5, y0 + 2.2, lineZ], 0.16, 8));
   }
+  const slabUnits = [block(fx - 2, fx + 18, -0.4, y0, z0 - 20, z0 - 4), block(fx - 2, fx + 18, -0.4, y0, -z0 + 4, -z0 + 20)];
+  farm.add(mesh(boxUV(mergeAll(slabUnits)), M.concrete));
 
-  farm.add(mesh(boxUV(mergeAll(shells)), M.pipePaint, { name: 'farm-tanks' }));
-  farm.add(mesh(boxUV(mergeAll(horiz)), M.pipeCryo, { name: 'farm-horizontal-tanks' }));
-  farm.add(mesh(boxUV(mergeAll(rings)), M.alumDark, { name: 'farm-tank-rings' }));
+  // Painted shells (the vacuum jacket's outer skin), not bare steel.
+  farm.add(mesh(boxUV(mergeAll(horiz)), M.pipePaint, { name: 'farm-horizontal-tanks' }));
+  farm.add(mesh(boxUV(mergeAll(saddles)), M.concrete, { name: 'farm-saddles' }));
   farm.add(mesh(boxUV(mergeAll(rails)), M.safetyYellow, { name: 'farm-rails', castShadow: false }));
   farm.add(mesh(boxUV(mergeAll(pipes)), M.pipeCryo, { name: 'farm-pipes' }));
-  farm.add(mesh(boxUV(mergeAll(saddles)), M.concrete, { name: 'farm-saddles' }));
+  farm.add(mesh(boxUV(mergeAll(vap)), M.aluminum ?? M.pipeCryo, { name: 'farm-vaporizers' }));
   farm.add(mesh(boxUV(mergeAll(units)), M.darkMetal, { name: 'farm-subcoolers' }));
   g.add(farm);
   g.userData.annotations = notes;
@@ -982,45 +987,61 @@ function buildPadInfrastructure(M) {
   g.add(mesh(boxUV(mergeAll(stairs)), M.steelGrating || M.mount));
 
   // 4. Deluge water storage. Cited (Wikipedia, SpaceX Starbase; NASASpaceflight): the water
-  // is held in a tank farm of HORIZONTAL tanks and driven out by compressed gas. Count and
-  // size are reconstructed. They stand on grade past the toe of the berm — the old vertical
-  // "water battery" stood on a slab buried inside the berm, with its mains floating 7 m in
-  // the air where the pad deck ended.
-  const tankX = 96, tankR = 1.8, tankLen = 11;
-  const delugeSlab = [block(tankX - 8, tankX + 8, -0.4, 0.6, -24, 24)];
-  const delugeTanks = [], delugeSaddles = [], delugePipes = [];
-  for (let i = 0; i < 7; i++) {
-    const tz = -18 + i * 6;
-    delugeTanks.push({ geometry: new THREE.CylinderGeometry(tankR, tankR, tankLen, 32), matrix: mat4([tankX, 0.6 + tankR + 0.9, tz], [0, 0, Math.PI / 2]) });
+  // is held in a tank farm of HORIZONTAL tanks and driven out by compressed gas. Count, size and
+  // place from OpenStreetMap's traced footprints of Pad 2 (© OpenStreetMap contributors, ODbL),
+  // turned into this pad's trench frame: eleven tanks on the tower's side, ≈95–105 m out, five
+  // ≈39.4 m long and six ≈26.1 m, ≈3.45 m across, their axes ≈19° off the trench's normal.
+  // Their ≈842,000 US gal hold two operations at the FAA's ≈422,000 per launch (NSF, citing the
+  // FAA's tiered EA): a cross-check, not an input. Heights, saddles and heads are reconstructed.
+  // They used to be seven 11 m tanks on the far side of the trench.
+  const DELUGE = [
+    [39.3, -92.4, 2.0], [39.4, -93.6, 5.7], [39.4, -94.8, 9.3], [39.4, -96.1, 13.0], [39.3, -97.2, 16.6],
+    [26.3, -100.8, 28.9], [26.2, -102.0, 32.6], [26.1, -103.2, 36.2], [26.0, -104.4, 39.8], [25.9, -105.7, 43.6], [25.8, -107.2, 47.4],
+  ];
+  const tankR = 1.72, TANK_AXIS = THREE.MathUtils.degToRad(19), tankY = 0.6 + 1.2 + tankR;
+  const ax = [Math.cos(TANK_AXIS), 0, Math.sin(TANK_AXIS)];
+  const along = (c, u) => [c[0] + ax[0] * u, c[1], c[2] + ax[2] * u];
+  const delugeSlab = [], delugeTanks = [], delugeSaddles = [], delugePipes = [];
+  const slabC = [-100, 0, 25];
+  delugeSlab.push({ geometry: new THREE.BoxGeometry(52, 1.0, 58), matrix: mat4([slabC[0], 0.1, slabC[2]], [0, -TANK_AXIS, 0]) });
+  const manifoldX = -80;
+  for (const [len, x, z] of DELUGE) {
+    const c = [x, tankY, z], body = len - 2 * tankR;
+    delugeTanks.push({ geometry: new THREE.CylinderGeometry(tankR, tankR, body, 32), matrix: mat4(c, [0, -TANK_AXIS, Math.PI / 2]) });
     for (const e of [-1, 1]) {
-      delugeTanks.push({ geometry: new THREE.SphereGeometry(tankR, 32, 10, 0, Math.PI * 2, 0, Math.PI / 2), matrix: mat4([tankX + e * tankLen / 2, 0.6 + tankR + 0.9, tz], [0, 0, -e * Math.PI / 2]) });
-      delugeSaddles.push(block(tankX + e * 3.4 - 0.4, tankX + e * 3.4 + 0.4, 0.6, 0.6 + 1.6, tz - 1.3, tz + 1.3));
+      const end = along(c, e * body / 2);
+      delugeTanks.push({ geometry: new THREE.SphereGeometry(tankR, 32, 10, 0, Math.PI * 2, 0, Math.PI / 2), matrix: mat4(end, [0, -TANK_AXIS, -e * Math.PI / 2]) });
     }
-    delugePipes.push(rod([tankX - tankLen / 2 - tankR + 0.2, 0.6 + tankR + 0.9, tz], [tankX - 9, 1.1, tz], 0.2, 10));
+    const nS = len > 30 ? 4 : 3;
+    for (let k = 0; k < nS; k++) {
+      const u = (k / (nS - 1) - 0.5) * body * 0.8, sc = along([x, 0, z], u);
+      delugeSaddles.push({ geometry: new THREE.BoxGeometry(0.8, 1.6, tankR * 1.5), matrix: mat4([sc[0], 0.6 + 0.8, sc[2]], [0, -TANK_AXIS, 0]) });
+    }
+    // Outlet from the pad-side head down to the manifold.
+    const head = along(c, body / 2 + tankR - 0.2);
+    delugePipes.push(rod(head, [manifoldX, 1.1, head[2]], 0.2, 10));
   }
-  delugePipes.push(rod([tankX - 9, 1.1, -20], [tankX - 9, 1.1, 20], 0.45, 16));   // manifold
+  delugePipes.push(rod([manifoldX, 1.1, 0], [manifoldX, 1.1, 50], 0.45, 16));   // manifold
   g.add(mesh(boxUV(mergeAll(delugeSlab)), M.concrete, { name: 'deluge-slab' }));
   g.add(mesh(boxUV(mergeAll(delugeTanks)), M.pipePaint, { name: 'deluge-tanks' }));
   g.add(mesh(boxUV(mergeAll(delugeSaddles)), M.concrete, { name: 'deluge-saddles' }));
-  // Cited: the water is stored in horizontal tanks. Their count and size are reconstructed.
-  g.userData.annotations = [{ label: 'Deluge water tanks', position: [tankX, 0.6 + tankR * 2 + 3.5, 0] }];
+  g.userData.annotations = [{ label: 'Deluge water tanks · 11 horizontal', position: [-100, tankY + tankR + 4, 25] }];
 
   // 5. Deluge mains, 1.2 m, from the manifold to the mount: along grade, up the berm slope,
   // across the berm, up the pad's retaining face and along the deck. Concrete saddles carry
-  // them wherever they run on a surface.
+  // them wherever they run on a surface. Both on the +Z side of the tower's base.
   const saddles = [];
   const { bermY } = PAD;
-  for (const pz of [-20, 20]) {
+  for (const pz of [14, 24]) {
     const path = [
-      [tankX - 9, 1.1, pz], [83.5, 1.1, pz],               // grade
-      [74, bermY + 0.7, pz], [65, bermY + 0.7, pz],          // up the fill, across the berm
-      [65, padY + 0.7, pz], [14, padY + 0.7, pz],            // up the face, along the deck
-      [14, padY - 2.0, pz],                                   // down into the mount's feed
+      [manifoldX, 1.1, pz], [-83.5, 1.1, pz],              // grade
+      [-74, bermY + 0.7, pz], [-65, bermY + 0.7, pz],        // up the fill, across the berm
+      [-65, padY + 0.7, pz], [-14, padY + 0.7, pz],          // up the face, along the deck
+      [-14, padY - 2.0, pz],                                  // down into the mount's feed
     ];
     for (let k = 0; k < path.length - 1; k++) delugePipes.push(rod(path[k], path[k + 1], 0.6, 20));
-    for (let px = 20; px <= 60; px += 10) saddles.push(block(px - 0.8, px + 0.8, padY, padY + 0.3, pz - 1.0, pz + 1.0));
-    saddles.push(block(66, 67.6, bermY, bermY + 0.3, pz - 1.0, pz + 1.0));
-    saddles.push(block(86, 87.6, 0, 0.6, pz - 1.0, pz + 1.0));
+    for (let px = -60; px <= -20; px += 10) saddles.push(block(px - 0.8, px + 0.8, padY, padY + 0.3, pz - 1.0, pz + 1.0));
+    saddles.push(block(-67.6, -66, bermY, bermY + 0.3, pz - 1.0, pz + 1.0));
   }
   g.add(mesh(boxUV(mergeAll(delugePipes)), M.pipePaint, { name: 'deluge-mains' }));
   g.add(mesh(boxUV(mergeAll(saddles)), M.concrete));
@@ -1096,12 +1117,18 @@ export function buildLaunchComplex(M) {
   g.add(buildGround(M));
   const table = buildMountTable(M);
   g.add(table);
+  // Tower, carriage and arms, and the ship QD arm: one assembly, turned about the mount's axis
+  // to stand at Pad 2's angle to the trench (PAD.towerYawDeg).
+  const towerFrame = new THREE.Group();
+  towerFrame.name = 'tower-frame';
+  towerFrame.rotation.y = THREE.MathUtils.degToRad(PAD.towerYawDeg);
+  g.add(towerFrame);
   const tower = buildTower(M);
-  g.add(tower);
+  towerFrame.add(tower);
   const chop = buildChopsticks(M);
-  g.add(chop);
+  towerFrame.add(chop);
   const qd = buildQdArm(M);
-  g.add(qd);
+  towerFrame.add(qd);
   const field = buildField(M);
   g.add(field);
   const infra = buildPadInfrastructure(M);
@@ -1146,9 +1173,9 @@ export function buildLaunchComplex(M) {
   g.traverse((o) => { const f = FINE[o.name]; if (f) o.userData.lodFeature = f; });
 
   g.userData.annotations = [
-    { label: 'Integration and launch tower · ≈480 ft + 10 ft rod', position: [PAD.towerX - 9, PAD.padY + 96, 0] },
-    { label: 'Catch arms · ≈26 m', position: [PAD.towerX + 12, PAD.armY + 4, -22] },
-    { label: 'Ship quick-disconnect arm', position: [PAD.towerX + 14, PAD.qdY + 4, 0] },
+    { label: 'Integration and launch tower · ≈480 ft + 10 ft rod', position: towerToPad([PAD.towerX - 9, PAD.padY + 96, 0]) },
+    { label: 'Catch arms · ≈26 m', position: towerToPad([PAD.towerX + 12, PAD.armY + 4, -22]) },
+    { label: 'Ship quick-disconnect arm', position: towerToPad([PAD.towerX + 14, PAD.qdY + 4, 0]) },
     { label: 'Launch mount · water-cooled deck', position: [17, PAD.deckTop + 2.5, 14] },
     { label: '20 hold-down clamps', position: [8.5, PAD.deckTop + 3.6, -9] },
     // From the constant that builds it: this label said 8.2 m for months after the trench became 4.2 m.

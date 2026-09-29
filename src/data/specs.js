@@ -68,6 +68,11 @@ export const SOURCES = {
   // Primary, official: the FAA's programmatic environmental assessment for the Starship/Super
   // Heavy programme at Boca Chica (June 2022), §2.1.4.3: "Each tower would be approximately 480
   // feet tall with a 10-foot lightning rod on top". Read directly (PDF, faa.gov) on 29 Sep 2026.
+  // Community-traced footprints from satellite imagery (© OpenStreetMap contributors, ODbL),
+  // read through the OSM API on 29 Sep 2026: tanks with content tags, the Pad 2 tower and
+  // trench, the GSE buildings. Positions and sizes to a metre or two; used as ≈.
+  osm_starbase: { label: 'OpenStreetMap — Starbase launch site footprints (© OpenStreetMap contributors, ODbL)', url: 'https://www.openstreetmap.org/#map=17/25.9965/-97.1570' },
+  nsf_pad2_deluge: { label: 'NASASpaceflight — Pad 2 article, citing the FAA tiered EA: ≈422,000 US gal of deluge water per operation', url: 'https://www.nasaspaceflight.com/2025/08/starbase-pad-2-advancements-pad-1/' },
   faa_pea2022: { label: 'FAA — Programmatic EA, SpaceX Starship/Super Heavy at Boca Chica (June 2022), §2.1.4.3 integration towers: ≈480 ft + 10 ft rod', url: 'https://www.faa.gov/sites/faa.gov/files/2022-06/PEA_for_SpaceX_Starship_Super_Heavy_at_Boca_Chica_FINAL.pdf' },
   wiki_olit3: { label: 'Starship SpaceX Wiki (fan wiki) — OLIT-3, 474 ft, attributed to FAA OE/AAA filings of May 2024; primary filing not located', url: 'https://starship-spacex.fandom.com/wiki/Orbital_Launch_and_Integration_Tower_3_(OLIT-3)' },
   nasa_psyche_39a: { label: 'NASA — Psyche Falcon Heavy vertical on LC-39A, centre core and side nose cones (KSC-20231010-PH-SPX01_0007)', url: 'https://images.nasa.gov/details/KSC-20231010-PH-SPX01_0007' },
@@ -125,6 +130,9 @@ export const VEHICLES = [
       { label: 'Pad 2 · carriage hoist', value: 'chopstick carriage on a pulley at the tower top, driven by a winch and spool at the base', source: 'wiki', ref: 'wiki_starbase' },
       { label: 'Pad 2 · deluge water', value: 'held in a farm of horizontal tanks, driven onto the deck by compressed gas', source: 'wiki', ref: 'wiki_starbase' },
       { label: 'Tank farm · propellant', value: '95,000 US gal horizontal LOX tank · 80,000 US gal methane tank · LN2 subcoolers', source: 'wiki', ref: 'wiki_starbase' },
+      { label: 'Tank farm · layout', value: 'rows of horizontal tanks ≈48.6 m long and ≈5.8 m across: 10 liquid oxygen, 8 liquid nitrogen, 8 methane (four of that size, two ≈50.3 × 6.5 m, two ≈31.5 × 8.0 m), with ambient vaporizers; shared by Pad 1 and Pad 2, which has its own pumps and subcoolers', source: 'derived', approx: true, ref: 'osm_starbase' },
+      { label: 'Pad 2 · deluge tanks', value: '11 horizontal tanks on the tower side, five ≈39.4 m and six ≈26.1 m long, ≈3.45 m across: ≈842,000 US gal, two operations at the ≈422,000 US gal per launch the FAA assessed', source: 'derived', approx: true, ref: 'osm_starbase' },
+      { label: 'Pad 2 · tower and trench', value: 'the tower–mount line meets the trench axis at ≈52.5° (Pad 1: ≈55°); tower ≈31 m from the trench centre; trench ≈84 × 18 m outside', source: 'derived', approx: true, ref: 'osm_starbase' },
       { pad: ['mountWidth', 'deckTop', 'trenchWidth', 'trenchDepth'], label: 'Pad 2 · plan dimensions', value: '26 m mount, deck at 18 m, trench 22 m wide and 4.2 m deep, tower 30 m off the axis', source: 'derived', approx: true },
       { label: 'Sequence · countdown', value: 'GO for launch T−0:30 · flame diverter T−0:17 · booster engine startup T−0:03', source: 'spacex', ref: 'spacex_ft14' },
       { label: 'Sequence · milestones', value: 'liftoff T+0:00 · Max-Q T+0:58 · MECO T+2:20 · hot-staging T+2:22 · Starship engine cutoff T+8:11', source: 'spacex', ref: 'spacex_ft14' },
@@ -150,12 +158,12 @@ export const VEHICLES = [
       'Internal stations (skirt, common dome, nose base, payload bay) are not public: they are derived from the 1.83 m ring and the published propellant masses.',
       'Campus, plausible context: the salt-flat colour, low dunes, scrub and the winding tidal channels through the marsh match the coastal plain in kind only (the channels and the grey-brown flats after SpaceX\'s Pad 2 wet-dress photograph). Their positions are not surveyed.',
       'Campus, non-structural dressing: the gravel terrace, visitor road, drainage swale and three service trucks are scale furniture. They are not roads or vehicles at Starbase.',
-      'Pad 2 field: the tower\'s truss members, lift shaft and stair, the count and size of the deluge tanks, the row of vertical storage tanks, the subcooler skids and every position are reconstructed. The two horizontal propellant tanks take their length from the cited volumes at an assumed 3.8 m diameter. There are no free-standing lightning masts or floodlight towers: no source places any at Pad 2.',
+      'Pad 2 field: the tower\'s truss members, lift shaft and stair and the subcooler skids are reconstructed. The deluge tanks and the propellant farm\'s tanks take their count, size and (for the deluge) place from OpenStreetMap\'s traced footprints, to a metre or two; their heights, heads and saddles are reconstructed, and the propellant row is set beside the pad rather than 200–400 m off, where it would cross the exhibit row. There are no free-standing lightning masts or floodlight towers: no source places any at Pad 2.',
       'Closeout lamps under the Pad 2 deck, and the cool point that stands in for bounce off the water-cooled steel, are reconstructed service lighting. They are not sunlight and they are not a published lighting plan.',
       'The ship after separation is integrated as a rocket, not drawn: its published thrust and propellant load with assumed specific impulses, so its mass falls and its acceleration rises as it burns, and its engines stop at the cited T+8:11. The steering constants and the non-propellant mass (≈215 t: structure, payload and reserves together) are solved so the burn ends level at flight 12\'s published apogee (195 km) at the speed of the top of that arc (perigee −7 km): ≈27,800 km/h, inertial, without Earth\'s rotation. Full thrust to the cutoff gives ≈5.8 g at the end; whether V3 throttles back near cutoff is not published. None of this has been checked against webcast telemetry, which SpaceX does not publish as data.',
       'The booster\'s return is integrated, not drawn: one 2-D flight from the stack\'s own state at separation to the arms, with gravity, drag and two burns, so position, speed and attitude are continuous and agree with each other. Cited: flight 14\'s times (boostback T+2:27–3:07, landing burn T+6:36–7:01; SpaceX) and flight 7\'s transonic call five seconds before its landing burn. Approximate: 17 s on the centre 3 at the end (≈T+6:44), carried over from an unverified reading of flight 5 footage. Assumed: 250 t for drag over the 9 m disc, an exponential atmosphere (1.225 kg/m³, 8.5 km scale height), a boostback of constant thrust and direction, a landing burn of constant thrust against the velocity, and a steady 1.6 m/s² deceleration on the centre 3. Solved at load, not chosen: the boostback (≈ 32 m/s², pointing back towards the pad), the landing-burn thrust (≈ 51 m/s²) and an effective drag coefficient (≈ 1.9, which lumps in the grid fins and the angle of attack) that make the booster transonic at ≈T+6:31 and hand over to the centre 3 at ≈T+6:44, 27 m/s and 231 m over the catch height. Interpolated: only those last 17 s, a cubic matching position and velocity at both ends. The results — apogee ≈ 106 km at ≈T+3:50, re-entry peak ≈ 4,300 km/h, ≈ 980 km/h at 1.2 km when the landing burn lights — are consequences of these assumptions, not flight data; no public source gives Super Heavy\'s trajectory second by second.',
     ],
-    sources: ['spacex_starship', 'spacex_v3', 'spacex_ft13', 'spacex_ft14', 'spacex_s39_static', 'spacex_v3_wdr', 'spacex_b19_lift', 'spacex_b19_static', 'wiki_starship', 'wiki_starbase', 'wiki_superheavy', 'wiki_raptor', 'space_tiles', 'nsf_sh_block3', 'nsf_flight12', 'wiki_ft5', 'wiki_ft7', 'wiki_ft12', 'spacex_ft12'],
+    sources: ['spacex_starship', 'spacex_v3', 'spacex_ft13', 'spacex_ft14', 'spacex_s39_static', 'spacex_v3_wdr', 'spacex_b19_lift', 'spacex_b19_static', 'wiki_starship', 'wiki_starbase', 'wiki_superheavy', 'wiki_raptor', 'space_tiles', 'nsf_sh_block3', 'nsf_flight12', 'wiki_ft5', 'wiki_ft7', 'wiki_ft12', 'spacex_ft12', 'osm_starbase', 'faa_pea2022'],
     presets: [
       { id: 'overview', label: 'Overview', pos: [50.8, 70, -236.7], target: [0, 58, 0] },
       // Site frame, standing in the open trench and looking back at the cluster.
@@ -173,13 +181,16 @@ export const VEHICLES = [
       { id: 'flaps', label: 'Flaps and nose', pos: [34, 108, 18], target: [1, 113, -1] },
       { id: 'lee', label: 'Leeward side', pos: [10, 96, -48], target: [0, 96, 0] },
       { id: 'gridfins', label: 'Grid fins and pins', pos: [18.0, 76, 31.2], target: [0, 70, 0] },
-      { id: 'site', label: 'Launch complex', frame: 'site', pos: [268, 118, 286], target: [4, 62, 0] },
-      { id: 'tower', label: 'Tower and arms', frame: 'site', pos: [58, 104, 64], target: [-24, 110, 0] },
+      // Turned with the tower's frame (−37.5°): the old [268, 118, 286] → [4, 62, 0], so the tower
+      // stands beside the stack rather than hidden behind it.
+      { id: 'site', label: 'Launch complex', frame: 'site', pos: [38.5, 118, 390.1], target: [3.2, 62, 2.4] },
+      // Turned with the tower's frame (−37.5°, see PAD.towerYawDeg): the old [58, 104, 64] → [−24, 110, 0].
+      { id: 'tower', label: 'Tower and arms', frame: 'site', pos: [7.1, 104, 86.1], target: [-19.0, 110, -14.6] },
       { id: 'booster-qd', label: 'LOX / methane QDs', pos: [34, 29, 20], target: [12, 19, 0], frame: 'site' },
       { id: 'trench', label: 'Flame trench', frame: 'site', pos: [3, 11, 74], target: [0, 12, 0] },
-      // The propellant and gas farm from its landward side, where the two cited horizontal
-      // tanks and the subcoolers stand in front of the vertical row rather than behind it.
-      { id: 'farm', label: 'Tank farm', frame: 'site', pos: [236, 38, 6], target: [160, 6, -66] },
+      // The propellant and gas farm from beyond its far end, looking down the ≈190 m row of
+      // horizontal tanks towards the pad.
+      { id: 'farm', label: 'Tank farm', frame: 'site', pos: [262, 62, 70], target: [168, 2, -80] },
     ],
   },
   FALCON1,
