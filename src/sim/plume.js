@@ -20,6 +20,7 @@
  */
 import * as THREE from 'three';
 import { fbm } from '../materials/textures.js';
+import { GULF, LAUNCH_SITE } from '../data/gulf.js';
 
 const SCALE_HEIGHT = 7500;
 /** Ambient pressure as a fraction of sea level. */
@@ -188,7 +189,8 @@ export class Plume {
       const u = layer.material.uniforms;
       return {
         u, sl: [u.uHot.value.clone(), u.uWarm.value.clone(), u.uCool.value.clone()],
-        vac: i === 0 ? [lin(0xfdfbff), lin(0xdfe2ff), lin(0x9aa6e8)] : [lin(0xe8ecff), lin(0x8c98d8), lin(0x3a4270)],
+        // Azure, not periwinkle: with as much red as green the halo read lavender under ACES.
+        vac: i === 0 ? [lin(0xfbfdff), lin(0xdde9ff), lin(0x8fb2e6)] : [lin(0xe6f0ff), lin(0x82a2d6), lin(0x2e4668)],
       };
     });
     this.group.add(this.veil, this.shroud, this.core);
@@ -1478,10 +1480,14 @@ export class CondensationCollar {
  * Above a few kilometres the 5 km ground disc is a coin under the vehicle and the frame was
  * dark navy to the edges. From 80 km the horizon is 1 000 km away and dips 9° below level: a
  * curved, sunlit Earth with a blue limb over it, which is what every onboard view shows.
- * This is that: a sphere of the Earth's real radius under the camera, with generic ocean,
- * land and cloud from 3D noise on the sphere — illustrative, like the Roadster's orbital
- * backdrop, not a map — lit by the scene's sun, hazing to sky-blue towards the horizon, and
- * a limb shell of scattered light round it. Faded in from 9 to 20 km.
+ * This is that: a sphere of the Earth's real radius under the camera, lit by the scene's sun,
+ * hazing to sky-blue towards the horizon, with a limb shell of scattered light round it, faded
+ * in from 9 to 20 km. Its surface is the real one round Starbase: the Gulf of Mexico's
+ * coastlines and NASA's Blue Marble colour (data/gulf.js), placed by carrying the pad's
+ * geographic frame along the great circle to the point under the camera, with the scene's
+ * downrange axis on the launch azimuth. The ship's plume points at Florida and Cuba as it
+ * climbs over the Gulf. Clouds stay generic noise (weather is not a map), and so does the
+ * surface outside the mapped box or until the picture has loaded.
  */
 const EARTH_R = 6371000;
 const EARTH_VERT = /* glsl */`
@@ -1495,7 +1501,10 @@ const EARTH_VERT = /* glsl */`
   }`;
 const EARTH_FRAG = /* glsl */`
   uniform vec3 uSun, uCam, uCentre;
-  uniform float uOpacity;
+  uniform float uOpacity, uMapped;
+  uniform mat3 uGeo;
+  uniform sampler2D uColour, uLand;
+  uniform vec4 uBox;   // lon0, lat0, lon span, lat span (radians)
   varying vec3 vN, vW;
   float h3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
   float n3(vec3 x) {
@@ -1511,9 +1520,29 @@ const EARTH_FRAG = /* glsl */`
     vec3 ocean = vec3(0.02, 0.09, 0.2);
     vec3 ground = mix(vec3(0.16, 0.18, 0.1), vec3(0.34, 0.3, 0.2), fbm3(n * 40.0));
     vec3 c = land > 0.0 ? ground : ocean;
+    float water = land > 0.0 ? 0.0 : 1.0;
+    // The mapped surface: the point's latitude and longitude from the carried geographic frame.
+    vec3 e = uGeo * n;
+    vec2 uv = (vec2(atan(e.y, e.x), asin(clamp(e.z, -1.0, 1.0))) - uBox.xy) / uBox.zw;
+    float inBox = uMapped * step(0.0, uv.x) * step(uv.x, 1.0) * step(0.0, uv.y) * step(uv.y, 1.0);
+    if (inBox > 0.0) {
+      vec3 bm = texture2D(uColour, uv).rgb;
+      float isLand = smoothstep(0.35, 0.65, texture2D(uLand, uv).r);
+      // Deep water is one colour: the mosaic's open ocean is near-black with visible tile
+      // seams. Only its shallow banks (Bahamas, Yucatán, Florida Keys) come through, by how far
+      // their green rises over the deep water's.
+      float shallow = smoothstep(0.006, 0.04, bm.g);
+      vec3 sea = mix(vec3(0.010, 0.032, 0.085), bm * 2.4, shallow);
+      c = mix(sea, bm * 2.1, isLand);
+      water = 1.0 - isLand;
+    }
     c = mix(c, vec3(0.86, 0.88, 0.9), cloud * 0.85);
     float diff = max(dot(n, uSun), 0.0);
     c *= 0.08 + 1.1 * diff;
+    // Sun glint off open water, the bright patch in every photograph of the Gulf from orbit.
+    vec3 vv = normalize(uCam - vW);
+    float glint = pow(max(dot(normalize(uSun + vv), n), 0.0), 380.0) * water * (1.0 - cloud) * step(0.0, dot(n, uSun));
+    c += vec3(1.0, 0.97, 0.9) * glint * 0.9;
     // Haze from the air between the camera and the ground: a plane-parallel air mass, the
     // vertical optical depth (≈0,35 for a clear coastal sky, scaled by the share of the
     // atmosphere below the camera, 8,5 km scale height) over the cosine of the view angle.
@@ -1524,7 +1553,11 @@ const EARTH_FRAG = /* glsl */`
     float camH = max(length(uCam - uCentre) - ${EARTH_R.toFixed(1)}, 0.0);
     float tau = 0.35 * (1.0 - exp(-camH / 8500.0));
     float haze = 1.0 - exp(-tau / max(mu, 0.035));
-    c = mix(c, vec3(0.52, 0.66, 0.88) * (0.3 + 0.9 * diff), haze);
+    // The air's own light is dimmer looking down through one air mass than along the horizon,
+    // where the path is long and the limb glows: at full sky brightness straight down the
+    // veil turned the Gulf pale grey-blue, where every photograph from orbit has it navy.
+    vec3 air = vec3(0.52, 0.66, 0.88) * mix(0.34, 1.0, smoothstep(0.35, 0.03, mu));
+    c = mix(c, air * (0.3 + 0.9 * diff), haze);
     gl_FragColor = vec4(c, uOpacity);
   }`;
 const LIMB_FRAG = /* glsl */`
@@ -1588,11 +1621,26 @@ export class FlightEarth {
     this.group = new THREE.Group();
     this.group.name = 'flight-earth';
     this.group.visible = false;
+    const d2r = THREE.MathUtils.DEG2RAD;
     const uni = {
       uCentre: { value: new THREE.Vector3() }, uCam: { value: new THREE.Vector3() },
       uSun: { value: new THREE.Vector3(0, 1, 0) }, uOpacity: { value: 0 },
+      uGeo: { value: new THREE.Matrix3() }, uMapped: { value: 0 },
+      uColour: { value: null }, uLand: { value: null },
+      uBox: { value: new THREE.Vector4(GULF.lon0 * d2r, GULF.lat0 * d2r, (GULF.lon1 - GULF.lon0) * d2r, (GULF.lat1 - GULF.lat0) * d2r) },
     };
     this.u = uni;
+    // The pad's frame in Earth-centred coordinates (x to 0° E on the equator, z to the north
+    // pole): the scene's +X on the launch azimuth, +Y up, +Z = X × Y.
+    const la = LAUNCH_SITE.lat * d2r, lo = LAUNCH_SITE.lon * d2r, az = LAUNCH_SITE.azimuthDeg * d2r;
+    const east = new THREE.Vector3(-Math.sin(lo), Math.cos(lo), 0);
+    const north = new THREE.Vector3(-Math.sin(la) * Math.cos(lo), -Math.sin(la) * Math.sin(lo), Math.cos(la));
+    const up = new THREE.Vector3(Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la));
+    const x = east.clone().multiplyScalar(Math.sin(az)).addScaledVector(north, Math.cos(az));
+    this.padFrame = new THREE.Matrix4().makeBasis(x, up, x.clone().cross(up));
+    this.origin = new THREE.Vector2();
+    this._rot = new THREE.Matrix4();
+    this._axis = new THREE.Vector3();
     this.earth = new THREE.Mesh(earthCap(),
       new THREE.ShaderMaterial({ uniforms: uni, vertexShader: EARTH_VERT, fragmentShader: EARTH_FRAG, transparent: true, depthWrite: true }));
     this.earth.name = 'flight-earth-globe';
@@ -1607,11 +1655,55 @@ export class FlightEarth {
     for (const m of [this.earth, this.limb]) { m.frustumCulled = false; m.renderOrder = -1; this.group.add(m); }
   }
 
+  /** The pad's position in the scene, where the geographic frame is anchored. */
+  setOrigin(x, z) { this.origin.set(x, z); }
+
+  /** Draws the land mask from the coastline rings and loads the colour mosaic, once. */
+  loadMap() {
+    if (this.u.uLand.value || this.noMap) return;
+    const W = 2048, H = Math.round(W * (GULF.lat1 - GULF.lat0) / (GULF.lon1 - GULF.lon0));
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const g = cv.getContext?.('2d');
+    // Headless checks run the sequence under Node with a stand-in canvas: keep the generic surface.
+    if (typeof g?.fillRect !== 'function' || typeof Image === 'undefined') { this.noMap = true; return; }
+    g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+    const sx = W / ((GULF.lon1 - GULF.lon0) * GULF.q), sy = H / ((GULF.lat1 - GULF.lat0) * GULF.q);
+    g.beginPath();
+    for (const r of GULF.rings) {
+      let px = r[0], py = r[1];
+      g.moveTo(px * sx, H - py * sy);
+      for (let i = 2; i < r.length; i += 2) { px += r[i]; py += r[i + 1]; g.lineTo(px * sx, H - py * sy); }
+      g.closePath();
+    }
+    g.fillStyle = '#fff'; g.fill('evenodd');
+    const land = new THREE.CanvasTexture(cv);
+    land.name = 'flight-earth-land';
+    this.u.uLand.value = land;
+    new THREE.TextureLoader().load(new URL('../assets/earth/gulf-bmng.jpg', import.meta.url).href, (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.name = 'flight-earth-colour';
+      this.u.uColour.value = tex;
+      this.u.uMapped.value = 1;
+    });
+  }
+
   /** Follows the camera over the ground; fades in with the camera's altitude. */
   update(camera, sunDir, altitude) {
     const k = THREE.MathUtils.smoothstep(altitude, 9000, 20000);
     this.group.visible = k > 0.001;
     if (!this.group.visible) return;
+    this.loadMap();
+    // Carry the pad's frame along the great circle to the point under the camera: a turn of
+    // (ground distance / R) about the axis at right angles to the way the camera has gone.
+    const dx = camera.position.x - this.origin.x, dz = camera.position.z - this.origin.y;
+    const d = Math.hypot(dx, dz);
+    this._rot.identity();
+    if (d > 1) {
+      this._axis.set(dz / d, 0, -dx / d).transformDirection(this.padFrame);
+      this._rot.makeRotationAxis(this._axis, d / EARTH_R);
+    }
+    this.u.uGeo.value.setFromMatrix4(this._rot.multiply(this.padFrame));
     // Centred under the camera, its top 40 m below the pad so the ground disc stays in front.
     this.group.position.set(camera.position.x, -EARTH_R - 40, camera.position.z);
     this.u.uCentre.value.copy(this.group.position);

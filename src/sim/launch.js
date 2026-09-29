@@ -854,11 +854,15 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
       return { position: [Math.sin(a) * 4.45, HS_STATION, Math.cos(a) * 4.45], radius: 0.6, direction: [Math.sin(a), -0.35, Math.cos(a)] };
     }),
   });
+  // Orange-yellow to the tips: with the sea-level jets' red-orange tail over 70 % of their
+  // length, 24 thin tongues read as a red starburst rather than the ring of fire in the footage.
+  hotStageVents.material.uniforms.uWarm.value.set(0xffc46e).convertSRGBToLinear();
+  hotStageVents.material.uniforms.uTail.value.set(0xff9442).convertSRGBToLinear();
   booster.add(hotStageVents.mesh);
   const ventAt = (t) => shipThrottle(t) * (1 - THREE.MathUtils.smoothstep(t, EVENTS.separation + 0.4, EVENTS.separation + 2.6));
   // …and the fireball those vents make together, round the interstage, from the ship's
   // ignition until the gap opens.
-  const stageGlow = new Glow({ name: 'glow-hot-stage' });
+  const stageGlow = new Glow({ name: 'glow-hot-stage', edge: 0xff9a44 });
   stageGlow.mesh.position.set(0, HS_STATION, 0);
   booster.add(stageGlow.mesh);
   const stageGlowAt = (t) => {
@@ -976,15 +980,17 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     return { t0: SMOKE_T[0], t1: SMOKE_T[1], points: pts };
   })();
   const landingSmoke = new Vapor({
-    name: 'vapor-landing-smoke', rng: seeded(28), accel: [0.7, 0.5, 0.3], tau: 1.2, opacity: 0.2, path: smokePath,
-    colors: [0x8f8a84, 0x55514c], fadeIn: 0.015,
-    // Dense and large enough to stay one stream at the burn's 280 m/s start: at 80 puffs a
-    // source and a 1.2 s fade-in it read as a dotted line. Half the sources stop as the
-    // booster slows over the pad, and the rest a few seconds before the catch: at a steady
-    // rate the smoke piles up where the booster lingers and stood a flat grey wall beside it.
-    // Beads at 150 a source: at 280 m/s a puff every 0.08 s is 22 m of trail for a 12 m puff.
-    // Fewer, larger puffs close the gaps without the fill cost of more of them.
-    emitters: [0.5, 2.1, 3.7, 5.3].map((a, i) => ({ at: around(3, 0, a), dir: out(a, 0.4), speed: 7, spread: 0.5, count: nv(170), life: 12, size: 21, grow: 4.5, jitter: 3, window: [EVENTS.landingBurn + 0.5, i % 2 ? BURN_THREE + 5 : EVENTS.catch - 5] })),
+    // Faint, brown and spreading: on SpaceX's flight 5 final-approach photograph (Commons,
+    // 54063904149) the trail is a thin tan smear drifting off to one side, the sky showing
+    // through it, not an opaque grey column. At 0.2 it stood above the booster like a chimney.
+    name: 'vapor-landing-smoke', rng: seeded(28), accel: [2.2, 0.3, 1.1], tau: 1.2, opacity: 0.05, path: smokePath,
+    colors: [0x9c9083, 0x6b6259], fadeIn: 0.015,
+    // Seen from below, the camera looks down the length of the trail, and a few hundred
+    // puffs along one line of sight add up to an opaque column whatever each one's opacity:
+    // 70 a source, 24 m and growing fast, drifting off with the wind, keep it a smear. Half
+    // the sources stop as the booster slows over the pad and the rest a few seconds before
+    // the catch, so the smoke does not pile up where the booster lingers.
+    emitters: [0.5, 2.1, 3.7, 5.3].map((a, i) => ({ at: around(3, 0, a), dir: out(a, 0.4), speed: 7, spread: 0.5, count: nv(70), life: 12, size: 24, grow: 9, jitter: 3, window: [EVENTS.landingBurn + 0.5, i % 2 ? BURN_THREE + 5 : EVENTS.catch - 5] })),
   });
   ex.group.add(landingSmoke.mesh);
 
@@ -1091,6 +1097,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   // Above ~10 km the flat 1:1 site runs out long before the horizon: a curved Earth with a
   // limb takes over from there, following the camera over the ground.
   const flightEarth = new FlightEarth();
+  flightEarth.setOrigin(ex.lay.x, ex.lay.z);
   scene.add(flightEarth.group);
 
   // The viewer's near plane follows the orbit distance (main.js), so the value to put back is
