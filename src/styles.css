@@ -392,3 +392,6 @@ body.is-touring .coach { display: none; }
 }
 .desktop-note button { margin-top: 12px; }
 .loading-note { margin-top: 12px; font-size: 0.78rem; color: var(--ink-muted); }
+
+/* Re-entry chapter: the ship alone; the booster column goes. */
+.mission.is-reentry .mt-booster { display: none; }

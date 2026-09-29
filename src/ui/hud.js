@@ -7,7 +7,7 @@ import { SOURCES, SOURCE_LABEL } from '../data/specs.js';
 const fmtHeight = (h) => `${h >= 10 ? Math.round(h) : h} m`;
 const THREE_DEG20 = Math.PI / 9;
 
-export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWalk, onSun, onReset, onLaunch, onLaunchAbort, onLaunchSpeed, onLaunchSound, onLaunchPause, onLaunchSeek, onLaunchRestart, onLaunchCamera, onTour, onHelp }) {
+export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWalk, onSun, onReset, onLaunch, onReentry, onLaunchAbort, onLaunchSpeed, onLaunchSound, onLaunchPause, onLaunchSeek, onLaunchRestart, onLaunchCamera, onTour, onHelp }) {
   const root = document.getElementById('hud');
   root.innerHTML = `
     <header class="hud-header">
@@ -45,6 +45,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
       <label class="tool"><input type="checkbox" id="tg-humans" checked> 1.80 m figures</label>
       <label class="tool tool-sun">Sun <input type="range" id="sun" min="4" max="75" value="20" step="1" title="Sun elevation, from low evening light to midday"></label>
       <button class="tool tool-btn tool-launch" id="launch-btn" title="Starship launch sequence from Pad 2 (G)">Starship · Launch <kbd>G</kbd></button>
+      <button class="tool tool-btn" id="reentry-btn" title="Starship's re-entry and splashdown, on flight 14's timeline (X)">Reentry <kbd>X</kbd></button>
       <button class="tool tool-btn" id="tour-btn" title="Guided tour of the centre (P)">Tour <kbd>P</kbd></button>
       <button class="tool tool-btn" id="mode-btn" title="Switch camera mode (F)">Orbit <kbd>F</kbd></button>
       <button class="tool tool-btn" id="walk-btn" type="button" aria-pressed="false" title="Walk the apron at eye height, 1.7 m (V)">Walk <kbd>V</kbd></button>
@@ -132,7 +133,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
         <ol class="guide-start" aria-label="First steps">
           <li><b>Pick a vehicle</b> in the list on the left, or press <kbd>1</kbd>–<kbd>${vehicles.length}</kbd>.</li>
           <li><b>Choose a view</b> in the bar at the bottom: engines, heat shield, tower…</li>
-          <li><b>Press <kbd>G</kbd></b> to launch Starship, or <kbd>P</kbd> for a guided tour.</li>
+          <li><b>Press <kbd>G</kbd></b> to launch Starship, <kbd>X</kbd> for its re-entry, or <kbd>P</kbd> for a guided tour.</li>
         </ol>
         <div class="guide-grid">
           <section class="guide-sec" data-mode="orbit">
@@ -169,6 +170,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
               <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>previous · next milestone</dd>
               <dt><kbd>C</kbd></dt><dd>camera: broadcast shots, or ride with the booster or the ship</dd>
               <dt>Panel</dt><dd>×¼ to ×10 speed · click the flight profile to jump</dd>
+              <dt><kbd>X</kbd></dt><dd>the ship's re-entry and splashdown, flight 14 (on-board, chase and buoy cameras)</dd>
             </dl>
           </section>
           <section class="guide-sec">
@@ -381,15 +383,18 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
   const soundBtn = el('#mission-sound');
   const speeds = [...root.querySelectorAll('#mission-speeds button')];
   launchBtn.addEventListener('click', () => onLaunch?.());
+  el('#reentry-btn').addEventListener('click', () => onReentry?.());
   el('#mission-abort').addEventListener('click', () => onLaunchAbort?.());
   el('#mission-restart').addEventListener('click', () => onLaunchRestart?.());
   const camBtn = el('#mission-cam');
   camBtn.addEventListener('click', () => onLaunchCamera?.());
   function showCamera(st) {
-    const label = st.director ? 'director' : st.follow === 'ship' ? 'riding the ship' : 'riding the booster';
+    const director = st.director ?? st.follow === 'director';
+    const label = st.chapter === 'reentry' ? ({ director: 'director', onboard: 'on board', chase: 'chase' }[st.follow] ?? st.follow)
+      : director ? 'director' : st.follow === 'ship' ? 'riding the ship' : 'riding the booster';
     const html = `Camera · ${label} <kbd>C</kbd>`;
     if (camBtn.innerHTML !== html) camBtn.innerHTML = html;
-    camBtn.classList.toggle('active', !st.director);
+    camBtn.classList.toggle('active', !director);
   }
   // The panel can fold down to the clock, the phase and the transport row. On a phone held
   // sideways it starts folded: expanded, it covered all but the top 70 px of an 844 × 390
@@ -471,8 +476,16 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
   for (const b of speeds) b.addEventListener('click', () => { showSpeed(Number(b.dataset.k)); onLaunchSpeed?.(Number(b.dataset.k)); });
   const clockText = (t) => {
     const a = Math.abs(t);
-    return `T${t < 0 ? '−' : '+'}00:${String(Math.floor(a / 60)).padStart(2, '0')}:${String(Math.floor(a % 60)).padStart(2, '0')}`;
+    return `T${t < 0 ? '−' : '+'}${String(Math.floor(a / 3600)).padStart(2, '0')}:${String(Math.floor((a % 3600) / 60)).padStart(2, '0')}:${String(Math.floor(a % 60)).padStart(2, '0')}`;
   };
+  // The panel's caption and its sources note belong to the sequence running: the launch's by
+  // default, the re-entry's while that chapter plays.
+  const kindEl = mission.querySelector('.mission-kind'), noteEl = mission.querySelector('.mission-note');
+  const launchText = { kind: kindEl.innerHTML, note: noteEl.innerHTML };
+  function setMissionText(t) {
+    kindEl.innerHTML = t?.kind ?? launchText.kind;
+    noteEl.innerHTML = t?.note ?? launchText.note;
+  }
   const dist = (m) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(m < 10000 ? 2 : 1)} km`);
   // ---- Flight profile plot ----
   // The whole flight at a glance: the ship's climb, the booster's return, the milestones as
@@ -540,6 +553,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
       return;
     }
     mission.classList.remove('hidden');
+    mission.classList.toggle('is-reentry', st.chapter === 'reentry');
     hideCoach();
     document.body.classList.add('is-flying');
     launchBtn.classList.add('is-live');
@@ -550,7 +564,9 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
     // A time read off the model (tower clear, supersonic, booster apogee, booster transonic) is
     // marked ≈, so it is not taken for a flight's published timeline.
     const est = st.next?.src === 'model' ? '≈' : '';
-    mNext.textContent = short ? `Next · ${st.next.label} ${est}${short.slice(0, 2)}${short.slice(5)}` : '';
+    // Without the hours while there are none; the re-entry runs nine and a half hours in.
+    const nextTxt = short && (short.slice(2, 4) === '00' ? `${short.slice(0, 2)}${short.slice(5)}` : short);
+    mNext.textContent = short ? `Next · ${st.next.label} ${est}${nextTxt}` : '';
     for (const key of ['booster', 'ship']) {
       const r = readout[key], v = st[key];
       if (!v) continue;
@@ -739,5 +755,5 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
   };
   root.querySelector('#coach-close').addEventListener('click', hideCoach);
 
-  return { setActive, setPreset, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setTrajectory, setTour, showHelp, setMap, setMapCamera, showCoach, hideCoach, soundWanted, milestoneStep, notice };
+  return { setActive, setPreset, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setMissionText, setTrajectory, setTour, showHelp, setMap, setMapCamera, showCoach, hideCoach, soundWanted, milestoneStep, notice };
 }
