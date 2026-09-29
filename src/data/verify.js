@@ -120,7 +120,7 @@ const HULLS = {
   roadster: ['body-paint', 'windshield-surround', 'windshield-glass'],
   // Only the Raptor Vacuum: the row also holds a Raptor 3 and a Merlin, and the display
   // cradles are furniture.
-  engines: ['rvac-bell', 'rvac-bell-inner', 'rvac-head'],
+  engines: ['rvac-bell', 'rvac-bell-inner', 'rvac-engineDark', 'rvac-engineSilver', 'rvac-enginePurple'],
 };
 
 /**

@@ -529,6 +529,21 @@ float vcNoise(vec2 p) {
     map: T.bellCool.map, roughnessMap: T.bellCool.roughnessMap, normalMap: T.bellCool.normalMap,
     normalScale: new THREE.Vector2(0.28, 0.28), metalness: 0.82, roughness: 1.0, envMapIntensity: 1.2,
   });
+  // ---- Engine Row exhibits, read off SpaceX's factory portraits (see engineExhibits.js) ----
+  // Merlin 1D Block 5, unflown: satin light-grey metal bell and chamber.
+  M.merlinNozzle = new THREE.MeshPhysicalMaterial({ name: 'merlin-nozzle', color: 0x9da1a5, metalness: 0.85, roughness: 0.42, envMapIntensity: 1.0 });
+  // Raptor 3's chamber, manifolds and ducts: the same matte charcoal as its bell, a touch of sheen.
+  M.engineDark = new THREE.MeshStandardMaterial({ name: 'engine-dark', color: 0x3d3e41, metalness: 0.25, roughness: 0.56, envMapIntensity: 0.55 });
+  // The cast turbopump block reads faintly violet-grey in the portraits.
+  M.enginePurple = new THREE.MeshStandardMaterial({ name: 'engine-block', color: 0x3e3843, metalness: 0.45, roughness: 0.5, envMapIntensity: 0.6 });
+  M.engineSilver = new THREE.MeshPhysicalMaterial({ name: 'engine-silver', color: 0xbfc3c8, metalness: 1.0, roughness: 0.4, envMapIntensity: 1.0 });
+  M.engineGold = new THREE.MeshPhysicalMaterial({ name: 'engine-gold', color: 0xb8913f, metalness: 1.0, roughness: 0.35 });
+  M.engineBlue = new THREE.MeshStandardMaterial({ name: 'engine-blue', color: 0x2f5fa8, metalness: 0.3, roughness: 0.45 });
+  // Braided stainless lines and the orange instrumentation harnesses round a Merlin.
+  M.braided = new THREE.MeshPhysicalMaterial({ name: 'braided-line', color: 0xaeb2b6, metalness: 0.9, roughness: 0.55 });
+  M.harness = new THREE.MeshStandardMaterial({ name: 'harness', color: 0xd9661f, metalness: 0.0, roughness: 0.6 });
+  // The anodised dark-blue mount plate the Merlin hangs from.
+  M.mountBlue = new THREE.MeshStandardMaterial({ name: 'mount-blue', color: 0x223a66, metalness: 0.5, roughness: 0.45 });
   // Raptor Vacuum: olive regen bell, brass joint, silver tube-wall extension (makeRvacBell).
   M.bellRvac = new THREE.MeshStandardMaterial({
     name: 'rvac-bell', map: T.bellRvac.map, roughnessMap: T.bellRvac.roughnessMap, metalnessMap: T.bellRvac.metalnessMap,

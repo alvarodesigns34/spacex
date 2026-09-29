@@ -892,6 +892,7 @@ async function main() {
     ['roadster', 'starman', 5, 'Starman: a mannequin in a SpaceX pressure suit, at the wheel.', 'wiki_roadster'],
     ['roadster', 'earth', 7, 'In orbit, on its payload adapter. The Earth behind it is illustrative, not a map.', 'spacex_fh_demo'],
     ['engines', 'overview', 6, 'Raptor 3, Raptor Vacuum and Merlin 1D side by side, all at 1:1.', 'spacex_starship'],
+    ['engines', 'raptor', 5, 'Raptor 3: 1.3 m across, 2.9 m tall, 250 tf. Its plumbing is folded into the housings: a charcoal bell, the chamber rings, the manifold disc and the turbopump block.', 'spacex_starship'],
     ['engines', 'rvac', 5, 'Raptor Vacuum: a 2.3 m exit, 4.4 m tall, 275 tf. Its extension is cooled by radiating heat away.', 'spacex_starship'],
     ['falcon1', 'overview', 6, 'Falcon 1, 2008 configuration: 21.98 m from nozzle exit to tip and 1.681 m across, from the dimensioned drawing in its 2008 user\'s guide.', 'spacex_falcon1_2008'],
     ['falcon1', 'cutaway', 6, 'An educational cutaway of the second stage, with its pressure-fed Kestrel engine inside the interstage.', 'spacex_falcon1_2008'],

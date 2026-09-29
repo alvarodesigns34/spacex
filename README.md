@@ -209,6 +209,20 @@ Con las huellas de OpenStreetMap del sitio de lanzamiento (leídas por su API; t
 
 Recorriendo cada expositor en el navegador y comparándolo con fotografías de dominio público:
 
+- **Engine Row, rehecha.** Los tres motores de la fila ya no son las siluetas instanciadas de los cohetes, sino piezas de exposición detalladas a partir de fotos (`engineExhibits.js`; referencias solo consultadas, nunca en el repositorio):
+  - **Merlin 1D Block 5** (retrato de fábrica de SpaceX, 2017): tobera de metal **gris satinado**, con labio enrollado y un aro de refuerzo. La **garganta queda a ≈1,0 m de la salida**; antes estaba a 1,42 m, una tobera un 40 % demasiado larga para una relación de expansión de 16 con la salida publicada de 0,92 m. Tiene brida atornillada en la garganta, cámara cilíndrica con su colector y **turbobomba colgada al lado**, con el escape de la turbina, el **generador de gas** enfrente y el conducto caliente que los une. Arriba lleva líneas trenzadas, **mazos naranjas**, dos actuadores hidráulicos y la placa de montaje azul oscuro. Altura hasta la placa: ≈2,2 m.
+  - **Raptor 3** (retratos del primer Raptor 3 que publicó SpaceX, agosto de 2024):
+    - tobera **carbón mate** casi cónica;
+    - **collarín abocinado** en la junta y garganta estrecha;
+    - la **columna de anillos** de la cámara, con pernos;
+    - el **disco del colector del inyector** a ≈2 m;
+    - el anillo plateado atornillado, el **bloque de turbobombas** con sus bocas y el **disco de empuje plateado**;
+    - el **conducto grueso** que baja en curva por un costado hasta la cámara;
+    - válvulas y líneas finas en plata, oro y azul, casi el único color del motor.
+  - **Raptor Vacuum:** la tobera de cubo de la foto de la NASA (abajo), rematada con la misma columna del Raptor 3, que es lo que vuela la V3.
+  - Los **33 Raptor del propulsor y los 6 motores de la nave** llevan ahora esa misma tobera y la columna en versión ligera, sin pernos, válvulas ni líneas finas. Con ella pesan 204 000 triángulos en lugar de 306 000.
+  - Todo lo que no es el diámetro, la altura o el empuje publicados es ≈ (fotogrametría a ojo contra esas cifras), y así lo dice la ficha.
+
 - **Raptor Vacuum (fila de motores y nave):** la tobera era un cono oscuro y uniforme con siete aros. En la foto de la NASA de dos Raptor Vacuum junto a un Raptor de nivel del mar (Commons, «A person viewing Raptor Vacuum», dominio público), la tobera tiene forma de **cubo**: el tercio superior, refrigerado por el propelente, se abre deprisa desde la garganta hasta ≈93 % del ancho de salida y es **verde oliva grisáceo**; una junta de **color latón** lo separa de la extensión, que ocupa los dos tercios inferiores, es casi cilíndrica y de **tubos plateados verticales**, con un labio bronce en la salida y un solo aro tenue. Ahora el perfil, la textura (`makeRvacBell`) y el aro siguen la foto; las proporciones son ≈ (fotogrametría con la salida de 2,3 m como regla) y la foto es de un Raptor 2 Vacuum, la única de dominio público con el motor entero a la vista.
 - **Dragon, unión cápsula–trunk:** en las fotos de la NASA en la plataforma (CRS-28, KSC-20230602-PH-SPX01-0006; Crew-13, KSC-20260927-PH-SPX01_0010) el pie de la cápsula es una **banda de aluminio satinado** de ≈0,17 m, la línea más brillante del vehículo, y lo que asoma encima del trunk es un filete fino **rojo pardo**. El modelo tenía un aro oscuro y un toro dorado de 15 cm. Altura de la banda ≈ (fotogrametría).
 - **Dragon, panel solar del trunk:** llegaba a 0,3 m del borde superior dejando una franja blanca, y entre sus cinco bahías asomaba el blanco del trunk como tres rayas verticales. En la foto del CRS-28 el panel es continuo y oscuro hasta el filete; la franja blanca, con los herrajes, solo está al pie. Ahora el panel sube hasta 7 cm del borde y va sobre un respaldo oscuro.

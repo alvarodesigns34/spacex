@@ -7,68 +7,25 @@
  *   Raptor Vacuum   2.3 m diameter · 4.4 m tall · 275 tf          (spacex.com — Starship)
  *   Merlin 1D       0.92 m nozzle exit · 845 kN at sea level      (Wikipedia — SpaceX Merlin)
  *
- * The Merlin's overall height is not published and is reconstructed from imagery, as it
- * already is where the Falcon uses the same geometry. Nothing else here is new data: the
- * engines are the same builders the rockets use, at the same scale.
+ * The Merlin's overall height is not published and is read from SpaceX's factory portrait.
+ * The engines themselves are display builds (engineExhibits.js), detailed from photographs;
+ * the rockets carry lighter instanced versions of the same engines.
  *
  * Local frame: y = 0 at the apron, engines standing bell-down on welded stands.
  */
 import * as THREE from 'three';
 import { mesh, mergeAll, mat4 } from '../geometry/utils.js';
-import { raptorGeometry, raptorVacGeometry, merlinGeometry, profileRadius } from './engines.js';
+import { raptorVacGeometry } from './engines.js';
+import { buildMerlinExhibit, buildRaptor3Exhibit, buildRvacExhibit } from './engineExhibits.js';
 
 const CRADLE_Y = 0.42;
 
-/**
- * A lathe whose radius is modulated with the angle, which is how a regeneratively cooled bell
- * is actually built: a few hundred milled channels brazed side by side, so the skin is fluted
- * rather than smooth. Costs nothing over a plain lathe and is the single detail that most
- * says "rocket engine" when the camera is a metre away.
- */
-function flutedLathe(profile, { segments = 160, flutes = 84, amp = 0.004 } = {}) {
-  const n = profile.length;
-  const pos = new Float32Array((segments + 1) * n * 3);
-  const uv = new Float32Array((segments + 1) * n * 2);
-  const idx = [];
-  for (let i = 0; i <= segments; i++) {
-    const th = (i / segments) * Math.PI * 2;
-    // Fade the fluting out at the throat, where the channels run into the chamber jacket.
-    const c = Math.cos(th), s2 = Math.sin(th);
-    for (let j = 0; j < n; j++) {
-      const p = profile[j];
-      const fade = 1 - Math.min(1, j / (n - 1) / 0.82);
-      const r = p.r + amp * fade * Math.cos(flutes * th);
-      const k = (i * n + j) * 3;
-      pos[k] = c * r; pos[k + 1] = p.y; pos[k + 2] = s2 * r;
-      uv[(i * n + j) * 2] = i / segments;
-      uv[(i * n + j) * 2 + 1] = j / (n - 1);
-    }
-  }
-  for (let i = 0; i < segments; i++) {
-    for (let j = 0; j < n - 1; j++) {
-      const a = i * n + j, b = (i + 1) * n + j, c2 = (i + 1) * n + j + 1, d = i * n + j + 1;
-      idx.push(a, d, b, b, d, c2);
-    }
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  geo.setIndex(idx);
-  geo.computeVertexNormals();
-  return geo;
-}
-
+// The three display engines are built in engineExhibits.js, from SpaceX's factory portraits,
+// with every part in its own finish; the rockets keep their cheaper instanced silhouettes.
 const STANDS = [
-  // No fluting on either. The cooling channels of a regeneratively cooled wall are inside it:
-  // NASA's close-up of Falcon Heavy's 27 Merlins in the hangar (KSC-20230927-PH-SPX01_0006)
-  // shows smooth, thin, dark nozzle skins, scuffed, and NASASpaceflight's Booster 19 aft
-  // close-up shows the 33 Raptor 3 bells smooth and matte. The ridges this row used to carry
-  // (60 and 96 of them) were an idea of what a cooled bell looks like, not what one does.
-  { id: 'merlin', x: -4.15, geo: () => merlinGeometry(), exitR: 0.46, flutes: 0, hoops: [] },
-  { id: 'raptor', x: -1.75, geo: () => raptorGeometry(), exitR: 0.65, flutes: 0, hoops: [] },
-  // The vacuum bell's extension is radiatively cooled sheet, not a channel wall: it is smooth,
-  // and carries stiffening hoops instead.
-  { id: 'rvac', x: 1.55, geo: () => raptorVacGeometry(), exitR: 1.15, flutes: 0, hoops: [] },
+  { id: 'merlin', x: -4.15, build: buildMerlinExhibit, exitR: 0.46 },
+  { id: 'raptor', x: -1.75, build: buildRaptor3Exhibit, exitR: 0.65 },
+  { id: 'rvac', x: 1.55, build: buildRvacExhibit, exitR: 1.15 },
 ];
 
 /** Welded stand: a base ring on four feet, uprights, and a top ring the bell rim sits in. */
@@ -125,55 +82,10 @@ export function buildEngineHall(M) {
     g.position.x = st.x;
     g.add(stand(M, st.exitR));
 
-    const geo = st.geo();
     // The builders put the exit plane at y = 0 with the engine running to +Y, which is how a
     // rocket carries it; standing one on a stand is the same frame lifted onto the ring.
-    const eng = new THREE.Group();
+    const eng = st.build(M);
     eng.position.y = CRADLE_Y;
-
-    // Sea-level Merlin and Raptor carry regen channels. Raptor Vacuum's extension
-    // is a radiatively cooled skirt and uses the cooler bell, not the same map.
-    const bellMat = st.id === 'rvac' ? M.bellRvac : st.id === 'raptor' ? (M.bellRaptor3 ?? M.bell) : M.bell;
-    if (st.flutes && geo.profile) {
-      eng.add(mesh(flutedLathe(geo.profile, { flutes: st.flutes, amp: st.exitR * 0.008 }), bellMat,
-        { name: `${st.id}-bell` }));
-    } else {
-      eng.add(mesh(geo.outer, bellMat, { name: `${st.id}-bell` }));
-    }
-    eng.add(mesh(geo.inner, M.bellInner, { name: `${st.id}-bell-inner` }));
-    eng.add(mesh(geo.head, M.darkMetal, { name: `${st.id}-head` }));
-
-    // Stiffening hoops on a radiatively cooled extension.
-    if (st.hoops.length && geo.profile) {
-      const hoops = [];
-      for (const y of st.hoops) {
-        hoops.push({ geometry: new THREE.TorusGeometry(profileRadius(geo.profile, y) + 0.012, 0.018, 8, 90), matrix: mat4([0, y, 0], [Math.PI / 2, 0, 0]) });
-      }
-      eng.add(mesh(mergeAll(hoops), M.darkMetal, { name: `${st.id}-hoops` }));
-    }
-
-    // Propellant plumbing down the side of the chamber: runs and their clamps, on the Merlin.
-    // Raptor 3 folds its plumbing into the pack's housings (see raptorGeometry), and on the
-    // vacuum engine these runs stood in the air round the throat.
-    if (st.id === 'merlin') {
-      const lines = [];
-      const top = geo.height - 0.42, bot = geo.height * 0.68;
-      for (const [ang, rad] of [[0.6, 0.022], [2.4, 0.017], [4.1, 0.014]]) {
-        const rr = st.exitR * 0.44;
-        lines.push({
-          geometry: new THREE.CylinderGeometry(rad, rad, top - bot, 10),
-          matrix: mat4([Math.sin(ang) * rr, (top + bot) / 2, Math.cos(ang) * rr]),
-        });
-        for (const yy of [bot + 0.08, (top + bot) / 2, top - 0.08]) {
-          lines.push({
-            geometry: new THREE.TorusGeometry(rad * 1.7, 0.006, 6, 12),
-            matrix: mat4([Math.sin(ang) * rr, yy, Math.cos(ang) * rr], [Math.PI / 2, 0, 0]),
-          });
-        }
-      }
-      eng.add(mesh(mergeAll(lines), M.conduit ?? M.darkMetal, { name: `${st.id}-plumbing` }));
-    }
-
     g.add(eng);
 
     // Low kerb ring on the apron, so each stand reads as its own station.
@@ -202,20 +114,25 @@ export function buildEngineHall(M) {
   // The bells, their inner surfaces, the powerheads and the stands stay at every distance:
   // those are what the exhibit is for, and the silhouette of a Merlin against a Raptor is the
   // whole reason the row exists.
-  for (const st of STANDS) {
-    const plumbing = root.getObjectByName(`${st.id}-plumbing`);
-    if (plumbing) plumbing.userData.lodFeature = 0.028;      // the thinnest propellant run
-    const hoops = root.getObjectByName(`${st.id}-hoops`);
-    if (hoops) hoops.userData.lodFeature = 0.036;            // hoop section
-  }
+  // The fine hardware on each engine — bolts, lines, harnesses, valves — goes by the size of
+  // its smallest part; the bells, the chamber stacks and the pump bodies always draw.
+  const FINE = { braided: 0.028, harness: 0.022, engineGold: 0.06, engineBlue: 0.06, mountBlue: 0.03 };
+  root.traverse((o) => {
+    const k = String(o.name).split('-').pop();
+    if (o.isMesh && FINE[k]) o.userData.lodFeature = FINE[k];
+  });
 
   root.userData.height = raptorVacGeometry().height + CRADLE_Y;
   root.userData.annotations = [
     { label: 'Merlin 1D · 0.92 m nozzle · 845 kN at sea level', position: [-4.15, 2.85, 0.7] },
     { label: 'Raptor 3 · 1.3 m × 2.9 m · 250 tf', position: [-1.75, 3.45, 0.9] },
     { label: 'Raptor Vacuum · 2.3 m × 4.4 m · 275 tf', position: [1.55, 5.15, 1.4] },
-    { label: 'Milled cooling channels, brazed into the bell wall', position: [-1.45, 0.95, 0.78] },
-    { label: 'Radiatively cooled extension with stiffening hoops', position: [2.25, 1.75, 1.35] },
+    { label: 'Turbopump · single shaft, turbine exhaust below', position: [-3.7, 1.9, 0.35] },
+    { label: 'Gas generator', position: [-4.5, 2.1, 0.3] },
+    { label: 'Injector manifold', position: [-1.3, 2.45, 0.5] },
+    { label: 'Turbopump block and thrust puck', position: [-1.75, 3.2, 0.4] },
+    { label: 'Regeneratively cooled bell', position: [2.25, 3.2, 0.9] },
+    { label: 'Radiatively cooled tube-wall extension', position: [2.3, 1.75, 1.35] },
   ];
   return root;
 }

@@ -401,7 +401,7 @@ export function buildSuperHeavy(M) {
   const gimbal = raptorGeometry({ exitRadius: RAPTOR_EXIT_R, gimbal: true });
   const fixed = raptorGeometry({ exitRadius: RAPTOR_EXIT_R, gimbal: false });
   const [inner3, inner10, outer20] = BOOSTER_RINGS;
-  const r3 = { bellMaterial: M.bellRaptor3 };
+  const r3 = { bellMaterial: M.bellRaptor3, headMaterial: M.engineDark };
   g.add(instanceEngines(gimbal, M, [inner3, inner10].flatMap(boosterRingLayout), r3));
   g.add(instanceEngines(fixed, M, boosterRingLayout(outer20), r3));
 
@@ -560,8 +560,8 @@ export function buildShip(M) {
   g.add(mesh(new THREE.CylinderGeometry(R - 0.03, R - 0.03, 0.4, 96), M.darkMetal, { position: [0, 3.95, 0] }));
 
   // 3 Raptor (centre, gimballing) + 3 Raptor Vacuum (outer, fixed).
-  g.add(instanceEngines(raptorGeometry(), M, ringLayout(3, 0.95, 0.35, { phase: 0 }), { bellMaterial: M.bellRaptor3 }));
-  g.add(instanceEngines(raptorVacGeometry(), M, ringLayout(3, 3.05, 0.25, { phase: Math.PI / 3 }), { bellMaterial: M.bellRvac }));
+  g.add(instanceEngines(raptorGeometry(), M, ringLayout(3, 0.95, 0.35, { phase: 0 }), { bellMaterial: M.bellRaptor3, headMaterial: M.engineDark }));
+  g.add(instanceEngines(raptorVacGeometry(), M, ringLayout(3, 3.05, 0.25, { phase: Math.PI / 3 }), { bellMaterial: M.bellRvac, headMaterial: M.engineDark }));
 
   // ---- Thermal protection ------------------------------------------------------------
   // Coverage: a little over half the circumference on the barrel, widening across the nose
