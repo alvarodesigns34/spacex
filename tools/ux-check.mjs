@@ -421,6 +421,50 @@ try {
   });
   report(trip.steps < 4000 && trip.nearGate < 4 && trip.dist > 3 && trip.dist < 12 && Math.abs(trip.eye - 1.7) < 0.05, 'Double-click walks to the Dragon through the fence gate', trip);
 
+  // The same trip from a real double-click, standing three metres from the fence: from there
+  // every line of sight to the Dragon passes through the wire, and the pick used to stop on it
+  // — the trip went out of the gate and back round to the far face of the fence, and stuck.
+  // Negative control: with the fence renamed, so the pick no longer looks through it, the trip
+  // must fail the same way the report described.
+  const clickTrip = async (seeThrough) => {
+    const at = await page.evaluate(async (seeThrough) => {
+      const v = window.__vc; const THREE = await import('three');
+      if (v.rig.mode !== 'walk') v.toggleWalk();
+      const fence = []; v.scene.getObjectByName('campus').traverse(o => { if (/^site-fence/.test(o.name)) fence.push(o); });
+      if (!seeThrough) for (const o of fence) o.name = 'x-' + o.name;
+      const d = v.exhibits.dragon.lay;
+      v.camera.position.set(d.x + 6, 1.7, -21);
+      const aim = new THREE.Vector3(d.x, 3, d.z);
+      v.rig.look.yaw = Math.atan2(-(aim.x - v.camera.position.x), -(aim.z - v.camera.position.z));
+      v.rig.look.pitch = 0; v.rig.update(0.05); v.camera.updateMatrixWorld();
+      const ndc = aim.clone().project(v.camera);
+      const r = v.renderer.domElement.getBoundingClientRect();
+      // Precondition: the first solid thing along that ray is the fence.
+      const rc = new THREE.Raycaster(); rc.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), v.camera);
+      const first = rc.intersectObjects(v.scene.children, true).find(h => h.object.isMesh && !h.object.material?.transparent);
+      return { x: r.left + (ndc.x + 1) / 2 * r.width, y: r.top + (1 - ndc.y) / 2 * r.height, first: first?.object.name ?? null };
+    }, seeThrough);
+    await page.mouse.dblclick(at.x, at.y);
+    const out = await page.evaluate(() => {
+      const v = window.__vc, d = v.exhibits.dragon.lay;
+      let steps = 0;
+      while (v.rig.travel && steps++ < 4000) v.rig.update(0.05);
+      const p = v.camera.position;
+      return { steps, x: +p.x.toFixed(1), z: +p.z.toFixed(1), dist: +Math.hypot(p.x - d.x, p.z - d.z).toFixed(1) };
+    });
+    await page.evaluate(() => {
+      const v = window.__vc;
+      v.scene.getObjectByName('campus').traverse(o => { if (/^x-site-fence/.test(o.name)) o.name = o.name.slice(2); });
+      if (v.rig.mode === 'walk') v.toggleWalk();
+    });
+    return { ...out, first: at.first };
+  };
+  const through = await clickTrip(true);
+  report(/site-fence/.test(through.first ?? '') && through.steps < 4000 && through.dist < 12 && through.z > -18,
+    'Double-clicking the Dragon through the fence walks up to the Dragon', through);
+  const stuck = await clickTrip(false);
+  report(!(stuck.dist < 12 && stuck.z > -18), 'Negative control: a pick that stops on the fence does not reach the Dragon', stuck);
+
   // Guided tour: a caption with its source, clear of the rest of the HUD.
   for (const [w, h] of [[1440, 900], [1024, 768], [1920, 1080]]) {
     await page.setViewportSize({ width: w, height: h });

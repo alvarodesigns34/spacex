@@ -884,10 +884,19 @@ function buildField(M) {
   const r = 1.9;
   const horiz = [];
   const saddles = [];
+  // Callouts, in the complex frame (the farm group sits at z = −70). Only what is cited is
+  // named: the contents of the farm as a whole, the two horizontal tanks with their published
+  // capacity, the subcoolers and the deluge water. The vertical row's layout is reconstructed,
+  // so it is labelled as the farm, not tank by tank.
+  const FZ = farm.position.z;
+  const notes = [
+    { label: 'Tank farm · methane, LOX, N₂, He', position: [fx, y0 + H + 7, FZ] },
+  ];
   // [volume, start z, z of the gap in the vertical row that its line runs through]
-  for (const [gal, z, lineZ] of [[95000, -30, -25.5], [80000, 6, 13.5]]) {
+  for (const [gal, z, lineZ, what] of [[95000, -30, -25.5, 'LOX'], [80000, 6, 13.5, 'Methane']]) {
     const len = capsuleLength(gal * GAL, r);
     const x = fx + 19;
+    notes.push({ label: `${what} tank · ${gal.toLocaleString('en-US')} US gal`, position: [x, y0 + 2.6 + r + 2, FZ + z + len / 2] });
     horiz.push({ geometry: new THREE.CylinderGeometry(r, r, len, 36), matrix: mat4([x, y0 + 2.6, z + len / 2], [Math.PI / 2, 0, 0]) });
     for (const e of [0, len]) {
       horiz.push({ geometry: new THREE.SphereGeometry(r, 36, 12), matrix: mat4([x, y0 + 2.6, z + e]) });
@@ -904,6 +913,7 @@ function buildField(M) {
   const units = [];
   for (const [z, lineZ] of [[-38, -40], [38, 39]]) {
     const x = fx + 29;
+    if (z < 0) notes.push({ label: 'Propellant subcoolers · liquid nitrogen', position: [x, y0 + 15, FZ + z + 4.2] });
     units.push(block(x - 3.5, x + 3.5, y0, y0 + 3.6, z - 5, z + 1.5));
     units.push(block(x - 2.6, x + 2.6, y0 + 3.6, y0 + 4.2, z - 4.2, z + 0.7));
     horiz.push({ geometry: new THREE.CylinderGeometry(1.6, 1.6, 13, 28), matrix: mat4([x, y0 + 6.5, z + 4.2]) });
@@ -919,6 +929,7 @@ function buildField(M) {
   farm.add(mesh(boxUV(mergeAll(saddles)), M.concrete, { name: 'farm-saddles' }));
   farm.add(mesh(boxUV(mergeAll(units)), M.darkMetal, { name: 'farm-subcoolers' }));
   g.add(farm);
+  g.userData.annotations = notes;
   return g;
 }
 
@@ -994,6 +1005,8 @@ function buildPadInfrastructure(M) {
   g.add(mesh(boxUV(mergeAll(delugeSlab)), M.concrete, { name: 'deluge-slab' }));
   g.add(mesh(boxUV(mergeAll(delugeTanks)), M.pipePaint, { name: 'deluge-tanks' }));
   g.add(mesh(boxUV(mergeAll(delugeSaddles)), M.concrete, { name: 'deluge-saddles' }));
+  // Cited: the water is stored in horizontal tanks. Their count and size are reconstructed.
+  g.userData.annotations = [{ label: 'Deluge water tanks', position: [tankX, 0.6 + tankR * 2 + 3.5, 0] }];
 
   // 5. Deluge mains, 1.2 m, from the manifold to the mount: along grade, up the berm slope,
   // across the berm, up the pad's retaining face and along the deck. Concrete saddles carry
@@ -1092,8 +1105,10 @@ export function buildLaunchComplex(M) {
   g.add(chop);
   const qd = buildQdArm(M);
   g.add(qd);
-  g.add(buildField(M));
-  g.add(buildPadInfrastructure(M));
+  const field = buildField(M);
+  g.add(field);
+  const infra = buildPadInfrastructure(M);
+  g.add(infra);
   dressPad(g, M, PAD.padY);
 
   g.userData.stations = {
@@ -1141,6 +1156,8 @@ export function buildLaunchComplex(M) {
     { label: '20 hold-down clamps', position: [8.5, PAD.deckTop + 3.6, -9] },
     // From the constant that builds it: this label said 8.2 m for months after the trench became 4.2 m.
     { label: `Bidirectional flame trench · ${PAD.trenchDepth.toFixed(1)} m deep`, position: [0, PAD.trenchFloorY + 3, 40] },
+    ...infra.userData.annotations,
+    ...field.userData.annotations,
   ];
   return g;
 }

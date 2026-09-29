@@ -535,7 +535,12 @@ async function main() {
       enforce(view.claim('launch'));
     },
     onState: (st) => hud.setMission(st.running ? st : null),
-    onFinish: () => goPreset('starship', 'site'),
+    // The sequence ends with the booster in the arms, seven minutes in; the ship's flight goes
+    // on for most of an hour, and a visitor watching the ship vanish deserves to know that.
+    onFinish: (completed) => {
+      goPreset('starship', 'site');
+      if (completed) hud.notice('The ship flies on: on the test flights it coasts for most of an hour, re-enters and splashes down in the ocean. This sequence ends with the booster caught.', 9000);
+    },
   });
   launch.setVisibilityHook((flying) => view.setFlying(flying));
   // Opt-in engine sound. Assigned here, after the HUD that toggles it, hence `let` above.
@@ -958,8 +963,13 @@ async function main() {
     _ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     _pick.setFromCamera(_ndc, camera);
     _pick.far = 2500;
+    // Walking, the site fence is see-through in both senses: what the visitor aims at through
+    // the wire is what lies behind it. Stopping the ray on the mesh put the destination on the
+    // fence line itself, just over it, and the trip went out through the gate and back round
+    // to the far face of the wire, where it stuck.
+    const seeThrough = (o) => rig.mode === 'walk' && /^site-fence/.test(o.name ?? '');
     const hit = _pick.intersectObjects(scene.children, true).find(h =>
-      (h.object.isMesh || h.object.isInstancedMesh) && shown(h.object)
+      (h.object.isMesh || h.object.isInstancedMesh) && shown(h.object) && !seeThrough(h.object)
       && !h.object.material?.transparent && h.object.material?.depthWrite !== false);
     if (!hit) return;
     if (rig.mode === 'walk') { const r = walkRoute(hit); rig.travelTo(r.route, r.look); return; }
@@ -988,7 +998,7 @@ async function main() {
     else if (k === 'l') setToggle('labels', !state.labels);
     else if (k === 'r') setToggle('ruler', !state.ruler);
     else if (k === 't') hud.toggleSheet();
-    else if (k === 'h') hud.showHelp(document.getElementById('help').classList.contains('hidden'));
+    else if (k === 'h' || k === '?') hud.showHelp(document.getElementById('help').classList.contains('hidden'));
     else if (k === 'escape') hud.showHelp(false);
     // Mission transport, only while the sequence runs. Space is free flight's "up", and on a
     // focused button it is the button's own click, so it pauses only outside both.
@@ -1059,6 +1069,20 @@ async function main() {
         const dx = c.x - ox, dz = c.z - oz, d = Math.hypot(dx, dz) || 1;
         const stand = r + Math.min(12, 3 + r * 0.25);
         dest = [ox + dx / d * stand, oz + dz / d * stand];
+      }
+      // No destination on a wall: a point within a metre of one (ground clicked at the foot of
+      // the fence or the trench rim) moves a metre clear of it, on the side it was clicked.
+      for (const [x0, z0, x1, z1] of rig.walls) {
+        const ex = x1 - x0, ez = z1 - z0, L2 = ex * ex + ez * ez || 1;
+        const u = Math.max(0, Math.min(1, ((dest[0] - x0) * ex + (dest[1] - z0) * ez) / L2));
+        const qx = x0 + ex * u, qz = z0 + ez * u;
+        const d = Math.hypot(dest[0] - qx, dest[1] - qz);
+        if (d >= 1) continue;
+        // Away from the nearest point, or — exactly on the line — to the side the visitor is on.
+        let nx = dest[0] - qx, nz = dest[1] - qz;
+        if (d < 1e-3) { nx = -ez; nz = ex; if (nx * (c.x - x0) + nz * (c.z - z0) < 0) { nx = -nx; nz = -nz; } }
+        const n = Math.hypot(nx, nz) || 1;
+        dest = [qx + nx / n, qz + nz / n];
       }
       const route = [];
       const crosses = (w, x0, z0, x1, z1) => { const keep = rig.walls; rig.walls = [w]; const r = rig._crossesWall(x0, z0, x1, z1); rig.walls = keep; return r; };

@@ -23,9 +23,10 @@
  * Time runs 1:1 by default. The speed control multiplies the mission clock, it does not skip.
  */
 import * as THREE from 'three';
-import { Plume, GroundCloud, EngineJets, Vapor, CondensationCollar, FlightEarth, Glow } from './plume.js';
+import { Plume, GroundCloud, EngineJets, Vapor, CondensationCollar, FlightEarth, Glow, Fire } from './plume.js';
 import { BOOSTER_RINGS, RAPTOR_EXIT_R, ringAngle, BOOSTER_AFT } from '../vehicles/starship.js';
 import { seeded, monotoneSlopes, hermite } from '../geometry/utils.js';
+import { PAD } from '../vehicles/pad.js';
 
 // ---- Cited event times (seconds from T-0) ------------------------------------------------
 export const EVENTS = {
@@ -764,8 +765,11 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   // a model rocket.
   // 16 cluster radii (≈74 m) at the pad: in liftoff photographs the bright column is well over
   // a booster length before it breaks up into the cloud.
-  const boosterPlume = new Plume({ radius: 4.6, seaLevelLength: 16, name: 'plume-booster' });
-  const shipPlume = new Plume({ radius: 2.6, seaLevelLength: 8.4, name: 'plume-ship' });
+  // Flame sprites per plume, by quality tier: they are large, overlapping and blended, so their
+  // cost is fill rate, which is what a weak GPU has least of.
+  const fireScale = quality.name === 'low' ? 0.5 : quality.name === 'medium' ? 0.75 : 1;
+  const boosterPlume = new Plume({ radius: 4.6, seaLevelLength: 16, name: 'plume-booster', fireCount: Math.round(180 * fireScale) });
+  const shipPlume = new Plume({ radius: 2.6, seaLevelLength: 8.4, name: 'plume-ship', fireCount: Math.round(110 * fireScale) });
   booster.add(boosterPlume.group);
   ship.add(shipPlume.group);
 
@@ -923,13 +927,15 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     return { t0: SMOKE_T[0], t1: SMOKE_T[1], points: pts };
   })();
   const landingSmoke = new Vapor({
-    name: 'vapor-landing-smoke', rng: seeded(28), accel: [0.7, 0.5, 0.3], tau: 1.2, opacity: 0.3, path: smokePath,
-    colors: [0x7b7874, 0x42403d], fadeIn: 0.015,
+    name: 'vapor-landing-smoke', rng: seeded(28), accel: [0.7, 0.5, 0.3], tau: 1.2, opacity: 0.2, path: smokePath,
+    colors: [0x8f8a84, 0x55514c], fadeIn: 0.015,
     // Dense and large enough to stay one stream at the burn's 280 m/s start: at 80 puffs a
     // source and a 1.2 s fade-in it read as a dotted line. Half the sources stop as the
     // booster slows over the pad, and the rest a few seconds before the catch: at a steady
     // rate the smoke piles up where the booster lingers and stood a flat grey wall beside it.
-    emitters: [0.5, 2.1, 3.7, 5.3].map((a, i) => ({ at: around(3, 0, a), dir: out(a, 0.4), speed: 7, spread: 0.5, count: nv(150), life: 12, size: 12, grow: 4.5, jitter: 3, window: [EVENTS.landingBurn + 0.5, i % 2 ? BURN_THREE + 5 : EVENTS.catch - 5] })),
+    // Beads at 150 a source: at 280 m/s a puff every 0.08 s is 22 m of trail for a 12 m puff.
+    // Fewer, larger puffs close the gaps without the fill cost of more of them.
+    emitters: [0.5, 2.1, 3.7, 5.3].map((a, i) => ({ at: around(3, 0, a), dir: out(a, 0.4), speed: 7, spread: 0.5, count: nv(170), life: 12, size: 21, grow: 4.5, jitter: 3, window: [EVENTS.landingBurn + 0.5, i % 2 ? BURN_THREE + 5 : EVENTS.catch - 5] })),
   });
   ex.group.add(landingSmoke.mesh);
 
@@ -996,12 +1002,41 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   // cloud. It was only a glow painted on the cloud; photographs of the flight 5 liftoff show
   // flame itself rolling out of the trench ends. Three turbulent jets per mouth, no shock
   // diamonds (the flow has hit the deflector), fading as the vehicle climbs.
-  const trenchFire = new EngineJets({
-    name: 'jets-trench-fire', seaLevelLength: 9, turbulence: 0.7,
-    engines: [1, -1].flatMap(sz => [-6.5, 0, 6.5].map(x => ({ position: [x, 3.2, sz * 42], radius: 3.4, direction: [x * 0.02, 0.1, sz] }))),
+  // Fire, not jets: it leaves each mouth as a rolling mass of flame that slows, spreads, lifts
+  // and burns out into the smoke and steam of the cloud, so the cloud is seen to come out of
+  // the trench instead of starting in mid-air beside a flat orange streak.
+  const trenchFire = new Fire({
+    name: 'fire-trench', rng: seeded(41), gain: 1.7, smoke: 0.5, smokeColor: 0x8a8076, occlude: 0.22,
+    emitters: [1, -1].flatMap(sz => [-6, 0, 6].map(x => ({ at: [x, 2.8, sz * 38], dir: [x * 0.015, 0.1, sz], count: Math.round(46 * fireScale) }))),
   });
   trenchFire.mesh.position.set(ex.lay.x, 0, ex.lay.z);
   scene.add(trenchFire.mesh);
+  // Fire over the mount's deck. Standing on the mount, the 33 engines fire down through its
+  // 11 m opening into the trench; as the vehicle climbs, the column widens past the opening
+  // and its outer part hits the deck and is thrown out sideways over it — a wall jet, as any
+  // jet does against a plate — rolling off the edges of the mount. It lasts from a few metres
+  // up until the column is too thin at deck level to matter (≈ both heights, from the jet's
+  // widening; not measured).
+  const deckFire = new Fire({
+    name: 'fire-deck', rng: seeded(43), gain: 1.6, smoke: 0.35, smokeColor: 0x8d8379, occlude: 0.2,
+    emitters: Array.from({ length: 16 }, (_, i) => {
+      const a = (i / 16) * Math.PI * 2 + 0.2;
+      return { at: [Math.sin(a) * (PAD.openingR + 0.8), PAD.deckTop + 0.6, Math.cos(a) * (PAD.openingR + 0.8)], dir: [Math.sin(a), 0.12, Math.cos(a)], count: Math.round(12 * fireScale) };
+    }),
+  });
+  deckFire.mesh.position.set(ex.lay.x, 0, ex.lay.z);
+  scene.add(deckFire.mesh);
+  const deckFireAt = (t) => {
+    const h = altitudeAt(t);
+    return boosterThrottle(t) * THREE.MathUtils.smoothstep(h, 1, 8) * (1 - THREE.MathUtils.smoothstep(h, 30, 90));
+  };
+  // The light under the vehicle at liftoff: 33 Raptors a few metres over the mount are the
+  // brightest thing for kilometres, and the camera sees a blinding glare through and round the
+  // mount, not only the part of the column that clears it. A glow, blooming, at the engines.
+  const baseGlare = new Glow({ name: 'glow-liftoff', color: 0xfff4dc, edge: 0xffa040 });
+  baseGlare.mesh.position.set(0, -5, 0);
+  booster.add(baseGlare.mesh);
+  baseGlare.mesh.userData.fx = true;
   const trenchFireAt = (t) => boosterThrottle(t) * (1 - THREE.MathUtils.smoothstep(altitudeAt(t), 15, 160));
 
   // Above ~10 km the flat 1:1 site runs out long before the horizon: a curved Earth with a
@@ -1384,7 +1419,9 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     // Exactly 50% North (+Z) and 50% South (-Z). Fewer, larger puffs than before, each living
     // its whole life (see CLOUD_RATE), overlapping into one mass.
     const trenchCount = Math.max(1, Math.round(n * 0.5));
-    const big = { size0: 24 * CLOUD_SIZE, grow: 175 * CLOUD_SIZE, life0: 12, lifeVar: 14 };
+    // Born small, inside the fire at the mouth, and grown from there: at 24 m from birth each
+    // puff was already a cloud when it appeared.
+    const big = { size0: 11 * CLOUD_SIZE, grow: 190 * CLOUD_SIZE, life0: 12, lifeVar: 14 };
     cloud.emit(trenchCount, [0, 2.6, 44], [0, 0.10, 1.0], 125, 22, big);
     cloud.emit(trenchCount, [0, 2.6, -44], [0, 0.10, -1.0], 125, 22, big);
     // Dust. The blast scours the flats beyond each mouth and the pad itself, and in the Flight 12
@@ -1506,7 +1543,14 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     cloud.setFlame(bt * Math.max(0, 1 - alt / 160));
     const tf = trenchFireAt(t);
     trenchFire.setTime(t);
-    trenchFire.setState(tf, 5500, tf > 0.01 ? 6 : 0);
+    trenchFire.set({ intensity: tf, life: 1.7, len: 95, drag: 2.4, r0: 4.5, widen: 0.28, size0: 7, grow: 30,
+      rise: 22, stretch: 1.35, wander: 16 });
+    deckFire.setTime(t);
+    deckFire.set({ intensity: deckFireAt(t), life: 1.1, len: 26, drag: 1.8, r0: 1.5, widen: 0.35, size0: 5, grow: 16,
+      rise: 9, stretch: 1.5, wander: 7 });
+    // Glare while the column still plays on the mount and the trench, fading as it climbs away.
+    const glare = bt * (1 - THREE.MathUtils.smoothstep(alt, 60, 600));
+    baseGlare.set(1.6 * glare, 34 + 20 * glare, t);
 
     // The camera first (the shot list, or the visitor's orbit riding on the vehicle), so the
     // sky, the planes and the shadows below follow wherever it actually is.
@@ -1579,7 +1623,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   }
 
   /** @param {boolean} returnCamera fly back to the pad; false when only the state matters. */
-  function reset(returnCamera = true) {
+  function reset(returnCamera = true, completed = false) {
     const wasRunning = state.running;
     state.running = false;
     state.armed = false;
@@ -1600,7 +1644,9 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     boosterJets.setState(0, 0, 0);
     shipJets.setState(0, 0, 0);
     hotStageVents.setState(0, 0, 0);
-    trenchFire.setState(0, 0, 0);
+    trenchFire.set({ intensity: 0 });
+    deckFire.set({ intensity: 0 });
+    baseGlare.set(0, 1, 0);
     stageGlow.set(0, 1, 0);
     for (const vp of vapors) vp.hide();
     collar.set(0, 0);
@@ -1631,7 +1677,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     onState(state);
     // The sequence ends 60 km up and 80 km downrange; leaving the viewer there would be a
     // trap, so control comes back looking at the pad the vehicle left.
-    if (wasRunning && returnCamera) onFinish();
+    if (wasRunning && returnCamera) onFinish(completed);
   }
 
   /**
@@ -1659,7 +1705,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
 
     advanceCloud(t);
 
-    if (t >= EVENTS.end) { reset(); return; }
+    if (t >= EVENTS.end) { reset(true, true); return; }
     onState(state);
   }
 

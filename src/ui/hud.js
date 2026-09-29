@@ -49,7 +49,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
       <button class="tool tool-btn" id="mode-btn" title="Switch camera mode (F)">Orbit <kbd>F</kbd></button>
       <button class="tool tool-btn" id="walk-btn" type="button" aria-pressed="false" title="Walk the apron at eye height, 1.7 m (V)">Walk <kbd>V</kbd></button>
       <button class="tool tool-btn" id="clean-btn" type="button" aria-pressed="false" title="Hide the interface">Clean scene</button>
-      <button class="tool tool-btn" id="help-btn" title="Help (H)">Help <kbd>H</kbd></button>
+      <button class="tool tool-btn" id="help-btn" title="Quick guide: controls and shortcuts (H)">Guide <kbd>H</kbd></button>
     </div>
 
     <!-- The only way back from the clean scene. (This was a four-button dock for phones; the
@@ -116,28 +116,81 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
     <div class="coach hidden" id="coach" role="note" aria-label="How to look around">
       <span class="coach-tip"><b>Drag</b> to orbit · <b>scroll</b> to zoom · <b>V</b> to walk</span>
       <span class="coach-tip"><b>1–${vehicles.length}</b> to visit an exhibit, then pick a view</span>
-      <span class="coach-tip"><b>G</b> launches Starship</span>
+      <span class="coach-tip"><b>G</b> launches Starship · <b>H</b> opens the quick guide</span>
       <button type="button" class="coach-close" id="coach-close" aria-label="Dismiss these tips">×</button>
     </div>
 
-    <div class="help hidden" id="help" role="dialog" aria-modal="true" aria-label="Help and keyboard shortcuts">
-      <div class="help-card">
-        <div class="eyebrow">Controls</div>
-        <table>
-          <tr><td>Drag</td><td>orbit · <em>wheel</em> zoom towards the cursor · <em>right button</em> pan</td></tr>
-          <tr><td>Double-click</td><td>orbit around the point you clicked · walking: walk there</td></tr>
-          <tr><td><kbd>V</kbd></td><td>walk at eye height (1.7 m): <kbd>W A S D</kbd> or arrows · drag to look · <em>wheel</em> sets the pace (1.4 to 25 m/s) · <kbd>Shift</kbd> doubles it · double-click an exhibit or a spot to walk there (through the fence gate if need be)</td></tr>
-          <tr><td><kbd>F</kbd></td><td>free flight: <kbd>W A S D</kbd> move · <kbd>Q</kbd>/<kbd>E</kbd> (or <kbd>C</kbd>/<kbd>space</kbd>) down/up · drag to look · <kbd>Shift</kbd> ×4 · <kbd>Ctrl</kbd> ×0.2 · wheel adjusts speed</td></tr>
-          <tr><td><kbd>1</kbd>–<kbd>${vehicles.length}</kbd></td><td>select exhibit</td></tr>
-          <tr><td><kbd>L</kbd> <kbd>R</kbd> <kbd>T</kbd></td><td>labels · ruler · data sheet</td></tr>
-          <tr><td><kbd>0</kbd></td><td>overview of the centre</td></tr>
-          <tr><td><kbd>P</kbd></td><td>guided tour — the camera walks the centre stop by stop; any drag, scroll or click ends it</td></tr>
-          <tr><td><kbd>G</kbd></td><td>Starship launch sequence · during the countdown and ascent, dragging or scrolling hands the camera back to you without stopping it</td></tr>
-          <tr><td><kbd>K</kbd> <kbd>←</kbd> <kbd>→</kbd> <kbd>C</kbd></td><td>during the launch: pause · previous / next milestone · camera: broadcast shots, or your own orbit riding with the booster or the ship (a drag also takes the camera and keeps riding) · click the flight profile to jump anywhere</td></tr>
-        </table>
+    <div class="help hidden" id="help" role="dialog" aria-modal="true" aria-label="Quick guide: controls and keyboard shortcuts">
+      <div class="help-card guide">
+        <div class="guide-top">
+          <div>
+            <div class="eyebrow">Quick guide</div>
+            <h2 class="guide-title">Getting around the Vehicle Center</h2>
+          </div>
+          <button class="btn" id="help-close">Close <kbd>Esc</kbd></button>
+        </div>
+        <ol class="guide-start" aria-label="First steps">
+          <li><b>Pick a vehicle</b> in the list on the left, or press <kbd>1</kbd>–<kbd>${vehicles.length}</kbd>.</li>
+          <li><b>Choose a view</b> in the bar at the bottom: engines, heat shield, tower…</li>
+          <li><b>Press <kbd>G</kbd></b> to launch Starship, or <kbd>P</kbd> for a guided tour.</li>
+        </ol>
+        <div class="guide-grid">
+          <section class="guide-sec" data-mode="orbit">
+            <h3>Look around <span class="guide-here">you are here</span></h3>
+            <dl>
+              <dt>Drag</dt><dd>turn around the vehicle</dd>
+              <dt>Wheel</dt><dd>zoom towards the cursor</dd>
+              <dt>Right drag</dt><dd>slide sideways</dd>
+              <dt>Double-click</dt><dd>turn around that point</dd>
+            </dl>
+          </section>
+          <section class="guide-sec" data-mode="walk">
+            <h3>Walk <kbd>V</kbd> <span class="guide-here">you are here</span></h3>
+            <dl>
+              <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>walk, at 1.7 m eye height</dd>
+              <dt>Drag</dt><dd>look around</dd>
+              <dt>Wheel · <kbd>Shift</kbd></dt><dd>walking pace · run</dd>
+              <dt>Double-click</dt><dd>walk there, through the fence gate if needed</dd>
+            </dl>
+          </section>
+          <section class="guide-sec" data-mode="fly">
+            <h3>Fly <kbd>F</kbd> <span class="guide-here">you are here</span></h3>
+            <dl>
+              <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>move · drag to look</dd>
+              <dt><kbd>Q</kbd> <kbd>E</kbd></dt><dd>down · up (also <kbd>C</kbd> · <kbd>space</kbd>)</dd>
+              <dt><kbd>Shift</kbd> · <kbd>Ctrl</kbd></dt><dd>four times faster · slower</dd>
+              <dt>Wheel</dt><dd>flying speed</dd>
+            </dl>
+          </section>
+          <section class="guide-sec" data-mode="launch">
+            <h3>Launch <kbd>G</kbd> <span class="guide-here">you are here</span></h3>
+            <dl>
+              <dt><kbd>K</kbd> · <kbd>space</kbd></dt><dd>pause · resume</dd>
+              <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>previous · next milestone</dd>
+              <dt><kbd>C</kbd></dt><dd>camera: broadcast shots, or ride with the booster or the ship</dd>
+              <dt>Panel</dt><dd>×¼ to ×10 speed · click the flight profile to jump</dd>
+            </dl>
+          </section>
+          <section class="guide-sec">
+            <h3>Exhibits</h3>
+            <dl>
+              <dt><kbd>1</kbd>–<kbd>${vehicles.length}</kbd> · <kbd>0</kbd></dt><dd>go to a vehicle · the whole centre</dd>
+              <dt><kbd>P</kbd></dt><dd>guided tour; any drag or click ends it</dd>
+              <dt><kbd>T</kbd></dt><dd>data sheet, with every source</dd>
+            </dl>
+          </section>
+          <section class="guide-sec">
+            <h3>On screen</h3>
+            <dl>
+              <dt><kbd>L</kbd> · <kbd>R</kbd></dt><dd>labels · 1:1 ruler</dd>
+              <dt><kbd>H</kbd> · <kbd>?</kbd></dt><dd>this guide</dd>
+              <dt>Clean scene</dt><dd>hide the interface; one button brings it back</dd>
+            </dl>
+          </section>
+        </div>
         <p class="help-note">1:1 scale — one scene unit is one metre. Figures marked <span class="chip chip-approx">≈</span> have no exact published value and were reconstructed from imagery.</p>
-        <button class="btn" id="help-close">Close</button>
       </div>
+    </div>
     </div>
   `;
 
@@ -401,12 +454,13 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
   }
   let lastT = null, calloutTimer = 0;
   /** A short note over the scene (walking pace and the like), the same banner as the milestones. */
-  function notice(text) { showCallout(text); }
-  function showCallout(text) {
+  function notice(text, ms) { showCallout(text, ms); }
+  function showCallout(text, ms = 3200) {
     callout.textContent = text;
+    callout.classList.toggle('is-long', text.length > 60);
     callout.classList.add('is-on');
     clearTimeout(calloutTimer);
-    calloutTimer = setTimeout(() => callout.classList.remove('is-on'), 3200);
+    calloutTimer = setTimeout(() => callout.classList.remove('is-on'), ms);
   }
   let milestones = [];
   // The buttons only ask; which one is lit is read back from the simulation in setMission,

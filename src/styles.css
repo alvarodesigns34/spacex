@@ -146,6 +146,29 @@ body.is-flying .minimap, body.is-orbital .minimap { display: none; }
 .help td:first-child { width: 120px; color: var(--ink-muted); font-family: var(--font-mono); font-size: 0.8rem; }
 .help em { font-style: normal; color: var(--ink); }
 .help-note { font-size: 0.84rem; color: var(--ink-muted); margin: 8px 0 16px; }
+/* Quick guide: first steps, then one card per way of moving, the one in use marked. */
+.help-card.guide { width: min(980px, 94vw); max-height: 92vh; overflow-y: auto; }
+.guide-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.guide-title { margin: 4px 0 0; font-size: 1.35rem; font-weight: 600; }
+.guide-start { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0 14px; padding: 0; list-style: none; counter-reset: step; }
+.guide-start li { counter-increment: step; position: relative; padding: 10px 12px 10px 40px; border-radius: 12px; background: var(--accent-quiet); font-size: 0.9rem; line-height: 1.4; }
+.guide-start li::before { content: counter(step); position: absolute; left: 12px; top: 9px; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #17130c; font: 600 0.78rem/20px var(--font-mono); text-align: center; }
+.guide-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.guide-sec { padding: 10px 14px 12px; border: 1px solid var(--surface-line); border-radius: 12px; }
+.guide-sec h3 { margin: 0 0 6px; font-size: 0.95rem; font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.guide-sec dl { display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; margin: 0; font-size: 0.84rem; line-height: 1.35; }
+.guide-sec dt { color: var(--ink-muted); font-family: var(--font-mono); font-size: 0.76rem; white-space: nowrap; }
+.guide-sec dd { margin: 0; }
+.guide-here { display: none; margin-left: auto; padding: 1px 7px; border-radius: 999px; background: var(--accent); color: #17130c; font: 600 0.68rem/1.5 var(--font-mono); text-transform: uppercase; letter-spacing: 0.04em; }
+#hud:not(.walk):not(.fly) .guide-sec[data-mode="orbit"],
+#hud.walk .guide-sec[data-mode="walk"],
+#hud.fly .guide-sec[data-mode="fly"],
+body.is-flying .guide-sec[data-mode="launch"] { border-color: color-mix(in srgb, var(--accent) 60%, transparent); background: var(--accent-quiet); }
+#hud:not(.walk):not(.fly) .guide-sec[data-mode="orbit"] .guide-here,
+#hud.walk .guide-sec[data-mode="walk"] .guide-here,
+#hud.fly .guide-sec[data-mode="fly"] .guide-here,
+body.is-flying .guide-sec[data-mode="launch"] .guide-here { display: inline-block; }
+@media (max-width: 1100px) { .guide-grid { grid-template-columns: repeat(2, 1fr); } }
 .btn { padding: 8px 18px; border: 1px solid var(--surface-line); border-radius: 999px; background: transparent; cursor: pointer; }
 .btn:hover { border-color: var(--ink-muted); }
 
@@ -261,6 +284,8 @@ body.is-flying .minimap, body.is-orbital .minimap { display: none; }
   opacity: 0; transition: opacity 0.35s, transform 0.35s; white-space: nowrap; z-index: 5;
 }
 .callout.is-on { opacity: 1; transform: translate(-50%, 0); }
+/* A sentence rather than a milestone name: wrapped, in sentence case, as a card. */
+.callout.is-long { white-space: normal; text-transform: none; letter-spacing: 0; width: min(560px, 80vw); border-radius: 14px; padding: 10px 18px; text-align: center; line-height: 1.45; }
 @media (prefers-reduced-motion: reduce) { .callout { transition: none; } }
 @media (max-width: 520px) {
   .mt-veh { gap: 6px; }

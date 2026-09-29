@@ -169,6 +169,9 @@ export const VEHICLES = [
       { id: 'tower', label: 'Tower and arms', frame: 'site', pos: [58, 104, 64], target: [-24, 110, 0] },
       { id: 'booster-qd', label: 'LOX / methane QDs', pos: [34, 29, 20], target: [12, 19, 0], frame: 'site' },
       { id: 'trench', label: 'Flame trench', frame: 'site', pos: [3, 11, 74], target: [0, 12, 0] },
+      // The propellant and gas farm from its landward side, where the two cited horizontal
+      // tanks and the subcoolers stand in front of the vertical row rather than behind it.
+      { id: 'farm', label: 'Tank farm', frame: 'site', pos: [236, 38, 6], target: [160, 6, -66] },
     ],
   },
   FALCON1,

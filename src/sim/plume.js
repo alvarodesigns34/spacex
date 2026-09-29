@@ -156,7 +156,7 @@ function coneLayer({ hot, warm, cool, alpha, falloff }) {
  * cone per cluster is both cheaper and closer to what a photograph shows than 33 cones.
  */
 export class Plume {
-  constructor({ radius, seaLevelLength = 10.5, name = 'plume' }) {
+  constructor({ radius, seaLevelLength = 10.5, name = 'plume', fireCount = 150 }) {
     this.radius = radius;
     this.baseLength = seaLevelLength * radius;
     this.group = new THREE.Group();
@@ -181,6 +181,13 @@ export class Plume {
     this.shroud.material.uniforms.uGain.value = 1.5;
     this.group.add(this.veil, this.shroud, this.core);
     this.time = 0;
+    // The fire itself: turbulent flame sprites down the bright part of the column, over the
+    // cones. The cones give the column its continuous glow and its shocks; the sprites give it
+    // an outline that tears and flickers.
+    let x = 0x2545f491 ^ Math.round(radius * 1000);
+    const rng = () => ((x = (x * 1664525 + 1013904223) >>> 0) / 4294967296);
+    this.fire = new Fire({ emitters: [{ at: [0, 0, 0], dir: [0, -1, 0], count: fireCount }], rng, name: `${name}-fire` });
+    this.group.add(this.fire.mesh);
 
     // The plume is by far the brightest thing in the scene; it has to light the pad.
     this.light = new THREE.PointLight(0xffb066, 0, 260, 2);
@@ -205,7 +212,7 @@ export class Plume {
     // every lit material's shader, so a light that appeared with the group at ignition made
     // all of them recompile at once — 25 programs, a stall at the moment of liftoff.
     for (const layer of [this.core, this.shroud, this.veil]) layer.visible = on;
-    if (!on) { this.light.intensity = 0; return; }
+    if (!on) { this.light.intensity = 0; this.fire.set({ intensity: 0 }); return; }
     const p = pressureRatio(altitude);
     // Over-expanded and stubby at the pad; wide and long once there is nothing to push back.
     // At 60 km a booster's plume is a translucent bell several hundred metres long and many
@@ -272,6 +279,22 @@ export class Plume {
     // ship's envelope drew as an opaque orange petal wrapped round the booster; a methalox
     // plume out of the air is a faint, wide glow round a short bright core.
     this.shroud.material.uniforms.uOpacity.value = 0.3 + 0.36 * p;
+    // Fire down the bright part of the column. Low in the atmosphere the mixing layer is what
+    // burns (the fuel-rich exhaust meeting air), and it is turbulent and ragged; in near vacuum
+    // there is no air to burn in and the plume is a smooth glow, so the flame thins out to a
+    // trace of structure in the core. Lengths follow the core, clipped like it.
+    {
+      const coreLen = this.core.scale.y;
+      const len = Math.min(coreLen * (1.25 + 0.35 * p), this.shroud.scale.y * 0.85);
+      const tailR = rs * (1.25 + 2.2 * (1 - p));
+      this.fire.set({
+        intensity: (0.3 + 0.7 * p) * (0.65 + 0.35 * perEngine),
+        life: 0.42 + 0.3 * (1 - p), len, drag: 0,
+        r0: rc * 0.7, widen: Math.max(0, tailR - rc * 0.7) / Math.max(len, 1),
+        size0: r * 1.0, grow: r * (2.2 + 2.5 * (1 - p)), stretch: 2.4, wander: r * 0.8,
+        gain: 1.8 + 1.6 * p, occlude: 0.22 * p, smoke: 0, maxLen: maxLength,
+      });
+    }
     // 8,240 tf lights the pad. The old value lit a room.
     this.light.intensity = 4200 * throttle * (0.35 + 0.65 * p);
     this.light.distance = 260 + 420 * (1 - p);
@@ -281,10 +304,11 @@ export class Plume {
   }
 
   /** Mission clock, in seconds. Turbulence is a function of this, not of wall time. */
-  setTime(t) { this.time = t; }
+  setTime(t) { this.time = t; this.fire.setTime(t); }
 
   dispose() {
     for (const m of [this.core, this.shroud, this.veil]) { m.geometry.dispose(); m.material.dispose(); }
+    this.fire.dispose();
   }
 }
 
@@ -409,6 +433,220 @@ export class EngineJets {
     u.uLength.value = Math.min(maxLength, this.meanR * this.seaLevelLength * (1 + 2.2 * (1 - p)) * (0.6 + 0.4 * throttle));
     u.uSpread.value = 1.15 + 2.4 * (1 - p);
     u.uOpacity.value = (0.55 + 0.45 * throttle) * 0.7;
+  }
+
+  setTime(t) { this.material.uniforms.uTime.value = t; }
+
+  dispose() { this.mesh.geometry.dispose(); this.material.dispose(); }
+}
+
+// -----------------------------------------------------------------------------------------
+//  Fire
+// -----------------------------------------------------------------------------------------
+/**
+ * Flame as fire looks: a stream of camera-facing flame sprites, each one a turbulent blob that
+ * is carried downstream, grows, cools from white through yellow and orange to a dull red, and is
+ * eaten away from its edge as it cools, so the outline of the whole breaks into tongues that
+ * lick out and vanish. A smooth cone, however it is shaded, has one outline that moves only
+ * as a whole; fire has hundreds, each on its own clock — that is what reads as fire.
+ *
+ * Deterministic in mission time like the vapour: every sprite's age is the mission clock modulo
+ * its own life, from a fixed phase, so a seek lands on the same frame as playback and a pause
+ * freezes the flame. Nothing is simulated on the CPU; the sequence sets a few uniforms.
+ *
+ * The texture is a 4 × 4 atlas of flame cells: R a density with a fractal, warped edge and
+ * brighter pockets inside it, G a finer noise used to fray the edge as the sprite ages.
+ */
+let _fireTex = null;
+function fireTexture() {
+  if (_fireTex) return _fireTex;
+  const cell = 128, cells = 4, size = cell * cells;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(size, size);
+  const d = img.data;
+  for (let v = 0; v < cells * cells; v++) {
+    const ox = (v % cells) * cell, oy = Math.floor(v / cells) * cell, seed = 13.7 * v + 3.1;
+    for (let y = 0; y < cell; y++) {
+      const ny = (y - cell / 2) / (cell / 2);
+      for (let x = 0; x < cell; x++) {
+        const nx = (x - cell / 2) / (cell / 2);
+        // Domain warp: the radius is looked up through a displaced point, which turns a round
+        // blob into lobes and curls instead of a disc with a noisy rim.
+        const wx = nx + 0.45 * (fbm(nx * 1.7 + seed, ny * 1.7 - seed, 3) - 0.5);
+        const wy = ny + 0.45 * (fbm(nx * 1.7 - seed * 0.7, ny * 1.7 + seed * 1.3, 3) - 0.5);
+        const r = Math.hypot(wx, wy);
+        const body = 1 - THREE.MathUtils.smoothstep(r, 0.25, 0.92);
+        const pockets = 0.55 + 0.9 * (fbm(nx * 3.2 + seed * 2.1, ny * 3.2 - seed, 4) - 0.5) * 1.6;
+        const dens = THREE.MathUtils.clamp(body * pockets * 1.25, 0, 1);
+        const fine = fbm(nx * 7.5 - seed, ny * 7.5 + seed * 0.3, 3);
+        // Kept inside the cell, so mipmaps do not bleed between neighbours.
+        const edge = 1 - THREE.MathUtils.smoothstep(Math.max(Math.abs(nx), Math.abs(ny)), 0.86, 0.98);
+        const i = ((oy + y) * size + ox + x) * 4;
+        d[i] = Math.round(dens * edge * 255);
+        d[i + 1] = Math.round(THREE.MathUtils.clamp(fine, 0, 1) * 255);
+        d[i + 2] = 0;
+        d[i + 3] = 255;
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  _fireTex = new THREE.CanvasTexture(c);
+  _fireTex.colorSpace = THREE.NoColorSpace;
+  _fireTex.needsUpdate = true;
+  return _fireTex;
+}
+
+// Its own copy of the atlas lookup: ATLAS_UV is declared further down, with the cloud.
+const FIRE_VERT = /* glsl */`
+  float fireHash(float n) { return fract(sin(n * 12.9898 + 4.1414) * 43758.5453); }
+  vec2 atlasUv(vec2 uv, int id) {
+    float k = floor(fireHash(float(id)) * 16.0);
+    return (vec2(mod(k, 4.0), floor(k / 4.0)) + 0.02 + uv * 0.96) * 0.25;
+  }
+  attribute vec3 aOrigin;
+  attribute vec3 aDir;
+  attribute vec4 aSeed;      // phase, azimuth, radial share, size factor
+  attribute vec3 aWander;    // a sprite's own drift off the mean flow, unit-ish
+  uniform float uTime, uLife, uLen, uDrag, uR0, uWiden, uSize0, uGrow, uRise, uStretch, uWanderM, uMaxLen, uIntensity;
+  uniform vec3 uUp;
+  varying vec2 vUv;
+  varying float vAge, vFade, vHeat;
+  void main() {
+    vUv = atlasUv(uv, gl_InstanceID);
+    float life = uLife * (0.75 + 0.5 * fract(aSeed.x * 7.13));
+    float a = fract(uTime / life + aSeed.x);
+    vAge = a;
+    // Distance along the jet: linear for a plume (uDrag 0), slowing for a jet that has hit
+    // something and is spreading out (the trench mouths, the deck).
+    float s = uDrag > 0.001 ? uLen * (1.0 - exp(-uDrag * a)) / (1.0 - exp(-uDrag)) : uLen * a;
+    vec3 dir = normalize(aDir);
+    vec3 ref = abs(dir.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+    vec3 b1 = normalize(cross(dir, ref)), b2 = cross(dir, b1);
+    float rad = aSeed.z * (uR0 + uWiden * s);
+    float az = aSeed.y + a * 1.3 * (aSeed.w - 1.0);
+    vec3 p = aOrigin + dir * s + (cos(az) * b1 + sin(az) * b2) * rad
+      + aWander * uWanderM * a + uUp * uRise * a * a;
+    float size = (uSize0 + uGrow * a) * aSeed.w;
+    // Fade in over the first few per cent (a sprite is born inside the flame, not on its edge),
+    // out over the last third, and gone past an obstruction.
+    vFade = smoothstep(0.0, 0.06, a) * (1.0 - smoothstep(0.62, 1.0, a)) * step(s, uMaxLen) * uIntensity;
+    // Hot at the source and in the middle of the jet; the outer sprites and the old ones cool.
+    vHeat = clamp(pow(1.0 - a, 1.4) * (1.15 - 0.5 * aSeed.z), 0.0, 1.0);
+    vec3 c = (modelViewMatrix * vec4(p, 1.0)).xyz;
+    // Stretched along the flow as the eye sees it: a tongue, not a ball.
+    vec2 fv = (modelViewMatrix * vec4(dir, 0.0)).xy;
+    float fl = length(fv);
+    vec2 ax = fl > 1e-3 ? fv / fl : vec2(0.0, 1.0);
+    float st = 1.0 + (uStretch - 1.0) * fl;
+    vec2 q = position.xy * size;
+    q = vec2(ax.y, -ax.x) * q.x + ax * q.y * st;
+    vFade *= smoothstep(1.0, 6.0, -c.z);
+    gl_Position = projectionMatrix * vec4(c + vec3(q, 0.0), 1.0);
+  }`;
+const FIRE_FRAG = /* glsl */`
+  uniform sampler2D uMap;
+  uniform float uGain, uSmoke, uOcclude;
+  uniform vec3 uSmokeColor;
+  varying vec2 vUv;
+  varying float vAge, vFade, vHeat;
+  // Black-body-ish ramp for a flame seen by a camera: white-yellow, yellow, orange, deep red.
+  vec3 ramp(float h) {
+    vec3 c = mix(vec3(0.3, 0.03, 0.005), vec3(1.0, 0.26, 0.03), smoothstep(0.0, 0.35, h));
+    c = mix(c, vec3(1.0, 0.55, 0.12), smoothstep(0.3, 0.62, h));
+    return mix(c, vec3(1.0, 0.9, 0.66), smoothstep(0.62, 0.97, h));
+  }
+  void main() {
+    vec4 t = texture2D(uMap, vUv);
+    // Eaten from the edge as it cools: the threshold rises with age, and the fine noise frays
+    // the boundary, so an old sprite breaks into wisps rather than fading as a disc.
+    float th = mix(0.08, 0.62, vAge);
+    float d = t.r * (0.6 + 0.8 * t.g);
+    float f = smoothstep(th, th + 0.14, d) * vFade;
+    if (f < 0.003) discard;
+    float h = vHeat * (0.55 + 0.6 * t.r);
+    vec3 fire = ramp(h) * uGain * (0.2 + 1.9 * h * h);
+    // What the flame turns into once it has burnt out: smoke that hides what is behind it.
+    float smoke = uSmoke * smoothstep(0.35, 0.9, vAge);
+    float a = f * (uOcclude * (1.0 - vAge) + smoke);
+    gl_FragColor = vec4(fire * f * (1.0 - smoke) + uSmokeColor * smoke * f, clamp(a, 0.0, 1.0));
+  }`;
+
+export class Fire {
+  /**
+   * @param {object} o
+   * @param {Array<{at:number[], dir:number[], count:number}>} o.emitters sources in the
+   *   parent's frame; each emits along its own direction
+   * @param {function} o.rng seeded, so the layout is the same on every load
+   */
+  constructor({ emitters, rng, name = 'fire', gain = 3, smoke = 0, smokeColor = 0x6b645c, occlude = 0.15 }) {
+    const n = emitters.reduce((s, e) => s + e.count, 0);
+    const origin = new Float32Array(n * 3), dir = new Float32Array(n * 3);
+    const seed = new Float32Array(n * 4), wander = new Float32Array(n * 3);
+    let i = 0;
+    for (const e of emitters) {
+      for (let k = 0; k < e.count; k++, i++) {
+        origin.set(e.at, i * 3);
+        dir.set(e.dir, i * 3);
+        seed.set([k / e.count + rng() * (0.7 / e.count), rng() * Math.PI * 2, Math.sqrt(rng()), 0.7 + 0.6 * rng()], i * 4);
+        wander.set([rng() - 0.5, rng() - 0.5, rng() - 0.5], i * 3);
+      }
+    }
+    const geo = new THREE.InstancedBufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-0.5, 0.5, 0, 0.5, 0.5, 0, -0.5, -0.5, 0, 0.5, -0.5, 0]), 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 1, 1, 1, 0, 0, 1, 0]), 2));
+    geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1]), 3));
+    geo.setIndex([0, 2, 1, 2, 3, 1]);
+    geo.setAttribute('aOrigin', new THREE.InstancedBufferAttribute(origin, 3));
+    geo.setAttribute('aDir', new THREE.InstancedBufferAttribute(dir, 3));
+    geo.setAttribute('aSeed', new THREE.InstancedBufferAttribute(seed, 4));
+    geo.setAttribute('aWander', new THREE.InstancedBufferAttribute(wander, 3));
+    geo.instanceCount = n;
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e4);
+    this.material = new THREE.ShaderMaterial({
+      uniforms: {
+        uMap: { value: fireTexture() }, uTime: { value: 0 }, uLife: { value: 0.5 }, uLen: { value: 10 },
+        uDrag: { value: 0 }, uR0: { value: 1 }, uWiden: { value: 0.1 }, uSize0: { value: 2 }, uGrow: { value: 4 },
+        uRise: { value: 0 }, uStretch: { value: 1.6 }, uWanderM: { value: 0 }, uMaxLen: { value: 1e9 },
+        uIntensity: { value: 0 }, uUp: { value: new THREE.Vector3(0, 1, 0) },
+        uGain: { value: gain }, uSmoke: { value: smoke }, uOcclude: { value: occlude },
+        uSmokeColor: { value: new THREE.Color(smokeColor) },
+      },
+      vertexShader: FIRE_VERT, fragmentShader: FIRE_FRAG,
+      transparent: true, depthWrite: false,
+      // Premultiplied, as the plume cones: emitted light plus a share of occlusion.
+      blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
+      blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor,
+    });
+    this.mesh = new THREE.Mesh(geo, this.material);
+    this.mesh.name = name;
+    this.mesh.frustumCulled = false;
+    // With the plume cones: after the cloud, so the flame glows through its own steam.
+    this.mesh.renderOrder = 2;
+    this.mesh.visible = false;
+  }
+
+  /**
+   * Shape and strength, all in the parent's frame and in metres.
+   * @param {object} o  intensity 0 hides it; life (s) of one sprite; len, how far a sprite
+   *   travels in that life; drag, how quickly it slows (0 none); r0 and widen, the radius at the
+   *   source and its growth per metre travelled; size0 and grow, a sprite's size at birth and
+   *   its growth over its life; rise, buoyant lift over its life along `up`; stretch along the
+   *   flow; wander, each sprite's own drift; maxLen, where something stops the flow.
+   */
+  set(o) {
+    const u = this.material.uniforms;
+    const on = (o.intensity ?? 0) > 0.002;
+    this.mesh.visible = on;
+    if (!on) return;
+    for (const [k, name] of [['intensity', 'uIntensity'], ['life', 'uLife'], ['len', 'uLen'], ['drag', 'uDrag'],
+      ['r0', 'uR0'], ['widen', 'uWiden'], ['size0', 'uSize0'], ['grow', 'uGrow'], ['rise', 'uRise'],
+      ['stretch', 'uStretch'], ['wander', 'uWanderM'], ['gain', 'uGain'], ['smoke', 'uSmoke'], ['occlude', 'uOcclude']]) {
+      if (o[k] !== undefined) u[name].value = o[k];
+    }
+    u.uMaxLen.value = o.maxLen ?? 1e9;
+    if (o.up) u.uUp.value.copy(o.up);
   }
 
   setTime(t) { this.material.uniforms.uTime.value = t; }
@@ -934,7 +1172,10 @@ export class GroundCloud {
       const u = age[i] / life[i];
       // Billowing expansion, at the rate this puff was emitted with, scaled by its own factor.
       size[i] = (base[i] + u * grow[i]) * sizeK[i];
-      const fadeIn = Math.min(1.0, u * 8.0);
+      // Visible within the first second or so, while it is still small and inside the flame
+      // it leaves the trench with: fading in over an eighth of a 20 s life, puffs turned up
+      // fully grown a hundred metres out, and the cloud seemed to start from nothing.
+      const fadeIn = Math.min(1.0, age[i] / 0.8);
       // Dense for most of its life, then thinning: a launch cloud stays a solid mass for tens
       // of seconds. Fading all the way from birth left the whole cloud a pale veil by T+20.
       // The shader also eats the edge away as the puff ages (aExtra.x), so it thins from the

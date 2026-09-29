@@ -224,8 +224,17 @@ c5b86c6 Close the tank-farm domes; carbon louvre panel on the Roadster bonnet
   - **V3 en el regreso**: 33 → 13 motores en el *boostback* (`BOOSTBACK_33` ≈10 s) y 13 → 5 → 3 en el aterrizaje (`BURN_FIVE` ≈3 s antes de `BURN_THREE`), con el empuje resuelto de nuevo; límite de `cloud-check` a 12 g;
   - **solo ordenador**: fuera la barra inferior de móvil y el CSS de teléfono; aviso en la carga y en pantallas pequeñas; `ux-check` solo en tamaños de escritorio (DPR 1);
   - **paseo**: 60° de campo de visión, ritmo con la rueda (1,4–25 m/s, empieza en 3), `rig.walls` (valla y zanja), doble clic = viaje (`rig.travelTo`, ruta por la puerta del vial en `walkRoute`).
+- **Tercera ronda (28-29 de septiembre)** (detalle en el README, *Tercera ronda*):
+  - **losetas**: filas impares de arcos parciales desplazadas media columna (`tileSurfaceOfRevolution`), 13 267 losetas; mosaico lejano de 16 × 16 losetas con juntas claras (`makeTpsPattern`), `bias` 1.5; `M.tpsShell` sigue en 2.3 (lod-pop ±3,1);
+  - **paseo**: el doble clic ignora las mallas `site-fence*` y aparta el destino 1 m de `rig.walls`; prueba con doble clic real y control negativo en `ux-check`;
+  - **fuego**: clase `Fire` en `plume.js` (partículas deterministas por tiempo de misión, uniformes por fase con `set({...})`); `Plume` lleva la suya (`fireCount`), y `launch.js` añade `trenchFire` (ahora `Fire`), `deckFire` (chorro contra la mesa, ≈) y `baseGlare` (Glow bajo los motores). Recuentos por calidad (`fireScale`);
+  - **humo**: bocanadas de la zanja nacen con 11 m y se ven en 0,8 s (`fadeIn` por edad en `GroundCloud.update`); humo del aterrizaje con 170 bocanadas de 21 m por emisor;
+  - **granja de tanques**: etiquetas desde `buildField` y `buildPadInfrastructure` (`userData.annotations`), encuadre `farm` en `specs.js`;
+  - **guía rápida**: el diálogo `#help` es ahora una guía (primeros pasos + tarjetas por modo, la del modo en uso marcada por CSS con `#hud.walk/.fly` y `body.is-flying`); `H`, `?` o el botón *Guide*;
+  - **fin de secuencia**: `onFinish(completed)`; solo al completarla aparece un aviso sobre lo que hace la nave después (`notice(text, ms)`, clase `.callout.is-long`).
+  - **Propuesta abierta:** un capítulo de **reentrada de la nave** (plasma, actitud con el vientre por delante, maniobra con las aletas, *flip* y encendido de aterrizaje o amerizaje). Necesita cronología publicada de un vuelo concreto antes de empezar.
 - **Búsqueda web:** en esta sesión `WebSearch` funciona (resúmenes con enlaces); `WebFetch` y `curl` a spacex.com, Wikipedia, NASA, NSF o github.io están bloqueados. Lo leído por resúmenes se cita como tal.
-- **Galería:** sigue sin regenerar desde `b1f09d3` y ahora está más desfasada (fila de transporte del panel, botón *Walk*, trayectoria de la nave tras T+2:40). **Regenerarla necesita aprobación del usuario.**
+- **Galería:** sigue sin regenerar desde `b1f09d3` y ahora está más desfasada (fila de transporte del panel, botón *Walk*, trayectoria de la nave tras T+2:40, fuego nuevo, botón *Guide*, encuadre *Tank farm*). **Regenerarla necesita aprobación del usuario.**
 - **Red de esta sesión:** solo GitHub y npm. No se pudo contrastar ninguna fuente ni comprobar Pages con `curl`; el estado de Pages se comprueba con `mcp__github__actions_list` (ejecuciones del flujo).
 - **No hacer:** el regulador de calidad adaptativo (descartado por el usuario). No reintroducir stencil en el render target MSAA (hundió la escena a ~10 fps en GPU real). Por la misma razón, **no añadir una textura de profundidad** a ese render target para «partículas suaves»: obligaría a resolver una profundidad multimuestreada en cada fotograma, el mismo tipo de coste.
 - **Pendientes abiertos, todos a la espera de evidencia:**
