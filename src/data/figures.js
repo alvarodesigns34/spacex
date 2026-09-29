@@ -113,9 +113,11 @@ export const COUNTS = {
  * of vehicles/pad.js. `sheet` names the data sheet row that states each one.
  */
 export const PAD_FIGURES = {
-  // Grade D, not C: the only trail to 474 ft is a fan wiki citing FAA filings nobody here has
-  // seen; the press article it used to cite states no height at all (checked 27 Sep 2026).
-  towerH: { value: 144.5, grade: 'D', ref: 'wiki_olit3', label: 'torre · altura total sobre la explanada (≈, 474 ft según una fuente secundaria que cita expedientes FAA no localizados)', sheet: 'Pad 2 · integration tower' },
+  // Grade C: a published figure, from a primary document (the FAA's 2022 programmatic EA for
+  // Starbase), but a planning one stated as "approximately 480 feet" plus a 10 ft rod, so it is
+  // shown with ≈ and held to the reporting tolerance rather than the maker's. It replaced a fan
+  // wiki's 474 ft (≈144,5 m, grade D).
+  towerH: { value: 149.45, grade: 'C', approx: true, ref: 'faa_pea2022', label: 'torre · altura total sobre la explanada (≈480 ft + pararrayos de 10 ft, FAA 2022)', sheet: 'Pad 2 · integration tower' },
   armLen: { value: 26, grade: 'C', ref: 'nsf_pad2', label: 'brazo de captura · longitud (≈36 del Pad 1 − 10)', sheet: 'Pad 2 · catch arms' },
   deckTop: { value: 18, grade: 'D', label: 'mesa · cota de la cubierta', sheet: 'Pad 2 · plan dimensions' },
   padY: { value: 5, grade: 'D', label: 'explanada · cota' },

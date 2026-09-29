@@ -508,8 +508,10 @@ try {
   // Up to staging the panel follows the stack, and its altitude and speed can only rise. After
   // staging it follows the booster home, which is the whole point of the second half of the
   // sequence, so monotonicity is asserted on the ascent only and the return gets its own test.
-  const ASCENT_END = 158;
-  const times = [-10, -1, 2, 8, 20, 62, 110, 152, 156, 161, 175, 210, 275, 340, 396, 412, 420];
+  const ev = await page.evaluate(async () => { const { EVENTS } = await import('/src/sim/launch.js'); return EVENTS; });
+  const ASCENT_END = ev.boostbackStart - 1;
+  const times = [-10, -1, 2, 8, 20, ev.maxQ, 110, ev.meco, ev.separation + 2, ev.boostbackStart + 2, 175, 210, 275, 340,
+    ev.landingBurn, ev.catch - 8, ev.catch - 1, ev.shipCutoff, ev.end - 2];
   const badT = [];
   let lastAlt = -1, lastVel = -1, monotonic = true;
   for (const t of times) {
@@ -543,11 +545,12 @@ try {
       const arms = chop.children.filter(c => c.name.startsWith('arm-')).map(a => +a.rotation.y.toFixed(4));
       return { x: b.position.x, y: b.position.y, chop: chop.position.y, arms };
     }, t);
-    // The integrated return tops out at ≈ 83 km, T+4:00, ≈ 94 km downrange (returnSummary()).
-    const apogee = await at(240);
+    // The integrated return tops out at ≈ 106 km, ≈T+3:50, ≈ 56 km downrange (returnSummary()).
+    const ev = await page.evaluate(async () => { const m = await import('/src/sim/launch.js'); return { ...m.EVENTS, apogee: m.derivedEvents().apogee }; });
+    const apogee = await at(ev.apogee);
     const mid = await at(340);
-    const caught = await at(415);
-    const rose = apogee.y > 75000 && apogee.x > 60000;
+    const caught = await at(ev.catch + 1);
+    const rose = apogee.y > 75000 && apogee.x > 40000;
     const home = Math.abs(caught.x) < 60 && caught.y < 60;
     // Closed means well in from the ±42° open position; how far in is measured below against
     // the hull, since closing too far is as wrong as not closing (the arms went through it).
@@ -591,7 +594,7 @@ try {
       }
       const railTop = chop.userData.catchGeometry?.railTop ?? 2.3;
       return { pin: p.matrixWorld.elements[13], rail: chop.matrixWorld.elements[13] + railTop, clear };
-    }, 415);
+    }, ev.catch + 1);
     if (grip) {
       const off = grip.pin - grip.rail;
       report(off >= 0 && off <= 0.8, 'los pines descansan sobre el carril de los brazos',
@@ -619,7 +622,7 @@ try {
       const mid = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 };
       const ang = Math.abs(Math.atan2(Math.abs(b.x - a.x), Math.abs(b.z - a.z))) * 180 / Math.PI;
       return { count: 2, off: Math.hypot(mid.x, mid.z), ang };
-    }, 415);
+    }, ev.catch + 1);
     const planOk = plan.count === 2 && plan.off < 0.5 && plan.ang < 3;
     report(planOk, 'los pines caen sobre los brazos y en el eje de la mesa',
       plan.count === 2 ? `desvío del eje ${plan.off.toFixed(2)} m, pines a ${plan.ang.toFixed(1)}° de la dirección de los brazos` : `pines encontrados: ${plan.count}`);
@@ -644,7 +647,7 @@ try {
     `durante la secuencia ×${speed.during}, tras terminarla ×${speed.after}`);
 
   // Where each milestone's time comes from. The booster's transonic crossing is computed by the
-  // model (≈T+6:25 here); what flight 7 gives is the five-second interval before the landing
+  // model (≈T+6:31 here); what flight 7 gives is the five-second interval before the landing
   // burn, which the drag is solved to reproduce. It was tagged as flight 7's own time. Every
   // model-derived milestone must say so, and the panel must show its time with ≈.
   {
@@ -664,7 +667,7 @@ try {
       return { problems: audit(MILESTONES), tuned: tr.tunedTo, t: tr.t, gap: EVENTS.landingBurn - tr.t, next, nextCited, control: audit(mutated) };
     });
     const ok = r.problems.length === 0 && r.tuned === 'f7' && Math.abs(r.gap - 5) < 0.2
-      && /Booster transonic ≈T\+06:2\d/.test(r.next) && /Landing burn T\+06:30/.test(r.nextCited) && r.control.length === 1;
+      && /Booster transonic ≈T\+06:3\d/.test(r.next) && /Landing burn T\+06:36/.test(r.nextCited) && r.control.length === 1;
     report(ok, 'los hitos calculados por el modelo no se presentan como observados',
       `transónico ${r.t} s (modelo, ajustado al intervalo del vuelo 7: ${r.gap.toFixed(1)} s antes del encendido); panel «${r.next}» / «${r.nextCited}»; `
       + `${r.problems.length ? `mal etiquetados: ${r.problems.join(', ')}; ` : ''}control con src «f7»: ${r.control.length ? 'rechazado' : 'NO detectado'}`);

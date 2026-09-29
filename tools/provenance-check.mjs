@@ -72,7 +72,7 @@ export const README_RULES = [
 
 const SOURCE_FOR_GRADE = {
   A: ['spacex', 'official', 'nasa'],
-  C: ['wiki', 'press'],
+  C: ['wiki', 'press', 'faa'],
 };
 
 /** Numbers written in a string, each with the half-unit of its last written digit. */
@@ -108,7 +108,8 @@ export function audit({ figures, pad, counts, vehicles, sources, readme, builder
   const bad = (msg) => problems.push(msg);
   // Values a visitor must see with ≈: every measured (B) or reconstructed (D) figure.
   const approxValues = [...Object.values(pad), ...Object.values(figures).flatMap(f => Object.values(f).filter(x => x && typeof x === 'object' && 'grade' in x))]
-    .filter(f => f.grade === 'B' || f.grade === 'D').map(f => f.value);
+    // Measured, reconstructed, or published but stated as approximate (a planning figure).
+    .filter(f => f.grade === 'B' || f.grade === 'D' || f.approx).map(f => f.value);
   const graded = (where, f) => {
     if (!GRADES[f.grade]) return bad(`${where}: grado desconocido «${f.grade}»`);
     if (f.grade === 'D') { if (!f.note && !f.label) bad(`${where}: una reconstrucción debe decir de qué sale`); }
@@ -190,7 +191,7 @@ export function audit({ figures, pad, counts, vehicles, sources, readme, builder
       // Only this exhibit's own measured or reconstructed figures (the pad's for Starship):
       // Dragon's published 4 m is not Starlink's reconstructed 4.0 m wing.
       const own = [...Object.values(figures[stop.id] ?? {}), ...(stop.id === 'starship' ? Object.values(pad) : [])]
-        .filter(f => f && typeof f === 'object' && (f.grade === 'B' || f.grade === 'D')).map(f => f.value);
+        .filter(f => f && typeof f === 'object' && (f.grade === 'B' || f.grade === 'D' || f.approx)).map(f => f.value);
       const approx = own.some(x => Math.abs(x - n) <= half + 1e-9);
       if (approx && !/≈\s*$/.test(stop.text.slice(0, u.index)) && !/reconstructed|estimate/.test(stop.text)) bad(`tour: ${stop.id}/${stop.preset} da ${u[0]}, una cifra reconstruida o estimada, sin ≈ ni salvedad`);
     }
@@ -262,14 +263,14 @@ const mutants = [
   ['fila de la ficha con la torre citada a ese artículo', withVehicles(v => { const r = v.find(x => x.id === 'starship').specs.find(x => (x.pad ?? []).includes('towerH')); r.ref = 'se_pad2'; })],
   ['cifra y fila de la torre citadas, de acuerdo entre sí, a ese artículo', (() => { const b = withVehicles(v => { const r = v.find(x => x.id === 'starship').specs.find(x => (x.pad ?? []).includes('towerH')); r.ref = 'se_pad2'; }); return { ...b, pad: { ...PAD_FIGURES, towerH: { ...PAD_FIGURES.towerH, ref: 'se_pad2' } } }; })()],
   ['etiqueta de la fuente que vuelve a prometer 474 ft', { ...base, sources: { ...SOURCES, se_pad2: { ...SOURCES.se_pad2, label: 'Space Explored — progress on the second Starship pad (474 ft tower)' } } }],
-  ['etiqueta 3-D con la altura estimada de la torre sin ≈', { ...base, builders: { ...BUILDERS, 'pad.js': BUILDERS['pad.js'].replace('tower · ≈144.5 m', 'tower · 144.5 m') } }],
+  ['etiqueta 3-D con la altura aproximada de la torre sin ≈', { ...base, builders: { ...BUILDERS, 'pad.js': BUILDERS['pad.js'].replace('tower · ≈480 ft + 10 ft rod', 'tower · 149.5 m') } }],
   ['README con las 13 132 losetas como cifra actual', { ...base, readme: README + '\n- El escudo lleva 13 132 losetas.\n' }],
   ['README con la celosía a 145–150 m sin la salvedad', { ...base, readme: README + '\nLa celosía llega a ≈145–150 m.\n' }],
   ['README con la torre en la fila «Citado»', { ...base, readme: README.replace('| Citado | brazos de unos 26 m', '| Citado | torre de 144,5 m (474 ft) · brazos de unos 26 m') }],
   ['README con el adaptador del Falcon 9 en las discrepancias', { ...base, readme: README.replace('### Discrepancias entre fuentes\n', '### Discrepancias entre fuentes\n\n- La diferencia se asigna al adaptador de carga bajo la cofia.\n') }],
   // Guided tour captions (28 Sep 2026).
   ['parada de la visita con la zanja antigua', { ...base, tour: TOUR.map(t => t.preset === 'trench' ? { ...t, text: t.text.replace('4.2 m', '8.2 m') } : t) }],
-  ['parada de la visita con la torre sin ≈', { ...base, tour: TOUR.map(t => t.preset === 'site' ? { ...t, text: 'The tower is 144.5 m tall.' } : t) }],
+  ['parada de la visita con la torre sin ≈', { ...base, tour: TOUR.map(t => t.preset === 'site' ? { ...t, text: 'The tower is 149.5 m tall.' } : t) }],
   ['parada de la visita con una fuente inexistente', { ...base, tour: TOUR.map((t, i) => i === 0 ? { ...t, src: 'no_such_source' } : t) }],
   ['README con el Starlink un 8 % corto en las discrepancias', { ...base, readme: README.replace('### Discrepancias entre fuentes\n', '### Discrepancias entre fuentes\n\n- El modelo queda un 8 % por debajo en superficie.\n') }],
 ];

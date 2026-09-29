@@ -252,7 +252,8 @@ try {
   await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
   await page.waitForFunction(() => window.__vc.launch.state.t > 150, null, { timeout: 60000 }).catch(() => {});
   const seekT = await page.evaluate(() => window.__vc.launch.state.t);
-  const mid = -40 + 0.5 * (436 + 40);
+  const ev = await page.evaluate(async () => { const { EVENTS } = await import('/src/sim/launch.js'); return EVENTS; });
+  const mid = ev.start + 0.5 * (ev.end - ev.start);
   report(Math.abs(seekT - mid) < 4, 'A click on the flight profile jumps the mission there', { seekT, want: mid });
   await page.evaluate(() => { window.__vc.launch.setPaused(true); document.activeElement?.blur?.(); });
   await page.keyboard.press('ArrowRight');
@@ -357,7 +358,8 @@ try {
     const model = v.exhibits.starship.model, ship = model.getObjectByName('ship'), booster = model.getObjectByName('superheavy');
     const plume = v.scene.getObjectByName('plume-ship');
     const rows = [];
-    for (const t of [159.0, 159.6, 160.0, 160.3]) {
+    const { EVENTS } = await import('/src/sim/launch.js');
+    for (const t of [-1, -0.4, 0, 0.3].map(d => EVENTS.separation + d)) {
       v.launch.seek(t); v.scene.updateMatrixWorld(true);
       const exit = ship.localToWorld(new THREE.Vector3()), stack = v.exhibits.starship.model.userData.stations?.booster?.ringTop ?? 70.47;
       const dome = booster.localToWorld(new THREE.Vector3(0, stack + 0.9, 0));

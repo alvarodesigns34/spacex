@@ -4,21 +4,22 @@
  *
  * WHAT IS CITED AND WHAT IS RECONSTRUCTED
  *
- * The event times are taken verbatim from the published flight-test timeline (Wikipedia's
- * Starship flight test 7 article, itself transcribed from the SpaceX webcast): liftoff at
- * T+00:00:02, Max-Q at T+00:01:02, MECO at T+00:02:32, hot-stage separation at T+00:02:40.
- * The times are the cited part. The speed at separation is not: this file used to attribute
- * ≈ 5 700 km/h to IFT-3 behind a link to an article about the flight 5 catch, which carries no
- * such figure, and no flight timeline I could check gives one. It is the anchor the curve is
- * authored to, and it is declared as reconstructed on the sheet.
+ * The event times are SpaceX's own, from the published timeline of flight 14 (28 September
+ * 2026, spacex.com/launches/starship-flight-14, read directly): the V3 vehicle on Pad 2 that the
+ * exhibit models. Countdown: GO for launch T−0:30, flame diverter T−0:17, booster engine
+ * startup command T−0:03. Flight: liftoff T+0:00, Max-Q 0:58, MECO 2:20, hot-staging 2:22,
+ * boostback 2:27–3:07, landing burn 6:36–7:01, Starship engine cutoff 8:11. Flights 12 and 13
+ * (the other two V3 flights) publish the same structure within a few seconds.
  *
- * The altitude and speed *curve* between those points is not published as a table anywhere,
- * so it is reconstructed: a monotone cubic through keyframes that hit the cited times and that
- * separation-speed anchor, flagged `approx` in data/specs.js and labelled in the mission
- * panel. Everything downstream is then derived from that one curve rather than invented
- * separately — the flight-path angle comes from dh/dt against speed, the downrange distance
- * from integrating the horizontal component, and the vehicle's attitude from the flight-path
- * angle. So the pitch you see and the numbers on the panel cannot disagree with each other.
+ * One thing is not flight 14's: its booster was planned to splash down in the Gulf, and this
+ * sequence ends its landing burn in the tower's arms. No V3 booster has been caught yet.
+ *
+ * The altitude and speed *curve* between the cited times is not published as a table anywhere,
+ * so it is reconstructed: a monotone cubic through keyframes that hit the cited times and a
+ * separation-speed anchor that is declared as reconstructed on the sheet. Everything
+ * downstream is then derived from that one curve rather than invented separately — the
+ * flight-path angle, the downrange distance and the attitude — so the pitch you see and the
+ * numbers on the panel cannot disagree with each other.
  *
  * Time runs 1:1 by default. The speed control multiplies the mission clock, it does not skip.
  */
@@ -29,61 +30,74 @@ import { seeded, monotoneSlopes, hermite } from '../geometry/utils.js';
 import { PAD } from '../vehicles/pad.js';
 
 // ---- Cited event times (seconds from T-0) ------------------------------------------------
+// SpaceX, flight 14 timeline (spacex.com/launches/starship-flight-14; "all times approximate").
 export const EVENTS = {
-  // The terminal count, from the same flight 7 timeline (Wikipedia, Starship flight test 7):
-  // the flight director's GO for launch at T−00:00:30, the flame deflector's water at
-  // T−00:00:10 and Super Heavy engine ignition at T−00:00:03. The sequence opens ten seconds
-  // before the GO, with the stack fuelled and venting.
+  // The sequence opens ten seconds before the GO, with the stack fuelled and venting.
   start: -40,
-  goForLaunch: -30,    // cited: "Flight director verifies go for launch"
-  deflector: -10,      // cited: "Flame deflector activation"
-  ignition: -3,        // cited: "Super Heavy engine ignition"
-  liftoff: 2,          // cited
+  goForLaunch: -30,    // cited: "SpaceX flight director verifies go for launch"
+  deflector: -17,      // cited: "Flame diverter activation"
+  ignition: -3,        // cited: "Booster engine startup command"
+  liftoff: 0,          // cited
   towerClear: 0,       // derived below from the integrated altitude (the base clears the tower top)
-  maxQ: 62,            // cited
-  meco: 152,           // cited
-  separation: 160,     // cited
-  // Booster return, from the flight 5 timeline (Wikipedia, Starship flight test 5): the
-  // first time anyone caught an orbital-class booster. Times are that flight's, shifted by
-  // nothing — its boostback started 1 s after this model's separation, which is close enough
-  // that the two timelines can share a clock.
-  boostbackStart: 165,   // cited: +00:02:45
-  boostbackEnd: 221,     // cited: +00:03:41
-  landingBurn: 390,      // cited: +00:06:30
-  catch: 414,            // cited: +00:06:54, landing burn shutdown and catch
-  end: 436,
+  maxQ: 58,            // cited: 00:00:58
+  meco: 140,           // cited: 00:02:20
+  separation: 142,     // cited: 00:02:22, "Starship Raptor ignition and stage separation"
+  boostbackStart: 147, // cited: 00:02:27
+  boostbackEnd: 187,   // cited: 00:03:07
+  landingBurn: 396,    // cited: 00:06:36
+  catch: 421,          // cited time: 00:07:01, landing burn shutdown (flight 14 splashed down in the Gulf)
+  shipCutoff: 491,     // cited: 00:08:11, "Starship engine cutoff"
+  end: 500,
 };
 
 /**
  * Reconstructed ascent, built from exactly two authored inputs so that nothing in the
  * simulation can contradict anything else:
  *
- *   1. a speed curve v(t), pinned to zero until the cited liftoff time and to the authored
- *      ≈ 5 700 km/h (1 583 m/s) anchor at the cited separation time;
+ *   1. a speed curve v(t), pinned to zero at the cited liftoff and to the authored ≈ 5 700 km/h
+ *      (1 583 m/s) anchor at the cited separation time;
  *   2. a gravity-turn pitch programme θ(t) — zero while the vehicle clears the tower, then
- *      an exponential approach to 72° from vertical with a 64 s time constant.
+ *      an exponential approach to 72° from vertical, its time constant solved so the stack
+ *      reaches the cited ≈64 km at MECO (see MECO_ALTITUDE).
  *
  * Altitude and downrange distance are then *integrated* from those two, not authored
  * separately, so the attitude on screen, the altitude on the panel and the speed on the
- * panel are one object seen three ways. The integration lands the vehicle at 55,8 km and
- * 81 km downrange at separation, which is the right neighbourhood for a Starship staging
- * point; the shape of both inputs is a reconstruction and is labelled as such in the panel.
+ * panel are one object seen three ways. The curve is the one built for the flight 7 clock,
+ * compressed onto V3's: a V3 stack reaches MECO twelve seconds sooner (2:20 against 2:32)
+ * on ≈80 MN rather than ≈74 (Wikipedia, Super Heavy). No V3 telemetry is published; the shape
+ * is a reconstruction and is labelled as such in the panel.
  */
 const SPEED_KEYS = [
-  [0, 0], [2, 0],          // cited: the stack leaves the mount at T+00:00:02
-  [10, 52], [20, 105], [30, 165], [45, 262],
-  [62, 392],               // cited time: Max-Q
-  [80, 548], [100, 745], [120, 978], [140, 1272],
-  [152, 1470],             // cited time: MECO
-  // Cited time. The speed is NOT cited: it used to point at a NASASpaceflight article about
-  // the flight 5 catch, which does not carry a separation speed, and neither Wikipedia flight
-  // timeline gives one either. 1 583 m/s is the anchor this curve is authored to, and the
-  // sheet says so rather than dressing it as published.
-  [160, 1583],
-  [175, 1690], [196, 1880], [260, 2380], [340, 3020], [436, 3760],
+  [0, 0],                  // cited: liftoff at T+0:00
+  [10, 58], [20, 117], [30, 184], [45, 294],
+  [58, 420],               // cited time: Max-Q
+  [75, 590], [95, 810], [115, 1080], [130, 1370],
+  [140, 1565],             // cited time: MECO
+  // Cited time, authored speed: no flight timeline gives a separation speed. 1 583 m/s is the
+  // anchor this curve is built to, and the sheet says so rather than dressing it as published.
+  [142, 1583],
+  [155, 1690], [175, 1880], [240, 2380], [320, 3020], [500, 4200],
 ];
-const PITCH = { start: EVENTS.liftoff + 6, max: THREE.MathUtils.degToRad(72), tau: 64 };
+const PITCH = { start: EVENTS.liftoff + 6, max: THREE.MathUtils.degToRad(72), tau: 60 };
 const pitchProgram = (t) => (t <= PITCH.start ? 0 : PITCH.max * (1 - Math.exp(-(t - PITCH.start) / PITCH.tau)));
+// The turn's time constant is solved, not chosen: MECO comes "at an altitude of roughly 64 km"
+// (Wikipedia, SpaceX Starship, flight profile), so τ is bisected at load until the integrated
+// climb reaches it at the cited MECO time. With the flight 7 turn (τ 64 s) on this faster clock
+// the stack cut off at 48 km.
+export const MECO_ALTITUDE = 64e3;   // m, ≈ "roughly 64 km"
+{
+  const xs = SPEED_KEYS.map(k => k[0]), vy = SPEED_KEYS.map(k => k[1]), vm = monotoneSlopes(xs, vy);
+  const climb = (tau) => {
+    PITCH.tau = tau;
+    let h = 0;
+    for (let t = 0, dt = 0.05; t < EVENTS.meco - 1e-9; t += dt) h += hermite(xs, vy, vm, t + dt / 2) * Math.cos(pitchProgram(t + dt / 2)) * dt;
+    return h;
+  };
+  let lo = 30, hi = 250;
+  for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (climb(mid) < MECO_ALTITUDE) lo = mid; else hi = mid; }
+  PITCH.tau = (lo + hi) / 2;
+}
+export const pitchTau = () => PITCH.tau;
 
 /**
  * Integrates the two inputs once, at load, into a 0,25 s table. Doing it up front is what
@@ -102,14 +116,23 @@ const pitchProgram = (t) => (t <= PITCH.start ? 0 : PITCH.max * (1 - Math.exp(-(
 export const SHIP_ASSUMED = {
   thrust: 1614e3 * 9.80665,      // N, spacex.com (Starship, V3): 1 614 tf
   propellant: 1600e3,            // kg, spacex.com: 1 600 t
-  dry: 150e3,                    // kg, ≈ assumed: dry mass plus residuals, not published for V3
+  // kg, SOLVED at load, not assumed: everything that is not propellant (structure, payload,
+  // residuals). It is the mass that makes the published thrust, the published propellant load
+  // and the assumed Isp reach the cutoff speed below at the cited cutoff time. See buildProfile.
+  dry: 150e3,
   ispSL: 350,                    // s, ≈ assumed: Raptor 3 sea-level engines in vacuum
   ispVac: 380,                   // s, ≈ assumed: Raptor Vacuum
   slShare: 750 / 1575,           // thrust share of the three sea-level engines (3 × 250 of 3 × 250 + 3 × 275 tf)
-  holdAltitude: 150e3,           // m, ≈ assumed: the ship levels off here by the end of the sequence
+  // m, ≈: the ship's burn is steered to end level at flight 12's published apogee (195 km,
+  // Wikipedia, Starship flight test 12); no V3 flight publishes its altitude at engine cutoff.
+  holdAltitude: 195e3,
+  // m, from the same flight 12 figures: apogee 195 km and perigee −7 km (Wikipedia) fix the
+  // trajectory, and a ship at the top of that arc moves at √(μ(2/r_a − 1/a)) ≈ 7,73 km/s
+  // (inertial; Earth's rotation is not modelled). The burn is solved to end there.
+  perigee: -7e3,
 };
 /** Linear-tangent constants, solved at load (see buildProfile). */
-export const SHIP_STEERING = { e0: 0, c: 0 };
+export const SHIP_STEERING = { e0: 0, c: 0, cutoffSpeed: 0 };
 const G0 = 9.80665, R_EARTH = 6371e3;
 /** Ship mass flow at full thrust: each engine group's thrust over its own Isp·g0. */
 export const shipMassFlow = () => {
@@ -146,11 +169,15 @@ function buildProfile() {
   const S = SHIP_ASSUMED, mdot = shipMassFlow();
   const iEnd = n - 1;
   const MAX_RATE = THREE.MathUtils.degToRad(3);
-  const throttleAt = (tt) => THREE.MathUtils.smoothstep(tt, EVENTS.separation - 1.5, EVENTS.separation + 1.5);
+  // Lit through the hot-stage ring a moment before separation, shut down at the cited engine
+  // cutoff (T+8:11), then coasting.
+  const throttleAt = (tt) => THREE.MathUtils.smoothstep(tt, EVENTS.separation - 1.5, EVENTS.separation + 1.5)
+    * (1 - THREE.MathUtils.smoothstep(tt, EVENTS.shipCutoff - 1, EVENTS.shipCutoff));
   const fly = (q, rec) => {
     const [e0, c] = q;
     let vx = spd[iSep] * Math.sin(pit[iSep]), vh = spd[iSep] * Math.cos(pit[iSep]);
     let m = S.propellant + S.dry, a = att[iSep], hh = alt[iSep], xx = down[iSep], tt = EVENTS.separation;
+    let atCut = null;
     if (rec) mass[iSep] = m;
     for (let i = iSep + 1; i <= iEnd; i++) {
       for (let k = 0; k < sub; k++) {
@@ -165,25 +192,33 @@ function buildProfile() {
         xx += vx * dt; hh += vh * dt;
         if (burning) m = Math.max(S.dry, m - thr * mdot * dt);
         tt += dt;
+        if (atCut === null && tt >= EVENTS.shipCutoff) atCut = [hh, vh, vx];
       }
       if (rec) {
         alt[i] = hh; down[i] = xx; spd[i] = Math.hypot(vx, vh); pit[i] = Math.atan2(vx, vh); att[i] = a;
         mass[i] = m; acc[i] = m > S.dry ? throttleAt(tt) * S.thrust / m : 0;
       }
     }
-    return [hh - S.holdAltitude, vh];
+    // Steered so the burn ends level at the hold altitude, at the speed of the top of the arc.
+    const [hc, vc, uc] = atCut ?? [hh, vh, vx];
+    return [(hc - S.holdAltitude) / 1000, vc / 10, (Math.hypot(uc, vc) - V_CUT) / 10];
   };
-  const q = [THREE.MathUtils.degToRad(30), 0.002];
-  for (let it = 0; it < 30; it++) {
-    const r = fly(q, false);
-    if (Math.abs(r[0]) < 1 && Math.abs(r[1]) < 0.01) break;
-    const d = [1e-4, 1e-6], J = d.map((dd, j) => { const qq = q.slice(); qq[j] += dd; const rr = fly(qq, false); return [(rr[0] - r[0]) / dd, (rr[1] - r[1]) / dd]; });
-    const det = J[0][0] * J[1][1] - J[1][0] * J[0][1];
-    q[0] -= (J[1][1] * r[0] - J[1][0] * r[1]) / det;
-    q[1] -= (-J[0][1] * r[0] + J[0][0] * r[1]) / det;
+  const MU = G0 * R_EARTH * R_EARTH, ra = R_EARTH + S.holdAltitude, sma = R_EARTH + (S.holdAltitude + S.perigee) / 2;
+  const V_CUT = Math.sqrt(MU * (2 / ra - 1 / sma));
+  // Newton on the steering constants and the non-propellant mass together.
+  const q = [THREE.MathUtils.degToRad(30), 0.002, 300e3];
+  const setQ = (qq) => { S.dry = qq[2]; return qq; };
+  for (let it = 0; it < 40; it++) {
+    const r = fly(setQ(q), false);
+    if (Math.hypot(...r) < 1e-3) break;
+    const d = [1e-4, 1e-6, 100];
+    const J = d.map((dd, j) => { const qq = q.slice(); qq[j] += dd; const rr = fly(setQ(qq), false); return rr.map((v, i) => (v - r[i]) / dd); });
+    const step = solveN(r.map((_, i) => J.map((col) => col[i])), r.map((v) => -v));
+    for (let j = 0; j < 3; j++) q[j] += step[j];
   }
-  fly(q, true);
+  fly(setQ(q), true);
   SHIP_STEERING.e0 = q[0]; SHIP_STEERING.c = q[1];
+  SHIP_STEERING.cutoffSpeed = V_CUT;
   return { step, n, alt, spd, down, pit, att, mass, acc };
 }
 const PROFILE = buildProfile();
@@ -222,7 +257,9 @@ export const TRANSONIC_LEAD = 5;   // cited: flight 7, transonic T+06:26, landin
 // ≈, NOT telemetry: an earlier external audit read the engine count off third-party (RGV)
 // footage of flight 5 as 13 at T+6:30 and 3 by T+6:37. It has not been checked frame by frame
 // against the original video; until it is, it stays approximate and is not re-timed.
-export const BURN_THREE = 397;     // ≈T+06:37, 13 engines → centre 3 (approximate)
+// Seventeen seconds from the centre three to the arms, as the flight 5 reading had it (T+6:37 to
+// T+6:54), carried over to V3's cited burn: ≈T+6:44 here.
+export const BURN_THREE = EVENTS.catch - 17;
 // V3 (Block 3) engine counts, from SpaceX's own flight summaries: flight 13's booster "completed
 // the high thrust portion of the boostback burn with all 33 engines, the first time with a
 // Super Heavy V3"; flight 14's relit for "the high-thrust portion of the landing burn" on the
@@ -231,8 +268,10 @@ export const BURN_THREE = 397;     // ≈T+06:37, 13 engines → centre 3 (appro
 // The ORDER is cited; how long each portion lasts is not published, so these two are ≈.
 export const BOOSTBACK_33 = 10;    // ≈ s of the boostback on all 33 before the inner 13 carry on
 export const BURN_FIVE = BURN_THREE - 3;   // ≈ 13 → 5 engines, 3 s before the centre three
-const FLIP_END = 166.5;            // the flip to boostback attitude, overlapping the throttle-up
-const RETRO_BLEND = [221, 245];    // after the boostback: swing to engines-first
+// The flip to boostback attitude, overlapping the throttle-up: V3 starts its boostback five
+// seconds after staging (flight 14: 2:22 → 2:27), so the flip has to be done by then.
+const FLIP_END = EVENTS.boostbackStart + 1.5;
+const RETRO_BLEND = [EVENTS.boostbackEnd, EVENTS.boostbackEnd + 24];    // after the boostback: swing to engines-first
 
 const pitchRate = (t) => (pitchProgram(t + 0.01) - pitchProgram(t - 0.01)) / 0.02;
 
@@ -288,7 +327,7 @@ const RETURN = (() => {
   // moment the falling booster crossed Mach 1 (interpolated, so the solve sees it move smoothly).
   function fly(q, rec) {
     let s = init.slice(), t = T0, trans = null, m0 = 0;
-    while (t < 440) {
+    while (t < EVENTS.end + 4) {
       const n = rk4(t, s, DT, q);
       if (trans === null && t > BB1 && n[3] < 0) {
         const m1 = Math.hypot(n[2], n[3]) / soundSpeedAt(n[1] - R) - 1;
@@ -464,9 +503,9 @@ function returnThrottle(t) {
 
 /**
  * What the booster's engines are doing at any time, for the plume, the jets, the panel and the
- * sound. The three centre engines that hold the stack through hot-staging do not shut down at
- * separation: on every flight they stay lit through the flip and the inner ring relights around
- * them for the boostback. The trajectory's own thrust model is returnThrottle's; this adds only
+ * sound. The five engines that hold the stack through hot-staging do not shut down at
+ * separation: they stay lit through the flip and the rest relight around them for the
+ * boostback. The trajectory's own thrust model is returnThrottle's; this adds only
  * the centre engines' low thrust between the two, which the integration leaves out.
  */
 function boosterEngineThrottle(t) {
@@ -481,18 +520,19 @@ function boosterEngineThrottle(t) {
  * Which of the booster's engines are lit, as a share of the cluster's radius (rings at 1,02,
  * 2,48 and 3,86 m, 0,62 m exit radius, 4,48 m overall). Flight 5: 13 lit for the landing burn,
  * down to the centre 3 for the approach (≈T+6:37, an unverified reading of RGV footage); the inner
- * ring for the boostback (flight 7 relit 9 of 10); the centre 3 through hot-staging.
+ * ring for the boostback (flight 7 relit 9 of 10); five (the centre 3 and two of the inner ring) through hot-staging.
  */
 const CENTRE_3 = (1.02 + 0.62) / 4.48, INNER_13 = (2.48 + 0.62) / 4.48;
+// Five: the centre three and two of the inner ring, so the column is about as wide as thirteen's.
+const FIVE = 0.5 * (INNER_13 + CENTRE_3);
 function boosterSpread(t) {
   const sst = THREE.MathUtils.smoothstep;
   if (t < EVENTS.meco) return 1;
-  if (t < EVENTS.boostbackStart) return CENTRE_3;
+  if (t < EVENTS.boostbackStart) return FIVE;
   if (t <= EVENTS.boostbackEnd) return THREE.MathUtils.lerp(1, INNER_13, sst(t, EVENTS.boostbackStart + BOOSTBACK_33 - 0.5, EVENTS.boostbackStart + BOOSTBACK_33 + 0.5));
   if (t < BURN_FIVE - 0.25) return INNER_13;
-  // Five: the centre three and two of the inner ring, so the column is still about as wide.
-  if (t < BURN_THREE - 0.25) return THREE.MathUtils.lerp(INNER_13, 0.5 * (INNER_13 + CENTRE_3), sst(t, BURN_FIVE - 0.25, BURN_FIVE + 0.25));
-  return THREE.MathUtils.lerp(0.5 * (INNER_13 + CENTRE_3), CENTRE_3, sst(t, BURN_THREE - 0.25, BURN_THREE + 0.25));
+  if (t < BURN_THREE - 0.25) return THREE.MathUtils.lerp(INNER_13, FIVE, sst(t, BURN_FIVE - 0.25, BURN_FIVE + 0.25));
+  return THREE.MathUtils.lerp(FIVE, CENTRE_3, sst(t, BURN_THREE - 0.25, BURN_THREE + 0.25));
 }
 
 /** How many booster engines are running, in lighting order (centre 3, inner 10, outer 20). */
@@ -504,7 +544,7 @@ function boosterLit(t) {
     return u < 0.18 ? 3 : u < 0.4 ? 13 : 33;
   }
   if (t < EVENTS.meco) return 33;
-  if (t < EVENTS.boostbackStart) return 3;
+  if (t < EVENTS.boostbackStart) return 5;
   if (t < EVENTS.boostbackStart + BOOSTBACK_33) return 33;
   if (t < BURN_FIVE) return 13;
   if (t < BURN_THREE) return 5;
@@ -542,10 +582,10 @@ export const shipThrustAccelAt = (t) => (t < EVENTS.separation ? null : sample(P
 
 // The moment the stack clears the tower is read off the integrated climb, not authored: the
 // engines' exit plane has to rise from where it rests — BOOSTER_AFT under the deck, and the
-// deck 13 m above the pad — past the ≈144,5 m tower top (a reported, unverified total). It was a fixed T+12, by which time
+// deck 13 m above the pad — past the ≈149,5 m tower top (FAA planning figure). It was a fixed T+12, by which time
 // the curve already has the stack ~300 m up.
 {
-  const CLIMB = 144.5 - (13 - BOOSTER_AFT);   // ≈, PAD_FIGURES.towerH (grade D)
+  const CLIMB = PAD.towerH - (PAD.deckTop - PAD.padY - BOOSTER_AFT);   // ≈, PAD_FIGURES.towerH (FAA, 2022)
   let t = EVENTS.liftoff;
   while (altitudeAt(t) < CLIMB && t < 60) t += 0.05;
   EVENTS.towerClear = Math.round(t * 10) / 10;
@@ -568,19 +608,26 @@ function boosterThrottle(t) {
       share * THREE.MathUtils.smoothstep(u, start, start + 0.2);
     return Math.min(1, group(0.0, 3 / 33) + group(0.18, 10 / 33) + group(0.4, 20 / 33));
   }
-  if (t < 46) return 1;
-  if (t < EVENTS.maxQ) return 1 - 0.28 * THREE.MathUtils.smoothstep(t, 46, EVENTS.maxQ);
-  if (t < 82) return 0.72 + 0.28 * THREE.MathUtils.smoothstep(t, EVENTS.maxQ, 82);
-  if (t < 144) return 1;
-  if (t < EVENTS.meco) return 1 - 0.9 * THREE.MathUtils.smoothstep(t, 144, EVENTS.meco);
-  // Three centre engines out of thirty-three hold the stack through separation.
+  // The throttle bucket: down over the 16 s before Max-Q, back up over the 20 s after it; then
+  // the last 8 s before MECO shut the cluster down to the five that stay lit through staging.
+  const q0 = EVENTS.maxQ - 16, q1 = EVENTS.maxQ + 20, m0 = EVENTS.meco - 8;
+  if (t < q0) return 1;
+  if (t < EVENTS.maxQ) return 1 - 0.28 * THREE.MathUtils.smoothstep(t, q0, EVENTS.maxQ);
+  if (t < q1) return 0.72 + 0.28 * THREE.MathUtils.smoothstep(t, EVENTS.maxQ, q1);
+  if (t < m0) return 1;
+  if (t < EVENTS.meco) return 1 - 0.9 * THREE.MathUtils.smoothstep(t, m0, EVENTS.meco);
+  // Five engines "at reduced throttle" hold the stack through separation (Wikipedia, SpaceX
+  // Starship, flight profile; flight 12: "just before hot staging, the booster purposely went
+  // down to five engines"). 0,1 of the cluster is five of 33 at ≈65 % (≈: the throttle is not
+  // given).
   if (t < EVENTS.separation + 3) return 0.1;
   return Math.max(0, 0.1 - 0.1 * THREE.MathUtils.smoothstep(t, EVENTS.separation + 3, EVENTS.separation + 7));
 }
 /** The ship lights through the vented hot-stage section a moment before it separates. */
 function shipThrottle(t) {
   if (t < EVENTS.separation - 1.5) return 0;
-  return THREE.MathUtils.smoothstep(t, EVENTS.separation - 1.5, EVENTS.separation + 1.5);
+  return THREE.MathUtils.smoothstep(t, EVENTS.separation - 1.5, EVENTS.separation + 1.5)
+    * (1 - THREE.MathUtils.smoothstep(t, EVENTS.shipCutoff - 1, EVENTS.shipCutoff));
 }
 
 /** Ship engines running: none until hot-staging, then its three sea-level Raptors and three
@@ -619,28 +666,30 @@ const DERIVED = (() => {
 export const derivedEvents = () => ({ ...DERIVED });
 
 /**
- * Every milestone the panel calls out, in order. `src` says where the time comes from: a cited
- * timeline ('f7', 'f5') or this model ('model').
+ * Every milestone the panel calls out, in order. `src` says where the time comes from: SpaceX's
+ * published flight 14 timeline ('f14') or this model ('model').
  */
 export const MILESTONES = [
-  { t: EVENTS.goForLaunch, label: 'GO for launch', src: 'f7' },
-  { t: EVENTS.deflector, label: 'Flame deflector active', src: 'f7' },
-  { t: EVENTS.ignition, label: 'Super Heavy ignition', src: 'f7' },
-  { t: EVENTS.liftoff, label: 'Liftoff', src: 'f7' },
+  { t: EVENTS.goForLaunch, label: 'GO for launch', src: 'f14' },
+  { t: EVENTS.deflector, label: 'Flame diverter active', src: 'f14' },
+  { t: EVENTS.ignition, label: 'Booster engine startup', src: 'f14' },
+  { t: EVENTS.liftoff, label: 'Liftoff', src: 'f14' },
   { t: EVENTS.towerClear, label: 'Tower cleared', src: 'model' },
   ...(DERIVED.supersonic ? [{ t: DERIVED.supersonic, label: 'Supersonic', src: 'model' }] : []),
-  { t: EVENTS.maxQ, label: 'Max-Q', src: 'f7' },
-  { t: EVENTS.meco, label: 'MECO', src: 'f7' },
-  { t: EVENTS.separation, label: 'Hot-staging', src: 'f7' },
-  { t: EVENTS.boostbackStart, label: 'Boostback burn', src: 'f5' },
-  { t: EVENTS.boostbackEnd, label: 'Boostback shutdown', src: 'f5' },
+  { t: EVENTS.maxQ, label: 'Max-Q', src: 'f14' },
+  { t: EVENTS.meco, label: 'MECO', src: 'f14' },
+  { t: EVENTS.separation, label: 'Hot-staging', src: 'f14' },
+  { t: EVENTS.boostbackStart, label: 'Boostback burn', src: 'f14' },
+  { t: EVENTS.boostbackEnd, label: 'Boostback shutdown', src: 'f14' },
   { t: DERIVED.apogee, label: 'Booster apogee', src: 'model' },
-  // The crossing is the model's own (T+6:25 on this clock). What is cited is the interval: the
-  // drag is solved so it falls five seconds before the landing burn, as flight 7's did
-  // (T+6:26, burn T+6:31). `tunedTo` keeps that apart from where the time comes from.
+  // The crossing is the model's own. What is cited is the interval: the drag is solved so it
+  // falls five seconds before the landing burn, as flight 7's did (T+6:26, burn T+6:31) — no
+  // V3 timeline calls it. `tunedTo` keeps that apart from where the time comes from.
   ...(DERIVED.transonic ? [{ t: DERIVED.transonic, label: 'Booster transonic', src: 'model', tunedTo: 'f7' }] : []),
-  { t: EVENTS.landingBurn, label: 'Landing burn', src: 'f5' },
-  { t: EVENTS.catch, label: 'Booster caught', src: 'f5' },
+  { t: EVENTS.landingBurn, label: 'Landing burn', src: 'f14' },
+  // Flight 14's landing burn shutdown; the catch is this demonstration's, not flight 14's.
+  { t: EVENTS.catch, label: 'Booster caught', src: 'f14' },
+  { t: EVENTS.shipCutoff, label: 'Starship engine cutoff', src: 'f14' },
 ].sort((a, b) => a.t - b.t);
 
 /** Engine layouts for the panel's engine dials, in lighting order. */
@@ -652,8 +701,8 @@ export const ENGINE_LAYOUT = {
 const PHASES = [
   [EVENTS.goForLaunch, 'Terminal count'],
   [EVENTS.deflector, 'GO for launch'],
-  [EVENTS.ignition, 'Flame deflector active'],
-  [EVENTS.liftoff, 'Super Heavy ignition'],
+  [EVENTS.ignition, 'Flame diverter active'],
+  [EVENTS.liftoff, 'Booster engine startup'],
   [EVENTS.towerClear, 'Liftoff'],
   // A phase never names an event the panel still lists as next: Max-Q used to start 6 s
   // early, under "Next · Max-Q", and "Supersonic" was announced but never shown.
@@ -667,7 +716,8 @@ const PHASES = [
   [EVENTS.landingBurn, 'Booster coasting back'],
   [EVENTS.catch, 'Booster landing burn'],
   [EVENTS.catch + 8, 'Caught by the tower'],
-  [Infinity, 'Booster in the arms'],
+  [EVENTS.shipCutoff, 'Booster in the arms · Starship still burning'],
+  [Infinity, 'Starship engine cutoff · coasting'],
 ];
 const phaseAt = (t) => (PHASES.find(p => t < p[0]) ?? PHASES[PHASES.length - 1])[1];
 
@@ -870,7 +920,10 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     name: 'vapor-deluge', rng: seeded(22), accel: [0.4, -2.2, 0.2], tau: 0.9, opacity: 0.62,
     emitters: Array.from({ length: 12 }, (_, i) => {
       const a = (i / 12) * Math.PI * 2 + 0.13;
-      return { at: around(6.6, BOOSTER_AFT - 0.6, a), dir: out(a, 3.2), speed: 24, spread: 0.22, count: nv(33), life: 4.16, size: 5.28, grow: 8.4, jitter: 1.2, window: [EVENTS.deflector, EVENTS.liftoff + 10] };
+      // From two seconds before the startup command: the diverter's water starts at T−17
+      // (flight 14), but it is the engines that flash it into this spray round the mount; at
+      // T−17 the sprays buried the whole mount for the last quarter-minute of the count.
+      return { at: around(6.6, BOOSTER_AFT - 0.6, a), dir: out(a, 3.2), speed: 24, spread: 0.22, count: nv(33), life: 4.16, size: 5.28, grow: 8.4, jitter: 1.2, window: [EVENTS.ignition - 2, EVENTS.liftoff + 10] };
     }),
   });
   // Landing: the last seconds of the burn blast the mount deck, and the exhaust and deck water
@@ -1179,31 +1232,33 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   // between positions. A fast dolly between two pad positions (it used to cross 130 m in
   // 1,6 s at T+6) reads as a glitch, not as a cut.
   const ease = (t, a, b) => THREE.MathUtils.smoothstep(t, a, b);
+  // After the catch the broadcast cuts back to the ship for its engine cutoff.
+  const SHIP_FINALE = EVENTS.catch + 10;
   const SHOTS = [
-    { until: -24, blend: 0, shot: (t, pos, tgt) => {
+    { until: -28, blend: 0, shot: (t, pos, tgt) => {
       // Establishing: the whole site from 800 m out, low over the flats, drifting in.
-      const u = ease(t, EVENTS.start, -24);
+      const u = ease(t, EVENTS.start, -28);
       pos.set(S.x + THREE.MathUtils.lerp(780, 690, u), 10, S.z + THREE.MathUtils.lerp(330, 270, u));
       tgt.set(S.x, THREE.MathUtils.lerp(64, 70, u), S.z);
     } },
-    { until: -12, blend: 0, shot: (t, pos, tgt) => {
+    { until: EVENTS.deflector - 1, blend: 0, shot: (t, pos, tgt) => {
       // The fuelled stack from the tower's height: frost on the tanks and boil-off venting
       // from the booster and the ship, sinking down the hull. Square to the tower-stack line
       // (down the trench axis, harmless before ignition) so the tower stands beside the
       // vehicle rather than behind it — and on the ship's lee side, where the frost is, with
       // the tower to the right: the angle of SpaceX's wet-dress-rehearsal photograph.
-      const u = ease(t, -24, -12);
+      const u = ease(t, -28, EVENTS.deflector - 1);
       pos.set(S.x + THREE.MathUtils.lerp(28, 14, u), THREE.MathUtils.lerp(100, 90, u), S.z - THREE.MathUtils.lerp(152, 136, u));
       tgt.set(S.x, ex.lay.mount + THREE.MathUtils.lerp(74, 62, u), S.z);
     } },
     { until: EVENTS.ignition + 1.2, blend: 0, shot: (t, pos, tgt) => {
-      // The mount: the deflector's water coming up at T−10, the quick disconnect swinging
+      // The mount: the diverter's water coming up at T−17, the quick disconnect swinging
       // clear, and the first engines lighting under the skirt.
-      const u = ease(t, -12, EVENTS.ignition + 1.2);
+      const u = ease(t, EVENTS.deflector - 1, EVENTS.ignition + 1.2);
       pos.set(S.x + THREE.MathUtils.lerp(64, 58, u), THREE.MathUtils.lerp(15, 13, u), S.z + THREE.MathUtils.lerp(40, 50, u));
       tgt.set(S.x, ex.lay.mount + THREE.MathUtils.lerp(10, 12, u), S.z);
     } },
-    { until: 14, blend: 0, shot: (t, pos, tgt) => {
+    { until: EVENTS.liftoff + 12, blend: 0, shot: (t, pos, tgt) => {
       // Liftoff from the ground, 350 m off to the east-south-east: the tower and the whole
       // stack in frame, the steam going out of both trench mouths across the picture, and the
       // camera tilting to keep the vehicle as it climbs past the tower top.
@@ -1211,7 +1266,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
       const alt = altitudeAt(t);
       tgt.set(S.x + downrangeAt(t) * 0.8, ex.lay.mount + 60 + alt * 0.86, S.z);
     } },
-    { until: 48, blend: 3.0, shot: (t, pos, tgt) => {
+    { until: EVENTS.liftoff + 46, blend: 3.0, shot: (t, pos, tgt) => {
       // Picks the vehicle up and holds it against the pad, which is now well below.
       vehicleAt(t, tgt);
       const d = 300;
@@ -1260,13 +1315,21 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
         S.z + THREE.MathUtils.lerp(400, 190, low),
       );
     } },
-    { until: Infinity, blend: 3.0, shot: (t, pos, tgt) => {
+    { until: SHIP_FINALE, blend: 3.0, shot: (t, pos, tgt) => {
       // The catch itself, from the height of the arms: the booster comes down into frame and
       // stops, and the tower is beside it for scale.
       const k = THREE.MathUtils.clamp((t - (EVENTS.catch - 6)) / 14, 0, 1);
       boosterAt(t, tgt);
       tgt.lerp(_pad.set(S.x, PAD_CATCH_Y, S.z), k * 0.65);
       pos.set(S.x + 118, THREE.MathUtils.lerp(122, 104, k), S.z + THREE.MathUtils.lerp(150, 104, k));
+    } },
+    { until: Infinity, blend: 0, shot: (t, pos, tgt) => {
+      // Meanwhile, 195 km up and 1 200 km downrange: the ship finishing its burn. A hard cut, as
+      // the broadcast makes it, and held beside and a little behind so the plume goes out at
+      // the cited engine cutoff (T+8:11) in frame.
+      shipMidAt(t, tgt);
+      const a = pitchAt(t);
+      pos.set(tgt.x - Math.sin(a) * 150, tgt.y - Math.cos(a) * 150 + 30, tgt.z + 210);
     } },
   ];
 
@@ -1321,7 +1384,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     parts.qdArm.rotation.y = -THREE.MathUtils.degToRad(112) * (qd * qd * (3 - 2 * qd));
     // Reconstructed release timing/stroke: both fluid heads withdraw before liftoff.
     // Fixed housings and supply lines remain on the mount.
-    const boosterRelease = THREE.MathUtils.smoothstep(t, 0.6, 1.6);
+    const boosterRelease = THREE.MathUtils.smoothstep(t, EVENTS.liftoff - 1.4, EVENTS.liftoff - 0.4);
     (parts.boosterQds ?? []).forEach((q, i) => {
       q.position.copy(home.boosterQds[i]); q.position.x += 1.2 * boosterRelease;
     });
@@ -1560,7 +1623,8 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     // The atmosphere follows whatever the camera is on: the ship until staging, the booster
     // afterwards, which is what brings the sky back as it comes down. A visitor riding with the
     // ship keeps the ship's thin sky.
-    const onShip = t < EVENTS.boostbackStart || (!rig.external && state.follow === 'ship');
+    const finale = rig.external && t >= SHIP_FINALE;
+    const onShip = t < EVENTS.boostbackStart || finale || (!rig.external && state.follow === 'ship');
     env.setAltitude(onShip ? alt : bAlt);
     // A 340 m shadow frustum is meaningless once the vehicle is kilometres up, and it costs
     // a full shadow pass per frame.
@@ -1586,7 +1650,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     // remaining milestones belong to.
     // The panel and the camera change vehicle together, at the boostback burn: reading the
     // booster's numbers under a shot of the ship is worse than either.
-    const onBooster = t >= EVENTS.boostbackStart;
+    const onBooster = t >= EVENTS.boostbackStart && !finale;
     state.t = t;
     state.director = !!rig.external;
     state.altitude = onBooster ? bAlt : alt;

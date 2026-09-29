@@ -233,31 +233,38 @@ c5b86c6 Close the tank-farm domes; carbon louvre panel on the Roadster bonnet
   - **guía rápida**: el diálogo `#help` es ahora una guía (primeros pasos + tarjetas por modo, la del modo en uso marcada por CSS con `#hud.walk/.fly` y `body.is-flying`); `H`, `?` o el botón *Guide*;
   - **fin de secuencia**: `onFinish(completed)`; solo al completarla aparece un aviso sobre lo que hace la nave después (`notice(text, ms)`, clase `.callout.is-long`).
   - **Propuesta abierta:** un capítulo de **reentrada de la nave** (plasma, actitud con el vientre por delante, maniobra con las aletas, *flip* y encendido de aterrizaje o amerizaje). Necesita cronología publicada de un vuelo concreto antes de empezar.
+- **Ronda de fuentes (29-09)** (detalle en el README, *Ronda de fuentes*):
+  - `EVENTS` en `launch.js` son los del vuelo 14 (spacex.com): diluvio −17, arranque −3, despegue 0, Max-Q 58, MECO 140, separación 142, boostback 147–187, aterrizaje 396–421 (captura), `shipCutoff` 491, `end` 500. `BURN_THREE = catch − 17`, `FLIP_END = boostbackStart + 1.5`, `RETRO_BLEND` relativo.
+  - `PITCH.tau` se resuelve por bisección para `MECO_ALTITUDE` (64 km); `SHIP_ASSUMED.dry` y la ley de guiado se resuelven por Newton (3×3) para apagar a 195 km con vh = 0 y v = `SHIP_STEERING.cutoffSpeed` (arco del vuelo 12). 5 motores en la separación (`FIVE`). Plano final `SHIP_FINALE = catch + 10` (cielo y panel siguen a la nave).
+  - Torre: `sections: 12`, `mast: 3.05` (FAA 2022, fuente `faa_pea2022`, grado C con `approx: true`); tipo de fuente `faa` en `SOURCE_LABEL` y en `provenance-check` (grado C).
+  - Penachos: colores de núcleo y envoltura interpolados a blanco-azulado con √p (`this.palette` en `Plume`); llama `Fire` ∝ √p.
+  - Guiones de capturas (`launch-shots.json`, `sun18-shots.json`) pasados al nuevo reloj, con `launch-ship-cutoff.jpg`. **Galería sin regenerar.**
+- **Red y navegador:** el entorno usa ahora una lista *Custom* de dominios (spacex.com, Wikipedia, Commons, upload.wikimedia.org, NSF, nasa.gov, faa.gov, github.io). Para que Chromium de Playwright confíe en el proxy hay que registrar su CA en el almacén NSS: `certutil -A -d sql:/root/.pki/nssdb -n ccr-agent-proxy -t "C,," -i /root/.ccr/agent-proxy-ca.crt` (`certutil` viene de `libnss3-tools`). Wikimedia devuelve 429 a agentes genéricos: usar miniaturas estándar (`/thumb/…/1280px-…`) y un agente descriptivo sin datos personales («VehicleCenterResearch/1.0 (educational 3D model)»). Los PDF de la FAA se leen con `pdftotext` (`poppler-utils`).
 - **Búsqueda web:** en esta sesión `WebSearch` funciona (resúmenes con enlaces); `WebFetch` y `curl` a spacex.com, Wikipedia, NASA, NSF o github.io están bloqueados. Lo leído por resúmenes se cita como tal.
 - **Galería:** sigue sin regenerar desde `b1f09d3` y ahora está más desfasada (fila de transporte del panel, botón *Walk*, trayectoria de la nave tras T+2:40, fuego nuevo, botón *Guide*, encuadre *Tank farm*). **Regenerarla necesita aprobación del usuario.**
 - **Red de esta sesión:** solo GitHub y npm. No se pudo contrastar ninguna fuente ni comprobar Pages con `curl`; el estado de Pages se comprueba con `mcp__github__actions_list` (ejecuciones del flujo).
 - **No hacer:** el regulador de calidad adaptativo (descartado por el usuario). No reintroducir stencil en el render target MSAA (hundió la escena a ~10 fps en GPU real). Por la misma razón, **no añadir una textura de profundidad** a ese render target para «partículas suaves»: obligaría a resolver una profundidad multimuestreada en cada fotograma, el mismo tipo de coste.
 - **Pendientes abiertos, todos a la espera de evidencia:**
-  - **altura de la torre** (≈144,5 m, grado D): buscar el registro OE/AAA primario de la FAA;
+  - **altura de la torre**: resuelta con la FAA (≈480 ft + 10 ft, 2022); el registro OE/AAA concreto de la torre del Pad 2 sigue sin localizar (daría la cifra construida, no la planificada);
   - **giro de la pila (0°)**: una sola foto oblicua (±20°);
-  - **paso de 13 a 3 motores en ≈T+6:37**: sin contrastar con el vídeo original del vuelo 5;
+  - **17 s finales con 3 motores** (≈T+6:44 en el reloj V3): trasladados de una lectura del vuelo 5 sin contrastar;
   - **nave tras la separación**: contrastar velocidad y altitud con la telemetría de las retransmisiones y afinar masa en seco, Isp y altitud de nivelación (hoy supuestos);
-  - **pinzas del Falcon 1 en Omelek**, **ventanas del Dragon** (tercera ventana), **penacho del boostback a gran altura**;
+  - **pinzas del Falcon 1 en Omelek** (fotos de Commons revisadas: la base no se ve), **ventanas del Dragon** (tercera ventana: sin fuente que la sitúe); el penacho del boostback a gran altura quedó resuelto;
   - propuestas estructurales aún sin abordar: modularizar los archivos grandes (`roadster.js` ≈3 700 líneas, `launch.js`, `main.js`), `@ts-check`, pruebas en WebKit y Firefox, variante exacta de Starlink. (`prefers-reduced-motion` ya está implementado: CSS, barridos de cámara y vibración del lanzamiento.)
 
 ## 5. Datos y convenciones técnicas útiles
 
 - **Marco de Starship**: el origen del conjunto es el plano de salida de las toberas del propulsor.
   - `ex.lay.mount = PAD.deckTop − BOOSTER_AFT` (18 − 3,15).
-  - `PAD`: `padY 5`, `bermY 2.5`, `deckTop 18`, `towerX −30`, `towerHalf 6.1`, `section 12.2` × 11.5 (≈140,3 m de celosía, reconstruido), `mast 4.2` (pararrayos; total ≈144,5 m, estimado), `armLen 26`, `armY 132` (≈), `qdY 96 − BOOSTER_AFT`, `trenchFloorY 0.8`.
+  - `PAD`: `padY 5`, `bermY 2.5`, `deckTop 18`, `towerX −30`, `towerHalf 6.1`, `section 12.2` × 12 (146,4 m de celosía ≈ 480 ft), `mast 3.05` (pararrayos de 10 ft; total ≈149,5 m, FAA 2022), `armLen 26`, `armY 132` (≈), `qdY 96 − BOOSTER_AFT`, `trenchFloorY 0.8`.
   - Guiñada del conjunto: `STACK_YAW_DEG = 0` (inferida de la foto del ensayo del 11 de mayo de 2026); en el modelo, la panza (losetas) mira a +z local, que ahora es +z del mundo, hacia la fila de expositores.
 - **Presets de cámara**: por defecto en el marco del vehículo (giran con él). Con `frame: 'site'` van en el marco del sitio. Se definen en `specs.js`.
 - **Integridad de mallas** (`verify.js`): comprueba que la escala de las UV cuadre con el `tileSize` del mapa. Una geometría construida lejos del origen da falsos positivos, así que conviene construirla centrada y posicionarla.
 - **Materiales**: `M.steel`, `M.steelSkirt`, `M.aftBlack`, `M.bellRaptor3`, `M.metalTile`, `M.domePlate`, `M.gridFin`, `M.tile`, `M.tileUnder` (oscuro), `M.tpsShell`, `M.towerClad`, `M.towerSteel`, `M.concrete`, `M.darkMetal`, `M.blackMatte`, etc.
 - **Tiempos de la secuencia** (`launch.js`, `EVENTS`):
-  - liftoff T+2, maxQ 62, meco 152, separación 160;
-  - boostback 165–221, encendido de aterrizaje 390, captura 414, fin 436;
-  - derivados del modelo: paso de la torre ≈9,2, supersónico ≈52, apogeo ≈240, transónico ≈385; paso a 3 motores `BURN_THREE` ≈397 (aproximado, sin verificar).
+  - vuelo 14 (spacex.com): diluvio −17, arranque −3, despegue 0, Max-Q 58, MECO 140, separación 142;
+  - boostback 147–187, encendido de aterrizaje 396, captura 421 (apagado del aterrizaje), apagado de la nave 491, fin 500;
+  - derivados del modelo: paso de la torre ≈6,8 s, supersónico ≈47, apogeo del propulsor ≈230 (≈106 km), transónico ≈391; 5 motores `BURN_FIVE` 401, 3 motores `BURN_THREE` 404 (aproximado).
 - **Fuentes clave ya usadas**:
   - spacex.com (Starship, V3), Falcon User's Guide 2025, Falcon 1 User's Guide 2008;
   - Tesla Roadster Service Manual: https://service.tesla.com/docs/Public/Roadster/ServiceManual/en-us/GUID-4E037ADB-D0F4-48A0-9261-1083193D4C1B.html

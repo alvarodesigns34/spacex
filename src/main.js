@@ -43,7 +43,7 @@ import { createLaunchSound } from './sim/sound.js';
 // nothing but the black shield. Turning it puts the tile line across the vehicle, which is
 // how it is almost always photographed and how the two finishes read against each other.
 // The seven museum exhibits stand in a row on z = 0. Starship does not: it sits on a launch
-// complex of its own, set back behind the row, because a ≈144,5 m tower and a flame trench do
+// complex of its own, set back behind the row, because a ≈149,5 m tower and a flame trench do
 // not belong in a line of display mounts and because the launch sequence needs the room.
 // `people` is declared per exhibit rather than inferred. It used to fall through to a generic
 // branch that read lay.mountRadius, which Engine Row does not have — undefined + 3.5 is NaN,
@@ -872,7 +872,7 @@ async function main() {
   // Every figure here is one the data sheet already carries with that source; an estimate or a
   // reconstruction says so.
   const TOUR = [
-    ['starship', 'site', 8, 'Pad 2 at Starbase, rebuilt at 1:1: a square, water-cooled launch mount with 20 hold-down clamps over a bidirectional flame trench, and catch arms about 26 m long. The tower\'s ≈144.5 m is an estimate.', 'nsf_pad2'],
+    ['starship', 'site', 8, 'Pad 2 at Starbase, rebuilt at 1:1: a square, water-cooled launch mount with 20 hold-down clamps over a bidirectional flame trench, and catch arms of ≈26 m. The tower is ≈480 ft with a 10 ft lightning rod, the FAA\'s planning figure.', 'nsf_pad2'],
     ['starship', 'engines', 6, '33 Raptor 3 hang in the open below Super Heavy\'s thrust ring. Each Raptor 3 is 1.3 m across, 2.9 m tall and gives 250 tf.', 'spacex_starship'],
     ['starship', 'tiles', 6, 'The real ship carries about 18,000 hexagonal tiles; 13,267 are modelled here, each 0.26 m across the flats.', 'wiki_starship'],
     ['starship', 'flaps', 6, 'Two forward flaps on the leeward side and two aft flaps steer the ship back through the atmosphere. On V3 each aft flap has one actuator with three motors.', 'spacex_v3'],

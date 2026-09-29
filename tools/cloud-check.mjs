@@ -33,9 +33,9 @@ globalThis.document = { createElement: () => ({ getContext: () => ({
   createImageData: (w, h) => ({ data: new Uint8ClampedArray(w * h * 4) }), putImageData() {},
 }) }) };
 const THREE = await import('three');
-const { createLaunch, altitudeAt, downrangeAt, pitchAt, speedAt, boosterAltAt, boosterDownAt, boosterPitchAt, boosterSpeedAt, EVENTS, shipMassAt, shipThrustAccelAt, shipMassFlow, SHIP_ASSUMED } = await import('../src/sim/launch.js');
+const { createLaunch, altitudeAt, downrangeAt, pitchAt, speedAt, boosterAltAt, boosterDownAt, boosterPitchAt, boosterSpeedAt, EVENTS, shipMassAt, shipThrustAccelAt, shipMassFlow, SHIP_ASSUMED, SHIP_STEERING, MECO_ALTITUDE, BURN_THREE, BURN_FIVE } = await import('../src/sim/launch.js');
 for (const [name, before, after] of [['altitude', altitudeAt, boosterAltAt], ['downrange', downrangeAt, boosterDownAt], ['pitch', pitchAt, boosterPitchAt]]) {
-  assert.ok(Math.abs(before(160) - after(160)) < 1e-9, `staging ${name} must be continuous`);
+  assert.ok(Math.abs(before(EVENTS.separation) - after(EVENTS.separation)) < 1e-9, `staging ${name} must be continuous`);
 }
 // Position continuity is not enough: the review found the positions meeting at staging while
 // the speed fell from 5 695 to 3 155 km/h in 0,2 s. Velocity is differentiated from the very
@@ -66,7 +66,7 @@ for (const [name, before, after] of [['altitude', altitudeAt, boosterAltAt], ['d
   // The panel's number and the moving booster: the same speed at separation, and a speed the
   // booster actually has (position-derived) everywhere after it.
   assert.ok(Math.abs(boosterSpeedAt(EVENTS.separation + 0.01) - speedAt(EVENTS.separation)) < 5, 'panel speed continuous through staging');
-  for (const t of [170, 253, 330, 391, 405, 410]) {
+  for (const t of [EVENTS.boostbackStart + 8, EVENTS.boostbackEnd + 60, 330, EVENTS.landingBurn - 5, BURN_THREE + 1, EVENTS.catch - 4]) {
     const v = vel(t);
     assert.ok(Math.abs(Math.hypot(...v) - boosterSpeedAt(t)) < 0.5, `panel speed matches motion at T+${t}`);
   }
@@ -76,30 +76,40 @@ for (const [name, before, after] of [['altitude', altitudeAt, boosterAltAt], ['d
 }
 // The ship after separation is a rocket, not a curve: its mass falls at the published thrust
 // over the assumed Isp, so its thrust acceleration RISES as it burns (the old authored curve
-// had it falling from 0,98 to 0,79 g); it stays below orbital speed and below any suborbital
-// flight's altitude; its position-derived speed matches the panel's; and it never turns
-// faster than 3°/s.
+// had it falling from 0,98 to 0,79 g); its engines stop at the cited cutoff (T+8:11), level at
+// flight 12's published apogee and at the speed of the top of that arc, below orbital; its
+// position-derived speed matches the panel's; and it never turns faster than 3°/s.
 {
   const G0 = 9.80665;
   let prevA = 0, worstP = 0;
   for (let t = EVENTS.separation + 3; t <= EVENTS.end - 0.25; t += 0.5) {
     const a = shipThrustAccelAt(t);
-    assert.ok(a >= prevA - 1e-6, `ship thrust acceleration must rise while it burns: ${a.toFixed(2)} after ${prevA.toFixed(2)} m/s² at T+${t}`);
-    prevA = a;
-    const expect = SHIP_ASSUMED.propellant + SHIP_ASSUMED.dry - shipMassFlow() * (t - EVENTS.separation);
-    assert.ok(Math.abs(shipMassAt(t) - expect) < 0.01 * expect, `ship mass follows the mass flow at T+${t}`);
+    if (t < EVENTS.shipCutoff - 1) {
+      assert.ok(a >= prevA - 1e-6, `ship thrust acceleration must rise while it burns: ${a.toFixed(2)} after ${prevA.toFixed(2)} m/s² at T+${t}`);
+      prevA = a;
+      const expect = SHIP_ASSUMED.propellant + SHIP_ASSUMED.dry - shipMassFlow() * (t - EVENTS.separation);
+      assert.ok(Math.abs(shipMassAt(t) - expect) < 0.01 * expect, `ship mass follows the mass flow at T+${t}`);
+    } else if (t > EVENTS.shipCutoff + 0.5) {
+      assert.ok(a === 0, `ship engines off after the cited cutoff: ${a} m/s² at T+${t}`);
+    }
     const H = 0.05;
     const v = Math.hypot((downrangeAt(t + H) - downrangeAt(t - H)) / (2 * H), (altitudeAt(t + H) - altitudeAt(t - H)) / (2 * H));
     assert.ok(Math.abs(v - speedAt(t)) < 2, `ship panel speed matches its motion at T+${t}: ${v.toFixed(1)} vs ${speedAt(t).toFixed(1)}`);
     worstP = Math.max(worstP, Math.abs(pitchAt(t + 0.25) - pitchAt(t - 0.25)) / 0.5);
   }
-  const h = altitudeAt(EVENTS.end), v = speedAt(EVENTS.end);
+  const h = altitudeAt(EVENTS.shipCutoff), v = speedAt(EVENTS.shipCutoff + 0.5);
   const orbital = Math.sqrt(3.986004418e14 / (6371e3 + h));
-  assert.ok(h < 200e3 && v < orbital, `ship stays suborbital: ${(h / 1e3).toFixed(0)} km, ${v.toFixed(0)} of ${orbital.toFixed(0)} m/s`);
-  assert.ok(prevA / G0 < 3.5, `ship ends under 3,5 g: ${(prevA / G0).toFixed(2)} g`);
+  assert.ok(Math.abs(h - SHIP_ASSUMED.holdAltitude) < 200 && Math.abs(v - SHIP_STEERING.cutoffSpeed) < 2 && v < orbital,
+    `ship cuts off at the arc's top, suborbital: ${(h / 1e3).toFixed(1)} km, ${v.toFixed(0)} of ${orbital.toFixed(0)} m/s`);
+  // Full thrust to the cutoff on a 1 614 tf ship is ≈6 g at the end; that is the consequence of
+  // the published thrust, propellant and cutoff time, not a limit anyone publishes. The bound
+  // catches a runaway (a mass that stops falling or drops to nothing), not a number.
+  assert.ok(prevA / G0 < 7, `ship ends under 7 g: ${(prevA / G0).toFixed(2)} g`);
   assert.ok(worstP < THREE.MathUtils.degToRad(3.2), `ship attitude slews ≤ 3°/s: ${THREE.MathUtils.radToDeg(worstP).toFixed(2)}°/s`);
   assert.ok(Math.abs(pitchAt(EVENTS.separation) - boosterPitchAt(EVENTS.separation)) < 1e-9, 'ship and booster share the attitude at staging');
-  console.log(`PASS ship after staging: ${(prevA / G0).toFixed(2)} g at the end, ${(h / 1e3).toFixed(0)} km, ${(v * 3.6).toFixed(0)} km/h`);
+  // MECO where the cited profile puts it.
+  assert.ok(Math.abs(altitudeAt(EVENTS.meco) - MECO_ALTITUDE) < 200, `MECO at ≈64 km: ${(altitudeAt(EVENTS.meco) / 1e3).toFixed(1)} km`);
+  console.log(`PASS ship after staging: ${(prevA / G0).toFixed(2)} g at cutoff, ${(h / 1e3).toFixed(0)} km, ${(v * 3.6).toFixed(0)} km/h; MECO ${(altitudeAt(EVENTS.meco) / 1e3).toFixed(1)} km`);
 }
 function fixture() {
   const scene = new THREE.Scene(), model = new THREE.Group(), group = new THREE.Group();
@@ -117,7 +127,7 @@ function fixture() {
   return { launch, snapshot };
 }
 const { launch, snapshot } = fixture();
-for (const t of [0, 6, 36, 45, 100, 407, 424]) {
+for (const t of [0, 6, 36, 45, 100, EVENTS.catch - 14, EVENTS.catch + 3]) {
   launch.seek(t); const expected = snapshot();
   launch.seek(t); assert.deepEqual(snapshot(), expected, `repeat seek ${t} must be deterministic`);
   for (const [speed, dt] of [[1, 1 / 60], [10, 1 / 30], [4, 1 / 24]]) {
@@ -135,10 +145,11 @@ launch.reset(false); assert.equal(snapshot().count, 0, 'reset clears all particl
 // for the boostback's high-thrust portion, then the inner 13; 13 → 5 → 3 in the landing burn.
 {
   const lit = (t) => { launch.seek(t); return launch.state.booster.lit; };
-  const seen = [170, 200, 392, 395.5, 400].map(lit);
-  assert.deepEqual(seen, [33, 13, 13, 5, 3], `booster engines lit at T+170/200/392/395.5/400: ${seen}`);
+  const at = [EVENTS.separation + 1, EVENTS.boostbackStart + 5, EVENTS.boostbackStart + 20, BURN_FIVE - 2, BURN_FIVE + 1.5, BURN_THREE + 3];
+  const seen = at.map(lit);
+  assert.deepEqual(seen, [5, 33, 13, 13, 5, 3], `booster engines lit at T+${at.join('/')}: ${seen}`);
   launch.reset(false);
-  console.log('PASS V3 return engine counts 33 → 13 (boostback), 13 → 5 → 3 (landing)');
+  console.log('PASS V3 engine counts: 5 through hot-staging, 33 → 13 (boostback), 13 → 5 → 3 (landing)');
 }
 console.log('PASS deterministic clouds, all playback rates, smoke expiry, reset and staging continuity');
 if (!mutant) {

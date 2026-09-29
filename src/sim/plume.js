@@ -179,6 +179,18 @@ export class Plume {
     // pinkish cream. In HDR it clips to white and blooms, as in the photographs.
     this.core.material.uniforms.uGain.value = 3.4;
     this.shroud.material.uniforms.uGain.value = 1.5;
+    // Out of the air the colours change as well as the shape: the orange of a sea-level column
+    // is the afterburning of its fuel-rich edge in the air, and in vacuum there is none. What is
+    // left is a white core and a faint, cold halo — the blue-white of methalox exhaust seen in
+    // the upper-stage views, not an orange flame hanging in black sky.
+    const lin = (hex) => new THREE.Color(hex).convertSRGBToLinear();
+    this.palette = [this.core, this.shroud].map((layer, i) => {
+      const u = layer.material.uniforms;
+      return {
+        u, sl: [u.uHot.value.clone(), u.uWarm.value.clone(), u.uCool.value.clone()],
+        vac: i === 0 ? [lin(0xfdfbff), lin(0xdfe2ff), lin(0x9aa6e8)] : [lin(0xe8ecff), lin(0x8c98d8), lin(0x3a4270)],
+      };
+    });
     this.group.add(this.veil, this.shroud, this.core);
     this.time = 0;
     // The fire itself: turbulent flame sprites down the bright part of the column, over the
@@ -288,12 +300,24 @@ export class Plume {
       const len = Math.min(coreLen * (1.25 + 0.35 * p), this.shroud.scale.y * 0.85);
       const tailR = rs * (1.25 + 2.2 * (1 - p));
       this.fire.set({
-        intensity: (0.3 + 0.7 * p) * (0.65 + 0.35 * perEngine),
+        // Out of the air there is nothing for the fuel-rich edge to burn in: by a few tens of
+        // kilometres the flame is a trace, and a vacuum bell stays a smooth, faint glow.
+        intensity: (0.04 + 0.96 * Math.sqrt(p)) * (0.65 + 0.35 * perEngine),
         life: 0.42 + 0.3 * (1 - p), len, drag: 0,
         r0: rc * 0.7, widen: Math.max(0, tailR - rc * 0.7) / Math.max(len, 1),
         size0: r * 1.0, grow: r * (2.2 + 2.5 * (1 - p)), stretch: 2.4, wander: r * 0.8,
         gain: 1.8 + 1.6 * p, occlude: 0.22 * p, smoke: 0, maxLen: maxLength,
       });
+    }
+    // Colour with the air (see the constructor): sea-level orange through to vacuum blue-white,
+    // most of the change in the last few percent of an atmosphere.
+    {
+      const k = Math.sqrt(p);
+      for (const { u, sl, vac } of this.palette) {
+        u.uHot.value.lerpColors(vac[0], sl[0], k);
+        u.uWarm.value.lerpColors(vac[1], sl[1], k);
+        u.uCool.value.lerpColors(vac[2], sl[2], k);
+      }
     }
     // 8,240 tf lights the pad. The old value lit a room.
     this.light.intensity = 4200 * throttle * (0.35 + 0.65 * p);
