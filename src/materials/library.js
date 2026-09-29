@@ -168,6 +168,7 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
     // Clean, unflown engines, as the Falcons are shown: gunmetal with barely a heat tint.
     ['bell', () => TX.makeEngineBell({ copper: 0.12 })],
     ['bellCool', () => TX.makeEngineBell({ copper: 0.12 })],
+    ['bellRvac', () => TX.makeRvacBell()],
     ['greyDark', () => TX.makeGreyMetal({ tone: 0.28 })],
     ['weatheredSteel', () => TX.makeWeatheredSteel()],
     ['towerClad', () => TX.makeTowerClad()],
@@ -528,6 +529,11 @@ float vcNoise(vec2 p) {
     map: T.bellCool.map, roughnessMap: T.bellCool.roughnessMap, normalMap: T.bellCool.normalMap,
     normalScale: new THREE.Vector2(0.28, 0.28), metalness: 0.82, roughness: 1.0, envMapIntensity: 1.2,
   });
+  // Raptor Vacuum: olive regen bell, brass joint, silver tube-wall extension (makeRvacBell).
+  M.bellRvac = new THREE.MeshStandardMaterial({
+    name: 'rvac-bell', map: T.bellRvac.map, roughnessMap: T.bellRvac.roughnessMap, metalnessMap: T.bellRvac.metalnessMap,
+    normalMap: T.bellRvac.normalMap, normalScale: new THREE.Vector2(0.5, 0.5), metalness: 1.0, roughness: 1.0, envMapIntensity: 1.1,
+  });
   M.bellInner = new THREE.MeshStandardMaterial({ color: 0x3a342e, metalness: 0.72, roughness: 0.48, envMapIntensity: 0.85 });
   // Inside a nozzle that has fired on a kerosene engine: a matte coat of soot, not bare metal.
   // With the clean-metal interior a flown Falcon's nine bells, seen from underneath, mirrored
@@ -549,6 +555,10 @@ float vcNoise(vec2 p) {
   M.glass = new THREE.MeshPhysicalMaterial({ color: 0x152330, roughness: 0.09, metalness: 0, ior: 1.5, clearcoat: 0.3, clearcoatRoughness: 0.06, envMapIntensity: 1.2 });
   M.aluminum = new THREE.MeshPhysicalMaterial({ color: 0xd4d8de, metalness: 1.0, roughness: 0.26, envMapIntensity: 1.2 });
   M.alumDark = new THREE.MeshPhysicalMaterial({ color: 0x5c6066, metalness: 0.9, roughness: 0.5 });
+  // Dragon: the satin aluminium band round the capsule's foot and the red-brown closeout line
+  // at the top of the trunk, both as NASA's pad photographs show them.
+  M.dragonBand = new THREE.MeshPhysicalMaterial({ color: 0xc9ccd0, metalness: 1.0, roughness: 0.34, envMapIntensity: 1.1 });
+  M.dragonCloseout = new THREE.MeshStandardMaterial({ color: 0x6a2a1e, roughness: 0.7, metalness: 0.1 });
   M.radiator = new THREE.MeshPhysicalMaterial({ color: 0xf2f2ee, metalness: 0.1, roughness: 0.32, clearcoat: 0.4 });
   M.mount = new THREE.MeshStandardMaterial({ color: 0x3b3e42, metalness: 0.6, roughness: 0.62 });
   // Pad 2's tower, arms and mount steel: a dark coating weathered by a coastal site — rust

@@ -95,22 +95,34 @@ export function raptorVacGeometry({ exitRadius = 1.15, height = 4.4 } = {}) {
   // the rest of the published 4.4 m in the nozzle. It used to end in a 0.48 m drum and two
   // spheres, a third of the sea-level engine's pack, which the engine row shows side by side.
   const lift = height - 2.9;
+  // A bucket, not a cone. NASA's photograph of two vacuum engines (Commons, "A person viewing
+  // Raptor Vacuum", public domain; scaled by the 2.3 m exit) has the bell flaring fast out of
+  // the throat to ≈93 % of the exit width in its upper third — the olive regeneratively cooled
+  // section — and the lower two thirds, the bare tube-wall extension, all but cylindrical. The
+  // straight cone it was drew a quarter less nozzle than the engine carries. Approximate.
+  const JOINT = 2.08;
   const bell = bellProfile([
-    [exitRadius, 0], [exitRadius * 0.985, 0.25], [exitRadius * 0.93, 0.75], [exitRadius * 0.82, 1.35],
-    [exitRadius * 0.66, 1.95], [exitRadius * 0.47, 2.45], [exitRadius * 0.3, 2.85], [0.215, 1.62 + lift], [0.235, 1.75 + lift], [0.3, 1.95 + lift], [0.3, 2.2 + lift],
+    [exitRadius, 0], [exitRadius * 0.985, 0.7], [exitRadius * 0.96, 1.4], [exitRadius * 0.93, JOINT],
+    [exitRadius * 0.83, 2.33], [exitRadius * 0.72, 2.6], [exitRadius * 0.54, 2.9], [exitRadius * 0.36, 3.04], [0.215, 1.62 + lift], [0.235, 1.75 + lift], [0.3, 1.95 + lift], [0.3, 2.2 + lift],
   ]);
-  const outer = lathe(bell, { segments: 80, uvMode: 'normalized' });
+  const outer = lathe(bell, { segments: 96, uvMode: 'normalized' });
+  // v = height above the exit over the engine height, so makeRvacBell's joint lands on JOINT.
+  {
+    const p = outer.attributes.position, uv = outer.attributes.uv;
+    for (let i = 0; i < p.count; i++) uv.setY(i, p.getY(i) / height);
+    uv.needsUpdate = true;
+  }
   const inner = lathe(bell.map(p => ({ r: Math.max(p.r - 0.02, 0.19), y: p.y })), { segments: 80, flip: true, uvMode: 'normalized' });
   // The vacuum engines do not gimbal, so no actuators.
   const pack = raptorGeometry({ gimbal: false }).head;
   pack.translate(0, lift, 0);
   const parts = [{ geometry: pack }];
-  // Joint between the regen chamber and the radiatively cooled extension.
-  parts.push({ geometry: new THREE.TorusGeometry(0.425, 0.03, 8, 48), matrix: mat4([0, 2.7, 0], [Math.PI / 2, 0, 0]) });
-  // Stiffening rings on the radiatively cooled nozzle extension.
-  for (const y of [0.3, 1.0, 1.8]) {
+  // Stiffening rings on the extension: the photograph shows one faint hoop part-way down it,
+  // and the brass joint above (painted in makeRvacBell). There were three here plus three
+  // more on the engine row, which with the old banded map read as a stacked cake.
+  for (const y of [0.95]) {
     const r = profileRadius(bell, y);
-    parts.push({ geometry: new THREE.TorusGeometry(r + 0.012, 0.02, 6, 80), matrix: mat4([0, y, 0], [Math.PI / 2, 0, 0]) });
+    parts.push({ geometry: new THREE.TorusGeometry(r + 0.006, 0.011, 6, 80), matrix: mat4([0, y, 0], [Math.PI / 2, 0, 0]) });
   }
   const head = mergeAll(parts);
   return { outer, inner, head, height, profile: bell };

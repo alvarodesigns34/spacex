@@ -253,10 +253,17 @@ export function buildDragon(M) {
   const bays = 5;
   for (let i = 0; i < bays; i++) {
     const a0 = RAD0 - Math.PI + (i / bays) * Math.PI + 0.005;   // 1 cm seams, not 10 cm white bars
-    g.add(mesh(lathe([{ r: TRUNK_R + 0.02, y: 0.22 }, { r: TRUNK_R + 0.02, y: TRUNK_H - 0.3 }],
+    // The array runs up to the capsule interface: NASA's CRS-28 pad photograph
+    // (KSC-20230602-PH-SPX01-0006) shows the cells meeting the red-brown closeout line at the
+    // top with no white margin, and a white band of ≈0.3 m, with the fittings, only at the foot.
+    g.add(mesh(lathe([{ r: TRUNK_R + 0.02, y: 0.22 }, { r: TRUNK_R + 0.02, y: TRUNK_H - 0.07 }],
       { segments: 22, phiStart: a0, phiLength: Math.PI / bays - 0.010 }), M.solar, { name: 'trunk-solar' }));
   }
-  g.add(mesh(lathe([{ r: TRUNK_R, y: 0 }, { r: TRUNK_R, y: TRUNK_H }], { segments: 128, phiStart: RAD0 - Math.PI, phiLength: Math.PI }), M.white));
+  // Under the array: white at the foot, where the skin shows, and dark behind the cells, so
+  // the 1 cm gaps between the five bays read as the dark joints of one array (as in the same
+  // photograph) rather than as white pinstripes.
+  g.add(mesh(lathe([{ r: TRUNK_R, y: 0 }, { r: TRUNK_R, y: 0.24 }], { segments: 128, phiStart: RAD0 - Math.PI, phiLength: Math.PI }), M.white));
+  g.add(mesh(lathe([{ r: TRUNK_R, y: 0.24 }, { r: TRUNK_R, y: TRUNK_H }], { segments: 128, phiStart: RAD0 - Math.PI, phiLength: Math.PI }), M.blackMatte, { name: 'trunk-array-backing' }));
   g.add(mesh(lathe([{ r: TRUNK_R - 0.03, y: 0.05 }, { r: TRUNK_R - 0.03, y: TRUNK_H - 0.05 }], { segments: 64, flip: true }), M.blackMatte, { castShadow: false }));
 
   // Radiator plumbing: the coolant loop's feed and return runs, and the cross-ties between
@@ -323,8 +330,9 @@ export function buildDragon(M) {
   ribs.push({ geometry: new THREE.TorusGeometry(TRUNK_R - 0.1, 0.055, 6, 64), matrix: mat4([0, 0.16, 0], [Math.PI / 2, 0, 0]) });
   ribs.push({ geometry: new THREE.TorusGeometry(TRUNK_R - 0.1, 0.055, 6, 64), matrix: mat4([0, TRUNK_H - 0.4, 0], [Math.PI / 2, 0, 0]) });
   g.add(mesh(mergeAll(ribs), M.alumDark));
-  // Capsule interface ring at the top of the trunk.
-  g.add(mesh(new THREE.TorusGeometry(TRUNK_R - 0.05, 0.075, 10, 96), M.goldKapton, { position: [0, TRUNK_H - 0.16, 0], rotation: [Math.PI / 2, 0, 0] }));
+  // Capsule interface closeout at the top of the trunk: a thin red-brown line in NASA's pad
+  // photographs (CRS-28, Crew-13), not the 15 cm gold hoop it was. Width approximate.
+  g.add(mesh(new THREE.TorusGeometry(TRUNK_R + 0.012, 0.018, 6, 96), M.dragonCloseout, { position: [0, TRUNK_H - 0.035, 0], rotation: [Math.PI / 2, 0, 0], castShadow: false, name: 'trunk-closeout' }));
   // Separation plane at the foot: the ring the trunk rides on the second stage with.
   g.add(mesh(new THREE.TorusGeometry(TRUNK_R + 0.01, 0.055, 8, 96), M.alumDark, { position: [0, 0.07, 0], rotation: [Math.PI / 2, 0, 0] }));
 
@@ -380,7 +388,11 @@ export function buildDragon(M) {
     wall.push({ r: wallR(y), y, sharp: i === 6 });
   }
   g.add(mesh(lathe(wall, { segments: 128 }), M.whiteFresh, { name: 'capsule-wall' }));
-  g.add(mesh(new THREE.TorusGeometry(CAP_R, 0.035, 8, 128), M.darkMetal, { position: [0, TRUNK_H + 0.02, 0], rotation: [Math.PI / 2, 0, 0] }));
+  // Bare aluminium band round the foot of the capsule: the brightest line on the vehicle in
+  // NASA's pad photographs (CRS-28 KSC-20230602-PH-SPX01-0006, Crew-13 KSC-20260927-PH-SPX01_0010),
+  // ≈0.17 m tall against the capsule's 4 m (photogrammetry, approximate). It was a dark hoop.
+  g.add(mesh(lathe([{ r: CAP_R + 0.004, y: TRUNK_H }, { r: CAP_R + 0.004, y: TRUNK_H + 0.17 }], { segments: 128 }), M.dragonBand, { name: 'capsule-band', castShadow: false }));
+  g.add(mesh(new THREE.TorusGeometry(CAP_R, 0.02, 8, 128), M.dragonBand, { position: [0, TRUNK_H + 0.005, 0], rotation: [Math.PI / 2, 0, 0] }));
 
   // Longitudinal panel seams up the back shell. The shell is built in gores; the joints
   // between them are the only thing giving the cone a sense of size from more than a few

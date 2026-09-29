@@ -561,7 +561,7 @@ export function buildShip(M) {
 
   // 3 Raptor (centre, gimballing) + 3 Raptor Vacuum (outer, fixed).
   g.add(instanceEngines(raptorGeometry(), M, ringLayout(3, 0.95, 0.35, { phase: 0 }), { bellMaterial: M.bellRaptor3 }));
-  g.add(instanceEngines(raptorVacGeometry(), M, ringLayout(3, 3.05, 0.25, { phase: Math.PI / 3 }), { bellMaterial: M.bellCool }));
+  g.add(instanceEngines(raptorVacGeometry(), M, ringLayout(3, 3.05, 0.25, { phase: Math.PI / 3 }), { bellMaterial: M.bellRvac }));
 
   // ---- Thermal protection ------------------------------------------------------------
   // Coverage: a little over half the circumference on the barrel, widening across the nose

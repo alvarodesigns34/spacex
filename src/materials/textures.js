@@ -892,6 +892,43 @@ export function makeEngineBell({ size = 384, copper = 0.5 } = {}) {
   };
 }
 
+/**
+ * Raptor Vacuum bell, as NASA's photograph of two vacuum engines beside a sea-level Raptor
+ * shows it (Wikimedia Commons, "A person viewing Raptor Vacuum", public domain): an olive-grey
+ * regeneratively cooled upper bell, a brass-coloured joint, and a bare silver extension of
+ * vertical tubes, a darker bronze lip at the exit. Mapped with v = height above the exit plane
+ * over `height` (see raptorVacGeometry), so the joint lands at `joint` metres.
+ */
+export function makeRvacBell({ w = 1024, h = 512, height = 4.4, joint = 2.08, tubes = 180 } = {}) {
+  const map = canvas(w, h), rough = canvas(w, h), metal = canvas(w, h), bump = canvas(w, h);
+  const jv = joint / height, band = 0.035 / height, lip = 0.07 / height;
+  // Canvas rows run top-down and the texture is flipped on upload: row 0 is v = 1.
+  const at = (u, v) => {
+    const Y = 1 - v;
+    const tube = 0.5 + 0.5 * Math.cos(u * tubes * Math.PI * 2);
+    const grain = fbm(u * 60, Y * 6, 3) - 0.5;
+    if (Y > jv + band) return { c: [0.42 + grain * 0.05, 0.47 + grain * 0.05, 0.38 + grain * 0.04], r: 0.62, m: 0.25, b: 0.5 };
+    if (Y > jv) return { c: [0.62, 0.5, 0.29], r: 0.4, m: 0.9, b: 0.62 };
+    const bronze = Y < lip ? 1 : 0;
+    const s = 0.62 + tube * 0.1 + grain * 0.08;
+    return {
+      c: bronze ? [0.36, 0.27, 0.19] : [s, s * 1.01, s * 1.02],
+      r: bronze ? 0.55 : 0.36 + (1 - tube) * 0.12, m: 0.9, b: 0.35 + tube * 0.3,
+    };
+  };
+  shade(map, (x, y, u, v) => at(u, v).c.map(k => clamp(k * 255)));
+  shade(rough, (x, y, u, v) => { const g = clamp(at(u, v).r * 255); return [g, g, g]; });
+  // three reads metalness from the blue channel.
+  shade(metal, (x, y, u, v) => { const g = clamp(at(u, v).m * 255); return [g, g, g]; });
+  shade(bump, (x, y, u, v) => { const g = clamp(at(u, v).b * 255); return [g, g, g]; });
+  return {
+    map: toTexture(map, { srgb: true }),
+    roughnessMap: toTexture(rough),
+    metalnessMap: toTexture(metal),
+    normalMap: toTexture(heightToNormal(bump, 1.2)),
+  };
+}
+
 // =====================================================================================
 //  GRID (used on mount surfaces / small technical panels)
 // =====================================================================================

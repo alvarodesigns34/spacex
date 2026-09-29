@@ -252,6 +252,14 @@ const PROFILE = buildProfile();
 // The model integrates the booster's centre of mass, 30 m up its axis, not its base: it flips
 // about that point, as a free body does, instead of swinging 70 m of tank about its engines.
 const CATCH_BASE = 22;            // booster base held this far above the mount deck when caught
+// The divert. SpaceX's photograph of flight 5's booster on final approach (Commons, "Starship
+// Booster Return on Final Approach (54063904149).jpg") has it leaning ≈15° towards the tower a
+// few hundred metres up: a booster aims its landing burn offshore of the tower and only diverts
+// into the arms in the last seconds. So the burn here ends DIVERT metres out to sea of the axis
+// (downrange, +x), and the centre three carry it across on a quintic that arrives at rest with no
+// residual acceleration; the attitude follows the thrust that path needs. The distance is not
+// published: ≈130 m is what makes the steepest lean of that path ≈15°, as photographed.
+export const DIVERT = 130;
 export const RETURN_ASSUMED = { mass: 250e3, diameter: 9, rho0: 1.225, scaleHeight: 8500, comOffset: 30, threeDecel: 1.6 };
 export const TRANSONIC_LEAD = 5;   // cited: flight 7, transonic T+06:26, landing burn T+06:31
 // ≈, NOT telemetry: an earlier external audit read the engine count off third-party (RGV)
@@ -347,10 +355,10 @@ const RETURN = (() => {
   }
   const residual = (q) => {
     const r = fly(q);
-    return [r.s[0] / 1000, (r.s[1] - STOP_H) / 100, r.t - BURN_THREE, (r.trans ?? LB + 20) - TT];
+    return [(r.s[0] - DIVERT) / 1000, (r.s[1] - STOP_H) / 100, r.t - BURN_THREE, (r.trans ?? LB + 20) - TT];
   };
   // Seeded with the converged solution, so this normally takes one step to confirm it.
-  let q = [-40.566336, 2.321945, 42.585252, 1.74135];
+  let q = [-31.694321, -2.339211, 51.117445, 1.900502];
   for (let it = 0; it < 30; it++) {
     RETURN_ITER.n = it;
     const r0 = residual(q), n0 = Math.hypot(...r0);
@@ -368,10 +376,22 @@ const RETURN = (() => {
   const step = DT, t1 = EVENTS.end, n = Math.round((t1 - T0) / step) + 1;
   const tab = { step, n, x: new Float64Array(n), h: new Float64Array(n), vx: new Float64Array(n), vh: new Float64Array(n) };
   const Tf = EVENTS.catch - stop.t, [xs, hs, vxs, vhs] = stop.s, HT = CATCH_BASE + R;
-  const cubic = (p0, v0, p1, u) => {
-    const c = (3 * (p1 - p0) - 2 * v0 * Tf) / (Tf * Tf), d = (2 * (p0 - p1) + v0 * Tf) / (Tf * Tf * Tf);
-    return [p0 + v0 * u + c * u * u + d * u * u * u, v0 + 2 * c * u + 3 * d * u * u];
+  // Across to the axis: position, velocity and acceleration from the stop state (the burn's
+  // own lateral deceleration at that instant) to rest with none left at the catch, so the
+  // booster is upright in the arms.
+  const [axs, ahs] = (() => { const d = [0, 0, 0, 0]; deriv(stop.t, stop.s, q, d); return [d[2], d[3]]; })();
+  const quintic = (p0, v0, a0, u) => {
+    const T = Tf, T2 = T * T, T3 = T2 * T;
+    const c3 = (-20 * p0 - 12 * v0 * T - 3 * a0 * T2) / (2 * T3);
+    const c4 = (30 * p0 + 16 * v0 * T + 3 * a0 * T2) / (2 * T3 * T);
+    const c5 = (-12 * p0 - 6 * v0 * T - a0 * T2) / (2 * T3 * T2);
+    return [
+      p0 + v0 * u + a0 / 2 * u * u + c3 * u ** 3 + c4 * u ** 4 + c5 * u ** 5,
+      v0 + a0 * u + 3 * c3 * u * u + 4 * c4 * u ** 3 + 5 * c5 * u ** 4,
+      a0 + 6 * c3 * u + 12 * c4 * u * u + 20 * c5 * u ** 3,
+    ];
   };
+  const ax = new Float64Array(n), ah = new Float64Array(n);
   let j = 0;
   for (let i = 0; i < n; i++) {
     const t = T0 + i * step;
@@ -383,8 +403,11 @@ const RETURN = (() => {
       tab.vx[i] = a[3] + (b[3] - a[3]) * f; tab.vh[i] = a[4] + (b[4] - a[4]) * f;
     } else if (t < EVENTS.catch) {
       const u = t - stop.t;
-      [tab.x[i], tab.vx[i]] = cubic(xs, vxs, 0, u);
-      [tab.h[i], tab.vh[i]] = cubic(hs, vhs, HT, u);
+      [tab.x[i], tab.vx[i], ax[i]] = quintic(xs, vxs, axs, u);
+      // Vertically too, starting from the burn's own deceleration, so the thrust direction
+      // (and the attitude that follows it) carries straight on from the burn.
+      const [hh, vv, aa] = quintic(hs - HT, vhs, ahs, u);
+      tab.h[i] = hh + HT; tab.vh[i] = vv; ah[i] = aa;
     } else { tab.x[i] = 0; tab.h[i] = HT; tab.vx[i] = 0; tab.vh[i] = 0; }
   }
   let apo = 0, apoT = T0, apoX = 0, vMax = 0, vMaxT = T0;
@@ -394,6 +417,7 @@ const RETURN = (() => {
     if (T0 + i * step > BB1 && sp > vMax) { vMax = sp; vMaxT = T0 + i * step; }
   }
   const burnIdx = Math.round((LB - T0) / step);
+  tab.ax = ax; tab.ah = ah;
   return {
     tab, q, stop,
     apogee: { t: apoT, h: apo - R, x: apoX },
@@ -448,8 +472,17 @@ function returnPitch(t) {
   if (t < RETRO_BLEND[0]) return pB;
   const s = returnState(t);
   const retro = Math.hypot(s.vx, s.vh) > 0.5 ? Math.atan2(-s.vx, -s.vh) : 0;
-  const upright = sst(t, BURN_THREE, EVENTS.catch - 3);
-  return THREE.MathUtils.lerp(THREE.MathUtils.lerp(pB, retro, sst(t, RETRO_BLEND[0], RETRO_BLEND[1])), 0, upright);
+  const falling = THREE.MathUtils.lerp(pB, retro, sst(t, RETRO_BLEND[0], RETRO_BLEND[1]));
+  if (t <= RETURN.stop.t) return falling;
+  // On the centre three the nose points along the thrust the divert needs: tilted towards the
+  // tower as it starts across, back through upright as it brakes, and settled upright in the
+  // last seconds, as the arms close. The burn's thrust already points along the retrograde, so
+  // this carries straight on from it.
+  const T = RETURN.tab, u = THREE.MathUtils.clamp((t - EVENTS.separation) / T.step, 0, T.n - 1);
+  const i = Math.min(Math.floor(u), T.n - 2), f = u - i;
+  const ax = T.ax[i] + (T.ax[i + 1] - T.ax[i]) * f, ah = T.ah[i] + (T.ah[i + 1] - T.ah[i]) * f;
+  const thrust = Math.atan2(ax, ah + 9.81);
+  return THREE.MathUtils.lerp(THREE.MathUtils.lerp(falling, thrust, sst(t, RETURN.stop.t, RETURN.stop.t + 0.6)), 0, sst(t, EVENTS.catch - 5, EVENTS.catch - 0.5));
 }
 
 export const boosterPitchAt = (t) => (t < EVENTS.separation ? pitchAt(t) : returnPitch(t));
