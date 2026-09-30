@@ -24,6 +24,7 @@ import { buildStarship, STACK_YAW_DEG, BOOSTER_AFT } from './vehicles/starship.j
 import { buildFalcon9, buildFalconHeavy } from './vehicles/falcon.js';
 import { buildFalcon1, buildFalcon1GroundEquipment } from './vehicles/falcon1.js';
 import { buildDragon } from './vehicles/dragon.js';
+import { buildX15 } from './vehicles/x15.js';
 import { buildStarlink } from './vehicles/starlink.js';
 import { buildRoadster } from './vehicles/roadster.js';
 import { buildEngineHall } from './vehicles/enginehall.js';
@@ -103,6 +104,13 @@ const LAYOUT = {
     x: 163, z: 0, mount: 0, yaw: -12,
     people: [[4.8, 0, -2.8, -0.6], [-5.8, 0, 2.2, -1.4], [1.2, 0, -3.0, 2.6]],
   },
+  // The X-15 stands on its own gear on the apron, as it stood on the lakebed after a flight:
+  // no plinth. In the open stretch of the row between Falcon Heavy's mount and Dragon, in
+  // front of the pad, turned a little towards the road the visitors arrive on.
+  x15: {
+    x: -18, z: 0, mount: 0, yaw: -18,
+    people: [[3.0, 0, 4.2, 0.9], [-9.5, 0, 3.2, -0.6]],
+  },
 };
 // Recomposed when the Roadster became the sixth exhibit: the old frame was centred on x = -14
 // and the car sat at the right-hand edge, so the first thing a visitor saw did not contain it.
@@ -145,6 +153,10 @@ const OCCLUDER = {
   falcon1: 0.8402,
   starship: 4.5, falcon9: 1.9, falconheavy: 1.9, dragon: 2.0, starlink: 0, roadster: 1.0,
   engines: [[-4.15, 0, 0.50, 2.6], [-1.75, 0, 0.70, 3.4], [1.55, 0, 1.20, 4.9]],
+  // The X-15 lies along its own X: the fuselage as a chain of cylinders, the wings and tails
+  // as one each side. Also the walking visitor's obstacles.
+  x15: [[6.2, 0, 0.55, 1.2], [3.6, 0, 0.8, 1.9], [1.0, 0, 1.15, 1.6], [-1.6, 0, 1.15, 1.7], [-4.3, 0, 1.15, 1.9], [-6.6, 0, 1.2, 3.5],
+    [-0.4, 2.3, 1.2, 1.2], [-0.4, -2.3, 1.2, 1.2], [-6.0, 2.1, 0.9, 1.2], [-6.0, -2.1, 0.9, 1.2]],
 };
 
 const nextFrame = () => new Promise(r => requestAnimationFrame(r));
@@ -314,6 +326,7 @@ async function main() {
     starlink: [buildStarlink, 'Starlink V2 Mini…'],
     roadster: [buildRoadster, 'Tesla Roadster and Starman…'],
     engines: [buildEngineHall, 'Raptor 3, Raptor Vacuum and Merlin 1D…'],
+    x15: [buildX15, 'X-15 · 56-6670…'],
   };
   let step = 0;
   let complex = null;
@@ -364,6 +377,9 @@ async function main() {
       group.add(ped);
       model.position.y = lay.mount + 0.6;
       env.addStation(lay.x, lay.z, 5);
+    } else if (v.id === 'x15') {
+      // On its gear, no plinth.
+      env.addStation(lay.x, lay.z, 10);
     } else if (v.id === 'engines') {
       // No plinth: the engines stand on the apron on their own cradles, which is what makes
       // the 4.4 m of a Raptor Vacuum land next to a visitor rather than above one.

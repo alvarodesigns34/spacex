@@ -1,6 +1,6 @@
 # SpaceX Vehicle Center
 
-Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones técnicas de ocho expositores de SpaceX:
+Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones técnicas de nueve expositores: ocho de SpaceX y el X-15, el avión cohete hipersónico de la NASA y la USAF:
 
 | Vehículo | Configuración modelada | Altura / envergadura |
 |---|---|---|
@@ -12,6 +12,7 @@ Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones
 | Starlink | V2 Mini con las dos alas solares desplegadas | 30 m de envergadura |
 | Tesla Roadster | 1.ª generación (modelo 2010, carrocería anterior al 2.5) con Starman, carga útil del vuelo inaugural del Falcon Heavy | 3,946 m · 1,851 m de ancho con espejos · 1,127 m de alto |
 | Engine Row | Raptor 3, Raptor Vacuum y Merlin 1D sobre cunas, a 1:1 | 4,4 m (RVac) |
+| X-15 | North American X-15 #1, USAF 56-6670, sobre su tren (patines y rueda de morro) como tras un vuelo: aleta ventral soltada, *ball nose* | 14,986 m de largo · 6,815 m de envergadura · 3,505 m de alto en configuración de aterrizaje |
 
 **Starship** encabeza la lista, porque es el expositor principal y el del lanzamiento (tecla **1**). Le sigue el **Falcon 1** (tecla **2**), que abre la línea histórica: Falcon 1 → Falcon 9 → Falcon Heavy.
 
@@ -305,6 +306,55 @@ Una auditoría del repositorio entero (ramas, CI, Pages, `npm run check`, revisi
   - una tecla de vehículo que lo termina y lo restaura todo.
 
 **Pendiente, a decisión del usuario: la orientación del Pad 2.** Con las huellas de OpenStreetMap del 30 de septiembre, la conversión al marco de la zanja reproduce las posiciones del modelo: la torre sale a (−25,5, −20,2) m, frente a (−23,8, −18,3) m, y los tanques del deluge a (−104, 47) m, frente a (−107, 47) m. Pero respecto a la geografía de la escena (+X al rumbo de 100,8°, el mismo marco que ya siguen la costa y el globo) es **una reflexión, no un giro**. Los desfases de la torre y de los tanques son distintos (−36° y +198°), cosa que solo pasa con un espejo. En Starbase los tanques del deluge quedan al NE y ENE de la mesa (≈35–58°, hacia el mar) y la torre al norte (≈355°); en el modelo quedan al OSO (≈256°) y al NO (≈319°). Corregirlo significa reflejar el pad respecto al eje de la zanja y girarlo ≈67° respecto a la fila de expositores, con todas las vistas, obstáculos y pruebas que dependen de él. No se ha tocado.
+
+### X-15 #1, USAF 56-6670 (fase 1: el modelo exterior, 30 de septiembre de 2026)
+
+El noveno expositor es el **North American X-15 #1** (56-6670), el avión cohete de investigación hipersónica de la NASA y la USAF (tecla **9**). Está en la fila, entre el Falcon Heavy y la Dragon, delante de la plataforma, **de pie sobre su propio tren**: rueda de morro doble y dos patines de acero, con la aleta ventral soltada, como quedaba en el lago seco de Rogers tras un vuelo. No tiene peana. Es la primera de siete fases; en las siguientes podrá **volar**.
+
+Plan por fases:
+1. modelo exterior (esta);
+2. acabados y detalle;
+3. motor de vuelo 6-DOF con pruebas contra datos de vuelo de la NASA;
+4. pista de aterrizaje y modo de vuelo;
+5. cabina;
+6. terreno real ampliado;
+7. chorro del XLR99, calentamiento y sonido.
+
+**Publicado y usado tal cual:**
+- **NASA TN D-3343, tabla I:** superficies, cuerdas, flechas y límites de mando del ala, los flaps, el estabilizador horizontal, las aletas y los aerofrenos.
+- **NASA TM X-236, tabla II:** las ordenadas del **NACA 66-005 modificado**, con una tabla para el ala y otra para el estabilizador. El 5 % de espesor al 45 % de la cuerda, los flancos rectos a partir del 67 % y el **borde de fuga romo del 1 %** salen de la tabla, no de un generador NACA genérico. En el estabilizador, sus puntos del 75 y el 90 % ya están sobre esa recta (1,652 % calculado frente a 1,653 % impreso).
+- **NASA TM X-236, figura 2:** un three-view **acotado** del modelo a escala 0,02, en pulgadas; cada cota ×50 es la medida real. De ahí salen las estaciones:
+  - borde de ataque del ala en la raíz, 7,000 m desde la punta del morro;
+  - raíz expuesta del estabilizador, 12,164 m;
+  - aletas, 11,468 m;
+  - carenados laterales desde 3,81 m;
+  - límite del timón, 1,156 m del eje;
+  - puntas de las aletas, 2,108 m y 1,880 m. Suman 3,988 m, exactamente los 13 ft 1 in del manual.
+- **NASA SP-60:** la tobera del XLR99, de **39,3 in** (0,998 m), con relación de áreas 9,8.
+- **NASA TM X-207:** el tren. Patines de 3 ft × 6 in de acero 4130, neumáticos de morro de 18 × 4,4 in y **39,1 ft** entre la rueda de morro y los patines.
+- **Manual de vuelo T.O. 1X-15-1:** **14,986 m** de largo (49 ft 2 in) y **3,505 m** de alto en configuración de aterrizaje (11 ft 6 in).
+- La envergadura, **6,815 m** (22,36 ft), es la de TN D-3343. El manual la redondea a 22 ft 4 in.
+
+**Comprobaciones hechas sobre el dibujo:**
+- La cuerda media del ala, 2,465 in, da 3,130 m, y su posición en envergadura, 1,043 in (1,325 m), es la que sale de la geometría.
+- El estabilizador horizontal solo cierra en su propio plano con anhedral: 45° en el cuarto de cuerda y 50,58° en el borde de ataque exigen una semienvergadura de 2,853 m sobre la superficie. Con 15° de anhedral se proyectan en los 2,755 m publicados, y la flecha del borde de fuga resulta de 19,5° (19,28° en el dibujo).
+
+**Medido (≈ ±1 cm):** el contorno del fuselaje, trazado sobre la figura 2: la quilla, el lomo bajo la cabina, la cabina en alzado y en planta, y los carenados laterales con sus bordes. Superpuesto al dibujo, el modelo coincide casi al trazo en planta y en alzado.
+
+**Reconstruido (≈):**
+- **Secciones del fuselaje:** entre esos contornos, el cuerpo es una elipse y los carenados un lóbulo superelíptico, unidos con un acuerdo de 5 cm.
+- **Cabina:** un parabrisas en V de dos lunas planas con montante central y un techo redondeado, según las fotos del NASM.
+- **Ball nose:** los 49 ft 2 in del manual son 5 cm más que la ojiva del dibujo, y una bola en su punta dejaría el avión 14 cm más corto todavía. El morro del 56-6670 es, en todas sus fotos, un cono recto de metal desnudo desde un anillo remachado a ≈0,9 m. Su longitud es la que da la longitud del manual.
+- Los montantes y tirantes del tren, los pivotes de timones y estabilizadores, y las góndolas de punta de ala. El 56-6670 las lleva en el Smithsonian; los dibujos de los años sesenta no.
+- **Actitud en tierra, ≈1,4° morro abajo:** en la foto de la NASA EC67-1652 (el 56-6670 en Rogers, 1967), con el neumático de 18 in como regla, la quilla queda a 0,61 m del lecho en la rueda de morro. El esquemático de 1959 de TM X-207 dibuja ese tren ≈0,25 m más bajo.
+
+**Verificación:** `verify.js` mide ahora también la **longitud**. El X-15 da 3,505 m de alto (hasta la punta de la aleta, como el manual), 6,815 m de envergadura (solo las alas, sin las góndolas) y 15,005 m de largo (+0,13 %, por la actitud en tierra). Las superficies móviles (flaps, estabilizadores, timones, aerofrenos) son piezas propias con su bisagra, preparadas para el modelo de vuelo.
+
+**Todavía no:**
+- acabados definitivos, paneles y remaches;
+- rótulos: solo texto, sin la insignia de la USAF ni la marca de la NASA, que la regla del centro sobre banderas y logotipos deja fuera;
+- metal desnudo en la parte fija de la aleta ventral y chamuscado de la cola, que se ven en EC67-1652;
+- cabina interior y vuelo.
 
 ### Historial
 

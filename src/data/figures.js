@@ -85,6 +85,15 @@ export const FIGURES = {
     footprint: { value: 2.3, grade: 'A', ref: 'spacex_starship', note: 'Raptor Vacuum nozzle exit' },
     readme: ['height'],
   },
+  x15: {
+    // T.O. 1X-15-1 p. 1-1: 11 ft 6 in in the landing configuration (gear down, ventral
+    // jettisoned), which is how the exhibit stands; 13 ft 1 in in flight. Span: TN D-3343
+    // table I, 22.36 ft (the manual rounds it to 22 ft 4 in, 6.807 m).
+    height: { value: 3.505, grade: 'A', ref: 'x15_manual', note: '11 ft 6 in, landing configuration: gear down, ventral jettisoned' },
+    footprint: { value: 6.815, grade: 'A', ref: 'nasa_tnd3343', note: 'wing span, 22.36 ft' },
+    length: { value: 14.986, grade: 'A', ref: 'x15_manual', note: '49 ft 2 in, ball nose to base' },
+    readme: ['length', 'footprint', 'height'],
+  },
 };
 
 /** Published part counts, checked exactly against what the builders place. */
