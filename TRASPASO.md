@@ -4,61 +4,109 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ---
 
-## ⭐ Estado al cerrar la sesión local del 29-09-2026 (léelo primero)
+## ⭐ Empieza aquí (estado real al 30-09-2026)
 
-- **Navegador:** usa el **navegador integrado** de la app (herramientas `mcp__Claude_Browser__*`), tanto para la simulación como para investigar. Claude in Chrome se desconectaba con la página pesada y el usuario pidió cambiar. Sirve `http://127.0.0.1:8080/` con `node tools/_serve.mjs` (local, excluido en `.git/info/exclude`); en Windows no hay Python.
-- **Git en Windows:** este clon tiene `core.autocrlf=false` y el árbol en LF, como en CI. Con CRLF, dos controles negativos de `provenance-check` fallaban. Los scripts de edición van en archivos `.cjs` del scratchpad: los heredoc con comillas fallan en esta Bash.
-- **Comprobación en paralelo:** `sh /c/Users/preda/claudespacex/sync-check.sh` copia HEAD más los cambios al worktree `../spacex-check` (con `node_modules` enlazado) y ahí se corre `npm run check` en segundo plano. Así se puede seguir editando sin tocar lo que se sirve al check.
-- **Hecho en esta sesión** (commits `258e8e8`, `04dfa0f` y los siguientes; detalle en el README):
-  - Raptor Vacuum con tobera de «cubo» según la foto de la NASA;
-  - banda de aluminio y panel solar continuo en la Dragon;
-  - **desvío final del propulsor** con ≈15° de inclinación (pendiente cerrado);
-  - **Engine Row rehecha** con piezas de exposición detalladas (`engineExhibits.js`, `raptorStack.js`);
-  - **costa reorientada** (marco de costa en `terrain.js`, pendiente cerrado);
-  - **capítulo de reentrada** del vuelo 14 (tecla X; `reentry.js`, `reentryFlight.js`);
-  - galería regenerada con aprobación del usuario.
-- **Pendientes que quedan:**
-  - tercera ventana de la Dragon y pinzas del Falcon 1 en Omelek (sin fuente);
-  - color real del cabezal del Raptor 3 a contraluz (las fotos oficiales lo muestran oscuro);
-  - la telemetría real de las retransmisiones para contrastar los perfiles;
-  - la orientación del Pad 2 respecto a la geografía: la conversión OSM → marco de la zanja (sección 4) parece **especular** respecto a un mapa (determinante −1 con x = −(p·n), z = p·d). Merece comprobarse contra una imagen de satélite antes de tocar nada.
+### Tu primera tarea: auditar el repositorio
 
-## ⭐ Empieza aquí (sesión local con Claude in Chrome, 29-09-2026 por la noche)
+Antes de cambiar nada, **audita el repositorio entero** y entrégame un informe en español: qué está bien, qué está roto o incoherente y qué propones, por orden de gravedad. No corrijas nada durante la auditoría salvo que yo te lo pida. Como mínimo:
 
-Hasta ahora trabajábamos en un contenedor en la nube. **A partir de aquí sigues en local**, en mi ordenador, con **Claude in Chrome**. Eso cambia varias cosas:
+1. **Estado de git y de las ramas.**
+   - `git fetch --all` y comprueba que las cuatro ramas (`claude/spacex-vehicle-center-3d-48zlkm`, `claude/dreamy-bell-qn1eth`, `grok/sun18-audit-10c9929`, `claude/elegant-ptolemy-l99qgo`) apuntan al mismo commit, el último con este TRASPASO.
+   - Revisa que los últimos workflows de GitHub Actions pasaron, por ejemplo con `https://api.github.com/repos/alvarodesigns34/spacex/actions/runs?per_page=8`.
+   - Comprueba que https://alvarodesigns34.github.io/spacex/ sirve ese commit: pide con `curl` un archivo cambiado y añade `?x=<aleatorio>` para saltar la caché.
+2. **`npm install` y `npm run check` completo** (≈25 min). Tiene que terminar con código 0; si no, informa con la salida.
+3. **Revisión de código de lo añadido en la sesión del 29-09** (ver abajo). Busca errores, casos límite y restos:
+   - `src/sim/reentry.js` y `src/sim/reentryFlight.js`: el capítulo de reentrada;
+   - `src/vehicles/engineExhibits.js` y `src/vehicles/raptorStack.js`: el Engine Row;
+   - el marco de costa en `src/core/terrain.js` y su uso en `environment.js` y `campus.js`;
+   - el desvío del propulsor en `src/sim/launch.js` (`DIVERT`, quínticas);
+   - los cambios del HUD en `src/ui/hud.js` (botón *Reentry*, reloj en horas, `setMissionText`).
+4. **Coherencia de datos y documentación.**
+   - Cada cifra nueva tiene su fila en `src/data/specs.js`, con fuente o `approx`.
+   - El README describe el estado actual.
+   - La galería (`docs/screenshots`, `docs/hud`, `docs/review-sun18`) está **desfasada**: dilo y lista lo que ya no coincide, pero **no la regeneres sin mi aprobación**.
+5. **Recorrido visual de la simulación**, en un navegador, por todos los encuadres de los ocho expositores, el lanzamiento completo (G) y la reentrada completa (X). Anota defectos con captura.
+6. **Deuda técnica visible:**
+   - archivos enormes (`roadster.js` ≈3 700 líneas, `launch.js`, `main.js`);
+   - código muerto: por ejemplo `merlinGeometry` y `raptorGeometry` siguen con perfiles distintos de los de exposición;
+   - las herramientas locales que faltan (anexo).
 
-1. **Lo primero de todo: confirma que Claude in Chrome te funciona** (abre una pestaña, navega a https://alvarodesigns34.github.io/spacex/ y haz una captura). Si no te funciona, dímelo antes de seguir.
-2. **Pon el repo al día:** `git fetch --all` y trabaja sobre `claude/spacex-vehicle-center-3d-48zlkm` (rama por defecto; último commit de la sesión en la nube: `326293e`). `npm install` si hace falta. Para Playwright en local sí puedes instalar su navegador (`npx playwright install chromium`); lo de `/opt/pw-browsers` y la CA del proxy (sección 2) era solo del contenedor.
-3. **Qué ganas con Chrome:**
-   - **Investigar**: navegas como una persona (spacex.com, NASA, Wikipedia, NSF, RingWatchers, Flickr de SpaceX, X/Twitter de SpaceX, patentes en Google Patents, Car and Driver…). En la nube, muchas webs cortaban la conexión o daban 403 a scripts. **Sigue sin eludirse ninguna protección antibots ni inicios de sesión que no sean míos.**
-   - **Revisar la simulación a mano y rápido**: ábrela en Chrome (Pages, o en local con `npm run serve` → http://localhost:8080; en Windows puede ser `py -m http.server 8080`), muévete, pulsa teclas, y usa la consola con `window.__vc` (sección 1) para saltar a encuadres (`v.jump('falcon9','legs')`), a instantes del lanzamiento (`v.launch.seek(421)`) o fijar el nivel de detalle. Es mucho más rápido que renderizar con `_frames.mjs` (18–40 s por fotograma en el contenedor).
-   - `_frames.mjs`, `_probe.mjs` y `_web.mjs` (anexo) siguen sirviendo para capturas deterministas y comparaciones antes/después; recréalas si no están (no están en el repo).
-4. **Ramas:** empuja el mismo commit a las **cuatro**: `claude/spacex-vehicle-center-3d-48zlkm` (Pages), `claude/dreamy-bell-qn1eth`, `grok/sun18-audit-10c9929` y `claude/elegant-ptolemy-l99qgo`, más la rama que te asigne tu sesión si te asigna una. Sin pull requests.
-5. **Galería**: sigue **sin regenerar** (lleva desfasada desde `b1f09d3`). No la regeneres sin mi aprobación explícita.
+Cuando termines la auditoría, espera a que yo diga qué priorizar.
 
-### La tarea en curso (lo que te toca hacer)
+### Qué es y cómo se trabaja (resumen; el detalle está en las secciones 0–5)
 
-Mi último encargo, literal: **«una ronda total y ambiciosa de realismo absoluto vehículo por vehículo consultando proporciones, texturas, planos, formas, etc. Y luego, mejora del entorno máxima, del HUD, del lanzamiento y que se vean más cosas, también.»**
+- Simulación web en Three.js de un museo de vehículos de SpaceX **a escala 1:1**, con el lanzamiento completo de Starship V3 desde el Pad 2 de Starbase. Repositorio `alvarodesigns34/spacex`, rama por defecto `claude/spacex-vehicle-center-3d-48zlkm`, web en https://alvarodesigns34.github.io/spacex/.
+- **Reglas innegociables** (sección 0):
+  - háblame siempre en español;
+  - sin pull requests: el mismo commit a las **cuatro ramas**;
+  - **`npm run check` con código 0 antes de cada commit**, sin excepción;
+  - README en español, actualizado con cada cambio;
+  - solo medidas verificables, con las aproximaciones marcadas (≈);
+  - sin banderas ni logotipos, sin plataformas extra, sin modo noche, sin plantas ni objetos nuevos en el entorno;
+  - galería solo con mi aprobación;
+  - no eludir nunca protecciones antibots;
+  - fotos con derechos, solo como referencia (nunca al repo);
+  - mi email, nunca a servicios externos;
+  - pie de commit: `Co-Authored-By: …` del sistema que te lo dé.
+- **Depuración en el navegador:** `window.__vc` expone:
+  - `jump(id, preset)` para los encuadres;
+  - `launch.seek(t)`, `launch.start()` y `launch.reset(false)`;
+  - `reentry.start()`, `reentry.seek(t)` y `reentry.setFollow('onboard'|'chase'|'director')`;
+  - `rig.jumpTo(pos, target)`, `claimUserControl()`, `setToggle()`, `exhibits`, `scene`, `camera`, `composer`, `renderer` y `M` (materiales).
 
-Estado: **no se había tocado código todavía para esta ronda.** Iba a empezar renderizando todos los encuadres (`presets`) de cada vehículo para localizar defectos. Plan propuesto (ajústalo con criterio):
+### Entorno local (Windows, sesión del 29-09)
 
-1. **Vehículo por vehículo** (orden sugerido: Falcon 9 → Falcon Heavy → Dragon → Falcon 1 → Starlink → Roadster → Starship/Super Heavy → motores). Para cada uno:
-   - reúne **planos y cotas**: Falcon User's Guide 2025 (spacex.com, con dibujos acotados de cofia, adaptadores y etapas), guía de Falcon 1 2008, prensa de la demo del Falcon Heavy, NASA (NTRS, images.nasa.gov) para Dragon, **patentes de SpaceX** con dibujos (rejillas, patas, brazos de captura, conexiones rápidas: Google Patents desde Chrome), **RingWatchers** (anillos y estaciones de Starship/Super Heavy), manual de servicio del Roadster (service.tesla.com), Car and Driver / MotorTrend (cotas del Roadster), Leitenberger y planet4589 (masas y dimensiones);
-   - compara con **fotos de alta resolución** (NASA y Commons se pueden guardar como referencia; las de SpaceX/NSF/Flickr, solo mirarlas: nunca al repo);
-   - corrige **proporciones, formas, detalles, materiales y texturas**, con la cifra y su fuente en `specs.js` (`SOURCES`, filas con `ref`, `approx` cuando toque) y en `data/verify.js` si es una cota comprobable;
-   - verifica con `node tools/check.mjs` y visualmente.
-2. **Entorno**: al máximo de realismo sin añadir objetos ni plantas nuevas (regla 7). Ideas con fuente: el relieve real de Boca Chica (lidar/DEM del USGS: `tnmaccess.nationalmap.gov`), colores del suelo y del agua según fotos, la orientación de la costa (ver pendientes).
-3. **HUD**: más claro y útil (sin romper `ux-check` ni el contraste AA).
-4. **Lanzamiento y «que se vean más cosas»**: ver pendientes abajo; valorar un capítulo de **reentrada de la nave** si hay cronología publicada (vuelo 14, spacex.com).
+- Clon en `C:\Users\preda\claudespacex\spacex`. En Windows **no hay Python**: sirve la web con `node tools/_serve.mjs` → http://127.0.0.1:8080/ (script local; recréalo si falta: 8 líneas con `staticHandler` de `tools/static.mjs`).
+- **Saltos de línea:** `core.autocrlf=false` y el árbol en LF, como en CI. Con CRLF, dos controles negativos de `tools/provenance-check.mjs` fallan porque buscan `\n`. Si ves decenas de archivos «modificados» sin diff, es solo el índice: `git update-index --really-refresh`.
+- **Comprobación sin bloquear el trabajo:** `sh /c/Users/preda/claudespacex/sync-check.sh` copia HEAD más los cambios al worktree `C:\Users\preda\claudespacex\spacex-check` (con `node_modules` enlazado como *junction*) y ahí se corre `npm run check` en segundo plano. **Confirma exactamente lo verificado:** antes de hacer commit compara cada archivo con `cmp` contra la copia. En la sesión anterior se me escapó un commit incompleto (`445d522`) por añadir solo parte de lo verificado; lo arregló `6e4b0bd`.
+- Para editar con scripts, usa archivos `.cjs` en el scratchpad: los heredoc de Bash con comillas simples y dobles mezcladas fallan.
+- La última sesión usó el **navegador integrado** de la app de escritorio para ver la simulación e investigar (Claude in Chrome se desconectaba con esta página pesada). Usa el que tengas; si puedes navegar, lee las fuentes directamente.
 
-### Pendientes y hallazgos concretos de la última sesión
+### Hecho en la sesión del 29-09-2026 (todo en GitHub)
 
-- **Aproximación final del propulsor**: en la foto de SpaceX del vuelo 5 (Commons, «Starship Booster Return on Final Approach (54063904149).jpg») el propulsor llega **inclinado ≈15°** hacia la torre y hace el desvío al final; en el modelo baja casi vertical. El regreso es una integración 2-D en `launch.js` (boostback + aterrizaje resueltos por Newton).
-- En esa misma foto, el **agua del deluge de la mesa está funcionando durante la captura** (Pad 1). En el Pad 2 no está confirmado: no lo añadas sin fuente.
-- **Orientación geográfica del sitio**: la Tierra vista desde altura ya es la real (`data/gulf.js`, eje aguas abajo +X con azimut ≈100,8°), pero el sitio 1:1 tiene su costa en −Z (plausible, no real), así que la costa local y la del globo no coinciden entre 9 y 20 km. Arreglarlo del todo implica reorientar el recinto: decisión grande, consúltamela.
-- **Pinzas del Falcon 1 en Omelek** y **tercera ventana de la Dragon**: sin fuente todavía (ver README).
-- **Telemetría real**: SpaceX no la publica como datos; las curvas son del modelo. En las retransmisiones del vuelo 14 se ven velocidad y altitud en pantalla: con Chrome podrías leer algunos valores y contrastar el perfil (anotándolo como lectura de vídeo).
-- Las rondas del 29-09 (torre girada, deluge y parque de tanques desde OSM, encendido simultáneo, tinte del acero, humo del aterrizaje, separación en caliente, halo de vacío, Tierra real) están en el README y en la sección 4.
+Commits, del más antiguo al más reciente, en las cuatro ramas; el detalle está en el README, sección *Ronda vehículo por vehículo del 29 de septiembre de 2026* y siguientes:
+
+- **`258e8e8`**
+  - **Raptor Vacuum** con tobera de «cubo» (foto de la NASA «A person viewing Raptor Vacuum», dominio público): tercio superior verde oliva, junta latón y extensión plateada de tubos (`makeRvacBell` en `textures.js`).
+  - **Dragon:** banda de aluminio satinado en el pie de la cápsula y filete rojo pardo; panel solar continuo sobre respaldo oscuro (fotos de la NASA del CRS-28 y del Crew-13).
+  - **Desvío final del propulsor:** el encendido de aterrizaje apunta ≈130 m mar adentro y los 3 motores centrales lo llevan a los brazos con una quíntica por eje, inclinándose hasta ≈15,7° hacia la torre, como en la foto del vuelo 5. Se nombra `DIVERT` en `launch.js`.
+- **`04dfa0f`: Engine Row rehecha** con piezas de exposición (`engineExhibits.js`) a partir de los retratos oficiales (solo consultados):
+  - **Merlin 1D Block 5:** tobera gris satinada con la garganta a ≈1,0 m (antes, 1,42 m), turbobomba, generador de gas, líneas trenzadas, mazos naranjas y placa de montaje azul;
+  - **Raptor 3:** tobera carbón, collarín, anillos de cámara, disco del inyector, bloque de turbobombas, disco de empuje y conducto lateral;
+  - **Raptor Vacuum** con esa misma columna;
+  - `raptorStack.js` da la versión ligera a los 33 + 6 motores de los cohetes (204 000 triángulos frente a los 306 000 de antes);
+  - `verify.js` mide el Raptor Vacuum por las mallas `rvac-bell`, `rvac-bell-inner`, `rvac-engineDark`, `rvac-engineSilver` y `rvac-enginePurple`.
+- **`445d522` + `6e4b0bd`**
+  - **Costa reorientada.** El mar estaba al NNE del pad. Ahora la playa, el mar, las dunas y las exclusiones se construyen en un **marco de costa** (`toCoast`, `fromCoast`, `seaward` en `terrain.js`) con la normal hacia el mar en ≈85,3° (Natural Earth, `data/gulf.js`), centrado en el Pad 2. El cohete sale sobre el mar y el propulsor vuelve desde él. Cuatro lomas que caían en el mar se movieron tierra adentro, y `ux-check` usa la loma de (−760, 200).
+  - **Capítulo de reentrada del vuelo 14** (tecla **X**, botón *Reentry*):
+    - tiempos citados de spacex.com (entrada T+9:28:56 … amerizaje T+9:50:30);
+    - estado de entrada por vis-viva;
+    - planeo integrado, con arrastre, L/D y arrastre de caída en panza resueltos por Newton;
+    - plasma según Sutton–Graves, losetas y alerones brillando, estelas;
+    - cámaras a bordo, de persecución y de boya;
+    - amerizaje en océano abierto;
+    - el panel de misión del HUD se reutiliza, con reloj en horas.
+  - `FlightEarth` gana la opción `ocean`. `tools/shot.mjs` acepta `reentry` y `cam`, y en `tools/launch-shots.json` y `docs-shots.json` hay 7 capturas nuevas **aún no generadas**.
+- **Commit de este traspaso:** además, dos retoques del HUD. Durante la reentrada se ilumina el botón *Reentry* (no *Launch*) y se oculta la leyenda «Booster» del perfil.
+
+### Lo que NO se terminó
+
+- **Galería:** aprobada por el usuario el 29-09, pero **no regenerada**. La ejecución se paró a medias y se restauró `docs/`. Cuando el usuario lo apruebe de nuevo:
+  - `npm run shots` (53 capturas);
+  - `node tools/shot.mjs docs/hud tools/hud-shots.json`;
+  - `node tools/shot.mjs docs/review-sun18 tools/sun18-shots.json --sun 18`;
+  - añadir al README las capturas nuevas (`reentry-onboard`, `reentry-plasma`, `reentry-bellyflop`, `reentry-flip`, `reentry-splash`, `engines-raptor`, `engines-merlin`) y quitar el aviso de galería desfasada;
+  - con SwiftShader son ≈30–60 s por captura.
+- **Pasada final completa**, encuadre a encuadre de los ocho expositores: solo se hizo en parte (vista general, playa, lanzamiento, regreso y panel de la reentrada).
+- **Pendientes con evidencia por buscar:**
+  - tercera ventana de la Dragon y pinzas del Falcon 1 en Omelek;
+  - telemetría leída de las retransmisiones para contrastar los perfiles;
+  - si el cabezal del Raptor 3 tiene partes plateadas visibles a contraluz;
+  - **orientación del Pad 2:** la conversión OSM → marco de la zanja (sección 4: x = −(p·n), z = p·d) tiene determinante −1 respecto a un mapa norte-arriba, así que el pad podría estar **en espejo**. Compruébalo contra una imagen de satélite antes de tocar nada; consúltamelo, es un cambio grande.
+- **Ideas propuestas y no hechas:**
+  - que los Merlin de los Falcon usen el perfil corto del Merlin de exposición (hoy su mitad superior queda oculta en el Octaweb con el perfil antiguo, y el hueco del escudo tendría que ajustarse);
+  - sonido en la reentrada;
+  - una parada de la visita guiada para la reentrada.
 
 ---
 
@@ -116,16 +164,18 @@ Estado: **no se había tocado código todavía para esta ronda.** Iba a empezar 
 - `src/main.js`: arranque, escena, disposición de expositores (`LAYOUT`: `x`, `z`, `mount`, `yaw`…) y `worldPreset()`.
 - `src/vehicles/`: un builder por vehículo:
   - `starship.js`, `falcon.js`, `falcon1.js`, `dragon.js`, `starlink.js`, `roadster.js` (≈3600 líneas), `enginehall.js`;
-  - `engines.js`: geometrías de motores instanciadas;
+  - `engines.js`: geometrías de motores instanciadas (las de los cohetes);
+  - `engineExhibits.js`: los tres motores de exposición del Engine Row; `raptorStack.js`: la columna del Raptor 3 (versión completa y ligera);
   - `pad.js`: Pad 2;
   - `padDressing.js` y `common.js`: mesas de los Falcon y utilidades.
 - `src/sim/`:
   - `launch.js`: trayectoria, eventos, cámara, nubes, vapores;
+  - `reentryFlight.js` (trayectoria de reentrada, pura y resuelta al cargar) y `reentry.js` (el capítulo: escena de origen flotante, plasma, cámaras);
   - `plume.js`: penachos, nube del suelo, `Glow`, `Vapor`, `EngineJets`;
   - `sound.js`: WebAudio sintetizado.
 - `src/core/`:
   - `environment.js`: cielo, sol, niebla, altitud;
-  - `terrain.js`, `campus.js`, `clouds.js`, `backdrop.js`;
+  - `terrain.js` (relieve, lomas, charcas y el marco de costa `toCoast`/`fromCoast`/`seaward`), `campus.js`, `clouds.js`, `backdrop.js`;
   - `lod.js`: nivel de detalle con histéresis;
   - `quality.js`: niveles high/medium/low;
   - `cameraRig.js`, `viewState.js`, `ao.js`.
@@ -140,7 +190,7 @@ Estado: **no se había tocado código todavía para esta ronda.** Iba a empezar 
 - `tools/`: pruebas:
   - `check.mjs`: la principal;
   - `cloud-check.mjs`, `hardware-check.mjs`, `ux-check.mjs`;
-  - `lod-pop.mjs`: mide el salto visual al cambiar de nivel de detalle; no está en el check;
+  - `lod-pop.mjs`: mide el salto visual al cambiar de nivel de detalle (está en `npm run check`);
   - `profile.mjs`, `shot.mjs`, `census.mjs`, `static.mjs`…
 - `.github/workflows/pages.yml`: valida con `npm run check` en `main`, `master`, `claude/**`, `codex/**` y `grok/**`, con una cola de concurrencia por rama, y despliega solo desde la rama por defecto.
 
@@ -499,4 +549,4 @@ W.save(out, quality=85)
 
 ---
 
-Cuando hayas leído todo, confírmame en español que tienes el contexto y dime qué propones atacar primero. No empieces a cambiar nada hasta que te diga qué priorizar, salvo que yo te lo pida directamente.
+Cuando hayas leído todo, empieza por la **auditoría** descrita al principio (sección «Empieza aquí») y entrégame el informe en español. No cambies nada hasta que te diga qué priorizar, salvo que yo te lo pida directamente.

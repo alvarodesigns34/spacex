@@ -383,7 +383,8 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
   const soundBtn = el('#mission-sound');
   const speeds = [...root.querySelectorAll('#mission-speeds button')];
   launchBtn.addEventListener('click', () => onLaunch?.());
-  el('#reentry-btn').addEventListener('click', () => onReentry?.());
+  const reentryBtn = el('#reentry-btn');
+  reentryBtn.addEventListener('click', () => onReentry?.());
   el('#mission-abort').addEventListener('click', () => onLaunchAbort?.());
   el('#mission-restart').addEventListener('click', () => onLaunchRestart?.());
   const camBtn = el('#mission-cam');
@@ -548,15 +549,18 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
       mission.classList.add('hidden');
       document.body.classList.remove('is-flying');
       launchBtn.classList.remove('is-live');
+      reentryBtn.classList.remove('is-live');
       callout.classList.remove('is-on');
       lastT = null;
       return;
     }
     mission.classList.remove('hidden');
-    mission.classList.toggle('is-reentry', st.chapter === 'reentry');
+    const reentry = st.chapter === 'reentry';
+    mission.classList.toggle('is-reentry', reentry);
     hideCoach();
     document.body.classList.add('is-flying');
-    launchBtn.classList.add('is-live');
+    launchBtn.classList.toggle('is-live', !reentry);
+    reentryBtn.classList.toggle('is-live', reentry);
     mClock.textContent = clockText(st.t);
     mPhase.textContent = st.phase;
     // "T+01:02", without the hours the main clock carries.
