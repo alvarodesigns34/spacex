@@ -13,7 +13,7 @@
  * so they are assumed (ENTRY_ASSUMED, ≈): a 200 km circular orbit and ≈190 t after the
  * payload deploy; the 11 s burn on one 250 tf Raptor lowers the velocity by F·t/m ≈ 142 m/s
  * and vis-viva gives the speed and the flight-path angle at the 120 km entry interface
- * (≈7,75 km/s, ≈−1,6°).
+ * (≈7,74 km/s, ≈−1,6°).
  *
  * SOLVED — by Newton iteration, three coefficients that make the model meet the cited times:
  * the drag area per unit mass in the hypersonic, belly-first attitude, its lift-to-drag
@@ -26,8 +26,12 @@
  * Model: a point mass over a spherical, non-rotating Earth (downrange arc s, altitude h, the
  * horizontal and vertical velocity), gravity falling with height, drag and lift from an
  * exponential atmosphere with two scale heights (≈), the speed of sound from the 1976
- * standard atmosphere (launch.js soundSpeedAt). The burn is a quintic in each axis, matched
- * in position, velocity and acceleration at its start and ending at rest on the water.
+ * standard atmosphere (launch.js soundSpeedAt). The lift is banked out of the vertical plane
+ * whenever all of it would make the ship climb (≈, the equilibrium glide entry guidance
+ * flies; SpaceX publishes no bank profile), so the descent never skips back up. The burn is a
+ * quintic in each axis, matched in position and velocity at its start, from zero acceleration
+ * (the belly flop is at its terminal speed there: ≈0,5 m/s² is left, which the quintic drops),
+ * and ending at rest on the water with no acceleration left.
  */
 import { soundSpeedAt } from './launch.js';
 
@@ -83,8 +87,16 @@ function fly(q, rec) {
     const w = Math.min(1, Math.max(0, (1.1 - M) / 0.4));
     const k = k1 + (k2 - k1) * w, L = ld * (1 - w);
     const D = 0.5 * rho * v * v * k;
-    const ax = -D * vx / v - L * D * vh / v - vx * vh / r;
-    const ah = -D * vh / v + L * D * vx / v - MU / (r * r) + vx * vx / r;
+    // Bank: the lift vector is rolled out of the vertical plane just enough that it never lifts
+    // the ship into a climb — the equilibrium glide entry guidance flies. With the whole lift
+    // kept vertical, a constant L/D skipped: 117 → 76 → 81 km, the heating falling and rising.
+    // The rolled-out component goes to cross-range, which a 2-D model does not follow.
+    const noLift = -D * vh / v - MU / (r * r) + vx * vx / r, up = L * D * vx / v;
+    // Allowed: pulling out of the dive (vh towards 0 over ≈30 s, ≈); never climbing.
+    const cap = -vh / 30;
+    const c = up > 1e-9 && noLift + up > cap ? Math.max(-1, Math.min(1, (cap - noLift) / up)) : 1;
+    const ax = -D * vx / v - c * L * D * vh / v - vx * vh / r;
+    const ah = noLift + c * up;
     return [vx * RE_M / r, vh, ax, ah];
   };
   while (t < RE.landingBurn - 1e-9) {
@@ -132,7 +144,7 @@ function solve3(A, b) {
 export const SOLVE = { iterations: 0, residual: null };
 const Q = (() => {
   // Seeded with the converged solution; the loop then only confirms it.
-  let q = [0.004484118, 0.593819, 0.002312959];
+  let q = [0.0037322123456632827, 0.7171587516330207, 0.002357370799899564];
   const scale = [1e-4, 0.01, 1e-4];
   for (let it = 0; it < 40; it++) {
     SOLVE.iterations = it;

@@ -569,7 +569,7 @@ async function main() {
   // northern Pacific, on SpaceX's own timeline (reentry.js, reentryFlight.js).
   const REENTRY_TEXT = {
     kind: 'Flight 14 re-entry (SpaceX timeline) · northern Pacific · trajectory computed, not telemetry',
-    note: '<summary>Flight 14 re-entry · sources and limits</summary><p><b>Every time on this clock is SpaceX\'s own</b>, from its published flight 14 timeline (28 September 2026): deorbit burn T+8:52:37–8:52:48 · entry T+9:28:56 · transonic 9:47:29 · subsonic 9:48:07 · landing burn 9:50:11 · landing flip 9:50:13 · three to two engines 9:50:21 · two to one 9:50:28 · splashdown 9:50:30, in the northern Pacific. The state at entry is <i>derived</i>: an assumed 200 km orbit and ≈190 t ship, the 11 s burn on one 250 tf Raptor, and vis-viva give ≈7.74 km/s at −1.6° at 120 km. The glide is <i>integrated</i> over a spherical Earth, and its drag, lift-to-drag ratio and belly-flop drag are <i>solved</i> so it goes through Mach 1 and Mach 0.8 at the transonic and subsonic calls and reaches the landing burn at the height a smooth 19 s burn needs. Speeds and heights are the model\'s, not telemetry; the ≈60° angle of attack, the plasma colours and the camera positions are read off SpaceX\'s on-board views, approximately. The ocean and the clouds are generic.</p>',
+    note: '<summary>Flight 14 re-entry · sources and limits</summary><p><b>Every time on this clock is SpaceX\'s own</b>, from its published flight 14 timeline (28 September 2026): orbit insertion T+25:17–25:36 · deorbit burn T+8:52:37–8:52:48 · entry T+9:28:56 · transonic 9:47:29 · subsonic 9:48:07 · landing burn 9:50:11 · landing flip 9:50:13 · three to two engines 9:50:21 · two to one 9:50:28 · splashdown 9:50:30, in the northern Pacific. The state at entry is <i>derived</i>: an assumed 200 km orbit and ≈190 t ship, the 11 s burn on one 250 tf Raptor, and vis-viva give ≈7.74 km/s at −1.6° at 120 km. The glide is <i>integrated</i> over a spherical Earth, with the lift banked whenever all of it would make the ship climb (≈; no bank profile is published), and its drag, lift-to-drag ratio and belly-flop drag are <i>solved</i> so it goes through Mach 1 and Mach 0.8 at the transonic and subsonic calls and reaches the landing burn at the height a smooth 19 s burn needs. Speeds and heights are the model\'s, not telemetry; the ≈60° angle of attack, the plasma colours and the camera positions are read off SpaceX\'s on-board views, approximately. The ocean and the clouds are generic.</p>',
   };
   const reentry = createReentry({
     scene, exhibits, complex, env, rig, camera, M,
@@ -584,10 +584,10 @@ async function main() {
         events: MILESTONES_RE.map(m => [m.t, m.label]),
       });
     },
-    onState: (st) => hud.setMission(st.running ? st : null),
+    // However the chapter ends (its end, End, G, a vehicle picked, the tour), the panel goes
+    // back to the launch's text and profile.
+    onState: (st) => { hud.setMission(st.running ? st : null); if (!st.running) { hud.setMissionText(null); showLaunchTrajectory(); } },
     onFinish: (completed) => {
-      hud.setMissionText(null);
-      showLaunchTrajectory();
       goPreset('starship', 'overview');
       if (completed) hud.notice('Flight 14\'s ship splashed down on target in the northern Pacific, nine hours and fifty minutes after liftoff.', 8000);
     },
@@ -816,6 +816,8 @@ async function main() {
    */
   function cycleLaunchCamera() {
     if (reentry.running) {
+      if (rig.mode !== 'orbit') rig.setMode('orbit');
+      enforce(view.claim('launch'));
       const order = ['director', 'onboard', 'chase'];
       reentry.setFollow(order[(order.indexOf(reentry.state.follow) + 1) % order.length]);
       return;
@@ -877,6 +879,9 @@ async function main() {
   function enforce(stop) {
     if (stop?.tour) stopTour();
     if (stop?.launch && launch.running) launch.reset(false);
+    // The re-entry chapter holds the camera under the same owner as the launch: picking a
+    // vehicle or starting the tour left it running under them (audit, 30-09).
+    if (stop?.launch && reentry?.running) reentry.reset(false);
   }
 
   /** Brings the HUD into line with the state, after the scene has been. */
@@ -1410,6 +1415,7 @@ async function main() {
    */
   const verify = ({ forceDetail = true } = {}) => {
     launch.reset(false);
+    reentry.reset(false);
     if (forceDetail) lod.forceDetailed();
     return {
       dimensions: verifyExhibits(exhibits),

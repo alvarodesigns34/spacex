@@ -14,7 +14,7 @@
  *  - the open ocean round the splash: generic, no coastline anywhere near.
  *
  * The scene is floating-origin: the ship stays over the scene's origin and the ocean, the
- * splash point and the globe move under it, so a 5 700 km glide keeps single-precision
+ * splash point and the globe move under it, so a ≈5 400 km glide keeps single-precision
  * vertices steady.
  */
 import * as THREE from 'three';
@@ -158,11 +158,14 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
   // heats them — the dull glow of the flap edges and the belly in SpaceX's on-board views.
   // Emissive on the ship's own materials (they are the ship's alone), restored afterwards.
   const heatMats = [M.tile, M.tpsShell, M.tileUnder, M.steelFlap].filter(Boolean)
-    .map(m => ({ m, color: m.emissive.clone(), intensity: m.emissiveIntensity, k: m === M.steelFlap ? 0.9 : 1.5 }));
+    .map(m => ({ m, color: m.emissive.clone(), intensity: m.emissiveIntensity, flap: m === M.steelFlap, k: m === M.steelFlap ? 0.35 : 1.5 }));
   const HEAT_COLOR = new THREE.Color(0xff5e1f);
+  // The flaps' steel glows a duller, deeper red than the tiles: at 0.9 the whole flap went a
+  // flat, saturated orange from on board, which read as paint rather than hot metal.
+  const FLAP_HEAT = new THREE.Color(0xc7401c);
   function setHeatGlow(h) {
     for (const e of heatMats) {
-      if (h > 0.01) { e.m.emissive.copy(HEAT_COLOR); e.m.emissiveIntensity = h * h * e.k; }
+      if (h > 0.01) { e.m.emissive.copy(e.flap ? FLAP_HEAT : HEAT_COLOR); e.m.emissiveIntensity = h * h * e.k; }
       else { e.m.emissive.copy(e.color); e.m.emissiveIntensity = e.intensity; }
     }
   }
@@ -258,6 +261,15 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
     // Where the splash point is, relative to the ship.
     const ahead = toSplashAt(t);
     ocean.position.set(ahead, 0, 0);
+    holder.updateMatrixWorld(true);
+
+    // The camera next — the shot list, or the visitor's own orbit riding on the ship — so the
+    // sky, the ocean and the planes below follow wherever it actually is. They used to be set
+    // from the camera of the frame before: after a jump (the profile, ←/→, Restart) the first
+    // frame was wrong, and paused it stayed wrong — a splash under a black sky with no ocean.
+    if (rig.external) { placeCamera(t, s); holdOrbitOnShip(); }
+    else if (rig.mode === 'orbit' && !rig.transition) ride();
+    else ridePrev = null;
     ocean.visible = camera.position.y < 15000;
 
     // Plasma.
@@ -279,7 +291,6 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
       wake.scale.set(9 + 26 * heat, 9 + 26 * heat, len);
     }
     // The halo is for the outside shots: from on board it would fill the frame.
-    holder.updateMatrixWorld(true);
     for (const ft of flapTrails) {
       ft.mesh.visible = ft.ok && heat > 0.02;
       if (!ft.mesh.visible) continue;
@@ -289,7 +300,7 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
       ft.mesh.lookAt(_t);
       ft.mesh.scale.set(0.4 + 1.4 * heat, 0.4 + 1.4 * heat, 30 + 160 * heat);
     }
-    glow.set(state.follow === 'onboard' || shotFor(t) === 'onboard' ? 0 : heat * 2.2, 30 + 40 * heat, t);
+    glow.set(rig.external && shotFor(t) === 'onboard' ? 0 : heat * 2.2, 30 + 40 * heat, t);
     setHeatGlow(heat);
 
     // Landing burn.
@@ -315,14 +326,35 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
     state.next = MILESTONES_RE.find(m => m.t > t) ?? null;
     state.heat = heat;
     state.density = densityAt(alt);
-    placeCamera(t, s);
+    // Director only while the shot list has the camera; otherwise the visitor's orbit rides on.
+    state.director = !!rig.external && state.follow === 'director';
+    state.riding = !rig.external;
   }
 
   // ---- Cameras -----------------------------------------------------------------------------
+  // Dragging or turning the wheel hands the camera to the visitor (cameraRig), as in the launch:
+  // the orbit's centre then rides on the ship, so it can be turned round and paused without
+  // losing it. The shot list used to go on writing the camera, and fought the orbit controls.
+  let ridePrev = null;
+  // While the shot list has the camera, the orbit's centre is kept on the ship, so the hand-over
+  // carries on from the last scripted frame. Starting the ride from the first free frame lost
+  // however far the ship fell in between — kilometres, on a slow frame high up.
+  function holdOrbitOnShip() {
+    rig.target.copy(holder.position);
+    if (ridePrev) ridePrev.copy(holder.position); else ridePrev = holder.position.clone();
+  }
+  function ride() {
+    if (!ridePrev) { holdOrbitOnShip(); return; }
+    _t.subVectors(holder.position, ridePrev);
+    camera.position.add(_t);
+    rig.target.add(_t);
+    ridePrev.copy(holder.position);
+  }
   // Director: the on-board view of the aft flap through the plasma (as on SpaceX's webcasts),
   // a chase from outside as it slows, alongside through the belly flop, and a buoy on the water
   // for the landing. 'onboard' and 'chase' hold one shot for the whole chapter.
   const _c = new THREE.Vector3(), _l = new THREE.Vector3();
+  const CHASE_DIP = THREE.MathUtils.degToRad(12);
   function shotFor(t) {
     if (state.follow !== 'director') return state.follow;
     if (t < RE.entry + 540) return 'onboard';
@@ -331,15 +363,18 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
     return 'buoy';
   }
   function placeCamera(t, s) {
-    holder.updateMatrixWorld(true);
     const shot = shotFor(t);
     if (shot === 'onboard') {
       // On the leeward hull, looking aft along the side at the aft flap (≈ placement).
       _c.set(-5.8, 30, -5.2); mount.localToWorld(_c);
       _l.set(-8.5, 5, 0.5); mount.localToWorld(_l);
     } else if (shot === 'chase') {
-      _v.set(s.vx, s.vh, 0).normalize();
-      _c.copy(holder.position).addScaledVector(_v, -160).add(_t.set(0, 40, 70));
+      // Behind along the velocity, but never looking down more than CHASE_DIP: below Mach 1 the
+      // path steepens towards the vertical, and a chase along it looked straight down at the
+      // open ocean, a featureless blue with no horizon from 16 to 27 km.
+      const dip = Math.max(Math.atan2(s.vh, Math.max(1e-3, s.vx)), -CHASE_DIP);
+      _v.set(Math.cos(dip), Math.sin(dip), 0);
+      _c.copy(holder.position).addScaledVector(_v, -160).add(_t.set(0, 20, 70));
       _l.copy(holder.position);
     } else if (shot === 'side') {
       _c.copy(holder.position).add(_t.set(-60, 25, 170));
@@ -369,7 +404,12 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
     findFlapTips();
     hideSite(true);
     root.visible = true;
+    // The chapter's shots are framed for the orbit camera's field of view: started from the walk
+    // it ran at the walk's 60° with the Walk button lit. Free flight, at the orbit's field of
+    // view, is left as it is, as in the launch.
+    if (rig.mode === 'walk') rig.setMode('orbit');
     rig.external = true;
+    ridePrev = null;
     visibilityHook?.(true);
     Object.assign(state, { running: true, paused: false, speed: 10, follow: 'director' });
     apply(CHAPTER.start);
@@ -379,6 +419,7 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
   function reset(returnCamera = true, completed = false) {
     if (!state.running) return;
     state.running = false;
+    ridePrev = null;
     plume.setThrottle(0, 0);
     setHeatGlow(0);
     spray.hide?.();
@@ -407,7 +448,7 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
     if (!state.running) return;
     // Visibility can be re-asserted by the view state (labels, toggles): keep the site hidden.
     for (const o of hidden) o.visible = false;
-    if (state.paused) { placeCamera(state.t, reentryState(state.t)); return; }
+    if (state.paused) { apply(state.t); onState(state); return; }
     const t = state.t + dt * state.speed;
     if (t >= CHAPTER.end) { reset(true, true); return; }
     apply(t);
@@ -422,6 +463,7 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
     start, reset, seek, update,
     setSpeed: (k) => { state.speed = k; },
     setPaused: (on) => { if (!state.running) return; state.paused = !!on; onState(state); },
-    setFollow: (w) => { state.follow = w; if (state.running) apply(state.t); onState(state); },
+    // Choosing a camera takes it back from the visitor's orbit for the shot list.
+    setFollow: (w) => { state.follow = w; if (state.running) { rig.external = true; apply(state.t); } onState(state); },
   };
 }

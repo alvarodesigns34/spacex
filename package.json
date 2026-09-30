@@ -5,7 +5,7 @@
   "description": "Recreaciones 3D a escala 1:1 de ocho expositores de SpaceX",
   "type": "module",
   "scripts": {
-    "serve": "python3 -m http.server 8080",
+    "serve": "node tools/serve.mjs",
     "check": "npm run check:static && node tools/check.mjs && node tools/ux-check.mjs && node tools/lod-pop.mjs",
     "profile": "node tools/profile.mjs",
     "shots": "node tools/shot.mjs docs/screenshots tools/docs-shots.json && node tools/shot.mjs docs/screenshots tools/launch-shots.json && node tools/shot.mjs docs/screenshots tools/roadster-shots.json",

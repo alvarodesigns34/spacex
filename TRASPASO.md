@@ -4,34 +4,54 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ---
 
-## ⭐ Empieza aquí (estado real al 30-09-2026)
+## ⭐ Empieza aquí (estado real al 30-09-2026, tras la auditoría)
 
-### Tu primera tarea: auditar el repositorio
+### Al retomar
 
-Antes de cambiar nada, **audita el repositorio entero** y entrégame un informe en español: qué está bien, qué está roto o incoherente y qué propones, por orden de gravedad. No corrijas nada durante la auditoría salvo que yo te lo pida. Como mínimo:
+1. `git fetch --all` y comprueba:
+   - que las cuatro ramas (`claude/spacex-vehicle-center-3d-48zlkm`, `claude/dreamy-bell-qn1eth`, `grok/sun18-audit-10c9929`, `claude/elegant-ptolemy-l99qgo`) apuntan al mismo commit, el último con este TRASPASO;
+   - que los últimos workflows de GitHub Actions pasaron;
+   - que Pages sirve ese commit (`curl` a un archivo cambiado con `?x=<aleatorio>`).
+2. Lee «Auditoría del 30-09» (abajo) y «Lo que NO se terminó», y espera a que el usuario diga qué priorizar.
 
-1. **Estado de git y de las ramas.**
-   - `git fetch --all` y comprueba que las cuatro ramas (`claude/spacex-vehicle-center-3d-48zlkm`, `claude/dreamy-bell-qn1eth`, `grok/sun18-audit-10c9929`, `claude/elegant-ptolemy-l99qgo`) apuntan al mismo commit, el último con este TRASPASO.
-   - Revisa que los últimos workflows de GitHub Actions pasaron, por ejemplo con `https://api.github.com/repos/alvarodesigns34/spacex/actions/runs?per_page=8`.
-   - Comprueba que https://alvarodesigns34.github.io/spacex/ sirve ese commit: pide con `curl` un archivo cambiado y añade `?x=<aleatorio>` para saltar la caché.
-2. **`npm install` y `npm run check` completo** (≈25 min). Tiene que terminar con código 0; si no, informa con la salida.
-3. **Revisión de código de lo añadido en la sesión del 29-09** (ver abajo). Busca errores, casos límite y restos:
-   - `src/sim/reentry.js` y `src/sim/reentryFlight.js`: el capítulo de reentrada;
-   - `src/vehicles/engineExhibits.js` y `src/vehicles/raptorStack.js`: el Engine Row;
-   - el marco de costa en `src/core/terrain.js` y su uso en `environment.js` y `campus.js`;
-   - el desvío del propulsor en `src/sim/launch.js` (`DIVERT`, quínticas);
-   - los cambios del HUD en `src/ui/hud.js` (botón *Reentry*, reloj en horas, `setMissionText`).
-4. **Coherencia de datos y documentación.**
-   - Cada cifra nueva tiene su fila en `src/data/specs.js`, con fuente o `approx`.
-   - El README describe el estado actual.
-   - La galería (`docs/screenshots`, `docs/hud`, `docs/review-sun18`) está **desfasada**: dilo y lista lo que ya no coincide, pero **no la regeneres sin mi aprobación**.
-5. **Recorrido visual de la simulación**, en un navegador, por todos los encuadres de los ocho expositores, el lanzamiento completo (G) y la reentrada completa (X). Anota defectos con captura.
-6. **Deuda técnica visible:**
-   - archivos enormes (`roadster.js` ≈3 700 líneas, `launch.js`, `main.js`);
-   - código muerto: por ejemplo `merlinGeometry` y `raptorGeometry` siguen con perfiles distintos de los de exposición;
-   - las herramientas locales que faltan (anexo).
+### Auditoría del 30-09-2026 (hecha; detalle en el README, sección *Auditoría del 30 de septiembre de 2026*)
 
-Cuando termines la auditoría, espera a que yo diga qué priorizar.
+- **Estado de partida (`3a5bfb2`):**
+  - ramas iguales, CI verde, Pages al día;
+  - `npm run check` con código 0 en 19 min 43 s;
+  - la cronología del vuelo 14 se leyó directamente en spacex.com (Chromium con la CA del proxy en NSS): todos los tiempos coinciden, y los 250 tf del Raptor están verificados.
+- **Fallos corregidos en el commit de la auditoría:**
+  - `launch.js`: `saveCameraPlanes()` **después** de `onStart()`, en `start` y en `seek`. Antes, G durante la reentrada dejaba el plano lejano en 1,7 × 10⁶ m para siempre.
+  - `reentry.js`, `apply()`:
+    - primero la cámara: `placeCamera` si `rig.external`; si no, `ride()`, la órbita montada en la nave;
+    - después océano, `env.setAltitude`, globo y planos;
+    - en pausa, `update` vuelve a llamar a `apply`;
+    - `holdOrbitOnShip()` mantiene `rig.target` sobre la nave mientras manda el guion;
+    - `setFollow` vuelve a tomar la cámara (`rig.external = true`);
+    - `state.director` y `state.riding` van al HUD (*riding the ship*).
+  - `main.js`:
+    - `enforce()` también cierra la reentrada;
+    - su `onState` restaura siempre el texto y el perfil del lanzamiento;
+    - `verify()` la cierra;
+    - C en la reentrada pasa a órbita.
+  - `launch.start`, `launch.seek` y `reentry.start` pasan a modo órbita si se estaba paseando (60° de campo de visión). El vuelo libre se respeta: `check.mjs` exige que el lanzamiento pueda correr en él.
+  - Persecución con `CHASE_DIP` = 12°: entre 16 y 27 km miraba el océano liso desde arriba.
+  - **Alabeo** en `reentryFlight.js`: la sustentación se inclina para que la aceleración vertical no pase de −vh/30 s, y el planeo ya no rebota.
+    - coeficientes vueltos a resolver: q = [0,003732, 0,7172, 0,002357];
+    - pico de calentamiento a ≈71 km, ≈89 m/s en la caída en panza, encendido desde ≈843 m, ≈5 396 km.
+  - Alerones: `FLAP_HEAT` 0xc7401c y k 0,35 (antes, naranja plano).
+  - Fichas y encuadres:
+    - encuadre `merlin` del Engine Row;
+    - fichas de la costa (`Site · coastline`) y de la unión cápsula–trunk (fuentes `nasa_crs28_vertical` y `nasa_crew13_vertical`);
+    - salvedad «Flight 14 as flown and as shown».
+  - Limpieza:
+    - código muerto fuera (`pitchTau`, `flightPathAt`, `buildHuman`, `WALL_ANGLE`);
+    - `verify.js` importa `RVAC_HULL`;
+    - `npm run serve` = `tools/serve.mjs`.
+- **Pruebas nuevas:**
+  - bloque *re-entry* en `cloud-check.mjs`, con el mutante `skip`;
+  - bloque *Re-entry chapter* en `ux-check.mjs`: X desde el paseo, salto en pausa con control negativo, arrastre, C, G y tecla de vehículo;
+  - el *fixture* de `cloud-check` lleva ahora `rig.mode = 'orbit'`.
 
 ### Qué es y cómo se trabaja (resumen; el detalle está en las secciones 0–5)
 
@@ -56,7 +76,7 @@ Cuando termines la auditoría, espera a que yo diga qué priorizar.
 
 ### Entorno local (Windows, sesión del 29-09)
 
-- Clon en `C:\Users\preda\claudespacex\spacex`. En Windows **no hay Python**: sirve la web con `node tools/_serve.mjs` → http://127.0.0.1:8080/ (script local; recréalo si falta: 8 líneas con `staticHandler` de `tools/static.mjs`).
+- Clon en `C:\Users\preda\claudespacex\spacex`. En Windows **no hay Python**: sirve la web con `npm run serve` (`tools/serve.mjs`, en el repositorio desde el 30-09) → http://127.0.0.1:8080/.
 - **Saltos de línea:** `core.autocrlf=false` y el árbol en LF, como en CI. Con CRLF, dos controles negativos de `tools/provenance-check.mjs` fallan porque buscan `\n`. Si ves decenas de archivos «modificados» sin diff, es solo el índice: `git update-index --really-refresh`.
 - **Comprobación sin bloquear el trabajo:** `sh /c/Users/preda/claudespacex/sync-check.sh` copia HEAD más los cambios al worktree `C:\Users\preda\claudespacex\spacex-check` (con `node_modules` enlazado como *junction*) y ahí se corre `npm run check` en segundo plano. **Confirma exactamente lo verificado:** antes de hacer commit compara cada archivo con `cmp` contra la copia. En la sesión anterior se me escapó un commit incompleto (`445d522`) por añadir solo parte de lo verificado; lo arregló `6e4b0bd`.
 - Para editar con scripts, usa archivos `.cjs` en el scratchpad: los heredoc de Bash con comillas simples y dobles mezcladas fallan.
@@ -95,16 +115,20 @@ Commits, del más antiguo al más reciente, en las cuatro ramas; el detalle est�
   - `npm run shots` (53 capturas);
   - `node tools/shot.mjs docs/hud tools/hud-shots.json`;
   - `node tools/shot.mjs docs/review-sun18 tools/sun18-shots.json --sun 18`;
-  - añadir al README las capturas nuevas (`reentry-onboard`, `reentry-plasma`, `reentry-bellyflop`, `reentry-flip`, `reentry-splash`, `engines-raptor`, `engines-merlin`) y quitar el aviso de galería desfasada;
+  - añadir al README las 8 capturas nuevas (`reentry-onboard`, `reentry-plasma`, `reentry-bellyflop`, `reentry-flip`, `reentry-splash`, `engines-raptor`, `engines-merlin`, `launch-ship-cutoff`) y quitar el aviso de galería desfasada;
   - con SwiftShader son ≈30–60 s por captura.
-- **Pasada final completa**, encuadre a encuadre de los ocho expositores: solo se hizo en parte (vista general, playa, lanzamiento, regreso y panel de la reentrada).
+- **Pasada final completa:** hecha en la auditoría del 30-09 (48 encuadres, 16 instantes del lanzamiento y 19 de la reentrada, sin errores de página). Los defectos que se vieron están corregidos.
 - **Pendientes con evidencia por buscar:**
   - tercera ventana de la Dragon y pinzas del Falcon 1 en Omelek;
   - telemetría leída de las retransmisiones para contrastar los perfiles;
   - si el cabezal del Raptor 3 tiene partes plateadas visibles a contraluz;
-  - **orientación del Pad 2:** la conversión OSM → marco de la zanja (sección 4: x = −(p·n), z = p·d) tiene determinante −1 respecto a un mapa norte-arriba, así que el pad podría estar **en espejo**. Compruébalo contra una imagen de satélite antes de tocar nada; consúltamelo, es un cambio grande.
+  - **orientación del Pad 2: confirmada en espejo** (30-09, huellas de OSM leídas con la API, bbox −97,160/25,9945/−97,154/25,9985).
+    - La conversión reproduce el modelo: torre (−25,5, −20,2) frente a (−23,8, −18,3); deluge (−104, 47) frente a (−107, 47).
+    - Pero respecto a la geografía de la escena es una reflexión: los tanques del deluge están de verdad a ≈35–58° de la mesa y en el modelo a ≈256°; la torre, de verdad a ≈355° y en el modelo a ≈319°.
+    - Arreglarlo es reflejar el pad respecto al eje de la zanja y girarlo ≈67,5° (eje real de la zanja a ≈123,3°, en el modelo a 190,8°), con las vistas `site`, los obstáculos, `towerToPad`, las pruebas y los encuadres.
+    - **Espera la decisión del usuario.**
 - **Ideas propuestas y no hechas:**
-  - que los Merlin de los Falcon usen el perfil corto del Merlin de exposición (hoy su mitad superior queda oculta en el Octaweb con el perfil antiguo, y el hueco del escudo tendría que ajustarse);
+  - que los Merlin de los Falcon usen el perfil corto del Merlin de exposición. `merlinGeometry` (`engines.js`) sigue con el perfil antiguo, garganta a 1,42 m; `raptorGeometry` ya usa `RAPTOR3_BELL`, el de exposición. Hoy la mitad superior del Merlin queda oculta en el Octaweb y el hueco del escudo tendría que ajustarse;
   - sonido en la reentrada;
   - una parada de la visita guiada para la reentrada.
 
@@ -163,7 +187,7 @@ Commits, del más antiguo al más reciente, en las cuatro ramas; el detalle est�
 ### Estructura del código
 - `src/main.js`: arranque, escena, disposición de expositores (`LAYOUT`: `x`, `z`, `mount`, `yaw`…) y `worldPreset()`.
 - `src/vehicles/`: un builder por vehículo:
-  - `starship.js`, `falcon.js`, `falcon1.js`, `dragon.js`, `starlink.js`, `roadster.js` (≈3600 líneas), `enginehall.js`;
+  - `starship.js`, `falcon.js`, `falcon1.js`, `dragon.js`, `starlink.js`, `roadster.js` (≈3 730 líneas), `enginehall.js`;
   - `engines.js`: geometrías de motores instanciadas (las de los cohetes);
   - `engineExhibits.js`: los tres motores de exposición del Engine Row; `raptorStack.js`: la columna del Raptor 3 (versión completa y ligera);
   - `pad.js`: Pad 2;
@@ -385,7 +409,7 @@ c5b86c6 Close the tank-farm domes; carbon louvre panel on the Roadster bonnet
 - **Marco de Starship**: el origen del conjunto es el plano de salida de las toberas del propulsor.
   - `ex.lay.mount = PAD.deckTop − BOOSTER_AFT` (18 − 3,15).
   - `PAD`: `padY 5`, `bermY 2.5`, `deckTop 18`, `towerX −30`, `towerHalf 6.1`, `section 12.2` × 12 (146,4 m de celosía ≈ 480 ft), `mast 3.05` (pararrayos de 10 ft; total ≈149,5 m, FAA 2022), `armLen 26`, `armY 132` (≈), `qdY 96 − BOOSTER_AFT`, `trenchFloorY 0.8`.
-  - Guiñada del conjunto: `STACK_YAW_DEG = 0` (inferida de la foto del ensayo del 11 de mayo de 2026); en el modelo, la panza (losetas) mira a +z local, que ahora es +z del mundo, hacia la fila de expositores.
+  - Guiñada del conjunto: `STACK_YAW_DEG = −37,5` desde el 29-09 (la torre a ≈52,5° de la zanja, huellas de OSM); antes era 0, inferida de la foto del ensayo del 11 de mayo de 2026. La panza (losetas) mira a +z local de la pila.
 - **Presets de cámara**: por defecto en el marco del vehículo (giran con él). Con `frame: 'site'` van en el marco del sitio. Se definen en `specs.js`.
 - **Integridad de mallas** (`verify.js`): comprueba que la escala de las UV cuadre con el `tileSize` del mapa. Una geometría construida lejos del origen da falsos positivos, así que conviene construirla centrada y posicionarla.
 - **Materiales**: `M.steel`, `M.steelSkirt`, `M.aftBlack`, `M.bellRaptor3`, `M.metalTile`, `M.domePlate`, `M.gridFin`, `M.tile`, `M.tileUnder` (oscuro), `M.tpsShell`, `M.towerClad`, `M.towerSteel`, `M.concrete`, `M.darkMetal`, `M.blackMatte`, etc.
@@ -549,4 +573,4 @@ W.save(out, quality=85)
 
 ---
 
-Cuando hayas leído todo, empieza por la **auditoría** descrita al principio (sección «Empieza aquí») y entrégame el informe en español. No cambies nada hasta que te diga qué priorizar, salvo que yo te lo pida directamente.
+Cuando hayas leído todo, sigue la sección «Empieza aquí»: comprueba ramas, CI y Pages, y espera a que te diga qué priorizar. Si hace tiempo de la última auditoría (la del 30-09), propón repetirla con la misma lista.

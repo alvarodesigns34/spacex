@@ -97,7 +97,6 @@ export const MECO_ALTITUDE = 64e3;   // m, ≈ "roughly 64 km"
   for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (climb(mid) < MECO_ALTITUDE) lo = mid; else hi = mid; }
   PITCH.tau = (lo + hi) / 2;
 }
-export const pitchTau = () => PITCH.tau;
 
 /**
  * Integrates the two inputs once, at load, into a 0,25 s table. Doing it up front is what
@@ -241,8 +240,8 @@ const PROFILE = buildProfile();
 // coefficient, by Newton iteration at load, so the booster goes transonic at the cited
 // offset and the burn lit at the cited T+06:30 hands over to the centre three at the speed
 // and height that deceleration needs. The
-// centre three then set it down in the arms on a cubic that matches position and velocity
-// at both ends.
+// centre three then set it down in the arms on a quintic per axis that matches position,
+// velocity and acceleration at both ends.
 //
 // It used to take Cd ≈ 0,9 as given and solve only the burns. That booster was still at
 // Mach 2,3, 5 km up, when its landing burn lit, and crossed Mach 1 seven seconds into the
@@ -272,7 +271,8 @@ export const BURN_THREE = EVENTS.catch - 17;
 // the high thrust portion of the boostback burn with all 33 engines, the first time with a
 // Super Heavy V3"; flight 14's relit for "the high-thrust portion of the landing burn" on the
 // planned 13 "before down-selecting to five engines for trajectory fine-tuning, and then down
-// to three" (spacex.com, flights 13 and 14, read through search summaries on 28 Sep 2026).
+// to three" (spacex.com, flights 13 and 14; flight 14's page read directly on 30 Sep 2026,
+// which adds that on the day 31 of the 33 and 11 of the 13 relit: the planned counts are shown).
 // The ORDER is cited; how long each portion lasts is not published, so these two are ≈.
 export const BOOSTBACK_33 = 10;    // ≈ s of the boostback on all 33 before the inner 13 carry on
 export const BURN_FIVE = BURN_THREE - 3;   // ≈ 13 → 5 engines, 3 s before the centre three
@@ -371,7 +371,7 @@ const RETURN = (() => {
   }
   const rec = [];
   const stop = fly(q, rec);
-  // Resample onto a uniform table and append the final descent on the centre three: a cubic
+  // Resample onto a uniform table and append the final descent on the centre three: a quintic
   // per axis from the stop state to the arms (base 22 m over the mount, at rest) at the catch.
   const step = DT, t1 = EVENTS.end, n = Math.round((t1 - T0) / step) + 1;
   const tab = { step, n, x: new Float64Array(n), h: new Float64Array(n), vx: new Float64Array(n), vh: new Float64Array(n) };
@@ -604,8 +604,6 @@ export const speedAt = (t) => (t <= 0 ? 0 : sample(PROFILE.spd, t));
 export const downrangeAt = (t) => (t <= 0 ? 0 : sampleC1(PROFILE.down, Math.sin, t));
 /** Attitude, from vertical: the pitch programme on the stack, the thrust direction on the ship. */
 export const pitchAt = (t) => (t <= 0 ? 0 : sample(PROFILE.att, t));
-/** Flight-path angle, from vertical: the direction of the velocity. */
-export const flightPathAt = (t) => (t <= 0 ? 0 : sample(PROFILE.pit, t));
 /** Ship mass (kg) and thrust acceleration (m/s²) after separation, for the checks and the panel. */
 export const shipMassAt = (t) => (t < EVENTS.separation ? null : sample(PROFILE.mass, t));
 export const shipThrustAccelAt = (t) => (t < EVENTS.separation ? null : sample(PROFILE.acc, t));
@@ -1705,10 +1703,12 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   // ---- Public API -------------------------------------------------------------------
   function start() {
     if (state.running) return;
-    saveCameraPlanes();
     // Whoever else was driving the camera has to be told, and it has to happen here rather
     // than at the button: start() is also reachable from the API and from the check.
+    // Told FIRST, then the planes saved: the re-entry chapter hands them back when it stops, and
+    // saving them before that kept its 1 700 km far plane as "home" for good (audit, 30-09).
     onStart();
+    saveCameraPlanes();
     state.running = true;
     state.armed = true;
     state.paused = false;
@@ -1717,6 +1717,9 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     state.t = EVENTS.start;
     resetCloud();
     visibilityHook?.(true);
+    // The shot list is framed for the orbit camera's field of view, not the walk's 60° (free
+    // flight keeps its own mode: its field of view is the orbit's, and the visitor may fly on).
+    if (rig.mode === 'walk') rig.setMode('orbit');
     rig.external = true;
     apply(state.t);
     onState(state);
@@ -1787,7 +1790,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
    * there, which is the only way a frame-by-frame check means anything.
    */
   function seek(t) {
-    if (!state.running) { saveCameraPlanes(); onStart(); state.running = true; state.armed = true; visibilityHook?.(true); rig.external = true; }
+    if (!state.running) { onStart(); saveCameraPlanes(); state.running = true; state.armed = true; visibilityHook?.(true); if (rig.mode === 'walk') rig.setMode('orbit'); rig.external = true; }
     resetCloud();
     advanceCloud(t);
     apply(t);

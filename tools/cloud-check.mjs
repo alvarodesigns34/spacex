@@ -1,4 +1,4 @@
-/** Renderer-independent launch regressions. Node 22.15+; no browser or GPU required.
+/** Renderer-independent launch and re-entry regressions. Node 22.15+; no browser or GPU required.
  * Mutations deliberately restore earlier defects and must be caught by these assertions.
  */
 import assert from 'node:assert/strict';
@@ -15,6 +15,12 @@ registerHooks({
   },
   load(url, context, next) {
     const result = next(url, context);
+    if (mutant && url.endsWith('/src/sim/reentryFlight.js')) {
+      let source = String(result.source).replace(/\r\n/g, '\n');
+      // The defect found in the 30-09 audit: all the lift kept vertical, and the glide skipped.
+      if (mutant === 'skip') source = source.replace('const cap = -vh / 30;', 'const cap = Infinity;');
+      return { ...result, source };
+    }
     if (!mutant || !url.endsWith('/src/sim/launch.js')) return result;
     let source = String(result.source).replace(/\r\n/g, '\n');
     if (mutant === 'random') source = source.replace('cloud.reset(seeded(11))', 'cloud.reset()');
@@ -111,6 +117,44 @@ for (const [name, before, after] of [['altitude', altitudeAt, boosterAltAt], ['d
   assert.ok(Math.abs(altitudeAt(EVENTS.meco) - MECO_ALTITUDE) < 200, `MECO at ≈64 km: ${(altitudeAt(EVENTS.meco) / 1e3).toFixed(1)} km`);
   console.log(`PASS ship after staging: ${(prevA / G0).toFixed(2)} g at cutoff, ${(h / 1e3).toFixed(0)} km, ${(v * 3.6).toFixed(0)} km/h; MECO ${(altitudeAt(EVENTS.meco) / 1e3).toFixed(1)} km`);
 }
+// The re-entry chapter (reentryFlight.js): the cited times met, a glide that never climbs back
+// (the 30-09 audit found it skipping 76 → 81 km, the heating falling and rising again), finite
+// and continuous everywhere, and at rest on the water at the splash.
+{
+  const R = await import('../src/sim/reentryFlight.js');
+  const { soundSpeedAt } = await import('../src/sim/launch.js');
+  const { RE, CHAPTER } = R;
+  const mach = (t) => R.reentrySpeedAt(t) / soundSpeedAt(R.reentryAltAt(t));
+  let climb = 0, worstA = [0, 0], m1 = null, m08 = null;
+  let prevH = R.reentryAltAt(CHAPTER.start), prevV = R.reentrySpeedAt(CHAPTER.start), prevM = mach(CHAPTER.start);
+  const DT = 0.05;
+  for (let t = CHAPTER.start + DT; t <= CHAPTER.end; t += DT) {
+    const st = R.reentryState(t);
+    for (const [k, x] of Object.entries(st)) assert.ok(Number.isFinite(x), `re-entry ${k} not finite at T+${t.toFixed(2)}`);
+    const h = st.h, v = Math.hypot(st.vx, st.vh), m = mach(t);
+    if (t < RE.landingBurn && h > prevH + 0.01) climb += DT;
+    const a = Math.abs(v - prevV) / DT;
+    if (a > worstA[1]) worstA = [t, a];
+    if (m1 === null && prevM > 1 && m <= 1) m1 = t;
+    if (m08 === null && prevM > 0.8 && m <= 0.8) m08 = t;
+    prevH = h; prevV = v; prevM = m;
+  }
+  // After the peak the heating may wobble as the glide leaves its equilibrium (≈0,004 here), but
+  // never climbs back the way a skip makes it.
+  let peakT = CHAPTER.start, low = 1, rise = 0;
+  for (let t = CHAPTER.start, best = -1; t < RE.subsonic; t += 0.5) { const q = R.heatingAt(t); if (q > best) { best = q; peakT = t; } }
+  for (let t = peakT; t < RE.subsonic; t += 0.5) { const q = R.heatingAt(t); low = Math.min(low, q); rise = Math.max(rise, q - low); }
+  assert.ok(climb === 0, `the glide climbs back for ${climb.toFixed(1)} s before the landing burn (a skip)`);
+  assert.ok(rise < 0.02, `the heating climbs back by ${rise.toFixed(3)} of its peak after it`);
+  assert.ok(Math.abs(m1 - RE.transonic) < 0.5 && Math.abs(m08 - RE.subsonic) < 0.5, `Mach 1 at T+${m1?.toFixed(1)} and 0.8 at T+${m08?.toFixed(1)}, cited ${RE.transonic} and ${RE.subsonic}`);
+  assert.ok(worstA[1] < 12 * 9.81, `re-entry speed jumps ${worstA[1].toFixed(0)} m/s² at T+${worstA[0].toFixed(2)}`);
+  assert.ok(R.reentryAltAt(RE.splash) === 0 && R.reentrySpeedAt(RE.splash) < 0.5, 'at rest on the water at the splash');
+  const eng = [RE.landingBurn - 1, RE.landingBurn + 1, RE.twoEngines + 1, RE.oneEngine + 1, RE.splash + 1].map(R.reentryEnginesAt);
+  assert.deepEqual(eng, [0, 3, 2, 1, 0], `re-entry engines ${eng}`);
+  const sum = R.reentrySummary();
+  assert.ok(sum.peakHeating.altitude > 55e3 && sum.peakHeating.altitude < 85e3, `peak heating at ${(sum.peakHeating.altitude / 1e3).toFixed(0)} km`);
+  console.log(`PASS re-entry: no climb, heating after its peak within ${rise.toFixed(3)}, peak at ${(sum.peakHeating.altitude / 1e3).toFixed(0)} km, Mach 1 at T+${m1.toFixed(1)} (cited ${RE.transonic}), burn from ${sum.burnStart.altitude.toFixed(0)} m at ${sum.burnStart.speed.toFixed(0)} m/s, ${(sum.range / 1e3).toFixed(0)} km to the splash, max ${worstA[1].toFixed(0)} m/s²`);
+}
 function fixture() {
   const scene = new THREE.Scene(), model = new THREE.Group(), group = new THREE.Group();
   for (const name of ['ship', 'superheavy']) { const part = new THREE.Group(); part.name = name; model.add(part); }
@@ -119,7 +163,7 @@ function fixture() {
   const parts = { chopsticks: new THREE.Group(), holddowns: new THREE.Group(), qdArm: new THREE.Group() };
   const sun = new THREE.DirectionalLight();
   const camera = new THREE.PerspectiveCamera();
-  const rig = { target: new THREE.Vector3(), external: false, releaseExternal() { this.external = false; } };
+  const rig = { mode: 'orbit', target: new THREE.Vector3(), external: false, releaseExternal() { this.external = false; } };
   const launch = createLaunch({ scene, exhibits: { starship: { model, group, lay: { x: 0, z: 0, mount: 18 } } },
     complex: { userData: { parts } }, env: { sun, setAltitude() {} }, rig, camera, quality: { cloudParticles: 96 } });
   const geometry = scene.getObjectByName('ground-cloud').geometry;
@@ -153,7 +197,7 @@ launch.reset(false); assert.equal(snapshot().count, 0, 'reset clears all particl
 }
 console.log('PASS deterministic clouds, all playback rates, smoke expiry, reset and staging continuity');
 if (!mutant) {
-  for (const name of ['random', 'frozen', 'speed', 'staging', 'kink', 'shipmass']) {
+  for (const name of ['random', 'frozen', 'speed', 'staging', 'kink', 'shipmass', 'skip']) {
     const run = spawnSync(process.execPath, [fileURLToPath(import.meta.url), `--mutant=${name}`], { encoding: 'utf8' });
     assert.notEqual(run.status, 0, `regression test must reject sabotage: ${name}`);
     assert.match(run.stderr, /AssertionError/, `sabotage ${name} must fail an assertion, not crash`);

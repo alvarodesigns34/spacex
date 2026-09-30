@@ -9,6 +9,7 @@
  */
 import * as THREE from 'three';
 import { FIGURES, COUNTS, PAD_FIGURES, GRADES, toleranceOf } from './figures.js';
+import { RVAC_HULL } from '../vehicles/engineExhibits.js';
 
 /**
  * How each exhibit is measured. The figures themselves, with their provenance and therefore
@@ -120,7 +121,7 @@ const HULLS = {
   roadster: ['body-paint', 'windshield-surround', 'windshield-glass'],
   // Only the Raptor Vacuum: the row also holds a Raptor 3 and a Merlin, and the display
   // cradles are furniture.
-  engines: ['rvac-bell', 'rvac-bell-inner', 'rvac-engineDark', 'rvac-engineSilver', 'rvac-enginePurple'],
+  engines: RVAC_HULL,
 };
 
 /**

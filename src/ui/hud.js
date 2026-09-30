@@ -391,7 +391,8 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
   camBtn.addEventListener('click', () => onLaunchCamera?.());
   function showCamera(st) {
     const director = st.director ?? st.follow === 'director';
-    const label = st.chapter === 'reentry' ? ({ director: 'director', onboard: 'on board', chase: 'chase' }[st.follow] ?? st.follow)
+    // In the re-entry, once the visitor has dragged the camera it is their orbit riding on the ship.
+    const label = st.chapter === 'reentry' ? (st.riding ? 'riding the ship' : { director: 'director', onboard: 'on board', chase: 'chase' }[st.follow] ?? st.follow)
       : director ? 'director' : st.follow === 'ship' ? 'riding the ship' : 'riding the booster';
     const html = `Camera · ${label} <kbd>C</kbd>`;
     if (camBtn.innerHTML !== html) camBtn.innerHTML = html;

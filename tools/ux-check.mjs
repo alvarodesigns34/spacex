@@ -518,6 +518,82 @@ try {
   report(fit.now === fit.total, '900x1200 overview frames every exhibit in the row', fit);
   report(fit.old < fit.total, 'Negative control: the landscape overview in a tall window leaves exhibits out', fit);
 
+  // ---- Re-entry chapter (audit of 30 Sep 2026) --------------------------------------------
+  // Started from the walk, with real keys; the sky and the ocean follow the camera after a
+  // paused jump; a drag hands the camera over and it rides on the ship; G and a vehicle key
+  // end it and put everything back.
+  {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.evaluate(() => { const v = window.__vc; v.launch.reset(false); v.reentry.reset(false); v.jump('starship', 'overview'); });
+    await settle(600);
+    const base = await page.evaluate(() => { const v = window.__vc; return { far: v.camera.far, tile: v.M.tile.emissiveIntensity, flap: v.M.steelFlap.emissiveIntensity, kind: document.querySelector('.mission-kind').textContent }; });
+    await page.evaluate(() => { window.__vc.rig.setMode('walk'); document.activeElement?.blur?.(); });
+    await page.keyboard.press('x');
+    await page.waitForFunction(() => window.__vc.reentry.running);
+    const started = await page.evaluate(() => { const v = window.__vc; return { mode: v.rig.mode, fov: v.camera.fov, live: document.getElementById('reentry-btn').classList.contains('is-live'), launchLive: document.getElementById('launch-btn').classList.contains('is-live') }; });
+    report(started.mode === 'orbit' && started.fov === 42 && started.live && !started.launchLive, 'X from the walk: the chapter runs on the orbit camera, Reentry lit', started);
+
+    // Paused, one jump from entry to the splash: the ocean, the planes and the sky are those of
+    // where the camera now is, not where it was.
+    const consistent = () => page.evaluate(() => {
+      const v = window.__vc, y = v.camera.position.y;
+      return { y: Math.round(y), ocean: v.scene.getObjectByName('reentry-ocean').visible, near: v.camera.near, ok: v.scene.getObjectByName('reentry-ocean').visible === (y < 15000) && v.camera.near === (y > 20000 ? 2 : 0.5) };
+    });
+    await page.evaluate(() => { const v = window.__vc; v.reentry.setPaused(true); v.reentry.seek(34150); v.reentry.seek(35440); });
+    const jumped = await consistent();
+    await settle(800);
+    const held = await consistent();
+    report(jumped.ok && held.ok && jumped.y < 100, 'A paused jump to the splash brings the ocean and the low sky with it', { jumped, held });
+    await page.evaluate(() => { window.__vc.camera.position.y = 120000; });
+    const stale = await consistent();
+    report(!stale.ok, 'Negative control: a camera moved without the chapter re-applying reads as inconsistent', stale);
+    await page.evaluate(() => window.__vc.reentry.seek(35440));
+
+    // A drag takes the camera: the scripted shot stops writing it and the orbit rides the ship.
+    await page.evaluate(() => { const v = window.__vc; v.reentry.setFollow('director'); v.reentry.seek(35000); v.reentry.setSpeed(1); v.reentry.setPaused(false); });
+    const canvas = await page.locator('canvas').first().boundingBox();
+    await page.mouse.move(canvas.x + canvas.width * 0.55, canvas.y + canvas.height * 0.5);
+    await page.mouse.down();
+    await page.mouse.move(canvas.x + canvas.width * 0.7, canvas.y + canvas.height * 0.4, { steps: 10 });
+    await page.mouse.up();
+    // The orbit keeps turning for a while after the release (damping), so what is measured is
+    // what riding means: the orbit's centre on the ship, at an unchanged distance, as it falls.
+    const offset = () => page.evaluate(() => { const v = window.__vc, h = v.scene.getObjectByName('reentry-ship').position; return { t: v.reentry.state.t, y: Math.round(h.y), dist: v.camera.position.distanceTo(h), centre: v.rig.target.distanceTo(h), external: v.rig.external, cam: document.getElementById('mission-cam').textContent }; });
+    const o1 = await offset();
+    await page.waitForFunction((t) => window.__vc.reentry.state.t > t + 1.5, o1.t, { timeout: 60000 }).catch(() => {});
+    const o2 = await offset();
+    const drift = Math.abs(o2.dist - o1.dist);
+    // Under 1 000 m: the orbit's 1 600 m ceiling was what a ride starting late clamped to.
+    report(!o1.external && o1.dist < 1000 && drift < 0.5 && o2.centre < 0.5 && o2.y < o1.y - 100 && o2.t > o1.t + 1 && /riding/.test(o2.cam), 'A drag in the re-entry hands over the camera, which rides on the falling ship', { o1, o2, drift });
+    await page.evaluate(() => document.activeElement?.blur?.());
+    await page.keyboard.press('c');
+    report(await page.evaluate(() => window.__vc.rig.external && window.__vc.reentry.state.follow === 'onboard'), 'C takes the camera back for the next shot');
+
+    // G while it runs, then G again: the launch hands back the planes the visitor had.
+    await page.keyboard.press('g');
+    await page.waitForFunction(() => window.__vc.launch.running && !window.__vc.reentry.running);
+    await page.evaluate(() => document.activeElement?.blur?.());
+    await page.keyboard.press('g');
+    await page.waitForFunction(() => !window.__vc.launch.running);
+    await settle(400);
+    const afterG = await page.evaluate(() => ({ far: window.__vc.camera.far }));
+    report(afterG.far === base.far, 'G during the re-entry, then G: the far plane is the visitor\'s again', { base: base.far, after: afterG.far });
+
+    // A vehicle key during the chapter ends it and restores the ship, its materials and the panel.
+    await page.keyboard.press('x');
+    await page.waitForFunction(() => window.__vc.reentry.running);
+    await page.evaluate(() => { const v = window.__vc; v.reentry.setSpeed(0); v.reentry.seek(34400); document.activeElement?.blur?.(); });
+    await page.keyboard.press('3');
+    await page.waitForFunction(() => !window.__vc.reentry.running, null, { timeout: 30000 }).catch(() => {});
+    const back = await page.evaluate(() => {
+      const v = window.__vc, ship = v.exhibits.starship.model.getObjectByName('ship');
+      const hidden = v.scene.children.filter(o => (o.name.startsWith('exhibit-') || o.name === 'campus' || o === v.complex) && !o.visible).map(o => o.name);
+      return { running: v.reentry.running, inExhibit: !!v.exhibits.starship.model.getObjectById(ship.id), root: v.scene.getObjectByName('reentry').visible, hidden, tile: v.M.tile.emissiveIntensity, flap: v.M.steelFlap.emissiveIntensity, kind: document.querySelector('.mission-kind').textContent };
+    });
+    report(!back.running && back.inExhibit && !back.root && !back.hidden.length && back.tile === base.tile && back.flap === base.flap && back.kind === base.kind,
+      'A vehicle key ends the re-entry: ship home, site shown, heat glow off, the launch\'s panel text back', back);
+  }
+
   // A lost and restored WebGL context keeps the lighting (the reflection probe is rebuilt).
   await page.setViewportSize({ width: 960, height: 540 });
   const lumaAfterRestore = (sabotage) => page.evaluate(async (sabotage) => {

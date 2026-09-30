@@ -393,10 +393,6 @@ function crowdShadowMaterial(sunDir) {
   return mat;
 }
 
-/** One figure on its own (kept for tools and one-offs); the centre uses `buildHumanCrowd`. */
-export function buildHuman(M, { suit = 'white' } = {}) {
-  return buildHumanCrowd(M, [{ x: 0, y: 0, z: 0, suit }]);
-}
 
 /**
  * Every scale figure in the centre, as one mesh per material instead of five per person.
