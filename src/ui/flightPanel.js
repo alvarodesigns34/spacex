@@ -1,8 +1,9 @@
 /**
- * The X-15 flight's instruments, as a panel over the scene (the cockpit itself is phase 5): an
- * attitude indicator, the air data, the engine and propellant, the configuration, the runway's
- * distance and bearing, and the controls. Imperial units first, as the airplane's own gauges
- * read (knots, feet, pounds), with the metric alongside where it helps.
+ * The X-15 flight's instruments, as a panel over the scene (from the cockpit, a single line: the
+ * airplane's own panel is the instruments there): an attitude indicator, the air data, the
+ * engine and propellant, the configuration, the runway's distance and bearing, and the controls.
+ * Imperial units first, as the airplane's own gauges read (knots, feet, pounds), with the metric
+ * alongside where it helps.
  */
 const fmt = (x, d = 0) => (Number.isFinite(x) ? x.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
 
@@ -38,6 +39,7 @@ export function createFlightPanel({ root, onStart, onEnd, onCamera }) {
         <div><dt>Runway 13</dt><dd id="x15-rw">—</dd></div>
       </dl>
     </div>
+    <p class="x15-mini" id="x15-mini"></p>
     <ul class="x15-msgs" id="x15-msgs" aria-live="polite"></ul>
     <p class="x15-keys"><kbd>W</kbd><kbd>S</kbd> pitch · <kbd>A</kbd><kbd>D</kbd> roll · <kbd>Q</kbd><kbd>E</kbd> rudder · <kbd>I</kbd> engine · <kbd>R</kbd><kbd>F</kbd> throttle · <kbd>Space</kbd> jets · <kbd>G</kbd> gear · <kbd>H</kbd> all the controls</p>
     <div class="x15-result hidden" id="x15-result" role="status"></div>
@@ -120,6 +122,10 @@ export function createFlightPanel({ root, onStart, onEnd, onCamera }) {
     const rw = r.runway;
     $('#x15-rw').textContent = `${fmt(Math.abs(rw.distKm), 1)} km · ${fmt(rw.bearing)}°`;
     $('#x15-cam').firstChild.textContent = `${r.camera[0].toUpperCase()}${r.camera.slice(1)} `;
+    // From the cockpit the airplane's own panel is the instruments: this one shrinks to a line,
+    // with the Mach number the panel of figure 1-2 does not have.
+    el.classList.toggle('is-cockpit', r.camera === 'cockpit');
+    $('#x15-mini').textContent = `Mach ${fmt(r.mach, 2)} · ${fmt(r.altitudeFt)} ft · ${fmt(r.keas)} KEAS · α ${fmt(r.alpha, 1)}° · ${fmt(r.nz, 1)} g · ${r.engine ? `XLR99 ${fmt(r.throttle * 100)} %` : 'engine off'} · ${fmt(r.propellantLb)} lb`;
     drawADI(r.pitch, r.roll);
     const list = $('#x15-msgs');
     const html = r.messages.map(t => `<li>${t}</li>`).join('');

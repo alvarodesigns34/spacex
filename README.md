@@ -491,12 +491,41 @@ El X-15 ya tiene un **modelo de vuelo de seis grados de libertad** (`src/sim/x15
   - Esc devuelve el armazón a su tren, y `verify()` sigue dando 3,505 / 6,815 / 15,005 m.
 - **`x15-check` añade la proyección:** ida y vuelta al nanómetro, y el transporte del rumbo.
 
-**Lo que no hay todavía:**
-- la cabina, con sus instrumentos físicos (fase 5);
-- el terreno real fuera del disco (fase 6);
-- el chorro del XLR99, el calentamiento y el sonido (fase 7).
+**Lo que no había todavía en esta fase:** la cabina (fase 5), el terreno real fuera del disco (fase 6) y el chorro del XLR99, el calentamiento y el sonido (fase 7).
 
-Mientras tanto, el panel muestra que el motor funciona.
+### X-15 #1: fase 5, la cabina (1 de octubre de 2026)
+
+La cabina se construye siguiendo el manual de vuelo **T.O. 1X-15-1, sección 1** (figura 1-2, el panel de instrumentos, y las figuras de las consolas). El manual está escaneado sin texto: se ha renderizado y leído página a página, solo como consulta, fuera del repositorio.
+
+**La carlinga se abre hacia atrás**, como en la foto EC67 del 56-6670 en tierra:
+- la parte que se abre va desde el parabrisas hasta la bisagra en la estación 4,0 m, justo detrás del asiento (≈, leída del perfil);
+- detrás queda fijo el carenado hasta la estación 5,0 m;
+- en el expositor está abierta 50° (≈, el ángulo de la foto) y en vuelo se cierra;
+- por dentro lleva forro, y las lunas siguen siendo transparentes.
+
+**El panel de instrumentos** (`src/materials/x15Panel.js`):
+- es el de la figura 1-2: el panel principal abombado con sus dos alas inferiores, y cada instrumento, caja de luces e interruptor en su sitio. Las coordenadas son las de la figura;
+- la escala sale de un dato estándar: la caja del altímetro es la de un instrumento de 3⅛ in (≈);
+- los instrumentos que funcionan son los del propio manual, alimentados por el modelo de vuelo hasta 30 veces por segundo:
+  - velocidad (nudos), altímetro de tres agujas, ángulo de ataque, acelerómetro (g), actitud (bola con cielo blanco y tierra negra), azimut, velocidad vertical;
+  - altura y velocidad inerciales, régimen de alabeo, cantidad de propulsante, presión de cámara del XLR99 y reloj;
+- las escalas se leen de la figura. Donde la figura no las muestra (el fondo de escala de los inerciales, las unidades del indicador de propulsante), son de esta simulación (≈);
+- el resto de relojes (hidráulica, APU, helio, cabina…) están dibujados con la aguja en reposo;
+- **este panel no tiene machímetro**, así que en la vista de cabina el panel de la pantalla se reduce a una línea con el Mach, la altitud, la KEAS, α, la carga, el motor y el propulsante.
+
+**El interior** (posiciones y tamaños reconstruidos de las figuras del manual, todos ≈):
+- bañera de la cabina, mamparos delantero y trasero, y el reborde del hueco;
+- visera antirreflejos y caja del panel;
+- consolas laterales;
+- **palanca central**, **palanca lateral derecha** (la del piloto en vuelo atmosférico) y **palanca de los cohetes de reacción a la izquierda**;
+- palanca de gases del XLR99 y mando de los aerofrenos;
+- **asiento eyectable** con sus guías y los dos brazos estabilizadores.
+
+En vuelo, la palanca central y la lateral siguen a la del simulador, y la de los cohetes se mueve con la barra espaciadora.
+
+**La vista de cabina** (C en vuelo) pone el ojo del piloto en la estación 3,25 m, 0,62 m sobre la línea de referencia del fuselaje (≈). Mira 12° hacia abajo, para que se vean el panel y el horizonte a la vez.
+
+**Presupuesto:** la cabina añade dos materiales, la pintura del interior y el lienzo del panel, que es único. El techo de materiales de `check.mjs` pasa de 200 a 240, con la justificación en el código.
 
 ### Historial
 

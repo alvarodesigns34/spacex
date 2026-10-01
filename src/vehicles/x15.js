@@ -23,6 +23,7 @@ import {
   WING_AIRFOIL, HTAIL_AIRFOIL, GEAR, TIP_POD, groundAttitude,
 } from '../data/x15.js';
 import { makeX15Skin, makeX15SurfaceTile, makeX15Decal } from '../materials/x15Textures.js';
+import { makeX15Panel, PANEL, PANEL_SIZE } from '../materials/x15Panel.js';
 
 const D2R = Math.PI / 180;
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -248,6 +249,11 @@ function x15Materials(M) {
   M.x15Tyre = new THREE.MeshStandardMaterial({ name: 'x15-tyre', color: 0x1b1b1b, metalness: 0, roughness: 0.85 });
   // The nozzle's inside: heat-darkened, not black, with the long streaks NASM photographed.
   M.x15Nozzle = new THREE.MeshStandardMaterial({ name: 'x15-nozzle', color: 0x4a4038, metalness: 0.75, roughness: 0.62, side: THREE.DoubleSide });
+  // The cockpit: the light-grey paint of the consoles, bulkheads and canopy lining (the
+  // manual's photographs, figures 1-3 and 1-4), and the panel of figure 1-2, drawn live.
+  M.x15Interior = new THREE.MeshStandardMaterial({ name: 'x15-interior', color: 0x8a8c8c, roughness: 0.78, metalness: 0.05 });
+  M.x15PanelInfo = makeX15Panel();
+  M.x15Panel = M.x15PanelInfo.material;
   // The fuselage: one atlas (seams, rivets, bare panels, stencils); roughness in G and
   // metalness in B of one map, so the bare panels are metal and the paint is not.
   const skin = makeX15Skin({ uvAt: arcAt, perimeter: perimeterAt, level: levelPhi, decals: SKIN_DECALS });
@@ -361,7 +367,7 @@ function buildFuselage(M) {
   const axis = (x, y, z, c) => c.set(x, body(-x).yc, 0);
   // Forward and centre fuselage, with the side fairings, to their blunt ends.
   const secs = fuselageStations().map(s => [ring(s, true)]);
-  const fwd = stationUV(orientOutward(sweep(secs, [true]), axis));
+  const fwd = cutCockpit(stationUV(orientOutward(sweep(secs, [true]), axis)), 0);
   g.add(mesh(fwd, M.x15Skin, { name: 'x15-fuselage-skin' }));
   // The fairings' blunt ends: from the section with the fairings to the body alone.
   {
@@ -420,6 +426,9 @@ function orientBack(g) {
  * the section between them is reconstructed from NASM's photographs of 56-6670 (≈).
  */
 const S_CAN0 = 2.05, S_CAN1 = 5.0, S_WIN1 = 2.9;
+/** Where the opening part of the canopy ends: its hinge, just aft of the seat; the fairing
+ *  behind is fixed (EC67-1652, ≈). */
+const S_CAN_HINGE = 4.0;
 function canopySection(s, nU = 24) {
   const hw = Math.max(0.004, canHalf(s)), H = canTop(s);
   const m = s < S_WIN1 ? 1 : Math.min(2.6, 1 + 1.6 * (s - S_WIN1) / 0.4);
@@ -435,14 +444,21 @@ function canopySection(s, nU = 24) {
 function buildCanopy(M) {
   const g = new THREE.Group();
   g.name = 'x15-canopy';
-  const secs = [];
-  for (let s = S_CAN0; s <= S_CAN1 + 1e-9; s += 0.05) secs.push([canopySection(Math.min(s, S_CAN1))]);
-  const shell = sweep(secs);
-  orientOutward(shell, (x, y, z, c) => c.set(x, bodyTopAt(-x, 0) - 0.2, 0));
-  // Closed at the back, where it runs down into the spine.
-  const last = secs[secs.length - 1][0];
-  const rear = cap(last, V(-1, 0, 0));
-  g.add(mesh(mergeAll([shell, rear].map(geometry => ({ geometry }))), M.x15Surface, { name: 'x15-canopy-shell' }));
+  // The opening canopy, to its hinge, and the fixed fairing behind it.
+  const shellPart = (a, b, name, capFront) => {
+    const secs = [];
+    for (let s = a; s <= b + 1e-9; s += 0.05) secs.push([canopySection(Math.min(s, b))]);
+    if (secs[secs.length - 1][0][0].x !== -b) secs.push([canopySection(b)]);
+    const shell = sweep(secs);
+    orientOutward(shell, (x, y, z, c) => c.set(x, bodyTopAt(-x, 0) - 0.2, 0));
+    const parts = [shell];
+    // Each part closed at its back (and the fairing at its front, at the hinge).
+    parts.push(cap(secs[secs.length - 1][0], V(-1, 0, 0)));
+    if (capFront) parts.push(cap(secs[0][0], V(1, 0, 0)));
+    return mesh(mergeAll(parts.map(geometry => ({ geometry }))), M.x15Surface, { name });
+  };
+  g.add(shellPart(S_CAN0, S_CAN_HINGE, 'x15-canopy-shell', false));
+  const fairing = shellPart(S_CAN_HINGE, S_CAN1, 'x15-canopy-fairing', true);
   // The two windshield panes: the flat faces of the V between the frame, 4 mm proud.
   for (const side of [-1, 1]) {
     const rows = [];
@@ -457,10 +473,155 @@ function buildCanopy(M) {
     for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) + n.getX(i) * 0.004, p.getY(i) + n.getY(i) * 0.004, p.getZ(i) + n.getZ(i) * 0.004);
     g.add(mesh(pane, M.x15Glass, { name: side > 0 ? 'x15-windshield-r' : 'x15-windshield-l', castShadow: false }));
   }
-  // The dark cockpit behind the glass.
-  const inner = [];
-  for (let s = 2.15; s <= 2.95; s += 0.05) inner.push([canopySection(s, 24).map(q => q.clone().add(V(0, -0.08, 0)).multiply(V(1, 1, 0.8)))]);
-  g.add(mesh(sweep(inner), M.x15Tyre, { name: 'x15-cockpit-well', castShadow: false }));
+  // The lining: the shell seen from inside, light grey, open where the panes are.
+  {
+    const rows = [];
+    for (let s = S_CAN0; s <= S_CAN_HINGE + 1e-9; s += 0.05) rows.push([canopySection(Math.min(s, S_CAN_HINGE), 40).map(q => q.clone().add(V(0, -0.012, 0)))]);
+    const liner = sweep(rows);
+    orientOutward(liner, (x, y, z, c) => c.set(x, bodyTopAt(-x, 0) - 0.2, 0));
+    flip(liner);
+    keepTriangles(liner, (x, y, z) => {
+      const st = -x, u = z / Math.max(0.01, canHalf(st));
+      return !(st > 2.2 && st < 2.86 && Math.abs(u) > 0.1 && Math.abs(u) < 0.85);
+    });
+    g.add(mesh(liner, M.x15Interior, { name: 'x15-canopy-lining', castShadow: false }));
+  }
+  // The canopy hinges at its aft end and opens upward (EC67-1652): everything above is moved
+  // into a group pivoting there. 50° open on the exhibit, read off that photograph (≈).
+  const pivot = P(S_CAN_HINGE, canTop(S_CAN_HINGE), 0);
+  const hinge = new THREE.Group();
+  hinge.name = 'x15-canopy-hinge';
+  hinge.position.copy(pivot);
+  for (const c of [...g.children]) { c.position.sub(pivot); hinge.add(c); }
+  g.add(hinge);
+  g.add(fairing);
+  hinge.userData.hinge = { axis: [0, 0, 1], range: [0, 60], open: 50 };
+  return g;
+}
+
+/** Keeps the triangles whose centroid passes a test (an indexed geometry). */
+function keepTriangles(g, keep) {
+  const p = g.attributes.position, ix = g.index.array, out = [];
+  for (let i = 0; i < ix.length; i += 3) {
+    const a = ix[i], b = ix[i + 1], c = ix[i + 2];
+    const x = (p.getX(a) + p.getX(b) + p.getX(c)) / 3, y = (p.getY(a) + p.getY(b) + p.getY(c)) / 3, z = (p.getZ(a) + p.getZ(b) + p.getZ(c)) / 3;
+    if (keep(x, y, z)) out.push(a, b, c);
+  }
+  g.setIndex(out);
+  return g;
+}
+/**
+ * The cockpit's opening: the fuselage's top under the canopy's footprint, cut away so the
+ * cockpit shows when the canopy is up. `inset` narrows it (the lining of the tub).
+ */
+const COCKPIT_S0 = S_CAN0 + 0.12, COCKPIT_S1 = S_CAN_HINGE - 0.05;
+function cutCockpit(g, inset) {
+  return keepTriangles(g, (x, y, z) => {
+    const st = -x;
+    if (st < COCKPIT_S0 || st > COCKPIT_S1) return true;
+    const hw = canHalf(st) - 0.015 - inset;
+    return !(Math.abs(z) < hw && y > bodyTopAt(st, z) - 0.12);
+  });
+}
+
+/**
+ * The cockpit (T.O. 1X-15-1 section I, figures 1-2 to 1-4): the tub inside the fuselage under
+ * the canopy, its bulkheads, the instrument panel of figure 1-2 (scaled so its altimeter is the
+ * standard 3⅛ in case: ≈), the side consoles with the throttle, the speed-brake handles and
+ * the ballistic (reaction-control) stick on the left and the side stick on the right, the
+ * centre stick, and the ejection seat. Positions and sizes are reconstructed from the manual's
+ * photographs and the fuselage's own lines (≈); the panel's layout is the figure's.
+ */
+export const COCKPIT = { eye: { station: 3.25, up: 0.62 }, panelStation: 2.5, panelTop: 0.5, panelTilt: 10 };
+function buildCockpit(M) {
+  const g = new THREE.Group();
+  g.name = 'x15-cockpit';
+  // Tub: the fuselage's own section 35 mm in, seen from inside, open at the top.
+  {
+    const secs = [];
+    for (let st = S_CAN0 + 0.06; st <= COCKPIT_S1 + 0.04 + 1e-9; st += 0.08) secs.push([ring(Math.min(st, COCKPIT_S1 + 0.04), false, 0.035)]);
+    const tub = sweep(secs, [true]);
+    orientOutward(tub, (x, y, z, c) => c.set(x, body(-x).yc, 0));
+    flip(tub);
+    cutCockpit(tub, 0.03);
+    g.add(mesh(tub, M.x15Interior, { name: 'x15-cockpit-tub', castShadow: false }));
+    for (const [st, dir] of [[S_CAN0 + 0.06, 1], [COCKPIT_S1 + 0.04, -1]]) {
+      const pts = ring(st, false, 0.035);
+      g.add(mesh(cap(pts, V(-dir, 0, 0)), M.x15Interior, { name: dir > 0 ? 'x15-cockpit-front-bulkhead' : 'x15-cockpit-rear-bulkhead', castShadow: false }));
+    }
+  }
+  // The sill round the opening, over the cut edge of the skin (≈ 22 mm tube).
+  {
+    const pts = [];
+    const edge = (st, side) => { const z = side * (canHalf(st) - 0.015); return P(st, bodyTopAt(st, z) + 0.005, z); };
+    for (let st = COCKPIT_S0; st <= COCKPIT_S1 + 1e-9; st += 0.05) pts.push(edge(Math.min(st, COCKPIT_S1), -1));
+    for (let st = COCKPIT_S1; st >= COCKPIT_S0 - 1e-9; st -= 0.05) pts.push(edge(Math.max(st, COCKPIT_S0), 1));
+    const tube = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 160, 0.011, 8, true);
+    g.add(mesh(tube, M.x15MetalDark, { name: 'x15-cockpit-sill' }));
+  }
+  // The instrument panel of figure 1-2: a plane carrying the live panel texture, its figure
+  // centre line on the airplane's, its top 4 cm over the fuselage's top line under the
+  // windshield (the glare shield), leaning 10° forward (≈).
+  COCKPIT.panelTop = bodyTopAt(COCKPIT.panelStation, 0) + 0.04;
+  {
+    const geo = new THREE.PlaneGeometry(PANEL_SIZE.width, PANEL_SIZE.height);
+    geo.rotateY(-Math.PI / 2);
+    const cz = ((PANEL.x0 + PANEL.x1) / 2 - PANEL.centreX) * PANEL.mpp;
+    const panel = mesh(geo, M.x15Panel, { name: 'x15-instrument-panel', castShadow: false });
+    panel.position.set(-COCKPIT.panelStation, COCKPIT.panelTop - PANEL_SIZE.height / 2, cz);
+    panel.rotation.z = -COCKPIT.panelTilt * D2R;
+    g.add(panel);
+    // Its case behind it and the glare shield over it.
+    // Clear of the panel's top, which leans 4 cm forward with its 10°.
+    const box = new THREE.BoxGeometry(0.1, PANEL_SIZE.height * 0.62, PANEL_SIZE.width * 0.7);
+    g.add(mesh(box, M.x15Tyre, { name: 'x15-panel-case', position: [-(COCKPIT.panelStation - 0.13), COCKPIT.panelTop - PANEL_SIZE.height * 0.36, 0], castShadow: false }));
+    const shield = new THREE.BoxGeometry(0.12, 0.01, 0.6);
+    g.add(mesh(shield, M.x15Tyre, { name: 'x15-glare-shield', position: [-(COCKPIT.panelStation - 0.08), COCKPIT.panelTop + 0.012, 0], castShadow: false }));
+  }
+  // Side consoles: their tops ≈0.05 m above the FRL, from the panel to the seat.
+  const consoles = [];
+  for (const side of [-1, 1]) {
+    const c = new THREE.BoxGeometry(1.05, 0.22, 0.17);
+    consoles.push({ geometry: c, matrix: mat4([-3.25, -0.06, side * 0.42]) });
+  }
+  g.add(mesh(mergeAll(consoles), M.x15Interior, { name: 'x15-consoles' }));
+  // Controls: grips and levers, each its own part so the flight can move it.
+  const control = (name, at, len, grip) => {
+    const k = new THREE.Group();
+    k.name = name;
+    k.position.set(...at);
+    const shaft = new THREE.CylinderGeometry(0.009, 0.012, len, 10);
+    shaft.translate(0, len / 2, 0);
+    const parts = [{ geometry: shaft }];
+    const gr = new THREE.CapsuleGeometry(grip[0], grip[1], 4, 10);
+    gr.translate(0, len + grip[1] / 2, 0);
+    parts.push({ geometry: gr });
+    k.add(mesh(mergeAll(parts), M.x15Tyre, { name: `${name}-grip` }));
+    g.add(k);
+    return k;
+  };
+  control('x15-centre-stick', [-2.98, -0.42, 0], 0.42, [0.018, 0.08]);
+  control('x15-side-stick', [-3.12, 0.05, 0.42], 0.06, [0.022, 0.09]);
+  control('x15-ballistic-stick', [-2.9, 0.05, -0.39], 0.06, [0.02, 0.07]);
+  const throttle = control('x15-throttle', [-3.2, 0.05, -0.45], 0.1, [0.016, 0.03]);
+  throttle.userData.hinge = { axis: [0, 0, 1], range: [-30, 30] };
+  control('x15-speed-brake-handle', [-3.42, 0.05, -0.46], 0.07, [0.012, 0.025]);
+  // Ejection seat: pan, back, headrest, the side rails and the two stabilising booms of the
+  // X-15's seat (NASM, EC67-1652), boxes and tubes (≈).
+  {
+    const parts = [];
+    const box = (w, h, d, at) => parts.push({ geometry: new THREE.BoxGeometry(w, h, d), matrix: mat4(at) });
+    box(0.46, 0.07, 0.46, [-3.55, -0.2, 0]);           // pan
+    box(0.08, 0.72, 0.46, [-3.8, 0.15, 0]);            // back
+    box(0.1, 0.2, 0.3, [-3.83, 0.6, 0]);               // headrest
+    for (const z of [-0.25, 0.25]) box(0.5, 0.1, 0.04, [-3.6, -0.12, z]);   // side rails / arm rests
+    for (const z of [-0.2, 0.2]) {
+      const boom = new THREE.CylinderGeometry(0.012, 0.012, 0.75, 8);
+      boom.rotateZ(Math.PI / 2);
+      parts.push({ geometry: boom, matrix: mat4([-3.7, -0.32, z]) });
+    }
+    g.add(mesh(mergeAll(parts), M.x15MetalDark, { name: 'x15-ejection-seat' }));
+  }
   return g;
 }
 
@@ -866,6 +1027,7 @@ export function buildX15Airframe(M, { ventral = false } = {}) {
   air.name = 'x15-airframe';
   air.add(buildFuselage(M));
   air.add(buildCanopy(M));
+  air.add(buildCockpit(M));
   air.add(buildWing(M, 1), buildWing(M, -1));
   air.add(buildHTail(M, 1), buildHTail(M, -1));
   air.add(buildFin(M, UPPER_FIN, 1, 'x15-upper-fin'));
@@ -897,6 +1059,9 @@ export function buildX15(M) {
   // Ground below the FRL, in the airframe frame, at the nose wheel and at the skids.
   const gN = -GEAR.noseFRLHeight, gS = -(GEAR.noseFRLHeight + (GEAR.skidStation - GEAR.noseStation) * Math.tan(th));
   air.add(buildGear(M, gN, gS, th));
+  // On the exhibit the canopy stands open, as after a flight (EC67-1652).
+  const canopy = air.getObjectByName('x15-canopy-hinge');
+  canopy.rotation.z = canopy.userData.hinge.open * D2R;
   // Pitch nose-down about the nose-wheel contact point, then set that point on the ground.
   const pivot = P(GEAR.noseStation, gN, 0);
   const holder = new THREE.Group();
@@ -908,6 +1073,8 @@ export function buildX15(M) {
   holder.position.set((NOSE.tip + STATIONS.apexToBase) / 2 - GEAR.noseStation, 0, 0);
   root.add(holder);
   root.userData.height = X15.landingHeight;
+  // The live instrument panel (materials/x15Panel.js), for the flight to redraw.
+  root.userData.panel = M.x15PanelInfo;
   root.userData.groundPitchDeg = th / D2R;
   root.userData.annotations = [
     { label: 'Ball nose · flow-direction sensor', position: [7.4, 1.1, 0] },

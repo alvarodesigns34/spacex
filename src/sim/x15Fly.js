@@ -30,6 +30,7 @@ import { LIMITS, XLR99 } from '../data/x15Aero.js';
 import { GEAR, STATIONS, LOWER_FIN, NOSE, WING } from '../data/x15.js';
 import { LAUNCH_SITE } from '../data/gulf.js';
 import { RUNWAY, fromRunway, toRunway, offRunway } from '../core/terrain.js';
+import { COCKPIT } from '../vehicles/x15.js';
 
 const D2R = Math.PI / 180, R2D = 180 / Math.PI, FT = 0.3048, KT = 0.514444;
 const AZ = LAUNCH_SITE.azimuthDeg * D2R, SA = Math.sin(AZ), CA = Math.cos(AZ);
@@ -70,6 +71,12 @@ export function createX15Flight({ scene, exhibits, env, rig, camera, flightEarth
   const exhibit = exhibits.x15.model;
   const airframe = exhibit.getObjectByName('x15-airframe');
   const gearGroup = airframe.getObjectByName('x15-landing-gear');
+  const canopy = airframe.getObjectByName('x15-canopy-hinge');
+  const sticks = {
+    centre: airframe.getObjectByName('x15-centre-stick'), side: airframe.getObjectByName('x15-side-stick'),
+    ballistic: airframe.getObjectByName('x15-ballistic-stick'), throttle: airframe.getObjectByName('x15-throttle'),
+  };
+  const panelInfo = exhibit.userData.panel ?? null;
 
   // The airplane's holder: at the centre of gravity, turned to the attitude. The airframe's own
   // frame has its origin at the nose apex, X = −station; the CG is CG_STATION aft of it.
@@ -250,6 +257,12 @@ export function createX15Flight({ scene, exhibits, env, rig, camera, flightEarth
     setHinge(surf['x15-flap-r'], ctl.flaps);
     for (const b of brakes) setHinge(b, ctl.speedBrake, b.sign);
     gearGroup.visible = !!ctl.gear;
+    // The pilot's hands: the centre and side sticks with the stick, the left one with the
+    // jets, the throttle with the throttle (±15° and ±30° of travel: ≈).
+    const aero = !input.rcsMode;
+    for (const k of [sticks.centre, sticks.side]) if (k) k.rotation.set(aero ? input.roll * 0.26 : 0, 0, aero ? input.pitch * 0.26 : 0);
+    if (sticks.ballistic) sticks.ballistic.rotation.set(aero ? 0 : input.roll * 0.3, aero ? 0 : input.yaw * 0.3, aero ? 0 : input.pitch * 0.3);
+    if (sticks.throttle) sticks.throttle.rotation.z = input.engine ? -(input.throttle - 0.75) * 1.0 : 0.5;
   }
 
   // ---- Cameras ----------------------------------------------------------------------------------
@@ -288,15 +301,16 @@ export function createX15Flight({ scene, exhibits, env, rig, camera, flightEarth
       return;
     }
     if (state.camera === 'cockpit') {
-      // The pilot's eye: station ≈3.0 m, ≈0.8 m above the FRL under the canopy (≈).
-      _cam.set(-3.0, 0.8, 0); airframe.localToWorld(_cam);
-      sceneDir(s, [1, 0, 0], _look).multiplyScalar(100).add(_cam);
+      // The pilot's eye in his seat (COCKPIT, x15.js: ≈).
+      _cam.set(-COCKPIT.eye.station, COCKPIT.eye.up, 0); airframe.localToWorld(_cam);
+      // Looking along the nose and 12° down, where the panel is (≈).
+      sceneDir(s, [Math.cos(0.21), 0, Math.sin(0.21)], _look).multiplyScalar(100).add(_cam);
       sceneDir(s, [0, 0, -1], _u);
       camera.up.copy(_u);
       camera.position.copy(_cam);
       camera.lookAt(_look);
       camera.up.set(0, 1, 0);
-      camera.fov = 62; camera.updateProjectionMatrix();
+      camera.fov = 66; camera.near = 0.05; camera.updateProjectionMatrix();
       return;
     }
     if (state.camera === 'tower') {
@@ -413,6 +427,8 @@ export function createX15Flight({ scene, exhibits, env, rig, camera, flightEarth
     holder.add(airframe);
     airframe.position.set(CG_STATION, 0, 0);
     airframe.quaternion.identity();
+    saved.canopy = canopy?.rotation.z ?? 0;
+    if (canopy) canopy.rotation.z = 0;
     holder.visible = true;
     Object.assign(input, { pitch: 0, roll: 0, yaw: 0, throttle: 1, engine: false, rcsMode: false, speedBrake: false, flaps: false, gear: false, sas: true });
     state.sim = initialState(state.scenario);
@@ -444,6 +460,8 @@ export function createX15Flight({ scene, exhibits, env, rig, camera, flightEarth
     // The airframe goes back on its gear in the row, every surface at rest.
     for (const h of [...Object.values(surf), ...brakes]) if (h) h.o.quaternion.copy(h.base);
     gearGroup.visible = true;
+    if (canopy) canopy.rotation.z = saved.canopy;
+    for (const k of Object.values(sticks)) k?.rotation.set(0, 0, 0);
     saved.parent.add(airframe);
     airframe.position.copy(saved.position);
     airframe.quaternion.copy(saved.quaternion);
@@ -502,6 +520,9 @@ export function createX15Flight({ scene, exhibits, env, rig, camera, flightEarth
     const toThreshold = -RUNWAY.length / 2 - a;
     state.readout = {
       t: s.t, mach: d.mach, keas: d.V * Math.sqrt(atm.rho / 1.225) / KT, ktas: d.V / KT,
+      // The airspeed indicator reads impact pressure; below Mach 1 that is EAS with a small
+      // compressibility correction, taken as EAS here (≈).
+      kias: d.V * Math.sqrt(atm.rho / 1.225) / KT, rollRate: d.p * R2D,
       altitudeFt: d.altitude / FT, aglFt: d.agl / FT, vsFpm: -d.vD / FT * 60,
       alpha: d.alpha, beta: d.beta, pitch: d.theta, roll: d.phi, heading: (d.psi + 360) % 360,
       qbarPsf: d.qbar / 47.880259, throttle: input.engine ? input.throttle : 0, engine: input.engine,
@@ -514,6 +535,7 @@ export function createX15Flight({ scene, exhibits, env, rig, camera, flightEarth
       messages: state.messages.filter(m => performance.now() - m.t < 5000).map(m => m.text),
     };
     panel?.update(state.readout);
+    if (state.camera === 'cockpit' || !rig.external) panelInfo?.update(state.readout);
     onState(state);
   }
   function bearingTo(p, [x, z]) {

@@ -81,7 +81,11 @@ Fases (cada una es un commit con check a 0):
    - Proyección: escena = plataforma + mapa equidistante azimutal (`groundTrack`, `toOriginFrame` en `x15Flight.js`), la misma del `FlightEarth` del lanzamiento, que se comparte (`launch.flightEarth`; `update(..., { force, drop })`).
    - Teclas capturadas en fase de captura mientras se vuela (`stopImmediatePropagation`); J abre el selector en `main.js`. `__vc.x15fly` para las pruebas.
    - Pendiente para las fases 5–7: cabina, terreno real, chorro, calentamiento y sonido. El B-52 no aparece (decisión del usuario: suelta sin B-52).
-5. **Cabina** según el manual (figura 1-2 y consolas).
+5. **Cabina: hecha.** Commit «X-15 phase 5: cockpit», README *X-15 #1: fase 5*.
+   - Panel: `src/materials/x15Panel.js` (lienzo con la maquetación de la figura 1-2 en píxeles de figura; `update(readout)` lo redibuja a ≤30 Hz). Se cuelga de `root.userData.panel`.
+   - Carlinga: bisagra `x15-canopy-hinge` en la estación 4,0 (`userData.hinge`, abierta 50° en el expositor, cerrada en vuelo). El carenado fijo va de 4,0 a 5,0.
+   - Interior: `buildCockpit(M)` en `x15.js`, con `COCKPIT` exportado (ojo del piloto y panel). La piel del fuselaje se recorta con `cutCockpit`.
+   - Vista de cabina en `x15Fly.js`; el panel de la pantalla se reduce a `#x15-mini` (`.is-cockpit`).
 6. **Terreno real ampliado** por teselas.
 7. **Efectos:** chorro del XLR99, calentamiento (TM X-1705) y sonido.
 
