@@ -39,7 +39,17 @@ Fases, cada una un commit con check a 0, empujado a las cinco ramas (las cuatro 
      - La ley C* manda velocidad de cabeceo por debajo de 122 m/s: el piloto automático de la prueba sigue α con la palanca y la senda con el motor.
      - Bajar el amortiguamiento de cabeceo o subir el integrador hace que el avión se vaya en pérdida profunda (α de 111°).
      - En un alabeo rápido, la deriva β se convierte en α (α̇ ≈ q − pβ): por eso existe la realimentación de β.
-6. Modo de vuelo: despegue, vuelo, aterrizaje, cámaras, cabina y HUD.
+6. Modo de vuelo: **hecha**, commit «F-16 phase 6: fly it from runway 13».
+   - `src/sim/f16Fly.js`: `createF16Fly({ scene, exhibit, env, rig, camera, ground, hud })`.
+     - El airframe pasa a un `holder` en la escena mientras vuela y vuelve a su padre al terminar.
+     - `state.manual` permite a las pruebas fijar `pilot` sin leer el teclado.
+   - `src/ui/f16Hud.js`: lienzo del HUD y barra con los botones.
+   - En `main.js`:
+     - `f16Ground` (pista → terreno → mar, con `curvatureDrop`);
+     - `toggleFly` (tecla J y botón *F-16 · Fly*);
+     - `sequences.f16`, que entra en `anyFlying` y en `enforce`;
+     - la clase `is-f16` del `#hud`.
+   - Mientras vuela, el teclado es del avión: `onKeyDown` en captura detiene todos los atajos salvo H y ?.
 7. Revisión, README, galería.
 
 Fuentes descargadas para consulta, fuera del repositorio (en la carpeta temporal de la sesión; se pueden volver a bajar de NTRS):

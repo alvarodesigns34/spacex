@@ -168,6 +168,11 @@ body.is-flying .guide-sec[data-mode="launch"] { border-color: color-mix(in srgb,
 #hud.walk .guide-sec[data-mode="walk"] .guide-here,
 #hud.fly .guide-sec[data-mode="fly"] .guide-here,
 body.is-flying .guide-sec[data-mode="launch"] .guide-here { display: inline-block; }
+/* Flying the F-16, its card is the one in use (the launch's would light up too: it flies). */
+#hud.is-f16 .guide-sec[data-mode] { border-color: var(--surface-line); background: transparent; }
+#hud.is-f16 .guide-sec[data-mode] .guide-here { display: none; }
+#hud.is-f16 .guide-sec[data-mode="f16"] { border-color: color-mix(in srgb, var(--accent) 60%, transparent); background: var(--accent-quiet); }
+#hud.is-f16 .guide-sec[data-mode="f16"] .guide-here { display: inline-block; }
 @media (max-width: 1100px) { .guide-grid { grid-template-columns: repeat(2, 1fr); } }
 .btn { padding: 8px 18px; border: 1px solid var(--surface-line); border-radius: 999px; background: transparent; cursor: pointer; }
 .btn:hover { border-color: var(--ink-muted); }
@@ -396,3 +401,32 @@ body.is-touring .coach { display: none; }
 /* Re-entry chapter: the ship alone; the booster column goes. */
 .mission.is-reentry .mt-booster,
 .mission.is-reentry .mp-booster { display: none; }
+
+/* F-16 flight: the HUD over the scene and the flight's bar (ui/f16Hud.js). While the airplane
+   flies, the museum's panels step aside; the guide and the notices stay. */
+#hud.is-f16 > *:not(.f16-bar):not(.help):not(.callout) { display: none !important; }
+.f16-hud { position: fixed; inset: 0; pointer-events: none; z-index: 4; }
+.f16-hud.hidden { display: none; }
+.f16-bar {
+  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+  width: min(820px, calc(100vw - 32px));
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 12px 6px;
+  background: var(--surface-solid); border: 1px solid var(--surface-line);
+  border-radius: var(--radius-panel); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
+  box-shadow: var(--shadow-panel); font-size: 0.82rem;
+}
+.f16-bar .eyebrow { flex: 1; font-size: 0.68rem; }
+.f16-btn { padding: 3px 9px; background: transparent; border: 1px solid var(--surface-line); border-radius: var(--radius-ctl); cursor: pointer; font-size: 0.8rem; color: inherit; }
+.f16-btn:hover { background: var(--surface-hover); }
+.f16-btn[aria-pressed="true"] { background: var(--accent-quiet); border-color: var(--accent); }
+.f16-keys { flex-basis: 100%; margin: 0; font-size: 0.7rem; color: var(--ink-faint); line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.f16-keys kbd { margin-right: 1px; }
+.f16-msgs { flex-basis: 100%; list-style: none; margin: 0; padding: 0; min-height: 1.3em; font-size: 0.8rem; color: var(--accent); display: flex; gap: 14px; flex-wrap: wrap; }
+.f16-result {
+  position: fixed; left: 50%; top: 18%; transform: translateX(-50%); width: min(520px, calc(100vw - 32px));
+  padding: 14px 18px; background: var(--surface-solid); border: 1px solid var(--surface-line);
+  border-radius: var(--radius-panel); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); box-shadow: var(--shadow-panel);
+}
+.f16-result b { display: block; font-size: 1.05rem; margin-bottom: 4px; }
+.f16-result span { display: block; margin-top: 8px; color: var(--ink-muted); font-size: 0.8rem; }
+.f16-result.hidden, .f16-bar.hidden { display: none; }

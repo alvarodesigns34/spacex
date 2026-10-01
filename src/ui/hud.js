@@ -7,7 +7,7 @@ import { SOURCES, SOURCE_LABEL } from '../data/specs.js';
 const fmtHeight = (h) => `${h >= 10 ? Math.round(h) : h} m`;
 const THREE_DEG20 = Math.PI / 9;
 
-export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWalk, onSun, onReset, onLaunch, onReentry, onLaunchAbort, onLaunchSpeed, onLaunchSound, onLaunchPause, onLaunchSeek, onLaunchRestart, onLaunchCamera, onTour, onHelp }) {
+export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWalk, onSun, onReset, onLaunch, onReentry, onFly, onLaunchAbort, onLaunchSpeed, onLaunchSound, onLaunchPause, onLaunchSeek, onLaunchRestart, onLaunchCamera, onTour, onHelp }) {
   const root = document.getElementById('hud');
   root.innerHTML = `
     <header class="hud-header">
@@ -46,6 +46,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
       <label class="tool tool-sun">Sun <input type="range" id="sun" min="4" max="75" value="20" step="1" title="Sun elevation, from low evening light to midday"></label>
       <button class="tool tool-btn tool-launch" id="launch-btn" title="Starship launch sequence from Pad 2 (G)">Starship · Launch <kbd>G</kbd></button>
       <button class="tool tool-btn" id="reentry-btn" title="Starship's re-entry and splashdown, on flight 14's timeline (X)">Reentry <kbd>X</kbd></button>
+      <button class="tool tool-btn" id="fly-btn" title="Fly the F-16 from runway 13: take off, fly anywhere, land (J)">F-16 · Fly <kbd>J</kbd></button>
       <button class="tool tool-btn" id="tour-btn" title="Guided tour of the centre (P)">Tour <kbd>P</kbd></button>
       <button class="tool tool-btn" id="mode-btn" title="Switch camera mode (F)">Orbit <kbd>F</kbd></button>
       <button class="tool tool-btn" id="walk-btn" type="button" aria-pressed="false" title="Walk the apron at eye height, 1.7 m (V)">Walk <kbd>V</kbd></button>
@@ -133,7 +134,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
         <ol class="guide-start" aria-label="First steps">
           <li><b>Pick a vehicle</b> in the list on the left, or press <kbd>1</kbd>–<kbd>${vehicles.length}</kbd>.</li>
           <li><b>Choose a view</b> in the bar at the bottom: engines, heat shield, tower…</li>
-          <li><b>Press <kbd>G</kbd></b> to launch Starship, <kbd>X</kbd> for its re-entry, or <kbd>P</kbd> for a guided tour.</li>
+          <li><b>Press <kbd>G</kbd></b> to launch Starship, <kbd>X</kbd> for its re-entry, <kbd>J</kbd> to fly the F-16, or <kbd>P</kbd> for a guided tour.</li>
         </ol>
         <div class="guide-grid">
           <section class="guide-sec" data-mode="orbit">
@@ -171,6 +172,15 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
               <dt><kbd>C</kbd></dt><dd>camera: broadcast shots, or ride with the booster or the ship</dd>
               <dt>Panel</dt><dd>×¼ to ×10 speed · click the flight profile to jump</dd>
               <dt><kbd>X</kbd></dt><dd>the ship's re-entry and splashdown, flight 14 (on-board, chase and buoy cameras)</dd>
+            </dl>
+          </section>
+          <section class="guide-sec" data-mode="f16">
+            <h3>Fly the F-16 <kbd>J</kbd> <span class="guide-here">you are here</span></h3>
+            <dl>
+              <dt><kbd>W</kbd><kbd>S</kbd> · <kbd>A</kbd><kbd>D</kbd></dt><dd>stick: pull, push · roll (<kbd>Shift</kbd> for full travel)</dd>
+              <dt><kbd>R</kbd> <kbd>F</kbd> · <kbd>Q</kbd> <kbd>E</kbd></dt><dd>throttle, afterburner past 77 % · rudder and nose wheel</dd>
+              <dt><kbd>space</kbd> · <kbd>B</kbd> · <kbd>G</kbd></dt><dd>wheel brakes · speed brakes · gear</dd>
+              <dt><kbd>C</kbd> · <kbd>Enter</kbd> · <kbd>Esc</kbd></dt><dd>camera · back to runway 13 · end</dd>
             </dl>
           </section>
           <section class="guide-sec">
@@ -385,6 +395,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
   launchBtn.addEventListener('click', () => onLaunch?.());
   const reentryBtn = el('#reentry-btn');
   reentryBtn.addEventListener('click', () => onReentry?.());
+  el('#fly-btn').addEventListener('click', () => onFly?.());
   el('#mission-abort').addEventListener('click', () => onLaunchAbort?.());
   el('#mission-restart').addEventListener('click', () => onLaunchRestart?.());
   const camBtn = el('#mission-cam');

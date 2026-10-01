@@ -152,7 +152,7 @@ export function createF16Flight({ ground }) {
     w: new THREE.Vector3(),             // angular velocity, body axes (p, q, r), rad/s
     power: 0, powerCmd: 0, gear: 1, gearCmd: 1, sb: 0, sbCmd: 0,
     crashed: null, wow: true, t: 0,
-    alpha: 0, beta: 0, mach: 0, tas: 0, nz: 1, qbar: 0, alt: 0, agl: 0, thrust: 0,
+    alpha: 0, beta: 0, mach: 0, tas: 0, nz: 1, load: 1, qbar: 0, alt: 0, agl: 0, thrust: 0,
     surfaces: { de: 0, da: 0, dr: 0, lef: 0, flap: 0, diff: 0 },
     wheels: WHEELS.map(() => ({ comp: 0, load: 0, anchor: null })),
   };
@@ -368,6 +368,8 @@ export function createF16Flight({ ground }) {
       return;
     }
 
+    // The load factor the pilot feels: every force but gravity, along the airframe's up.
+    s.load = Fw.dot(tmpV.set(0, 1, 0).applyQuaternion(s.q)) / W;
     // Translation.
     const acc = Fw.multiplyScalar(1 / MASSKG); acc.y -= G0;
     s.vel.addScaledVector(acc, dt);

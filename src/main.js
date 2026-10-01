@@ -29,6 +29,10 @@ import { buildRoadster } from './vehicles/roadster.js';
 import { buildEngineHall } from './vehicles/enginehall.js';
 import { buildF16 } from './vehicles/f16.js';
 import { buildRunway, runwaySurface } from './core/runway.js';
+import { createF16Fly } from './sim/f16Fly.js';
+import { createF16Hud } from './ui/f16Hud.js';
+import { groundSample } from './core/environment.js';
+import { curvatureDrop } from './core/outerGround.js';
 import { RUNWAY, fromRunway, toRunway } from './core/terrain.js';
 import { buildOrbitalBackdrop } from './core/backdrop.js';
 import { buildLaunchMount, buildPedestal, buildHumanCrowd } from './vehicles/common.js';
@@ -240,6 +244,7 @@ async function main() {
     onReset: () => select(null),
     onLaunch: () => toggleLaunch(),
     onReentry: () => toggleReentry(),
+    onFly: () => toggleFly(),
     // The panel drives whichever sequence is playing: the launch, or the re-entry chapter.
     onLaunchAbort: () => seq()?.reset(),
     onLaunchSpeed: (k) => seq()?.setSpeed(k),
@@ -574,7 +579,7 @@ async function main() {
   // reset, called with nothing launched, used to clear it under a running re-entry and bring the
   // pad's callouts back over the Pacific (found in the October 2026 review).
   const sequences = {};   // the re-entry, once it is made below
-  const anyFlying = (flying) => flying || !!launch.running || !!sequences.reentry?.running;
+  const anyFlying = (flying) => flying || !!launch.running || !!sequences.reentry?.running || !!sequences.f16?.running;
   launch.setVisibilityHook((flying) => view.setFlying(anyFlying(flying)));
   // Opt-in engine sound. Assigned here, after the HUD that toggles it, hence `let` above.
   sound = createLaunchSound({ launch, camera });
@@ -620,6 +625,45 @@ async function main() {
     visibilityHook: (flying) => view.setFlying(anyFlying(flying)),
   });
   sequences.reentry = reentry;
+
+  // ---- The F-16 in flight ----
+  // The exhibit's airplane leaves its spot on runway 13 and flies on the flight model
+  // (sim/f16Flight.js) in this same scene; the HUD and the flight's bar are ui/f16Hud.js.
+  // The ground under it is the one drawn: the runway's pavement, the terrain's height
+  // function with the beach and the sea, and past the disc the curvature's drop.
+  const hudRoot = document.getElementById('hud');
+  const f16Ground = (x, z) => {
+    const [a, c] = toRunway(x, z);
+    const pave = runwaySurface(a, c);
+    if (pave > 0.01) return { h: pave, hard: true, water: false };
+    const r = Math.hypot(x, z);
+    const h = groundSample(x, -z).h - curvatureDrop(r);
+    return h < -0.9 ? { h: -0.9 - curvatureDrop(r), hard: false, water: true } : { h, hard: false, water: false };
+  };
+  const f16Hud = createF16Hud({
+    root: hudRoot,
+    onEnd: () => f16fly.reset(),
+    onCamera: () => f16fly.cycleCamera(),
+    onRestart: () => f16fly.restart(),
+    onPause: () => f16fly.setPaused(!f16fly.state.paused),
+  });
+  const f16fly = createF16Fly({
+    scene, exhibit: exhibits.f16, env, rig, camera, ground: f16Ground, hud: f16Hud,
+    onStart: () => {
+      if (launch.running) launch.reset(false);
+      if (reentry.running) reentry.reset(false);
+      if (view.exhibit !== 'f16') { enforce(view.select('f16', 'launch')); syncHud(); }
+      enforce(view.claim('launch'));
+      hudRoot.classList.add('is-f16');
+    },
+    onFinish: () => { hudRoot.classList.remove('is-f16'); goPreset('f16', 'overview'); },
+    visibilityHook: (flying) => { view.setFlying(anyFlying(flying)); if (!flying) hudRoot.classList.remove('is-f16'); },
+  });
+  sequences.f16 = f16fly;
+  function toggleFly() {
+    if (f16fly.running) { f16fly.reset(); return; }
+    f16fly.start();
+  }
   function seq() { return reentry?.running ? reentry : launch; }
 
   hud.setProgress('Compiling shaders…', 0.95);
@@ -909,6 +953,8 @@ async function main() {
     // The re-entry chapter holds the camera under the same owner as the launch: picking a
     // vehicle or starting the tour left it running under them (audit, 30-09).
     if (stop?.launch && reentry?.running) reentry.reset(false);
+    // The F-16's flight holds the camera under the same owner, and stops the same way.
+    if (stop?.launch && sequences.f16?.running) sequences.f16.reset(false);
   }
 
   /** Brings the HUD into line with the state, after the scene has been. */
@@ -1075,6 +1121,7 @@ async function main() {
     else if (k === '0') select(null);
     else if (k === 'c' && (launch.running || reentry.running) && rig.mode === 'orbit') cycleLaunchCamera();
     else if (k === 'x') toggleReentry();
+    else if (k === 'j') toggleFly();
     else if (k === 'f') toggleMode();
     else if (k === 'v') toggleWalk();
     else if (k === 'g') toggleLaunch();
@@ -1389,6 +1436,7 @@ async function main() {
     rig.update(dt);
     launch.update(steps.mission);
     reentry.update(steps.mission);
+    f16fly.update(dt);
     sound?.update();
     // Water keeps moving whatever the camera or the launch is doing.
     WAVE_TIME.value += dt;
@@ -1512,7 +1560,7 @@ async function main() {
   }
 
   window.__vc = {
-    M, scene, camera, rig, exhibits, complex, launch, reentry, select, goPreset, jump, renderer, env,
+    M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, select, goPreset, jump, renderer, env,
     setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour,
     claimUserControl, tourRunToEnd, toggleMode, toggleWalk,
     walkRouteFor: (hit) => { const r = walkRoute(hit); rig.travelTo(r.route, r.look); return r; },

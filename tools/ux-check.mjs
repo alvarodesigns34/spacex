@@ -604,6 +604,62 @@ try {
 
   // A lost and restored WebGL context keeps the lighting (the reflection probe is rebuilt).
   await page.setViewportSize({ width: 960, height: 540 });
+  // ---- The F-16's flight: from the runway, in this same scene, and back to the exhibit ----
+  {
+    await page.evaluate(() => { window.__vc.jump('f16', 'overview'); });
+    await page.waitForTimeout(1500);
+    const base = await page.evaluate(() => {
+      const v = window.__vc, air = v.scene.getObjectByName('f16-airframe'), p = new v.camera.position.constructor();
+      air.getWorldPosition(p);
+      return { pos: p.toArray().map(x => +x.toFixed(3)), children: v.scene.children.length, ground: v.env.ground.visible, fov: v.camera.fov };
+    });
+    await page.keyboard.press('j');
+    await page.waitForTimeout(600);
+    const started = await page.evaluate(() => {
+      const v = window.__vc, F = v.f16fly, s = F.sim.state;
+      return {
+        running: F.running, wow: s.wow, cls: document.getElementById('hud').classList.contains('is-f16'),
+        hud: !document.querySelector('.f16-hud').classList.contains('hidden'),
+        onRunway: F.state.readout && Math.abs(F.state.readout.runway.across) < 1 && F.state.readout.runway.along < 120,
+        children: v.scene.children.length, ground: v.env.ground.visible, crashed: !!s.crashed,
+      };
+    });
+    report(started.running && started.wow && started.cls && started.hud && started.onRunway && started.ground && !started.crashed,
+      'J starts the F-16 on runway 13, on its wheels, with the HUD, in the same scene', started);
+    // The exhibit's shortcuts are the flight's while it runs: 2 must not pick the Falcon 1.
+    await page.keyboard.press('2');
+    await page.waitForTimeout(200);
+    report(await page.evaluate(() => window.__vc.f16fly.running && window.__vc.viewState().exhibit === 'f16'), 'While flying, the number keys do not leave the airplane');
+    // A take-off on the flight model, flown in real time steps by a scripted pilot.
+    const flown = await page.evaluate(async () => {
+      const v = window.__vc, F = v.f16fly, s = F.sim.state, P = F.pilot;
+      F.state.manual = true; P.brake = 0; P.throttle = 1;
+      let lift = null;
+      for (let k = 0; k < 40 * 30; k++) {
+        P.pitch = s.tas > 69 && !lift ? 0.8 : lift ? 0.15 : 0;
+        F.update(1 / 30);
+        if (!lift && !s.wow && s.agl > 2) lift = { kt: s.tas / 0.514444, t: s.t };
+        if (s.pos.y > 400) break;
+      }
+      F.state.manual = false;
+      return { lift, alt: s.pos.y, crashed: s.crashed, outer: v.env.outer.visible, far: v.camera.far, hud: F.state.readout.altFt };
+    });
+    report(!!flown.lift && !flown.crashed && flown.alt > 300 && flown.outer && flown.far >= 60000,
+      'The F-16 takes off in afterburner and climbs out over the same world', flown);
+    await page.keyboard.press('c');
+    await page.waitForTimeout(200);
+    report(await page.evaluate(() => window.__vc.f16fly.state.camera === 'cockpit'), 'C goes to the cockpit');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(2500);
+    const back = await page.evaluate(() => {
+      const v = window.__vc, air = v.scene.getObjectByName('f16-airframe'), p = new v.camera.position.constructor();
+      air.getWorldPosition(p);
+      return { running: v.f16fly.running, pos: p.toArray().map(x => +x.toFixed(3)), children: v.scene.children.length, cls: document.getElementById('hud').classList.contains('is-f16'), fov: v.camera.fov, external: v.rig.external };
+    });
+    const same = back.pos.every((x, i) => Math.abs(x - base.pos[i]) < 0.01);
+    report(!back.running && same && back.children === base.children && !back.cls && back.fov === base.fov && !back.external,
+      'Esc puts the F-16 back on its spot and gives the camera back', { base, back });
+  }
   const lumaAfterRestore = (sabotage) => page.evaluate(async (sabotage) => {
     const v = window.__vc; const c = v.renderer.domElement;
     v.jump('falcon9', 'overview');
