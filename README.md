@@ -558,6 +558,37 @@ Cada zona es un atlas JPEG (`src/assets/terrain/`, 2,1 MB entre los dos) y una r
 
 **De paso, una prueba más robusta:** la de `ux-check` que arrastra la cámara en la reentrada pedía que la nave cayera más de 100 m en lo que tardara la medida. En un ejecutor lento de CI midió 1,7 s y la nave cayó justo 100 m, así que falló sin que nada estuviera mal. Ahora pide al menos 25 m/s, un tercio de los ≈58 m/s a los que cae ahí.
 
+### X-15 #1: fase 7, el chorro, el calentamiento y el sonido (1 de octubre de 2026)
+
+**El chorro del XLR99** (`src/sim/x15Plume.js`). El amoníaco anhidro quemado con oxígeno líquido da una llama casi transparente de día: en las fotos de la NASA del X-15 con el motor encendido (solo como referencia, ninguna en el repositorio) se ve un chorro tenue entre salmón y naranja, con una fila de diamantes de choque brillantes a poca altura, y arriba un resplandor ancho y pálido. La forma sale de la dinámica de gases del chorro:
+- **Datos publicados de la tobera:** 39,3 in de salida y 57.000 lbf (SP-60), con la relación de áreas de 9,8 de la tobera estándar (NASA, la misma del modelo). SP-60 no dice a qué altura se dan esas 57.000 lbf; aquí, como en el modelo de vuelo, se toman como empuje en el vacío (≈).
+- **Lo supuesto:** γ = 1,22 para los productos de la combustión (≈).
+- **Presiones derivadas:** de ahí salen una presión de cámara de ≈1,8 MPa (267 psia), por el coeficiente de empuje en el vacío, y una presión de salida de ≈22 kPa (3,2 psia), por la expansión isentrópica (≈).
+- **Forma del chorro:** frente a la presión del aire, el chorro se abre (presión de salida mayor que la ambiente) o se estrecha (menor), hasta el Mach y el diámetro de un chorro perfectamente expandido.
+- **Celdas de choque:** su separación es L ≈ 1,22·D<sub>j</sub>·√(M<sub>j</sub>² − 1), la estimación clásica de Pack (1950) para un chorro supersónico mal expandido. Cada celda termina en la banda brillante de un disco de Mach.
+- **Cifras resultantes:** a nivel del mar el chorro está sobreexpandido y sus celdas miden ≈1,6 m. A 45.000 ft miden ≈4,9 m. A 30 km el chorro ya mide varios metros de ancho y sus celdas decenas de metros. Más arriba se dibuja como un cono ancho y tenue.
+- **Lo que es de esta simulación (≈):** los colores, el brillo y la distancia a la que se apagan los diamantes, ajustados a ojo con esas fotos.
+- **Solo en vuelo:** el chorro se cuelga del avión al despegar y se quita al acabar. Oculto en el expositor, contaba igualmente en su caja: `verify()` medía 15,009 m de largo en vez de 15,005, y la prueba de `ux-check` lo detectó.
+
+**El calentamiento aerodinámico** (`src/sim/x15Heating.js`) sale de lo que se midió en el propio avión: **NASA TM X-1705** (Quinn y Olinger, 1969). Son medidas de 200 termopares en la piel de Inconel X en dos vuelos casi estacionarios: el 2-22 (Mach 5,1, α 2,0°) y el 2-28 (Mach 4,98, α 16,3°).
+- **Dónde:** en la línea central inferior del fuselaje (φ = 0, figura 4), la de barlovento y la más caliente, en los cinco termopares medidos en los dos vuelos (tabla V). Cada uno tiene su propia piel, con la capacidad térmica ρcτ que da el informe.
+- **Cómo:** con la reducción de datos del propio informe, pero hacia delante (sus ecuaciones 1–5): ρcτ·dT<sub>w</sub>/dt = St·ρV·(H<sub>R</sub> − H<sub>w</sub>) − εσT<sub>w</sub>⁴, con H<sub>R</sub> = H + η·V²/2, el factor de recuperación η = 0,9 y la emisividad ε = 0,76 del informe.
+- **El número de Stanton** en cada punto es el medido. Entre los dos vuelos se interpola según el ángulo de ataque, y se mantiene fuera de ellos. Antes, cada vuelo se lleva a un mismo flujo másico con la ley turbulenta de placa plana St ∝ Re<sup>−0,2</sup> (≈).
+- **Lo que no se modela:** la conducción a lo largo de la piel y hacia la estructura, y la transición de la capa límite.
+- **Comprobación:** `x15-check` rehace los dos puntos del informe con sus propias cifras y exige los calentamientos medidos en los diez casos (cinco termopares, dos vuelos) con un margen del 5 %. Lo cumple dentro del 2,5 %. Un mutante con recuperación total (η = 1) tiene que fallar.
+- **En pantalla:** el panel de vuelo da la temperatura de la piel del vientre (el más caliente de los cinco puntos) y su máximo del vuelo, en °F como en los informes; la línea de la cabina también la lleva.
+- **Sin resplandor dibujado:** el Inconel X a 900–1.000 K, lo más alto de estos vuelos, brilla tan poco al lado de la piel iluminada por el sol que de día no se vería, así que no se pinta ninguno.
+
+**El sonido** (`src/sim/sound.js`, con el mismo interruptor que el del lanzamiento y un botón *Sound* en el panel de vuelo):
+- **Desde fuera:** el XLR99 se coloca en el avión y se apaga con el aire igual que los motores del lanzamiento, con el retumbar, el chasquido de los choques y la absorción de los agudos con la distancia.
+- **Desde la cabina:**
+  - el motor tal como lo transmite la estructura, un retumbar grave que sigue en el vacío, porque no viaja por el aire;
+  - el aire que pasa sobre la carlinga, según la presión dinámica;
+  - el silbido de los cohetes de peróxido cuando están en uso.
+- **Todo sintetizado** sobre los mismos ruidos base del lanzamiento, con niveles a oído (≈).
+
+**Corrección de paso:** por encima de 20 km el vuelo ponía el plano cercano de la cámara a 2 m, que en la vista de cabina recortaba el panel y la carlinga, a menos de un metro. Ahora la cabina lo mantiene en 5 cm a cualquier altura.
+
 ### Historial
 
 Las rondas anteriores —entorno, vehículos contra las fotos, nube y sonido del lanzamiento, revisión corriendo la simulación y las auditorías externas de Grok y ChatGPT— están en [docs/historial.md](docs/historial.md), rotuladas como históricas. Este README describe el estado actual.

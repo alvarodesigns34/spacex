@@ -31,6 +31,8 @@ import { GEAR, STATIONS, LOWER_FIN, NOSE, WING } from '../data/x15.js';
 import { LAUNCH_SITE } from '../data/gulf.js';
 import { RUNWAY, fromRunway, toRunway, offRunway } from '../core/terrain.js';
 import { COCKPIT } from '../vehicles/x15.js';
+import { buildX15Plume } from './x15Plume.js';
+import { makeSkin, heatStep } from './x15Heating.js';
 
 const D2R = Math.PI / 180, R2D = 180 / Math.PI, FT = 0.3048, KT = 0.514444;
 const AZ = LAUNCH_SITE.azimuthDeg * D2R, SA = Math.sin(AZ), CA = Math.cos(AZ);
@@ -77,6 +79,14 @@ export function createX15Flight({ scene, exhibits, env, rig, camera, flightEarth
     ballistic: airframe.getObjectByName('x15-ballistic-stick'), throttle: airframe.getObjectByName('x15-throttle'),
   };
   const panelInfo = exhibit.userData.panel ?? null;
+  // The XLR99's jet, at the nozzle's exit (x15Plume.js). On the airplane only while it flies:
+  // even hidden it would count in the exhibit's measured size.
+  const nozzle = airframe.getObjectByName('x15-xlr99-nozzle');
+  const plume = buildX15Plume();
+  if (nozzle) {
+    const lip = nozzle.getObjectByName('x15-nozzle-lip');
+    plume.group.position.set(-nozzle.userData.exit.station, lip?.position.y ?? 0, 0);
+  }
 
   // The airplane's holder: at the centre of gravity, turned to the attitude. The airframe's own
   // frame has its origin at the nose apex, X = −station; the CG is CG_STATION aft of it.
@@ -362,7 +372,8 @@ export function createX15Flight({ scene, exhibits, env, rig, camera, flightEarth
     const camAlt = Math.max(0, camera.position.y);
     env.setAltitude(camAlt, { stretch: false });
     flightEarth.update(camera, env.sunDir, camAlt, { force: true, drop: 1.2 });
-    camera.near = camAlt > 20000 ? 2 : 0.3;
+    // From the cockpit the panel is under a metre away: the plane stays close whatever the height.
+    camera.near = state.camera === 'cockpit' ? 0.05 : camAlt > 20000 ? 2 : 0.3;
     camera.far = Math.max(90000, Math.sqrt(2 * 6371000 * Math.max(camAlt, 1)) * 1.3 + 60000);
     camera.updateProjectionMatrix();
     // The shadow box and the orbit's centre follow the airplane.
@@ -420,11 +431,13 @@ export function createX15Flight({ scene, exhibits, env, rig, camera, flightEarth
     if (state.running) reset(false);
     onStart();
     state.scenario = SCENARIOS[name] ? name : 'drop';
+    state.skin = makeSkin(atmosphere(SCENARIOS[state.scenario].altitude).T);
     saved.parent = airframe.parent;
     saved.position.copy(airframe.position);
     saved.quaternion.copy(airframe.quaternion);
     saved.near = camera.near; saved.far = camera.far; saved.fov = camera.fov;
     holder.add(airframe);
+    nozzle?.add(plume.group);
     airframe.position.set(CG_STATION, 0, 0);
     airframe.quaternion.identity();
     saved.canopy = canopy?.rotation.z ?? 0;
@@ -472,6 +485,8 @@ export function createX15Flight({ scene, exhibits, env, rig, camera, flightEarth
     camera.near = saved.near; camera.far = saved.far; camera.fov = saved.fov;
     camera.updateProjectionMatrix();
     rig.releaseExternal?.();
+    plume.update(0, 101325, 0);
+    plume.group.removeFromParent();
     visibilityHook?.(false);
     panel?.show(false);
     onState(state);
@@ -490,6 +505,7 @@ export function createX15Flight({ scene, exhibits, env, rig, camera, flightEarth
     const ctl = controls();
     state.ctl = ctl;
     if (!state.paused && dt > 0) {
+      const t0 = state.sim.t;
       let left = Math.min(dt, 0.1);
       let n = 0;
       while (left > 1e-6 && n < 60) {
@@ -504,8 +520,12 @@ export function createX15Flight({ scene, exhibits, env, rig, camera, flightEarth
         if (checkGround(state.sim, state.d, ctl)) break;
       }
       state.t = state.sim.t;
+      // The belly's skin over the same time (x15Heating.js, TM X-1705).
+      const atm = atmosphere(Math.max(0, state.d.altitude));
+      heatStep(state.skin, { T: atm.T, rho: atm.rho, V: state.d.V, alpha: state.d.alpha }, state.sim.t - t0);
     }
     placeAirplane(state.sim);
+    plume.update(input.engine ? input.throttle : 0, atmosphere(Math.max(0, state.d.altitude)).p, state.sim.t);
     animateSurfaces(state.sim.info ?? { dh: ctl.dh, da: ctl.da, dv: ctl.dv }, ctl);
     placeCamera(Math.max(dt, 1 / 120));
     updateWorld();
@@ -531,6 +551,7 @@ export function createX15Flight({ scene, exhibits, env, rig, camera, flightEarth
       sas: input.sas, rcs: input.rcsMode, speedBrake: input.speedBrake, flaps: input.flaps, gear: input.gear,
       runway: { distKm: Math.hypot(toThreshold, c) / 1000 * Math.sign(toThreshold || 1), along: a, across: c, bearing: bearingTo(p, fromRunway(-RUNWAY.length / 2, 0)) },
       alphaTrim: alphaTrim(Math.max(0.6, d.mach), input.trim), nz: info.nz ?? 1,
+      skinK: Math.max(...state.skin.T), skinPeakK: Math.max(...state.skin.peak),
       camera: state.camera, paused: state.paused, outcome: state.outcome, touchdown: state.touchdown,
       messages: state.messages.filter(m => performance.now() - m.t < 5000).map(m => m.text),
     };
@@ -551,6 +572,9 @@ export function createX15Flight({ scene, exhibits, env, rig, camera, flightEarth
   return {
     get state() { return state; },
     get running() { return state.running; },
+    /** Where the airplane is in the scene (its centre of gravity). */
+    get position() { return holder.position; },
+    plume,
     start, reset, update, setPaused, setCamera, cycleCamera,
     scenarios: SCENARIOS,
     /** For the checks: the pilot's inputs, set directly. */

@@ -26,6 +26,11 @@
  *    hot-staging crack, and the returning booster's sonic booms, heard at the pad on every
  *    catch. The booms are timed from the model's own descent through Mach 1.2, delayed by the
  *    distance, and played as a triple N-wave.
+ * The X-15's flight (x15()) uses the same noise beds: the XLR99 from outside, placed at the
+ * airplane and thinned with the air like the launch's engines; from the cockpit, the engine as
+ * the structure carries it (a low rumble, which needs no air and so stays in a vacuum),
+ * the air rushing over the canopy as the dynamic pressure, and the hiss of the peroxide
+ * reaction jets. Levels by ear, like the rest (≈).
  * It is not a recording and not a measured spectrum: band levels are chosen by ear against
  * published launch and catch videos, and the booms' timing is the model's, not a flight's.
  */
@@ -59,6 +64,7 @@ export function createLaunchSound({ launch, camera }) {
   const heard = [{ pos: camera.position.clone() }, { pos: camera.position.clone() }];
   const lastHeard = [null, null];
   let oneShots = {};
+  const beds = {};
 
   function build() {
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -86,6 +92,7 @@ export function createLaunchSound({ launch, camera }) {
       }
       for (let k = 0; k < d.length; k++) d[k] = Math.max(-1, Math.min(1, d[k] * 0.8));
     });
+    beds.white = white; beds.brown = brown; beds.shocks = shocks;
     // Slow turbulence: the roar of a real jet swells and sags by a third, irregularly, over
     // fractions of a second. Low-passed noise around zero, used to modulate a gain.
     const flutter = buffer(ctx, 11, (d, sr) => {
@@ -174,6 +181,53 @@ export function createLaunchSound({ launch, camera }) {
     return true;
   }
 
+  // The X-15's voices, made on first use from the same beds as the launch's.
+  let xv = null;
+  function x15Voices() {
+    const loop = (buf, type, f, q = 0.7) => {
+      const n = ctx.createBufferSource(); n.buffer = buf; n.loop = true;
+      const flt = ctx.createBiquadFilter(); flt.type = type; flt.frequency.value = f; flt.Q.value = q;
+      const g = ctx.createGain(); g.gain.value = 0;
+      n.connect(flt); flt.connect(g); n.start();
+      return { g, flt };
+    };
+    const panner = ctx.createPanner();
+    panner.panningModel = 'HRTF'; panner.distanceModel = 'inverse'; panner.refDistance = 30; panner.rolloffFactor = 1;
+    panner.connect(master);
+    const roar = loop(beds.brown, 'lowpass', 900), crackle = loop(beds.shocks, 'highpass', 500);
+    roar.g.connect(panner); crackle.g.connect(panner); roar.g.connect(reverbIn);
+    const rumble = loop(beds.brown, 'lowpass', 140), rush = loop(beds.white, 'bandpass', 900, 0.5), jets = loop(beds.white, 'highpass', 2500);
+    for (const v of [rumble, rush, jets]) v.g.connect(master);
+    return { panner, roar, crackle, rumble, wind: rush, jets };
+  }
+
+  /**
+   * The X-15's flight, once a frame: r is its readout (null when not flying), pos the airplane
+   * in the scene.
+   */
+  function x15(r, pos) {
+    if (!enabled || !ctx) return;
+    const tc = ctx.currentTime;
+    if (!r) { if (xv) for (const v of ['roar', 'crackle', 'rumble', 'wind', 'jets']) xv[v].g.gain.setTargetAtTime(0, tc, 0.15); return; }
+    xv ??= x15Voices();
+    const quiet = r.paused || r.outcome;
+    const thr = quiet ? 0 : r.throttle;
+    const air = Math.exp(-Math.max(r.altitudeFt * 0.3048, 0) / 7500);
+    const inside = r.camera === 'cockpit';
+    setPos(xv.panner, pos);
+    const d = camera.position.distanceTo(pos);
+    // Outside: the engine as the air carries it, its top taken off with distance.
+    xv.roar.g.gain.setTargetAtTime(inside ? 0 : 0.9 * Math.pow(thr * air, 0.6), tc, 0.12);
+    xv.crackle.g.gain.setTargetAtTime(inside ? 0 : 0.35 * Math.pow(thr * air, 0.8) * Math.min(1, 200 / Math.max(d, 1)), tc, 0.08);
+    xv.roar.flt.frequency.setTargetAtTime(Math.max(160, Math.min(1400, 1400 * 250 / Math.max(d, 250))), tc, 0.2);
+    // Inside: the structure's rumble, the air over the canopy, the jets.
+    const q = quiet ? 0 : Math.min(1, r.qbarPsf / 1500);
+    xv.rumble.g.gain.setTargetAtTime(inside ? 0.55 * thr : 0, tc, 0.1);
+    xv.wind.g.gain.setTargetAtTime(inside ? 0.3 * Math.pow(q, 0.7) : 0, tc, 0.2);
+    xv.wind.flt.frequency.setTargetAtTime(500 + 900 * Math.min(r.mach, 3), tc, 0.3);
+    xv.jets.g.gain.setTargetAtTime(inside && r.rcs && !quiet ? 0.06 : 0, tc, 0.05);
+  }
+
   function play(name, { gain = 1, at = 0, pan = null, lowpass = 20000, delay = 0 } = {}) {
     const s = ctx.createBufferSource(); s.buffer = oneShots[name];
     const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lowpass;
@@ -192,6 +246,7 @@ export function createLaunchSound({ launch, camera }) {
     else {
       for (const s of src) for (const k of ['rumble', 'roar', 'tear', 'crackle', 'imp', 'reflGain']) s[k].gain.setTargetAtTime(0, ctx.currentTime, 0.05);
       for (const g of [vent, deluge, wind]) g?.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+      if (xv) for (const v of ['roar', 'crackle', 'rumble', 'wind', 'jets']) xv[v].g.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
     }
   }
 
@@ -294,5 +349,5 @@ export function createLaunchSound({ launch, camera }) {
   };
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisibility);
 
-  return { setEnabled, update, get enabled() { return enabled; }, get contextState() { return ctx?.state ?? 'none'; } };
+  return { setEnabled, update, x15, get enabled() { return enabled; }, get contextState() { return ctx?.state ?? 'none'; } };
 }

@@ -91,7 +91,10 @@ Fases (cada una es un commit con check a 0):
    - Fuentes: alturas de AWS Terrain Tiles (Terrarium) e imagen de EOxCloudless 2016 (CC BY 4.0; la de 2018+ es no comercial). La imagen del USGS se descartó porque no cubre México.
    - `src/core/realTerrain.js` construye las mallas (ShaderMaterial con la luz y la bruma del globo, curvatura alrededor de la cámara y hueco del disco). La proyección está en `src/core/geoMap.js`, sin three.js, y la prueba `x15-check` (mutante `geo`).
    - `main.js` llama a `realTerrain.update` en cada fotograma (hueco = radio del disco × su estiramiento, o 0 si el disco está oculto). `env.setAltitude(h, { stretch: false })` en el vuelo del X-15.
-7. **Efectos:** chorro del XLR99, calentamiento (TM X-1705) y sonido.
+7. **Efectos: hechos.** Commit «X-15 phase 7: XLR99 plume, skin heating and sound», README *X-15 #1: fase 7*.
+   - Chorro: `src/sim/x15Plume.js` (`jetShape(throttle, pa)`: Mach y diámetro del chorro expandido, celdas de Pack). Se cuelga de `x15-xlr99-nozzle` en `x15Fly.js`, y `x15fly.plume` queda expuesto para las pruebas.
+   - Calentamiento: `src/sim/x15Heating.js` (TM X-1705, cinco termopares de la línea inferior). `state.skin` en el vuelo, y `skinK`/`skinPeakK` en el readout. `x15-check` lo compara con los dos vuelos del informe (mutante `recovery`). El PDF está en la carpeta temporal (solo consulta).
+   - Sonido: `x15(readout, pos)` en `src/sim/sound.js`, con el mismo contexto e interruptor que el lanzamiento (`hud.toggleSound`, botón *Sound* del panel de vuelo).
 
 Datos y figuras en `src/data/x15.js` (con procedencia) y el modelo en `src/vehicles/x15.js`. Marco del avión: X adelante (X = −estación), Y arriba desde la FRL, **Z a la derecha** (X × Y; la fase 1 decía «izquierda» por error, corregido en la fase 2 con los nombres de las piezas). Documentos descargados (solo consulta, fuera del repositorio): TN D-3343, TM X-236, TM X-207, SP-60 y el manual, sección 1 (escaneado sin texto: hay que renderizarlo y leerlo). NTRS, images-api.nasa.gov, ids.si.edu y sierrafoot.org funcionaron desde el contenedor.
 

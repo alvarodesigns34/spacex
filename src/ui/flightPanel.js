@@ -7,7 +7,9 @@
  */
 const fmt = (x, d = 0) => (Number.isFinite(x) ? x.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
 
-export function createFlightPanel({ root, onStart, onEnd, onCamera }) {
+const degF = (k) => (k - 273.15) * 9 / 5 + 32;
+
+export function createFlightPanel({ root, onStart, onEnd, onCamera, onSound }) {
   const el = document.createElement('section');
   el.className = 'x15-panel hidden';
   el.setAttribute('aria-label', 'X-15 flight instruments');
@@ -15,6 +17,7 @@ export function createFlightPanel({ root, onStart, onEnd, onCamera }) {
     <div class="x15-top">
       <span class="eyebrow">X-15 #1 · 56-6670 · flight model from NASA flight data</span>
       <span class="x15-clock" id="x15-clock">T+0:00</span>
+      <button type="button" class="x15-btn" id="x15-snd" aria-pressed="false" title="Engine and wind sound (the same switch as the launch's)">Sound off</button>
       <button type="button" class="x15-btn" id="x15-cam" title="Camera: chase, cockpit, tower, your own orbit (C)">Chase <kbd>C</kbd></button>
       <button type="button" class="x15-btn x15-end" id="x15-end" title="Back to the exhibit (Esc)">End <kbd>Esc</kbd></button>
     </div>
@@ -35,6 +38,7 @@ export function createFlightPanel({ root, onStart, onEnd, onCamera }) {
         <div class="x15-bar"><span id="x15-thr"></span></div>
         <div><dt>Propellant</dt><dd id="x15-prop">—</dd></div>
         <div><dt>Stabilizer</dt><dd id="x15-dh">—</dd></div>
+        <div><dt>Belly skin</dt><dd id="x15-skin">—</dd></div>
         <div><dt>Config</dt><dd id="x15-cfg">—</dd></div>
         <div><dt>Runway 13</dt><dd id="x15-rw">—</dd></div>
       </dl>
@@ -68,6 +72,7 @@ export function createFlightPanel({ root, onStart, onEnd, onCamera }) {
   const $ = (id) => el.querySelector(id);
   $('#x15-end').addEventListener('click', () => onEnd?.());
   $('#x15-cam').addEventListener('click', () => onCamera?.());
+  $('#x15-snd').addEventListener('click', () => onSound?.());
   const adi = $('#x15-adi'), g = adi.getContext('2d');
 
   function drawADI(pitch, roll) {
@@ -118,6 +123,8 @@ export function createFlightPanel({ root, onStart, onEnd, onCamera }) {
     $('#x15-thr').style.width = `${r.engine ? r.throttle * 100 : 0}%`;
     $('#x15-prop').textContent = `${fmt(r.propellantLb)} lb${r.burnLeft != null ? ` · ${fmt(r.burnLeft)} s` : ''}`;
     $('#x15-dh').textContent = `${fmt(r.dh, 1)}° · trim ${fmt(r.trim, 1)}°`;
+    // TM X-1705's bottom centre line: the hottest of its five points, and the flight's peak.
+    $('#x15-skin').textContent = `${fmt(degF(r.skinK))} °F · peak ${fmt(degF(r.skinPeakK))} °F`;
     $('#x15-cfg').textContent = [r.sas ? 'SAS' : 'SAS off', r.rcs ? 'JETS' : null, r.speedBrake ? 'brakes' : null, r.flaps ? 'flaps' : null, r.gear ? 'gear down' : 'gear up'].filter(Boolean).join(' · ');
     const rw = r.runway;
     $('#x15-rw').textContent = `${fmt(Math.abs(rw.distKm), 1)} km · ${fmt(rw.bearing)}°`;
@@ -125,7 +132,7 @@ export function createFlightPanel({ root, onStart, onEnd, onCamera }) {
     // From the cockpit the airplane's own panel is the instruments: this one shrinks to a line,
     // with the Mach number the panel of figure 1-2 does not have.
     el.classList.toggle('is-cockpit', r.camera === 'cockpit');
-    $('#x15-mini').textContent = `Mach ${fmt(r.mach, 2)} · ${fmt(r.altitudeFt)} ft · ${fmt(r.keas)} KEAS · α ${fmt(r.alpha, 1)}° · ${fmt(r.nz, 1)} g · ${r.engine ? `XLR99 ${fmt(r.throttle * 100)} %` : 'engine off'} · ${fmt(r.propellantLb)} lb`;
+    $('#x15-mini').textContent = `Mach ${fmt(r.mach, 2)} · ${fmt(r.altitudeFt)} ft · ${fmt(r.keas)} KEAS · α ${fmt(r.alpha, 1)}° · ${fmt(r.nz, 1)} g · ${r.engine ? `XLR99 ${fmt(r.throttle * 100)} %` : 'engine off'} · ${fmt(r.propellantLb)} lb · skin ${fmt(degF(r.skinK))} °F`;
     drawADI(r.pitch, r.roll);
     const list = $('#x15-msgs');
     const html = r.messages.map(t => `<li>${t}</li>`).join('');
@@ -164,6 +171,7 @@ export function createFlightPanel({ root, onStart, onEnd, onCamera }) {
     },
     choose(on = true) { chooser.classList.toggle('hidden', !on); if (on) chooser.querySelector('.x15-go')?.focus(); },
     get choosing() { return !chooser.classList.contains('hidden'); },
+    setSound(on) { const b = $('#x15-snd'); b.setAttribute('aria-pressed', String(!!on)); b.textContent = on ? 'Sound on' : 'Sound off'; b.classList.toggle('active', !!on); },
     update,
   };
 }

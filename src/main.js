@@ -626,6 +626,7 @@ async function main() {
     onStart: (name) => startFly(name),
     onEnd: () => x15fly.reset(),
     onCamera: () => x15fly.cycleCamera(),
+    onSound: () => { hud.toggleSound(); flightPanel.setSound(!!sound?.enabled); },
   });
   // The real ground beyond the disc (realTerrain.js), on the same map about the pad as the globe.
   const realTerrain = buildRealTerrain({ padX: exhibits.starship.lay.x, padZ: exhibits.starship.lay.z });
@@ -646,6 +647,9 @@ async function main() {
   });
   function startFly(name) {
     flightPanel.choose(false);
+    // As for the launch: a visitor who turned the sound on gets it again (this is a click or a key).
+    if (hud.soundWanted() && !sound.enabled) sound.setEnabled(true);
+    flightPanel.setSound(!!sound?.enabled);
     x15fly.start(name);
   }
   function toggleFly() {
@@ -1425,6 +1429,7 @@ async function main() {
     reentry.update(steps.mission);
     x15fly.update(dt);
     sound?.update();
+    sound?.x15(x15fly.running ? x15fly.state.readout : null, x15fly.position);
     // Water keeps moving whatever the camera or the launch is doing.
     WAVE_TIME.value += dt;
     // The sky is a finite box; centring it on the viewer is what lets it survive an ascent.

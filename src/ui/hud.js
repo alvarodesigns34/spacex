@@ -772,5 +772,5 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
   };
   root.querySelector('#coach-close').addEventListener('click', hideCoach);
 
-  return { setActive, setPreset, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setMissionText, setTrajectory, setTour, showHelp, setMap, setMapCamera, showCoach, hideCoach, soundWanted, milestoneStep, notice };
+  return { toggleSound: () => soundBtn.click(), setActive, setPreset, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setMissionText, setTrajectory, setTour, showHelp, setMap, setMapCamera, showCoach, hideCoach, soundWanted, milestoneStep, notice };
 }

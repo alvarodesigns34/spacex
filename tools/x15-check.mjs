@@ -12,6 +12,8 @@
  *    0.8, with a simple attitude autopilot: plausibility bands, not a reconstruction;
  *  - the landing against TM X-207 (nose gear down 0.52 s after the skids) and the exhibit's
  *    attitude on its gear;
+ *  - the skin's heating against TM X-1705: the measured heating rates on the bottom centre
+ *    line, flights 2-22 (Mach 5.1, α 2°) and 2-28 (Mach 4.98, α 16.3°), ±5 %;
  *  - energy conserved in a vacuum coast, quaternion and body axes consistent, the reaction
  *    controls' angular acceleration equal to torque over inertia.
  */
@@ -38,6 +40,8 @@ registerHooks({
       if (mutant === 'flat') source = source.replace('const grav = mul(s.r, -MU / (rn * rn * rn));', 'const grav = [-G0, 0, 0];');
     }
     // The real terrain's map with north and east swapped: Brownsville would lie out to sea.
+    // Full stagnation enthalpy instead of the measured recovery factor 0.9.
+    if (url.endsWith('/src/sim/x15Heating.js') && mutant === 'recovery') source = source.replace('RECOVERY * V * V / 2 - enthalpy(Tw)', 'V * V / 2 - enthalpy(Tw)');
     if (url.endsWith('/src/core/geoMap.js') && mutant === 'geo') source = source.replace('const north = R_EARTH * c * Math.cos(b), east = R_EARTH * c * Math.sin(b);', 'const east = R_EARTH * c * Math.cos(b), north = R_EARTH * c * Math.sin(b);');
     if (url.endsWith('/src/data/x15Aero.js')) {
       // The wind-tunnel Cnβ line instead of the flight points between Mach 2 and 3.
@@ -121,6 +125,41 @@ console.log('PASS frames: state angles read back, body axes right-handed');
   assert.ok(range.near[0] === 0 && range.near[1] < 60, `near region's heights ${range.near.join('–')} m (Boca Chica: a few metres)`);
   assert.ok(range.far[0] === 0 && range.far[1] > 300 && range.far[1] < 1500, `far region's heights ${range.far.join('–')} m`);
   console.log(`PASS real terrain: tiles on the flight's sphere within ${(worst * 1000).toFixed(2)} mm; heights ${range.near.join('–')} m near, ${range.far.join('–')} m far`);
+}
+
+// ---- Skin heating: TM X-1705 run forwards -----------------------------------------------------------
+// The report's two quasi-steady points, rebuilt from its own figures: Mach number, mass flux
+// ρV, and the recovery temperature its tabulated Tw / T_R gives at thermocouple 1. At each
+// bottom-centre-line thermocouple, at the wall temperature it measured, the model's heating
+// rate must be the one the report measured.
+{
+  const H = await import('../src/sim/x15Heating.js');
+  const tables = {
+    '2-22': { TR: 498 / 0.429, rates: { 1: [498, 8.06], 10: [543, 9.73], 17: [589, 9.67], 24: [590, 9.34], 30: [479, 5.50] } },
+    '2-28': { TR: 534 / 0.464, rates: { 1: [534, 12.84], 10: [591, 13.68], 17: [635, 13.34], 24: [637, 13.29], 30: [528, 10.62] } },
+  };
+  let worst = 0;
+  for (const [flight, tab] of Object.entries(tables)) {
+    const f = H.FLIGHTS[flight];
+    // The free-stream temperature whose recovery temperature at this Mach number is T_R.
+    let lo = 150, hi = 320;
+    for (let i = 0; i < 60; i++) { const T = (lo + hi) / 2, V = f.mach * Math.sqrt(1.4 * 287.05 * T); if (H.recoveryTemperature(T, V) > tab.TR) hi = T; else lo = T; }
+    const T = lo, V = f.mach * Math.sqrt(1.4 * 287.05 * T), free = { T, V, rho: f.rhoV / V, alpha: f.alpha };
+    const k = flight === '2-22' ? 0 : 1;
+    for (const p of H.BELLY) {
+      const [tw, rate] = tab.rates[p.tc];
+      const model = H.heatFlux(p, tw, free) / p.rct[k];
+      const err = Math.abs(model / rate - 1);
+      worst = Math.max(worst, err);
+      assert.ok(err < 0.05, `flight ${flight}, thermocouple ${p.tc}: ${model.toFixed(2)} K/s against the measured ${rate}`);
+    }
+  }
+  // And a skin left in that stream heats towards, and never past, the recovery temperature.
+  const sk = H.makeSkin(220);
+  H.heatStep(sk, { T: 215, V: 1500, rho: 0.0733, alpha: 2 }, 600);
+  const tr = H.recoveryTemperature(215, 1500);
+  assert.ok(sk.T.every(t => t > 700 && t < tr), `skin after 10 min at Mach 5.1: ${sk.T.map(t => t.toFixed(0)).join(', ')} K (recovery ${tr.toFixed(0)} K)`);
+  console.log(`PASS skin heating: TM X-1705's measured rates on flights 2-22 and 2-28 within ${(worst * 100).toFixed(1)} %; a skin held at Mach 5.1 settles at ${Math.max(...sk.T).toFixed(0)} K, under the ${tr.toFixed(0)} K recovery temperature`);
 }
 
 // ---- Short period ----------------------------------------------------------------------------------
@@ -250,7 +289,7 @@ function mission(thetaCmd) {
 }
 
 if (!mutant) {
-  for (const name of ['trim', 'burn', 'damping', 'flat', 'cnbeta', 'geo']) {
+  for (const name of ['trim', 'burn', 'damping', 'flat', 'cnbeta', 'geo', 'recovery']) {
     const run = spawnSync(process.execPath, [fileURLToPath(import.meta.url), `--mutant=${name}`], { encoding: 'utf8' });
     assert.notEqual(run.status, 0, `the X-15 checks must reject sabotage: ${name}`);
     assert.match(run.stderr, /AssertionError/, `sabotage ${name} must fail an assertion, not crash`);
