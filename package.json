@@ -13,7 +13,8 @@
     "check:ux": "node tools/ux-check.mjs",
     "check:provenance": "node tools/provenance-check.mjs",
     "lint": "eslint .",
-    "check:static": "npm run lint && node tools/provenance-check.mjs && node tools/cloud-check.mjs && node tools/hardware-check.mjs",
+    "check:static": "npm run lint && node tools/provenance-check.mjs && node tools/cloud-check.mjs && node tools/hardware-check.mjs && node tools/f16-check.mjs",
+    "check:f16": "node tools/f16-check.mjs",
     "check:lod": "node tools/lod-pop.mjs"
   },
   "devDependencies": {

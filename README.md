@@ -387,6 +387,33 @@ El F-16 tiene su propio complejo, como Starship tiene el suyo: una pista con su 
 - **El F-16** está a 40 m dentro del umbral de la 13, sobre el bombeo, alineado para despegar hacia el sureste. La ficha tiene una vista nueva, *Runway 13*.
 - **Presupuesto:** dos materiales nuevos (las lentes, con el color por instancia, y la tela de la manga) y ninguna textura nueva. El asfalto, el hormigón y la pintura reutilizan los mapas de la carretera y del recinto.
 
+### F-16, fase 5: el modelo de vuelo (1 de octubre de 2026)
+
+El F-16 ya tiene un modelo de vuelo de seis grados de libertad, de sólido rígido, que funciona igual sobre las ruedas que en el aire y siempre en el mundo de la simulación (`src/sim/f16Flight.js`, datos en `src/data/f16Aero.js`). Todavía no se puede pilotar: los mandos, las cámaras y la cabina llegan en la fase 6.
+
+- **Lo que viene de la NASA:**
+  - **Aerodinámica:** los polinomios globales de Morelli (NASA Langley, 1998), ajustados a la base de datos de túnel de TP-1538: maqueta al 16 %, Mach < 0,6, α de −10° a 45°, β ±30°. Son las seis fuerzas y momentos con sus derivadas de amortiguamiento y de mando. Las tablas III de TP-1538 están escaneadas con poca calidad y el OCR no las lee bien; los polinomios, publicados con todos sus coeficientes, son la misma base de datos en forma compacta, con menos del 10 % de diferencia en una maniobra.
+  - **Masa e inercias:** tabla I de TP-1538, 20.500 lb.
+  - **Motor:** tabla VI de TP-1538, el empuje instalado del F100 al ralentí, a régimen militar y con postcombustión máxima, de 0 a 15.240 m y de Mach 0,2 a 1,0.
+  - **Mandos de vuelo:** apéndice A de TP-1538. Mando de factor de carga con la velocidad de cabeceo lavada y un integrador; limitador de α de −0,322 g/° entre 15° y 20,4° y de −1,322 g/° por encima, que deja el α en unos 25°. Mando de velocidad de alabeo hasta 308°/s, con 1° de cola diferencial por cada 4° de alerón. Amortiguador de guiñada sobre r − pα e interconexión alerón-timón de 0,075/°. El pedal se anula entre 20° y 30° de α. La ley del flap de borde de ataque y los actuadores son los publicados: 0,0495 s; 60, 80 y 120°/s; ±25°, ±21,5° y ±30°.
+  - **Atmósfera:** la estándar de EE. UU. de 1976, hasta 20 km.
+- **Lo que es aproximado (≈), todo en la cabecera del código:**
+  - **Por encima de Mach 0,6:** no hay datos públicos del F-16 entre Mach 0,6 y 1,6. La pendiente de sustentación sigue una fórmula de tipo DATCOM para alargamiento 3 hasta la teoría lineal supersónica, y la resistencia de onda sube ≈0,028 cerca de Mach 1.
+  - **Empuje:** más allá de Mach 1 se extrapola la última pendiente de la tabla, cada vez menor; arriba de 15.240 m, con la densidad.
+  - **Motor:** ≈4 s del ralentí al régimen militar.
+  - **Ganancias:** las del sistema de mando están ajustadas aquí, no publicadas. Dos lazos no están en TP-1538: la compensación del acoplamiento inercial en cabeceo, porque a 300°/s el término (Ix − Iz)·p·r levantaba el morro, y la realimentación de deriva en lugar de la de aceleración lateral.
+  - **Tren:** amortiguadores de muelle, fricción de neumáticos, frenos y dirección de la rueda delantera. Se rompe por encima de unas 8 veces la carga estática (≈5 m/s de descenso).
+  - **Sin** efecto suelo, viento ni consumo de combustible.
+- **Comprobado sin navegador (`tools/f16-check.mjs`, dentro de `npm run check`).** Un piloto automático pequeño pilota cada caso con los mismos mandos que tendrá el jugador:
+  - **En reposo:** las cargas de las ruedas suman el peso; el morro lleva el 13,5 % con el motor al ralentí.
+  - **Despegue con postcombustión:** rota a 136 kt y despega a 184 kt en 466 m (1.528 ft).
+  - **Vuelo nivelado** a Mach 0,6 y 3.000 m, con 0,9° de α.
+  - **Alabeo con la palanca a fondo:** unos 300°/s, que paran al soltar.
+  - **Palanca a fondo atrás:** el α se queda en 25,6°.
+  - **Supersónico** a 11.000 m: Mach 1,5 a los 65 s y Mach 2,0 a los 200 s.
+  - **Aterrizaje:** final de 3° a 12° de α y recogida con motor. Toca a 137 kt con 2,4 m/s de descenso y para en 870 m (≈2.850 ft) con frenos y aerofrenos.
+  - **Toma dura:** a 7 m/s rompe el tren.
+
 ### Historial
 
 Las rondas anteriores —entorno, vehículos contra las fotos, nube y sonido del lanzamiento, revisión corriendo la simulación y las auditorías externas de Grok y ChatGPT— están en [docs/historial.md](docs/historial.md), rotuladas como históricas. Este README describe el estado actual.

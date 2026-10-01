@@ -28,7 +28,17 @@ Fases, cada una un commit con check a 0, empujado a las cinco ramas (las cuatro 
    - `src/core/runway.js`: `buildRunway(M)` y `runwaySurface(a, c)`, la altura del pavimento en coordenadas de pista. Sirve para posar el avión y, en la fase 5, para el contacto de las ruedas.
    - Marcas según la FAA AC 150/5340-1M, descargada a la carpeta temporal.
    - En coordenadas de pista, +c queda a la derecha de +a, hacia el suroeste. El comentario antiguo de `terrain.js`, que decía noreste, se corrigió.
-5. Modelo de vuelo de 6 grados de libertad (TP-1538 y TP-3355, F100, *fly-by-wire*, tren).
+5. Modelo de vuelo: **hecha**, commit «F-16 phase 5: six-degree-of-freedom flight model».
+   - `src/sim/f16Flight.js`: `createF16Flight({ ground })` devuelve `{ state, input, reset, advance, pose }`.
+     - `ground(x, z)` → `{ h, hard, water }`.
+     - `input` = `{ pitch, roll, yaw, throttle, brake, speedBrake, gearDown }`.
+     - `pose()` da la posición y el giro del origen del modelo (la punta de la sonda, el suelo en y = 0); el centro de gravedad está en `CG`.
+   - Datos en `src/data/f16Aero.js`: los polinomios de Morelli (NTRS 20040110310, descargado a la carpeta temporal), la tabla VI y `FCS`.
+   - `tools/f16-check.mjs` forma parte de `check:static`; también `npm run check:f16`.
+   - Lecciones del ajuste:
+     - La ley C* manda velocidad de cabeceo por debajo de 122 m/s: el piloto automático de la prueba sigue α con la palanca y la senda con el motor.
+     - Bajar el amortiguamiento de cabeceo o subir el integrador hace que el avión se vaya en pérdida profunda (α de 111°).
+     - En un alabeo rápido, la deriva β se convierte en α (α̇ ≈ q − pβ): por eso existe la realimentación de β.
 6. Modo de vuelo: despegue, vuelo, aterrizaje, cámaras, cabina y HUD.
 7. Revisión, README, galería.
 
