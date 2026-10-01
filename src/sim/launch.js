@@ -1813,6 +1813,8 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   }
 
   return {
+    /** The curved Earth under the flight, shared with the X-15's flight (x15Fly.js) when the launch is not running. */
+    flightEarth,
     get state() { return state; },
     get running() { return state.running; },
     setSpeed: (k) => { state.speed = k; },

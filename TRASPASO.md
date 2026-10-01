@@ -75,7 +75,12 @@ Fases (cada una es un commit con check a 0):
    - API: `makeState({altitude, speed, heading, gamma, alpha, bank, propellant})`, `step(s, controls, dt)` (RK4; 1/200 s en vuelo y 1/400 s en el suelo) y `describe(s)`.
    - Controles: `dh`, `da`, `dv` en grados (los del piloto, antes del SAS), `throttle` (0 o 0,5–1), `speedBrake`, `flaps`, `gear`, `rcs` [alabeo, cabeceo, guiñada] de −1 a 1, `sas` y `sasGain`.
    - Documentos descargados (solo consulta, fuera del repositorio): TN D-2532, TM X-714 y CR-2144, de NTRS.
-4. **Pista y modo de vuelo:** controles (teclado, ratón, Gamepad API), cámaras, instrumentos, suelta, aterrizaje y carrera sobre patines.
+4. **Pista y modo de vuelo: hecha.** Commit «X-15 phase 4: runway 13/31 and flying the X-15», README *X-15 #1: fase 4*.
+   - Pista: `RUNWAY` en `src/core/terrain.js` (suelo llano y desnudo, sin canales) y `src/core/runway.js` (arcilla y marcas). Centro (−790, 1360), 3,4 km × 91,4 m, 30° desde +X: rumbo 130,8°.
+   - Vuelo: `src/sim/x15Fly.js`, que reparenta el armazón del expositor en un `holder` en el CG. Panel en `src/ui/flightPanel.js` y CSS en `styles.css` (`#hud.is-x15` aparta los paneles del museo).
+   - Proyección: escena = plataforma + mapa equidistante azimutal (`groundTrack`, `toOriginFrame` en `x15Flight.js`), la misma del `FlightEarth` del lanzamiento, que se comparte (`launch.flightEarth`; `update(..., { force, drop })`).
+   - Teclas capturadas en fase de captura mientras se vuela (`stopImmediatePropagation`); J abre el selector en `main.js`. `__vc.x15fly` para las pruebas.
+   - Pendiente para las fases 5–7: cabina, terreno real, chorro, calentamiento y sonido. El B-52 no aparece (decisión del usuario: suelta sin B-52).
 5. **Cabina** según el manual (figura 1-2 y consolas).
 6. **Terreno real ampliado** por teselas.
 7. **Efectos:** chorro del XLR99, calentamiento (TM X-1705) y sonido.

@@ -55,12 +55,28 @@ y abrir la URL que indique. `npm run serve` es un servidor en Node (`tools/serve
   - Andando con el teclado no se atraviesan las mesas, peanas, la mesa de lanzamiento, la base de la torre, **la valla** ni **el borde de la zanja** (una caída de 4,2 m sin salida). Un escalón de más de 0,6 m (los muros de 2,5 m del pad) es una pared. En vez de pararse en seco, el visitante se desliza a lo largo del obstáculo.
 - La vista **In orbit** del Roadster cambia la peana por el adaptador de carga y el suelo por la Tierra, y deja el coche solo: la explanada, sus matorrales, los camiones de servicio y los otros siete expositores se ocultan al entrar y vuelven al salir (antes seguían ahí, y el coche aparecía aparcado sobre hormigón a 30 km de altura).
 - El **plano del recinto** (arriba a la derecha) muestra la franja de exposición, los viales y el complejo de lanzamiento, con cada expositor como una parada numerada —un clic la visita— y la cámara como una cuña que apunta hacia donde mira. Se aparta cuando se despliega la ficha técnica y se oculta en pantallas estrechas, durante el vuelo y en la vista orbital del Roadster.
-- **1–8** selecciona expositor (Starship primero, luego del Falcon 1 al Engine Row), **0** vista general, **L** etiquetas, **R** regla de altura, **T** pliega la ficha, **H** o **?** (o el botón *Guide*) abre la **guía rápida**: tres primeros pasos numerados y una tarjeta por cada forma de moverse (mirar, pasear, volar, lanzamiento) más expositores y pantalla, con la tarjeta del modo en uso marcada como *You are here*. La tercera línea de la primera visita lo recuerda.
+- **1–9** selecciona expositor (Starship primero, luego del Falcon 1 al Engine Row y el X-15), **0** vista general, **L** etiquetas, **R** regla de altura, **T** pliega la ficha, **H** o **?** (o el botón *Guide*) abre la **guía rápida**: tres primeros pasos numerados y una tarjeta por cada forma de moverse (mirar, pasear, volar, lanzamiento) más expositores y pantalla, con la tarjeta del modo en uso marcada como *You are here*. La tercera línea de la primera visita lo recuerda.
 - **P** (o el botón *Tour*) recorre el centro parada por parada; cualquier arrastre, rueda o clic lo termina y devuelve la cámara. Cada parada lleva un **texto breve con su fuente**: una cifra o un hecho de lo que hay en pantalla, con el enlace a la fuente de la ficha. `tools/provenance-check.mjs` comprueba que toda cifra con unidad de esos textos está en la ficha del expositor, que una cifra estimada o reconstruida lleva ≈ o la salvedad, y que la fuente existe, con tres controles negativos.
 - **Primera visita:** tres líneas arriba en el centro explican cómo moverse, cómo llegar a los expositores y cómo lanzar. Desaparecen con la primera interacción (arrastrar, rueda, tecla o cualquier pulsación fuera de ellas) o a los 20 s, y no vuelven a salir (se guarda en `localStorage`; en una ventana privada se muestran una vez por visita). Por debajo de 1100 px de ancho no hay un hueco que no toque la ficha o las herramientas, así que no se muestran.
 - **Encuadre en la parte libre de la pantalla:** en escritorio, la lista de vehículos ocupa los primeros ~256 px, y una vista centrada en toda la ventana dejaba su cuarto izquierdo debajo de ella (en la vista general, el Falcon 1 y el Falcon 9 quedaban enteros bajo la lista). Ahora el centro de proyección se desplaza hacia la zona libre con `setViewOffset`, sin mover la cámara, así que la selección con el ratón, las etiquetas y la profundidad siguen cuadrando. En el modo de escena limpia y en la vista orbital no hay desplazamiento.
 - **G** (o el botón *Starship · Launch*) arranca la secuencia de Starship. Durante la cuenta atrás y el ascenso la cámara sigue un plan de planos, pero **arrastrar o girar la rueda devuelve el control al instante** sin detener la secuencia, y **la cámara sigue montada en el cohete**: el centro de la órbita se mueve con el vehículo y la cámara con él, así que se puede girar alrededor, pausar, reanudar o saltar a otro instante sin perderlo. Antes, al tomar el control la cámara se quedaba quieta donde la había dejado el plan de planos y el cohete salía de cuadro en segundos, con pausa o sin ella. El botón **Camera** (o **C**) elige entre los **planos de realización** y **tu órbita montada en el propulsor** o **en la nave** (tras la separación van cada uno por su lado); el cielo, los planos de recorte y las sombras siguen al vehículo en el que vas. El panel de misión lleva reloj, fase y el siguiente hito con su hora; **las dos etapas lado a lado, como en la retransmisión** (Super Heavy y Starship, cada una con su velocidad, su altitud y un **esquema de motores** que enciende un círculo por motor en el orden real: los 33 a la vez en el arranque del propulsor V3, 5 en la separación en caliente, y los 6 de la nave); un rótulo que aparece sobre la imagen al cruzar cada hito; un botón **Sound** (apagado por defecto, se recuerda) un botón **Pause** (o **K**, o la barra espaciadora fuera del vuelo libre) que congela el reloj de misión dejando la cámara libre para rodear la escena parada, un selector de velocidad **×¼** (cámara lenta) / ×1 / ×2 / ×5 / ×10 que multiplica el reloj (no salta hitos; el reloj de misión sigue al tiempo real aunque la imagen vaya a pocos fotogramas, y se detiene con la pestaña oculta) un botón **Restart** que vuelve a T−40 y un botón para terminar. Debajo de las cifras hay un **perfil de vuelo**: la altitud de la nave y la del propulsor en toda la misión, en escala de raíz cuadrada para que los 150 m de la captura y los ≈106 km del apogeo del propulsor quepan en la misma gráfica. Lleva una marca por hito y un cursor en el instante actual. Las curvas se muestrean de la misma trayectoria integrada que mueve los vehículos, así que no pueden contradecirse. El perfil es también la **línea de tiempo**: un clic o un arrastre sobre él salta a ese instante, y **←** / **→** van al hito anterior o siguiente. `seek(t)` es determinista (la nube se vuelve a simular desde la ignición), así que un salto cae en el mismo fotograma que se alcanzaría reproduciendo. En pantallas de menos de 560 px de alto se oculta.
 - **X** (o el botón *Reentry*) reproduce la **reentrada de la nave del vuelo 14** y su amerizaje en el Pacífico norte, con los tiempos publicados por SpaceX (ver *Reentrada de Starship*). Usa el mismo panel de misión: reloj en horas (T+09:28:56…), fase, siguiente hito, velocidad y altitud de la nave, esquema de motores (3 → 2 → 1 en el encendido de aterrizaje) y perfil de altitud que sirve de línea de tiempo (sin la columna ni la leyenda del propulsor, y con el botón *Reentry* encendido en lugar de *Launch*). Arranca a ×10, porque son 22 minutos. **C** alterna entre realización, cámara a bordo y persecución. **Arrastrar o girar la rueda toma la cámara** como en el lanzamiento: la órbita queda montada en la nave y la sigue en su caída (el botón dice *riding the ship*), y **C** devuelve la cámara a la realización. **K** pausa, **←**/**→** saltan entre hitos y **X** o *End* terminan; también la terminan **G**, elegir un vehículo o la visita guiada. Si se pulsa X paseando, la cámara vuelve al modo órbita.
+- **J** (o el botón *X-15 · Fly*) **pilota el X-15** (ver *X-15 #1: fase 4*). Se elige entre la suelta desde el B-52 (45.000 ft, Mach 0,8, todo el propulsante, 300 km antes de la pista) y una aproximación (9 km de altura, a 30 km). Mandos:
+  - `W`/`S` cabeceo y `A`/`D` alabeo (también las flechas), `Q`/`E` timón de dirección;
+  - `,`/`.` compensación del estabilizador;
+  - `I` enciende y apaga el XLR99, y `R`/`F` mueven el mando de gases del 50 al 100 %;
+  - manteniendo la **barra espaciadora**, la palanca mueve los cohetes de control;
+  - `B` aerofrenos, `N` flaps, `G` tren (solo se baja una vez, como en el avión) e `Y` amortiguadores;
+  - `C` cámara (persecución, cabina, torre o tu propia órbita, que también se toma arrastrando), `K` pausa y `Esc` vuelve al expositor;
+  - un mando de juego también sirve.
+  
+  Mientras se vuela, los paneles del museo se apartan y queda un panel de instrumentos con:
+  - horizonte artificial;
+  - Mach, KEAS, altitud, velocidad vertical, α y β, factor de carga, q̄ y rumbo;
+  - motor y propulsante con el tiempo de combustión que queda;
+  - estabilizador y compensación, configuración, y distancia y rumbo a la pista 13.
+  
+  Al pararse en la pista, o al estrellarse, un resumen da la velocidad vertical de la toma, su velocidad, su posición respecto al umbral y al eje, y el recorrido. Las teclas del museo no actúan mientras se vuela.
 - **Vista general en una ventana alta** (un monitor en vertical): la cámara retrocede por su propia línea de visión hasta que los extremos de la fila caben en el campo horizontal. En una ventana apaisada no cambia nada.
 - **`?perf`** en la URL muestra un medidor pequeño: fotogramas por segundo, tiempo medio y percentil 95 de los dos últimos segundos, llamadas de dibujo y triángulos de todo el fotograma (todas las pasadas del compositor), el nivel de calidad y la GPU que declara el navegador. Es la forma de tener cifras de una GPU real: la puerta de CI corre sobre un rasterizador por software.
 - Deslizador **Sol** de 4° a 75° de elevación: de la luz rasante y cálida de última hora a mediodía (se recalibran luz, sombras, niebla y mapa de entorno). No hay modo noche: el centro es una exposición de día. La inspección visual de referencia es **18°**: a esa elevación el sol es rasante, la exposición ACES queda en ≈0,72 (0,7 a los 20° de inicio; sigue a la luz a medias, ver *Revisión corriendo la simulación*) y el relleno hemisférico es bajo para que el acero satinado, la pintura blanca, el aluminio y el hormigón no se confundan ni se quemen. El azimut está fijado para iluminar los vehículos desde el lado desde el que miran las vistas por defecto. La simulación **arranca con el sol a 20°**. Antes arrancaba más alto, y con el sol bajo la escena ganaba relieve: sombras largas, el acero y la pintura modelados, menos velo. Se compararon 16°, 20°, 22°, 28° y 42° en los mismos encuadres, y 20° da esa luz rasante sin que las caras en sombra se queden negras.
@@ -433,6 +449,54 @@ El X-15 ya tiene un **modelo de vuelo de seis grados de libertad** (`src/sim/x15
 - sin calentamiento, sin viento, sin dinámica de actuadores y sin el agua oxigenada que alimenta los cohetes.
 
 **Corrección de la fase 1:** la actitud sobre el tren (`groundAttitude`) está ahora en `src/data/x15.js`. La usan el expositor y el tren del modelo de vuelo, así que el avión en reposo y el expositor tienen la misma actitud por construcción.
+
+### X-15 #1: fase 4, la pista y el vuelo (1 de octubre de 2026)
+
+**La pista 13/31** es la única excepción autorizada a «sin objetos nuevos». Es una franja marcada sobre la arcilla desnuda de la llanura salina, al estilo de las pistas del lecho seco de Rogers donde aterrizaba el X-15:
+- **Emplazamiento:** al noroeste del recinto. Ocupa la recta libre más larga dentro del disco de suelo (≈2,5 km de radio) que no pisa lomas, charcas, la playa ni el recinto.
+- **Dimensiones:** 3,4 km de largo con rumbo verdadero 130,8° y 300 ft (91,4 m) de ancho, el de una pista del lecho seco. Las dos cifras son ≈: la longitud es la que cabe y la anchura no está contrastada con un plano.
+- **Terreno:** el suelo se mantiene llano y desnudo en la franja y en un margen de 40 m, sin canales de marea ni matorral (`terrain.js`, `RUNWAY`).
+- **Superficie:** arcilla clara con grietas de desecación en dos escalas.
+- **Marcas negras:** líneas de borde, barras de umbral y los números «13» y «31» en cada cabecera, todo ≈. Comparten material con la arcilla, oscurecida por color de vértice como el alquitrán sobre ella, para que la escena siga en los 200 materiales de su presupuesto.
+
+**El vuelo** (`src/sim/x15Fly.js`) usa el modelo de la fase 3 en tiempo real:
+- **El avión es el del expositor:** el armazón sale de su tren y vuelve a él al terminar, así que el 56-6670 nunca está en dos sitios a la vez.
+- **Superficies móviles:**
+  - los estabilizadores, juntos para el cabeceo y en diferencial para el alabeo;
+  - el timón superior;
+  - los flaps y los cuatro aerofrenos, que se abren hacia fuera;
+  - el tren, que se ve al bajarlo.
+- **Integración:** pasos de 1/200 s en vuelo y de 1/400 s cerca del suelo.
+- **Proyección:** la escena es un mapa equidistante azimutal alrededor de la plataforma, la misma proyección del globo con el mapa del Golfo. La actitud se transporta de vuelta por el mismo círculo máximo, así que el avión, el mapa y la pista coinciden al metro estén donde estén. Una prueba lo comprueba: el rumbo de un vuelo radial llega exacto a la plataforma.
+- **Suelo:** a más de 40 km de la plataforma se guarda el recinto, porque el disco plano flotaría sobre el horizonte curvo (7 km de caída a 300 km) y el globo es entonces el suelo. Más cerca, el globo queda 1,2 m por debajo y asoma por el borde del disco. El terreno real de alrededor es la fase 6.
+- **Toma de contacto:**
+  - los patines y la rueda de morro son los muelles del modelo;
+  - por encima de 9 ft/s, el límite de diseño del tren según TM X-207, la toma cuenta como accidente;
+  - también es accidente que toque el suelo cualquier otra parte (morro, cola, puntas de ala, muñón de la aleta inferior), por ejemplo al aterrizar sin tren.
+
+**Mandos:**
+- La palanca mueve los estabilizadores ±20° alrededor de la compensación en cabeceo y ±15° en diferencial, los límites del piloto según TN D-2532. Los pedales mueven el timón ±7,5°.
+- **Lo que es de esta simulación (≈):**
+  - la respuesta cúbica de la palanca, para que las entradas pequeñas sean finas;
+  - las rampas del teclado;
+  - fusionar la palanca de cohetes con la principal mientras se mantiene la barra espaciadora (el avión tenía una palanca aparte a la izquierda);
+  - los dos escenarios: el B-52 no aparece, y la aproximación es una posición de partida razonable, no un circuito publicado.
+
+**Pruebas:**
+- **`ux-check` lo pilota con teclas reales:**
+  - J y el botón de la suelta lo dejan a 45.000 ft y Mach 0,8 con los paneles del museo apartados;
+  - I enciende el motor y gasta propulsante, y una tecla de vehículo no saca del vuelo;
+  - S tira de la palanca, el estabilizador pasa de la compensación hacia morro arriba y el avión cabecea;
+  - C pasa a la cabina y G baja el tren;
+  - Esc devuelve el armazón a su tren, y `verify()` sigue dando 3,505 / 6,815 / 15,005 m.
+- **`x15-check` añade la proyección:** ida y vuelta al nanómetro, y el transporte del rumbo.
+
+**Lo que no hay todavía:**
+- la cabina, con sus instrumentos físicos (fase 5);
+- el terreno real fuera del disco (fase 6);
+- el chorro del XLR99, el calentamiento y el sonido (fase 7).
+
+Mientras tanto, el panel muestra que el motor funciona.
 
 ### Historial
 

@@ -185,6 +185,39 @@ export function localNED(r) {
   return { n: north, e: east, d: mul(up, -1) };
 }
 
+// ---- Ground track ------------------------------------------------------------------------------
+/**
+ * The ground track as an azimuthal equidistant map about the launch point (the frame's +X): a
+ * point's distance along the great circle from the origin, split north and east by the
+ * bearing it leaves the origin on. It is the projection the scene's globe uses (plume.js
+ * FlightEarth turns the Earth by distance / R about the axis square to the bearing), so the
+ * airplane and the map under it agree to the metre wherever it flies.
+ */
+export function groundTrack(r) {
+  const n = norm(r), u = [r[0] / n, r[1] / n, r[2] / n];
+  const t = Math.hypot(u[1], u[2]), c = Math.atan2(t, u[0]);
+  if (t < 1e-15) return { north: 0, east: 0 };
+  return { north: R_EARTH * c * u[2] / t, east: R_EARTH * c * u[1] / t };
+}
+/** The unit vector at a ground-track point (the inverse of groundTrack). */
+export function fromGroundTrack(north, east) {
+  const d = Math.hypot(north, east), c = d / R_EARTH;
+  if (d < 1e-9) return [1, 0, 0];
+  return [Math.cos(c), Math.sin(c) * east / d, Math.sin(c) * north / d];
+}
+/**
+ * Carries an inertial vector at position r back along the great circle to the origin: the
+ * same turn the globe is given. Its components are then the origin's (up, east, north).
+ */
+export function toOriginFrame(v, r) {
+  const n = norm(r), u = [r[0] / n, r[1] / n, r[2] / n];
+  const ax = cross(u, [1, 0, 0]), s = norm(ax), c = u[0];
+  if (s < 1e-15) return [...v];
+  const k = mul(ax, 1 / s);
+  // Rodrigues: v cos θ + (k × v) sin θ + k (k·v)(1 − cos θ), θ the angle from u to the origin.
+  return add(add(mul(v, c), mul(cross(k, v), s)), mul(k, dot(k, v) * (1 - c)));
+}
+
 // ---- Aerodynamics ------------------------------------------------------------------------------
 /** Drag coefficient on the trimmed polar at (M, CL), extrapolated past CL 0.6 on its last slope in CL². */
 function polarCD(M, CL) {
@@ -273,8 +306,7 @@ export function xlr99(throttle, pAmb) {
  * attack (deg), bank (deg), propellant (kg).
  */
 export function makeState({ altitude, north = 0, east = 0, speed, heading = 0, gamma = 0, alpha = 0, bank = 0, propellant = 0, rates = [0, 0, 0] }) {
-  const lat = north / R_EARTH, lon = east / R_EARTH, rr = R_EARTH + altitude;
-  const r = [rr * Math.cos(lat) * Math.cos(lon), rr * Math.cos(lat) * Math.sin(lon), rr * Math.sin(lat)];
+  const r = mul(fromGroundTrack(north, east), R_EARTH + altitude);
   const L = localNED(r);
   const hd = heading * D2R, gm = gamma * D2R;
   const vNED = [Math.cos(gm) * Math.cos(hd), Math.cos(gm) * Math.sin(hd), -Math.sin(gm)];
@@ -306,11 +338,11 @@ export function describe(s, groundAlt = 0) {
   const phi = Math.atan2(yn[2], zn[2]) * R2D;
   const psi = Math.atan2(xn[1], xn[0]) * R2D;
   const vN = dot(s.v, L.n), vE = dot(s.v, L.e), vD = dot(s.v, L.d);
-  const lat = Math.asin(s.r[2] / norm(s.r)), lon = Math.atan2(s.r[1], s.r[0]);
+  const gt = groundTrack(s.r);
   return {
     t: s.t, altitude: h, agl: h - groundAlt, mach: V / atm.a, qbar: 0.5 * atm.rho * V * V, V, alpha, beta, theta, phi, psi,
     gamma: Math.asin(Math.max(-1, Math.min(1, -vD / Math.max(V, 1e-6)))) * R2D, vN, vE, vD,
-    p: s.w[0], q: s.w[1], r: s.w[2], mass: MASS.dry + s.prop, north: lat * R_EARTH, east: lon * R_EARTH,
+    p: s.w[0], q: s.w[1], r: s.w[2], mass: MASS.dry + s.prop, north: gt.north, east: gt.east,
   };
 }
 
@@ -354,6 +386,7 @@ function derivatives(s, ctl, out) {
     Mo = add(Mo, [cl(ctl.rcs[0]) * n * 2 * RCS.wingLbf * LBF * RCS_WING_ARM, cl(ctl.rcs[1]) * n * RCS.noseLbf * LBF * RCS_NOSE_ARM, cl(ctl.rcs[2]) * n * RCS.noseLbf * LBF * RCS_NOSE_ARM]);
   }
   // Gear: each contact point below the ground pushes back along the local vertical.
+  const Fb = F;   // aerodynamics and thrust only: what the accelerometers read in the air
   let Fi = rotate(s.q, F);
   const ground = R_EARTH + (ctl.groundAlt ?? 0);
   if (ctl.gear !== false && rn - ground < 6) {
@@ -392,7 +425,7 @@ function derivatives(s, ctl, out) {
   out.w = [(I.Iz * rhs[0] + I.Ixz * rhs[2]) / det, rhs[1] / I.Iy, (I.Ixz * rhs[0] + I.Ix * rhs[2]) / det];
   out.q = mul4(qmul(s.q, [0, p, q, r]), 0.5);
   out.prop = -eng.flow;
-  out.info = { alpha, beta, M, qbar, thrust: eng.thrust, dh, da, dv, mass: m };
+  out.info = { alpha, beta, M, qbar, thrust: eng.thrust, dh, da, dv, mass: m, nz: -Fb[2] / (m * G0), nx: Fb[0] / (m * G0) };
   return out;
 }
 const mul4 = (q, k) => [q[0] * k, q[1] * k, q[2] * k, q[3] * k];

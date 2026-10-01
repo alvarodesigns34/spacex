@@ -1691,9 +1691,14 @@ export class FlightEarth {
     });
   }
 
-  /** Follows the camera over the ground; fades in with the camera's altitude. */
-  update(camera, sunDir, altitude) {
-    const k = THREE.MathUtils.smoothstep(altitude, 9000, 20000);
+  /**
+   * Follows the camera over the ground; fades in with the camera's altitude.
+   * @param opts.force  fully shown at any height (the X-15's flight, low over open country)
+   * @param opts.drop   metres its top sits below the pad (40 by default; the X-15's flight
+   *                    sets it just under the ground disc, which then meets it at its edge)
+   */
+  update(camera, sunDir, altitude, { force = false, drop = 40 } = {}) {
+    const k = force ? 1 : THREE.MathUtils.smoothstep(altitude, 9000, 20000);
     this.group.visible = k > 0.001;
     if (!this.group.visible) return;
     this.loadMap();
@@ -1708,7 +1713,7 @@ export class FlightEarth {
     }
     this.u.uGeo.value.setFromMatrix4(this._rot.multiply(this.padFrame));
     // Centred under the camera, its top 40 m below the pad so the ground disc stays in front.
-    this.group.position.set(camera.position.x, -EARTH_R - 40, camera.position.z);
+    this.group.position.set(camera.position.x, -EARTH_R - drop, camera.position.z);
     this.u.uCentre.value.copy(this.group.position);
     this.limb.position.set(0, camera.position.y - this.group.position.y, 0);
     this.u.uCam.value.copy(camera.position);

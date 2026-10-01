@@ -70,6 +70,24 @@ console.log('PASS 1976 US Standard Atmosphere, 0–100 km, within 0.3 %');
 }
 console.log('PASS frames: state angles read back, body axes right-handed');
 
+// ---- Ground track: the projection the scene's globe uses ----------------------------------------------
+{
+  let worst = 0;
+  for (const [n, e] of [[0, 0], [1000, -2500], [-150000, 260000], [300000 * Math.cos(2.28), 300000 * Math.sin(2.28)], [-480000, -90000]]) {
+    const u = F.fromGroundTrack(n, e), g = F.groundTrack(u.map(x => x * (F.R_EARTH + 12000)));
+    worst = Math.max(worst, Math.hypot(g.north - n, g.east - e));
+  }
+  assert.ok(worst < 1e-3, `ground track round trip off by ${worst} m`);
+  // Along a great circle leaving the origin on bearing B, the direction of travel carried back
+  // to the origin is B itself: the airplane flies along the map's radial line, as it should.
+  const B = 130.8 * Math.PI / 180, d = 300000;
+  const p0 = F.fromGroundTrack(d * Math.cos(B), d * Math.sin(B)), p1 = F.fromGroundTrack((d + 1) * Math.cos(B), (d + 1) * Math.sin(B));
+  const t = F.toOriginFrame([p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], p0);
+  const bearing = Math.atan2(t[1], t[2]) * R2D;
+  assert.ok(Math.abs(bearing - 130.8) < 1e-6 && Math.abs(t[0]) < 1e-9, `carried direction ${bearing}°, up ${t[0]}`);
+  console.log(`PASS ground track: azimuthal equidistant round trip within ${worst.toExponential(1)} m, radial direction carried back exactly`);
+}
+
 // ---- Short period ----------------------------------------------------------------------------------
 function oscillation(series, dt) {
   const n = series.length, zc = [], pk = [];

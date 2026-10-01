@@ -14,6 +14,7 @@ import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer
 import { createMaterials, WAVE_TIME } from './materials/library.js';
 import { createEnvironment } from './core/environment.js';
 import { dressCampus } from './core/campus.js';
+import { buildRunway } from './core/runway.js';
 import { CameraRig } from './core/cameraRig.js';
 import { ViewState } from './core/viewState.js';
 import { pickQuality, applyQuality } from './core/quality.js';
@@ -38,6 +39,8 @@ import { createLaunch, EVENTS, MILESTONES, ENGINE_LAYOUT, altitudeAt, boosterAlt
 import { createMissionClock } from './sim/missionClock.js';
 import { createLaunchSound } from './sim/sound.js';
 import { createReentry } from './sim/reentry.js';
+import { createX15Flight } from './sim/x15Fly.js';
+import { createFlightPanel } from './ui/flightPanel.js';
 import { CHAPTER as REENTRY_CHAPTER, MILESTONES_RE, reentryAltAt } from './sim/reentryFlight.js';
 
 // Exhibit layout (world X, metres). Mount heights are presentation choices.
@@ -236,6 +239,7 @@ async function main() {
     onReset: () => select(null),
     onLaunch: () => toggleLaunch(),
     onReentry: () => toggleReentry(),
+    onFly: () => toggleFly(),
     // The panel drives whichever sequence is playing: the launch, or the re-entry chapter.
     onLaunchAbort: () => seq()?.reset(),
     onLaunchSpeed: (k) => seq()?.setSpeed(k),
@@ -264,6 +268,8 @@ async function main() {
   await nextFrame();
   const env = createEnvironment(renderer, scene, M, quality);
   dressCampus(scene, M, { stops: Object.values(LAYOUT).filter(l => !l.pad).map(l => l.x), quality: quality.name });
+  // The X-15's runway on the saline flat, north-west of the site (terrain.js RUNWAY).
+  scene.add(buildRunway());
 
   // ---- Post-processing (MSAA render target + subtle bloom) ----
   // No stencil. It was added for the scale figures' shadow and made every frame resolve a
@@ -611,6 +617,38 @@ async function main() {
   });
   function seq() { return reentry?.running ? reentry : launch; }
 
+  // ---- The X-15 in flight ----
+  // The exhibit's airplane leaves its gear and flies on the flight model (x15Fly.js), from a
+  // drop or an approach to a landing on runway 13; the instruments are a panel (flightPanel.js).
+  const flightPanel = createFlightPanel({
+    root: document.getElementById('hud'),
+    onStart: (name) => startFly(name),
+    onEnd: () => x15fly.reset(),
+    onCamera: () => x15fly.cycleCamera(),
+  });
+  const x15fly = createX15Flight({
+    scene, exhibits, env, rig, camera, flightEarth: launch.flightEarth,
+    groundAt: (x, z) => rig.groundAt(x, z),
+    padX: exhibits.starship.lay.x, padZ: exhibits.starship.lay.z,
+    panel: flightPanel,
+    onStart: () => {
+      if (launch.running) launch.reset(false);
+      if (reentry.running) reentry.reset(false);
+      if (view.exhibit !== 'x15') { enforce(view.select('x15')); syncHud(); }
+      enforce(view.claim('launch'));
+    },
+    onFinish: () => { goPreset('x15', 'overview'); },
+    visibilityHook: (flying) => view.setFlying(flying),
+  });
+  function startFly(name) {
+    flightPanel.choose(false);
+    x15fly.start(name);
+  }
+  function toggleFly() {
+    if (x15fly.running) { x15fly.reset(); return; }
+    flightPanel.choose(!flightPanel.choosing);
+  }
+
   hud.setProgress('Compiling shaders…', 0.95);
   await nextFrame();
   performance.mark('vc:compile');
@@ -898,6 +936,7 @@ async function main() {
     // The re-entry chapter holds the camera under the same owner as the launch: picking a
     // vehicle or starting the tour left it running under them (audit, 30-09).
     if (stop?.launch && reentry?.running) reentry.reset(false);
+    if (stop?.launch && x15fly?.running) x15fly.reset(false);
   }
 
   /** Brings the HUD into line with the state, after the scene has been. */
@@ -1064,6 +1103,8 @@ async function main() {
     else if (k === '0') select(null);
     else if (k === 'c' && (launch.running || reentry.running) && rig.mode === 'orbit') cycleLaunchCamera();
     else if (k === 'x') toggleReentry();
+    else if (k === 'j') toggleFly();
+    else if (k === 'escape' && flightPanel.choosing) flightPanel.choose(false);
     else if (k === 'f') toggleMode();
     else if (k === 'v') toggleWalk();
     else if (k === 'g') toggleLaunch();
@@ -1378,6 +1419,7 @@ async function main() {
     rig.update(dt);
     launch.update(steps.mission);
     reentry.update(steps.mission);
+    x15fly.update(dt);
     sound?.update();
     // Water keeps moving whatever the camera or the launch is doing.
     WAVE_TIME.value += dt;
@@ -1432,6 +1474,7 @@ async function main() {
   const verify = ({ forceDetail = true } = {}) => {
     launch.reset(false);
     reentry.reset(false);
+    x15fly.reset(false);
     if (forceDetail) lod.forceDetailed();
     return {
       dimensions: verifyExhibits(exhibits),
@@ -1498,7 +1541,7 @@ async function main() {
   }
 
   window.__vc = {
-    M, scene, camera, rig, exhibits, complex, launch, reentry, select, goPreset, jump, renderer, env,
+    M, scene, camera, rig, exhibits, complex, launch, reentry, x15fly, select, goPreset, jump, renderer, env,
     setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour,
     claimUserControl, tourRunToEnd, toggleMode, toggleWalk,
     walkRouteFor: (hit) => { const r = walkRoute(hit); rig.travelTo(r.route, r.look); return r; },
