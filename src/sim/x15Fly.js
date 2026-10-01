@@ -360,7 +360,7 @@ export function createX15Flight({ scene, exhibits, env, rig, camera, flightEarth
     siteVisible(Math.hypot(camera.position.x - padX, camera.position.z - padZ) < 40000);
     for (const o of siteParts) o.visible = false;
     const camAlt = Math.max(0, camera.position.y);
-    env.setAltitude(camAlt);
+    env.setAltitude(camAlt, { stretch: false });
     flightEarth.update(camera, env.sunDir, camAlt, { force: true, drop: 1.2 });
     camera.near = camAlt > 20000 ? 2 : 0.3;
     camera.far = Math.max(90000, Math.sqrt(2 * 6371000 * Math.max(camAlt, 1)) * 1.3 + 60000);

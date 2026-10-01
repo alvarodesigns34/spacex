@@ -864,8 +864,9 @@ try {
     // Materials went from 160 to 200 the same way, at 161 (September 2026: four fire layers and
     // the liftoff glare, each a shader with uniforms of its own that cannot be shared), and
     // from 200 to 240 at 202 (October 2026: the X-15's cockpit, whose live instrument panel is a
-    // canvas of its own and whose interior paint is no other surface's).
-    const LIMITS = { tris: 2_800_000, meshes: 1400, materials: 240, textures: 120 };
+    // canvas of its own and whose interior paint is no other surface's). Textures went from 120
+    // to 150 at 122 the same month: the real terrain's two photograph atlases (realTerrain.js).
+    const LIMITS = { tris: 2_800_000, meshes: 1400, materials: 240, textures: 150 };
     const over = Object.entries(LIMITS).filter(([k, max]) => budget[k] > max);
     report(over.length === 0, 'presupuesto de escena',
       `${budget.tris.toLocaleString('es-ES')} triángulos construidos, ${budget.drawnTris.toLocaleString('es-ES')} dibujados `

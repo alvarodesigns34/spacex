@@ -566,7 +566,9 @@ try {
     const o2 = await offset();
     const drift = Math.abs(o2.dist - o1.dist);
     // Under 1 000 m: the orbit's 1 600 m ceiling was what a ride starting late clamped to.
-    report(!o1.external && o1.dist < 1000 && drift < 0.5 && o2.centre < 0.5 && o2.y < o1.y - 100 && o2.t > o1.t + 1 && /riding/.test(o2.cam), 'A drag in the re-entry hands over the camera, which rides on the falling ship', { o1, o2, drift });
+    // Falling: at least 25 m/s, a third of the ship's ≈58 m/s there. A fixed 100 m failed on a
+    // slow runner that measured 1.7 s apart and saw the ship fall exactly 100 m.
+    report(!o1.external && o1.dist < 1000 && drift < 0.5 && o2.centre < 0.5 && o2.y < o1.y - 25 * (o2.t - o1.t) && o2.t > o1.t + 1 && /riding/.test(o2.cam), 'A drag in the re-entry hands over the camera, which rides on the falling ship', { o1, o2, drift });
     await page.evaluate(() => document.activeElement?.blur?.());
     await page.keyboard.press('c');
     report(await page.evaluate(() => window.__vc.rig.external && window.__vc.reentry.state.follow === 'onboard'), 'C takes the camera back for the next shot');

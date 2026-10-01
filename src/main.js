@@ -15,6 +15,7 @@ import { createMaterials, WAVE_TIME } from './materials/library.js';
 import { createEnvironment } from './core/environment.js';
 import { dressCampus } from './core/campus.js';
 import { buildRunway } from './core/runway.js';
+import { buildRealTerrain } from './core/realTerrain.js';
 import { CameraRig } from './core/cameraRig.js';
 import { ViewState } from './core/viewState.js';
 import { pickQuality, applyQuality } from './core/quality.js';
@@ -626,6 +627,9 @@ async function main() {
     onEnd: () => x15fly.reset(),
     onCamera: () => x15fly.cycleCamera(),
   });
+  // The real ground beyond the disc (realTerrain.js), on the same map about the pad as the globe.
+  const realTerrain = buildRealTerrain({ padX: exhibits.starship.lay.x, padZ: exhibits.starship.lay.z });
+  scene.add(realTerrain.group);
   const x15fly = createX15Flight({
     scene, exhibits, env, rig, camera, flightEarth: launch.flightEarth,
     groundAt: (x, z) => rig.groundAt(x, z),
@@ -1425,6 +1429,12 @@ async function main() {
     WAVE_TIME.value += dt;
     // The sky is a finite box; centring it on the viewer is what lets it survive an ascent.
     env.followCamera(camera);
+    // Not under the re-entry's Pacific nor in orbit; within the disc (and its ascent stretch)
+    // the disc is the ground.
+    realTerrain.update(camera, env.sunDir, {
+      hole: env.ground.visible ? env.groundRadius * env.ground.scale.x : 0,
+      visible: !env.inSpace && !reentry.running,
+    });
     const free = rig.mode !== 'orbit';
     const target = free ? tmp.copy(camera.position).addScaledVector(camera.getWorldDirection(_fwd), rig.mode === 'walk' ? 12 : 25) : rig.target;
     const dist = free ? (rig.mode === 'walk' ? 12 : 25) : rig.distance;

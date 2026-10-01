@@ -468,7 +468,7 @@ El X-15 ya tiene un **modelo de vuelo de seis grados de libertad** (`src/sim/x15
   - el tren, que se ve al bajarlo.
 - **Integración:** pasos de 1/200 s en vuelo y de 1/400 s cerca del suelo.
 - **Proyección:** la escena es un mapa equidistante azimutal alrededor de la plataforma, la misma proyección del globo con el mapa del Golfo. La actitud se transporta de vuelta por el mismo círculo máximo, así que el avión, el mapa y la pista coinciden al metro estén donde estén. Una prueba lo comprueba: el rumbo de un vuelo radial llega exacto a la plataforma.
-- **Suelo:** a más de 40 km de la plataforma se guarda el recinto, porque el disco plano flotaría sobre el horizonte curvo (7 km de caída a 300 km) y el globo es entonces el suelo. Más cerca, el globo queda 1,2 m por debajo y asoma por el borde del disco. El terreno real de alrededor es la fase 6.
+- **Suelo:** a más de 40 km de la plataforma se guarda el recinto, porque el disco plano flotaría sobre el horizonte curvo (7 km de caída a 300 km) y el globo es entonces el suelo. Más cerca, el globo queda 1,2 m por debajo y asoma por el borde del disco. Desde la fase 6, el terreno real cubre el resto.
 - **Toma de contacto:**
   - los patines y la rueda de morro son los muelles del modelo;
   - por encima de 9 ft/s, el límite de diseño del tren según TM X-207, la toma cuenta como accidente;
@@ -526,6 +526,37 @@ En vuelo, la palanca central y la lateral siguen a la del simulador, y la de los
 **La vista de cabina** (C en vuelo) pone el ojo del piloto en la estación 3,25 m, 0,62 m sobre la línea de referencia del fuselaje (≈). Mira 12° hacia abajo, para que se vean el panel y el horizonte a la vez.
 
 **Presupuesto:** la cabina añade dos materiales, la pintura del interior y el lienzo del panel, que es único. El techo de materiales de `check.mjs` pasa de 200 a 240, con la justificación en el código.
+
+### X-15 #1: fase 6, el terreno real (1 de octubre de 2026)
+
+Más allá del disco del recinto, el suelo es ahora **el real**: alturas e imagen de datos públicos, solo suelo. La imagen es una fotografía tendida sobre el relieve; no se modela ninguna planta, edificio ni objeto.
+
+**Fuentes** (descargadas con `tools/terrain-fetch.mjs`, que guarda la caché fuera del repositorio):
+- **Alturas:** *Terrain Tiles* de AWS, codificación Terrarium (datos abiertos de Mapzen y la Linux Foundation, que en EE. UU. vienen del 3DEP y el NED del USGS, en otros sitios del SRTM, y mar adentro del ETOPO1). El fondo del mar se lleva a cota 0: la batimetría no es suelo.
+- **Imagen:** *EOxCloudless 2016*, el mosaico sin nubes de Sentinel-2 de EOX IT Services GmbH (contiene datos Copernicus Sentinel modificados de 2016), con licencia **CC BY 4.0**. La atribución va en las fuentes del X-15.
+- **Lo que se probó y se descartó:** la imagen del USGS (*USGSImageryOnly*, de dominio público) solo cubre Estados Unidos: México, a 3 km al sur de la plataforma, salía en blanco y el mar en negro. Sentinel-2 cubre los dos lados igual. Las capas de EOX de 2018 en adelante tienen licencia no comercial, y por eso se usa la de 2016.
+
+**Dos zonas** de teselas Web Mercator:
+- **cerca:** zoom 13, 8 × 8 teselas (≈35 km de lado) alrededor de la plataforma; ≈17 m por píxel y una altura cada ≈275 m;
+- **lejos:** zoom 10, 10 × 9 teselas (≈350 × 320 km), desde el Golfo hasta más allá del punto de suelta, 300 km al noroeste; ≈138 m por píxel y una altura cada ≈2,2 km. Deja fuera lo que ya cubre la de cerca y se funde con el globo en su borde exterior.
+
+Cada zona es un atlas JPEG (`src/assets/terrain/`, 2,1 MB entre los dos) y una rejilla de alturas en decímetros (`src/data/terrainTiles.js`).
+
+**Cómo casa con el resto** (`src/core/realTerrain.js`, `src/core/geoMap.js`):
+- **Mapa:** cada vértice va con el mismo mapa equidistante azimutal alrededor de la plataforma que usan el vuelo y el globo del lanzamiento. `x15-check` lo comprueba: Brownsville, Port Isabel, Laredo, el punto de suelta y una esquina de la zona lejana caen en la esfera del modelo de vuelo a menos de 1 cm. Un mutante que cambia norte por este tiene que fallar.
+- **Curvatura:** se curva hacia abajo alrededor de la cámara como el globo, que es una esfera de radio terrestre con la cima bajo la cámara.
+- **Luz y bruma:** usa la luz y la bruma del globo, y cerca del suelo la niebla de la escena, como el disco.
+- **El disco:** dentro de su radio no se dibuja, porque allí el suelo es el disco. La costa del disco cae sobre la real.
+- **Lo que no casa:** el disco es una reconstrucción (lomas, charcas y matorral verosímiles, no levantados), así que su borde no coincide con la foto. Se nota desde el aire: el disco es un círculo más verde con su propio mar.
+
+**Vuelo y lanzamiento:**
+- en el vuelo del X-15 el disco ya no se estira con la altitud, porque taparía el terreno real;
+- en el lanzamiento sí sigue estirándose (hasta ≈85 km de diámetro), como antes, y el terreno real solo asoma más allá;
+- no se dibuja en órbita ni bajo el Pacífico de la reentrada.
+
+**Presupuesto:** dos texturas y ≈79 000 triángulos. El techo de texturas de `check.mjs` pasa de 120 a 150, con la justificación en el código.
+
+**De paso, una prueba más robusta:** la de `ux-check` que arrastra la cámara en la reentrada pedía que la nave cayera más de 100 m en lo que tardara la medida. En un ejecutor lento de CI midió 1,7 s y la nave cayó justo 100 m, así que falló sin que nada estuviera mal. Ahora pide al menos 25 m/s, un tercio de los ≈58 m/s a los que cae ahí.
 
 ### Historial
 

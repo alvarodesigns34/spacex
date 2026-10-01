@@ -444,7 +444,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   //
   // Now the three are inputs, and this function is the only writer. It is pure in the sense
   // that matters: called twice with the same inputs it produces the same scene.
-  const air = { elev: 42, azim: 34, altitude: 0 };
+  const air = { elev: 42, azim: 34, altitude: 0, stretch: true };
   const SKY_GROUND = { turbidity: 2.8, rayleigh: 1.15, mie: 0.0016 };
   const _nightHemi = new THREE.Color(0x2c3d5e), _nightFog = new THREE.Color(0x070a12);
 
@@ -514,7 +514,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     // From 9 km the launch sequence's curved Earth takes over (FlightEarth, plume.js); a
     // stretched flat disc would stand proud of its curvature as a dark band across the
     // horizon, so the stretch is handed back over the same 9-20 km as the globe fades in.
-    const gs = 1 + (THREE.MathUtils.clamp(1 + h / 900, 1, 34) - 1) * (1 - THREE.MathUtils.smoothstep(h, 9000, 20000));
+    const gs = air.stretch ? 1 + (THREE.MathUtils.clamp(1 + h / 900, 1, 34) - 1) * (1 - THREE.MathUtils.smoothstep(h, 9000, 20000)) : 1;
     if (ground.scale.x !== gs) {
       ground.scale.setScalar(gs);
       for (const t of groundMaps) t.repeat.set(baseRepeat.x * gs, baseRepeat.y * gs);
@@ -538,7 +538,11 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     }
   }
 
-  function setAltitude(h) { air.altitude = h; applyAtmosphere(); }
+  /**
+   * @param opts.stretch  false keeps the disc at its own size: the X-15's flight has the real
+   *                      terrain (realTerrain.js) beyond it, which a stretched disc would cover
+   */
+  function setAltitude(h, { stretch = true } = {}) { air.altitude = h; air.stretch = stretch; applyAtmosphere(); }
 
   /**
    * The reflection probe is the one piece of lighting that lives only on the GPU: a render
@@ -645,7 +649,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   setSun(20, 34, { immediate: true });
 
   return {
-    sun, sky, hemi, ground, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation, rebuildProbe,
+    sun, sky, hemi, ground, groundRadius: GROUND_R, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation, rebuildProbe,
     SUN_MIN, SUN_MAX, get night() { return nightK; },
     get inSpace() { return inSpace; }, get sunDir() { return sunDir; },
   };

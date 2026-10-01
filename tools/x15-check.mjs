@@ -37,6 +37,8 @@ registerHooks({
       // Gravity as a constant g along the initial vertical, the Earth flat.
       if (mutant === 'flat') source = source.replace('const grav = mul(s.r, -MU / (rn * rn * rn));', 'const grav = [-G0, 0, 0];');
     }
+    // The real terrain's map with north and east swapped: Brownsville would lie out to sea.
+    if (url.endsWith('/src/core/geoMap.js') && mutant === 'geo') source = source.replace('const north = R_EARTH * c * Math.cos(b), east = R_EARTH * c * Math.sin(b);', 'const east = R_EARTH * c * Math.cos(b), north = R_EARTH * c * Math.sin(b);');
     if (url.endsWith('/src/data/x15Aero.js')) {
       // The wind-tunnel Cnβ line instead of the flight points between Mach 2 and 3.
       if (mutant === 'cnbeta') source = source.replace('0.0060, 0.0042, 0.0042, 0.0042, 0.0041', '0.0076, 0.0062, 0.0051, 0.0044, 0.0041');
@@ -86,6 +88,39 @@ console.log('PASS frames: state angles read back, body axes right-handed');
   const bearing = Math.atan2(t[1], t[2]) * R2D;
   assert.ok(Math.abs(bearing - 130.8) < 1e-6 && Math.abs(t[0]) < 1e-9, `carried direction ${bearing}°, up ${t[0]}`);
   console.log(`PASS ground track: azimuthal equidistant round trip within ${worst.toExponential(1)} m, radial direction carried back exactly`);
+}
+
+// ---- Real terrain: its map is the flight's ---------------------------------------------------------
+// realTerrain.js lays the tiles out with geoMap.js; a point there must be the same point on the
+// sphere the flight model flies over: (dx, dz) → ground track → unit vector, in the pad's (up,
+// east, north) basis, against the point's own direction worked out from its latitude and longitude.
+{
+  const G = await import('../src/core/geoMap.js');
+  const { LAUNCH_SITE } = await import('../src/data/gulf.js');
+  const { TERRAIN_TILES } = await import('../src/data/terrainTiles.js');
+  const D = Math.PI / 180, la0 = LAUNCH_SITE.lat * D, lo0 = LAUNCH_SITE.lon * D, az = LAUNCH_SITE.azimuthDeg * D;
+  const ecef = (la, lo) => [Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la)];
+  const U = ecef(la0, lo0), E = [-Math.sin(lo0), Math.cos(lo0), 0], N = [-Math.sin(la0) * Math.cos(lo0), -Math.sin(la0) * Math.sin(lo0), Math.cos(la0)];
+  let worst = 0;
+  // Brownsville's airport, Port Isabel, Laredo, the drop point 300 km out, a corner of the far region.
+  for (const [lat, lon] of [[25.9068, -97.4259], [26.0734, -97.2086], [27.5306, -99.4803], [27.741, -99.4643], [24.9, -100.5]]) {
+    const [dx, dz] = G.geoToScene(lat * D, lon * D);
+    const u = F.fromGroundTrack(dx * Math.cos(az) - dz * Math.sin(az), dx * Math.sin(az) + dz * Math.cos(az));
+    const p = ecef(lat * D, lon * D);
+    worst = Math.max(worst, F.R_EARTH * Math.hypot(...[0, 1, 2].map(i => u[0] * U[i] + u[1] * E[i] + u[2] * N[i] - p[i])));
+  }
+  assert.ok(worst < 0.01, `real terrain's map off the flight's sphere by ${worst.toFixed(3)} m`);
+  // The height grids: the right size, the coast near sea level, nothing taller than the land is.
+  const range = {};
+  for (const [name, R] of Object.entries(TERRAIN_TILES)) {
+    const b = Buffer.from(R.heights, 'base64'), h = [];
+    for (let i = 0; i < b.length; i += 2) h.push(b.readInt16LE(i) / 10);
+    assert.equal(h.length, (R.nx * R.step + 1) * (R.ny * R.step + 1), `${name} height grid size`);
+    range[name] = [Math.min(...h), Math.max(...h)];
+  }
+  assert.ok(range.near[0] === 0 && range.near[1] < 60, `near region's heights ${range.near.join('–')} m (Boca Chica: a few metres)`);
+  assert.ok(range.far[0] === 0 && range.far[1] > 300 && range.far[1] < 1500, `far region's heights ${range.far.join('–')} m`);
+  console.log(`PASS real terrain: tiles on the flight's sphere within ${(worst * 1000).toFixed(2)} mm; heights ${range.near.join('–')} m near, ${range.far.join('–')} m far`);
 }
 
 // ---- Short period ----------------------------------------------------------------------------------
@@ -215,7 +250,7 @@ function mission(thetaCmd) {
 }
 
 if (!mutant) {
-  for (const name of ['trim', 'burn', 'damping', 'flat', 'cnbeta']) {
+  for (const name of ['trim', 'burn', 'damping', 'flat', 'cnbeta', 'geo']) {
     const run = spawnSync(process.execPath, [fileURLToPath(import.meta.url), `--mutant=${name}`], { encoding: 'utf8' });
     assert.notEqual(run.status, 0, `the X-15 checks must reject sabotage: ${name}`);
     assert.match(run.stderr, /AssertionError/, `sabotage ${name} must fail an assertion, not crash`);

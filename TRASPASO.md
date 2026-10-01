@@ -86,7 +86,11 @@ Fases (cada una es un commit con check a 0):
    - Carlinga: bisagra `x15-canopy-hinge` en la estación 4,0 (`userData.hinge`, abierta 50° en el expositor, cerrada en vuelo). El carenado fijo va de 4,0 a 5,0.
    - Interior: `buildCockpit(M)` en `x15.js`, con `COCKPIT` exportado (ojo del piloto y panel). La piel del fuselaje se recorta con `cutCockpit`.
    - Vista de cabina en `x15Fly.js`; el panel de la pantalla se reduce a `#x15-mini` (`.is-cockpit`).
-6. **Terreno real ampliado** por teselas.
+6. **Terreno real: hecho.** Commit «X-15 phase 6: real terrain», README *X-15 #1: fase 6*.
+   - `tools/terrain-fetch.mjs` descarga las teselas (caché en `.cache/terrain`, ignorada) y escribe `src/assets/terrain/{near,far}.jpg` y `src/data/terrainTiles.js` (generado; no editar). Para regenerar: `node tools/terrain-fetch.mjs`.
+   - Fuentes: alturas de AWS Terrain Tiles (Terrarium) e imagen de EOxCloudless 2016 (CC BY 4.0; la de 2018+ es no comercial). La imagen del USGS se descartó porque no cubre México.
+   - `src/core/realTerrain.js` construye las mallas (ShaderMaterial con la luz y la bruma del globo, curvatura alrededor de la cámara y hueco del disco). La proyección está en `src/core/geoMap.js`, sin three.js, y la prueba `x15-check` (mutante `geo`).
+   - `main.js` llama a `realTerrain.update` en cada fotograma (hueco = radio del disco × su estiramiento, o 0 si el disco está oculto). `env.setAltitude(h, { stretch: false })` en el vuelo del X-15.
 7. **Efectos:** chorro del XLR99, calentamiento (TM X-1705) y sonido.
 
 Datos y figuras en `src/data/x15.js` (con procedencia) y el modelo en `src/vehicles/x15.js`. Marco del avión: X adelante (X = −estación), Y arriba desde la FRL, **Z a la derecha** (X × Y; la fase 1 decía «izquierda» por error, corregido en la fase 2 con los nombres de las piezas). Documentos descargados (solo consulta, fuera del repositorio): TN D-3343, TM X-236, TM X-207, SP-60 y el manual, sección 1 (escaneado sin texto: hay que renderizarlo y leerlo). NTRS, images-api.nasa.gov, ids.si.edu y sierrafoot.org funcionaron desde el contenedor.
