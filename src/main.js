@@ -1373,6 +1373,9 @@ async function main() {
     WAVE_TIME.value += dt;
     // The sky is a finite box; centring it on the viewer is what lets it survive an ascent.
     env.followCamera(camera);
+    // The ground past the disc (outerGround.js): not under the launch's stretched disc and globe,
+    // nor the re-entry's Pacific.
+    env.outer.visible = !env.inSpace && !launch.running && !reentry.running;
     const free = rig.mode !== 'orbit';
     const target = free ? tmp.copy(camera.position).addScaledVector(camera.getWorldDirection(_fwd), rig.mode === 'walk' ? 12 : 25) : rig.target;
     const dist = free ? (rig.mode === 'walk' ? 12 : 25) : rig.distance;

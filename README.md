@@ -324,6 +324,16 @@ Entre el 30 de septiembre y el 1 de octubre se construyó un X-15 #1 (56-6670) v
   - **Espera de `ux-check`:** la altura del panel del lanzamiento espera 60 s, como las demás esperas ligadas a fotogramas.
 - **Lo que viene:** un **F-16A Block 15** con su propia pista. Despegará, volará dentro del entorno de la simulación, ampliado con el mismo estilo de suelo, y aterrizará. Su modelo de vuelo saldrá de los datos públicos de la NASA: TP-1538 (aerodinámica a baja velocidad hasta 90° de ángulo de ataque, motor y mandos de vuelo) y TP-3355 (supersónico, Mach 1,6 a 2,16).
 
+### F-16, fase 2: el entorno ampliado (1 de octubre de 2026)
+
+Un caza cruza el disco del recinto (2,5 km de radio) en pocos segundos. Para que despegue, vuele y aterrice sin cambiar nunca de escenario, el mismo paisaje sigue ahora **hasta 450 km** (`src/core/outerGround.js`):
+- **Tierra:** la del disco. Una sola función (`groundSample` en `environment.js`) da a los dos la altura, la cubierta, la playa y los canales de marea de `terrain.js`, con el mismo material de terreno, así que se juntan en el borde como una sola llanura. Las lomas siguen donde estaban; más allá queda el microrrelieve de la llanura. Verosímil, como el disco, no un levantamiento.
+- **Mar:** la superficie del agua del disco continúa, con el mismo material, con su plataforma y su rompiente graduadas por la distancia a la costa. Tierra y mar solo se solapan en la costa. Así el búfer de profundidad nunca tiene que separar, a cientos de kilómetros, dos superficies a pocos metros una de otra.
+- **Curvatura:** la Tierra es redonda. A partir del borde del disco el suelo baja ρ²/(R + √(R² − ρ²)), con R = 6371 km, contado desde el borde para que empalme. Desde 10 km de altura el horizonte cae a 357 km y 3,2° por debajo de la horizontal, donde corresponde; el disco plano se separa de la esfera 0,5 m en su borde.
+- **Celdas:** crecen con la distancia y son cuadradas en planta (un 2,45 % del radio: ≈60 m en el borde del disco, ≈11 km en el borde exterior). En total son ≈111.000 triángulos, sin materiales ni texturas nuevos.
+- **Bruma de vuelo:** la niebla del museo deja unos pocos kilómetros de visibilidad y pondría un muro blanco alrededor de un avión. En vuelo (`env.setAltitude(h, { flight: true })`) la bruma da ≈40 km de visibilidad a nivel del suelo y se aclara con la densidad del aire (escala de 8 km). El suelo de debajo se ve nítido y el horizonte se funde en ella a cualquier altura (≈, un día claro de costa). En vuelo el disco tampoco se estira.
+- **Lanzamiento y reentrada:** siguen como estaban, con su disco estirado y su globo; el anillo no se dibuja mientras corren, ni en órbita.
+
 ### Historial
 
 Las rondas anteriores —entorno, vehículos contra las fotos, nube y sonido del lanzamiento, revisión corriendo la simulación y las auditorías externas de Grok y ChatGPT— están en [docs/historial.md](docs/historial.md), rotuladas como históricas. Este README describe el estado actual.

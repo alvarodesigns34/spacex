@@ -17,7 +17,7 @@ El X-15 se construyó y se retiró (commits `5f77233`–`f688ba8`; la razón est
 
 Fases, cada una un commit con check a 0, empujado a las cinco ramas (las cuatro de abajo y `claude/affectionate-euler-o447rh`):
 1. Quitar el X-15: **hecha**, commit «Retire the X-15».
-2. Entorno ampliado.
+2. Entorno ampliado: **hecha**, commit «F-16 phase 2: the surroundings out to 450 km». `src/core/outerGround.js` (anillo de tierra y mar con el material del disco, curvatura `curvatureDrop`), `groundSample` en `environment.js`, `env.outer` (oculto en lanzamiento, reentrada y órbita, desde `main.js`) y `env.setAltitude(h, { flight: true })` (bruma de vuelo, sin estirar el disco).
 3. Modelo 3D exterior del F-16 a escala 1:1.
 4. Complejo de la pista.
 5. Modelo de vuelo de 6 grados de libertad (TP-1538 y TP-3355, F100, *fly-by-wire*, tren).

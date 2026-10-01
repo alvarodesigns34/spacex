@@ -7,6 +7,7 @@ import { mergeAll, chunkedInstances } from '../geometry/utils.js';
 import { noise2 } from '../materials/textures.js';
 import { waveNormals, grassNormals } from '../materials/library.js';
 import { createClouds } from './clouds.js';
+import { buildOuterGround } from './outerGround.js';
 import { shoreZ, seaward, fromCoast, terrainHeight, thicket, marsh } from './terrain.js';
 
 /**
@@ -16,6 +17,38 @@ import { shoreZ, seaward, fromCoast, terrainHeight, thicket, marsh } from './ter
  * re-exported here for the modules that have always imported it from this one.
  */
 export { shoreZ };
+
+/**
+ * The ground's surface at a point of the disc's local plane (x, y; world z = −y): height and
+ * the per-vertex fields the terrain shader reads. Shared by the disc and the outer ground
+ * (outerGround.js), so the two are the same land on either side of the disc's edge.
+ */
+export function groundSample(x, y) {
+  const past = seaward(x, -y);                 // metres seaward of the shoreline
+  let h = past > 0 ? -9 * THREE.MathUtils.smoothstep(past, 0, 180) : 0.35 * THREE.MathUtils.smoothstep(-past, 0, 60) * (1 - THREE.MathUtils.smoothstep(-past, 60, 160));
+  // The lomas and the plain's micro-relief (terrain.js), zero on the site and the beach.
+  h += terrainHeight(x, -y);
+  const broad = noise2(x / 110, y / 110);
+  const patch = noise2(x / 42 + 19, y / 42 - 7);
+  const salt = Math.max(0, broad - 0.46);
+  const damp = Math.max(0, 0.4 - patch);
+  const m = 1 + salt * 0.26 - damp * 0.2 + (noise2(x / 16 + 4, y / 16) - 0.5) * 0.05;
+  // Beach, measured from where the water actually is. The sea surface sits 0.9 m down, and
+  // the ground only reaches that depth ~35 m seaward of shoreZ, so a beach keyed to shoreZ
+  // itself left 35 m of grassy slope running down into the water. `wl` is metres from the
+  // real waterline (negative inland): dry sand back to the dunes, a wet margin at the water, and
+  // sand under the shallows.
+  const wl = past - WATERLINE;
+  // The dry beach runs back to the foot of the foredune (its seaward toe is ~160 m from the
+  // waterline): a strip of grass plain between the two, which this used to leave, is not
+  // what this coast looks like.
+  const dry = THREE.MathUtils.smoothstep(wl, -175, -150) * (1 - THREE.MathUtils.smoothstep(wl, -20, -8));
+  const wet = THREE.MathUtils.smoothstep(wl, -20, -6);
+  return {
+    past, h, dry, wet, land: thicket(x, -y), tidal: marsh(x, -y),
+    col: [m * (1 + salt * 0.04), m, m * (1 - salt * 0.05)],
+  };
+}
 
 /** Disc in the XY plane (rotated flat later) with a large-scale coastal tint. */
 function coastalDisc(radius, rings, segs) {
@@ -29,36 +62,18 @@ function coastalDisc(radius, rings, segs) {
   const idx = [];
   let k = 0;
   const push = (x, y) => {
+    const g = groundSample(x, y);
     pos[k * 3] = x;
     pos[k * 3 + 1] = y;
     // Local y is world −z once the disc is laid flat; local z becomes height.
-    const past = seaward(x, -y);                 // metres seaward of the shoreline
-    pos[k * 3 + 2] = past > 0 ? -9 * THREE.MathUtils.smoothstep(past, 0, 180) : 0.35 * THREE.MathUtils.smoothstep(-past, 0, 60) * (1 - THREE.MathUtils.smoothstep(-past, 60, 160));
-    // The lomas and the plain's micro-relief (terrain.js), zero on the site and the beach.
-    pos[k * 3 + 2] += terrainHeight(x, -y);
-    land[k] = thicket(x, -y);
-    tidal[k] = marsh(x, -y);
-    const broad = noise2(x / 110, y / 110);
-    const patch = noise2(x / 42 + 19, y / 42 - 7);
-    const salt = Math.max(0, broad - 0.46);
-    const damp = Math.max(0, 0.4 - patch);
-    let m = 1 + salt * 0.26 - damp * 0.2 + (noise2(x / 16 + 4, y / 16) - 0.5) * 0.05;
-    // Beach, measured from where the water actually is. The sea surface sits 0.9 m down, and
-    // the ground only reaches that depth ~35 m seaward of shoreZ, so a beach keyed to shoreZ
-    // itself left 35 m of grassy slope running down into the water. `wl` is metres from the
-    // real waterline (negative inland): dry sand back to the dunes, a wet margin at the water, and
-    // sand under the shallows.
-    const wl = past - WATERLINE;
-    // The dry beach runs back to the foot of the foredune (its seaward toe is ~160 m from the
-    // waterline): a strip of grass plain between the two, which this used to leave, is not
-    // what this coast looks like.
-    const dry = THREE.MathUtils.smoothstep(wl, -175, -150) * (1 - THREE.MathUtils.smoothstep(wl, -20, -8));
-    const wet = THREE.MathUtils.smoothstep(wl, -20, -6);
-    shore[k * 2] = dry;
-    shore[k * 2 + 1] = wet;
-    col[k * 3] = m * (1 + salt * 0.04);
-    col[k * 3 + 1] = m;
-    col[k * 3 + 2] = m * (1 - salt * 0.05);
+    pos[k * 3 + 2] = g.h;
+    land[k] = g.land;
+    tidal[k] = g.tidal;
+    shore[k * 2] = g.dry;
+    shore[k * 2 + 1] = g.wet;
+    col[k * 3] = g.col[0];
+    col[k * 3 + 1] = g.col[1];
+    col[k * 3 + 2] = g.col[2];
     uv[k * 2] = x;
     uv[k * 2 + 1] = y;
     return k++;
@@ -225,6 +240,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   // Denser than the old 28 × 72: the beach is tens of metres wide, and 100 m cells a kilometre
   // out would smear it into a blur or miss it.
   // Denser again for the lomas: a clay dune 150 m across needs more than three vertices over it.
+  let outer = null;
   const groundGeo = coastalDisc(GROUND_R, 110, 256);
   const ground = new THREE.Mesh(groundGeo, M.terrain || M.concrete);
   ground.rotation.x = -Math.PI / 2;
@@ -277,6 +293,12 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     water.name = 'sea';
     water.receiveShadow = false;
     ground.add(water);
+
+    // The same land and sea past the disc's edge, out to the horizon from any height the F-16
+    // reaches (outerGround.js). Not a child of the disc, which stretches on the ascent.
+    outer = buildOuterGround({ terrain: ground.material, sea: water.material, sample: groundSample, waterline: WATERLINE });
+    outer.rotation.x = -Math.PI / 2;
+    scene.add(outer);
 
     // Foredune. Behind every beach on this coast — and in photographs of Starbase from the
     // beach — the plain does not run flat into the sand: a ridge of wind-built dunes a few
@@ -444,7 +466,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   //
   // Now the three are inputs, and this function is the only writer. It is pure in the sense
   // that matters: called twice with the same inputs it produces the same scene.
-  const air = { elev: 42, azim: 34, altitude: 0 };
+  const air = { elev: 42, azim: 34, altitude: 0, flight: false };
   const SKY_GROUND = { turbidity: 2.8, rayleigh: 1.15, mie: 0.0016 };
   const _nightHemi = new THREE.Color(0x2c3d5e), _nightFog = new THREE.Color(0x070a12);
 
@@ -502,7 +524,13 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     su.turbidity.value = nightSky.turbidity * (1 - j * 0.97);
     su.rayleigh.value = nightSky.rayleigh * (1 - j * 0.985);
     su.mieCoefficient.value = nightSky.mie * (1 - j * 0.9);
-    fog.density = GROUND_FOG * 0.75 * (1 + n * 1.6) * (1 - THREE.MathUtils.clamp(h / 9000, 0, 1));
+    // A flight sees tens of kilometres: the museum's close haze (a few kilometres) would put a
+    // white wall round an aircraft. In flight the haze is a ≈40 km visibility at the ground,
+    // thinning with the air's density (8 km scale height), so the horizon still fades into it
+    // from any height while the ground below stays clear (≈, a clear coastal day).
+    fog.density = air.flight
+      ? 4.3e-5 * Math.exp(-h / 8000) * (1 + n * 1.6)
+      : GROUND_FOG * 0.75 * (1 + n * 1.6) * (1 - THREE.MathUtils.clamp(h / 9000, 0, 1));
     skyFade.value = (1 - n * 0.86) * (1 - j * 0.94);
 
     clouds.update(sunDir, n, h, !inSpace);
@@ -514,7 +542,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     // From 9 km the launch sequence's curved Earth takes over (FlightEarth, plume.js); a
     // stretched flat disc would stand proud of its curvature as a dark band across the
     // horizon, so the stretch is handed back over the same 9-20 km as the globe fades in.
-    const gs = 1 + (THREE.MathUtils.clamp(1 + h / 900, 1, 34) - 1) * (1 - THREE.MathUtils.smoothstep(h, 9000, 20000));
+    const gs = air.flight ? 1 : 1 + (THREE.MathUtils.clamp(1 + h / 900, 1, 34) - 1) * (1 - THREE.MathUtils.smoothstep(h, 9000, 20000));
     if (ground.scale.x !== gs) {
       ground.scale.setScalar(gs);
       for (const t of groundMaps) t.repeat.set(baseRepeat.x * gs, baseRepeat.y * gs);
@@ -538,7 +566,11 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     }
   }
 
-  function setAltitude(h) { air.altitude = h; applyAtmosphere(); }
+/**
+   * @param opts.flight  an aircraft's flight (the F-16): the disc keeps its size, the ground
+   *                     beyond it (outerGround.js) being there, and the haze is a flight's
+   */
+  function setAltitude(h, { flight = false } = {}) { air.altitude = h; air.flight = flight; applyAtmosphere(); }
 
   /**
    * The reflection probe is the one piece of lighting that lives only on the GPU: a render
@@ -591,6 +623,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     if (on === inSpace) return;
     inSpace = !!on;
     ground.visible = !inSpace;
+    outer.visible = !inSpace;
     markings.visible = !inSpace;
     sky.visible = !inSpace;
     scene.fog = inSpace ? null : fog;
@@ -645,7 +678,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   setSun(20, 34, { immediate: true });
 
   return {
-    sun, sky, hemi, ground, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation, rebuildProbe,
+    sun, sky, hemi, ground, outer, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation, rebuildProbe,
     SUN_MIN, SUN_MAX, get night() { return nightK; },
     get inSpace() { return inSpace; }, get sunDir() { return sunDir; },
   };
