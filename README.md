@@ -350,11 +350,48 @@ Plan por fases:
 
 **Verificación:** `verify.js` mide ahora también la **longitud**. El X-15 da 3,505 m de alto (hasta la punta de la aleta, como el manual), 6,815 m de envergadura (solo las alas, sin las góndolas) y 15,005 m de largo (+0,13 %, por la actitud en tierra). Las superficies móviles (flaps, estabilizadores, timones, aerofrenos) son piezas propias con su bisagra, preparadas para el modelo de vuelo.
 
-**Todavía no:**
-- acabados definitivos, paneles y remaches;
-- rótulos: solo texto, sin la insignia de la USAF ni la marca de la NASA, que la regla del centro sobre banderas y logotipos deja fuera;
-- metal desnudo en la parte fija de la aleta ventral y chamuscado de la cola, que se ven en EC67-1652;
-- cabina interior y vuelo.
+**Todavía no:** cabina interior y vuelo (fases 3 a 7).
+
+### X-15 #1: fase 2, acabados y detalle (1 de octubre de 2026)
+
+Referencias: la foto de la NASA **EC67-1652** (el 56-6670 en Rogers, 1967; en alta resolución, con el neumático de 18 in como regla) y las 25 fotos del Smithsonian. Solo se han usado como referencia; ninguna está en el repositorio. Todas las posiciones y tamaños leídos en ellas son aproximados (≈).
+
+**Fuselaje: un atlas propio, no una losa repetida.** Sus coordenadas de textura son (estación, longitud de arco alrededor de la sección), ambas en metros. Así, cada costura, fila de remaches, panel desnudo y rótulo cae donde está en el avión. El atlas lleva:
+- **20 cuadernas y 10 largueros** como costuras;
+- **remaches**: filas dobles a ≈25 mm en las cuadernas y filas sencillas cada 20° alrededor;
+- **un tono y un brillo por chapa**, porque en las fotos las chapas se distinguen por cómo reflejan la luz;
+- **chamuscado** marrón y gris azulado bajo la cola;
+- **metal desnudo**: los paneles de los cohetes de control del morro y la bahía de cámaras bajo el morro, con sus dos ventanas;
+- **grano** de la pintura.
+
+**Materiales.** La pintura negra es un dieléctrico con barniz (*clearcoat*). Rugosidad y metalicidad van en un mismo mapa, de modo que solo el metal desnudo es metal. Las alas, los estabilizadores, las aletas, los aerofrenos, los timones, los flaps y la carlinga comparten una losa métrica de 1,2 m con chapas y filas de remaches. La parte fija de la aleta inferior es de **metal desnudo**: es el muñón que queda al soltar la ventral, como en EC67-1652. Para no pasar del presupuesto de la escena (200 materiales), varias piezas comparten material: la aleta usa el metal desnudo del morro, los patines usan el metal oscuro, y el pozo de la cabina y las toberas de control usan el negro mate de los neumáticos.
+
+**Rótulos, solo texto.** No llevan la insignia de la USAF ni la marca de la NASA, que la regla del centro sobre banderas y logotipos deja fuera. Por eso tampoco está la banda amarilla con el nombre de la agencia en la punta de la aleta.
+- **«U.S. AIR FORCE»** grande en ambos costados.
+- En el costado izquierdo, como en EC67-1652:
+  - **«U.S. AIR FORCE X-15 / A.F. SERIAL NO. 56-6670»** y **«X15-1»**;
+  - la **flecha amarilla de rescate**, apuntando adelante;
+  - **«RESCUE»** con **«EMERGENCY ENTRANCE / CONTROL ON OTHER SIDE»**.
+- **«BEWARE OF BLAST»** junto a los cohetes del morro, en los dos costados.
+- El **triángulo rojo «DANGER / EJECTION SEAT»** en el derecho, como en el Smithsonian.
+- **«APU EXHAUST»**, **«H₂O₂ JETT»**, **«HYDROGEN PEROXIDE VENT»** y **«FWD JACKING POINT»**.
+- **«66670»** en los dos lados de la parte fija de la aleta superior, bajo la junta del timón. Las cifras miden ≈0,32 m y van del 10 al 55 % de la cuerda, según la foto ampliada.
+
+Los rótulos se pintan **a nivel**: conservan su altura sobre la línea de referencia aunque la sección crezca. Cada costado lleva la simetría que hace que el texto se lea bien: de morro a cola en el izquierdo y de cola a morro en el derecho.
+
+**Tren de morro según EC67-1652:**
+- cilindro del amortiguador de ≈104 mm con tres ranuras;
+- vástago cromado;
+- horquilla del eje;
+- compás de torsión por delante;
+- llantas de cinco radios con su buje;
+- compuerta transversal abierta detrás de las ruedas.
+
+**Corrección del marco.** Con X adelante e Y arriba, +Z es el costado **derecho** (X × Y), no el izquierdo como decía la fase 1. Los nombres de las piezas (`x15-wing-r`, `x15-flap-l`…) y la documentación están corregidos. Las piezas eran simétricas, así que la geometría no cambia; los rótulos asimétricos ya caen en su lado.
+
+**Verificación.** `verify()` sigue dando 3,505 m, 6,815 m y 15,005 m, y no encuentra ningún problema de escena: escala de UV, normales ni islas degeneradas. Para que la escala de UV de flaps y puntas sea la de la losa, las tapas planas llevan UV métricas desde su primer punto. El atlas se pinta en ≈1,8 s con el renderizador por software de las pruebas. El grano se superpone como dos patrones de ruido, sin leer y reescribir los 6,7 millones de texels.
+
+**Pendiente de la fase 2, aplazado:** la carlinga que se abre por detrás, que irá con la cabina (fase 5).
 
 ### Historial
 

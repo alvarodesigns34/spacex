@@ -64,12 +64,11 @@ El usuario pidió añadir el **X-15 #1, USAF 56-6670**, con un **simulador de vu
 
 Fases (cada una es un commit con check a 0):
 1. **Modelo exterior: hecha.** Commit «X-15 #1 as the ninth exhibit», README *X-15 #1… fase 1*.
-2. **Acabados y detalle.** Fotos de referencia: NASA EC67-1652 y las 25 del NASM, con el neumático de 18 in como regla. Pendiente:
-   - paneles, remaches y metal desnudo (aleta ventral fija, chamuscado de la cola);
-   - rótulos de texto;
-   - tren detallado (horquilla, compuerta);
-   - cabina que se abre por detrás;
-   - ventanas de cámara bajo el morro.
+2. **Acabados y detalle: hecha.** Commit «X-15 phase 2: finishes and detail», README *X-15 #1: fase 2*.
+   - Atlas del fuselaje en `src/materials/x15Textures.js`, con UV = (estación, arco) en metros. `arcAt`, `levelPhi` y `SKIN_DECALS` están en `x15.js`.
+   - El ángulo de los rótulos es físico: 90 es la izquierda (−Z). El arco del barrido va hacia +Z, así que `arcAt` lo invierte.
+   - El atlas va sin `flipY`, y el mapa normal lleva `normalScale.y` negativo.
+   - Queda la carlinga que se abre por detrás: va con la cabina (fase 5).
 3. **Motor de vuelo 6-DOF, sin navegador** (`src/sim/x15Flight.js` o similar), con pruebas:
    - aerodinámica digitalizada de TN D-3343 (CL/CD de Mach 0,65 a 6), TN D-2532 (derivadas) y TM X-236 (Mach 6,83), cada valor marcado PUBLISHED, DIGITIZED o DERIVED;
    - masa, CG e inercias variables: anclaje en 14 318 lb con Ixx 3 600, Iyy 85 000, Izz 86 500 e Ixz −650 slug·ft²;
@@ -80,7 +79,7 @@ Fases (cada una es un commit con check a 0):
 6. **Terreno real ampliado** por teselas.
 7. **Efectos:** chorro del XLR99, calentamiento (TM X-1705) y sonido.
 
-Datos y figuras en `src/data/x15.js` (con procedencia) y el modelo en `src/vehicles/x15.js`. Marco del avión: X adelante (X = −estación), Y arriba desde la FRL, Z a la izquierda. Documentos descargados (solo consulta, fuera del repositorio): TN D-3343, TM X-236, TM X-207, SP-60 y el manual, sección 1 (escaneado sin texto: hay que renderizarlo y leerlo). NTRS, images-api.nasa.gov, ids.si.edu y sierrafoot.org funcionaron desde el contenedor.
+Datos y figuras en `src/data/x15.js` (con procedencia) y el modelo en `src/vehicles/x15.js`. Marco del avión: X adelante (X = −estación), Y arriba desde la FRL, **Z a la derecha** (X × Y; la fase 1 decía «izquierda» por error, corregido en la fase 2 con los nombres de las piezas). Documentos descargados (solo consulta, fuera del repositorio): TN D-3343, TM X-236, TM X-207, SP-60 y el manual, sección 1 (escaneado sin texto: hay que renderizarlo y leerlo). NTRS, images-api.nasa.gov, ids.si.edu y sierrafoot.org funcionaron desde el contenedor.
 
 ### Qué es y cómo se trabaja (resumen; el detalle está en las secciones 0–5)
 

@@ -4,7 +4,7 @@
  * where each comes from; this module only turns them into surfaces.
  *
  * Airframe frame (the one the flight model will use): X forward (X = −station), Y up from the
- * fuselage reference line, Z to the left. The exhibit group puts that frame on its gear: the
+ * fuselage reference line, Z to the right (X × Y). The exhibit group puts that frame on its gear: the
  * nose wheels and the skids on the ground, the FRL pitched nose-down by the angle the gear
  * gives (≈1.4°, derived — see GEAR in data/x15.js).
  *
@@ -22,6 +22,7 @@ import {
   X15, STATIONS, OUTLINE, NOSE, WING, HTAIL, HTAIL_EXPOSED_ROOT, UPPER_FIN, LOWER_FIN,
   WING_AIRFOIL, HTAIL_AIRFOIL, GEAR, TIP_POD,
 } from '../data/x15.js';
+import { makeX15Skin, makeX15SurfaceTile, makeX15Decal } from '../materials/x15Textures.js';
 
 const D2R = Math.PI / 180;
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -176,7 +177,7 @@ function cap(points, normal) {
   let tris = THREE.ShapeUtils.triangulateShape(pts2, []);
   const pos = [], uv = [], nor = [];
   for (const q of points) { pos.push(q.x, q.y, q.z); nor.push(nrm.x, nrm.y, nrm.z); }
-  for (const q of pts2) uv.push(q.x, q.y);
+  for (const q of pts2) uv.push(q.x - pts2[0].x, q.y - pts2[0].y);   // metric, from the first point
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
@@ -236,22 +237,103 @@ function chordStations(n, from = 0, to = 1) {
 // ---- Materials ---------------------------------------------------------------------------------
 /** The X-15's own finishes, built once and kept on M. */
 function x15Materials(M) {
-  if (M.x15Paint) return M;
-  // Black high-emissivity paint over Inconel X: a dielectric (the paint, not the metal, is
-  // what reflects), glossy enough that every NASM photograph shows the hall in it.
-  M.x15Paint = new THREE.MeshPhysicalMaterial({ name: 'x15-paint', color: 0x16171a, metalness: 0.0, roughness: 0.34, clearcoat: 0.55, clearcoatRoughness: 0.22, envMapIntensity: 1.0 });
+  if (M.x15Skin) return M;
   // Bare Inconel X and steel: the ball-nose cone, the ball, sensor and hinge fittings.
   M.x15Metal = new THREE.MeshStandardMaterial({ name: 'x15-bare-inconel', color: 0xc2beb4, metalness: 1.0, roughness: 0.28, envMapIntensity: 1.0 });
   M.x15MetalDark = new THREE.MeshStandardMaterial({ name: 'x15-metal-dark', color: 0x5d5b57, metalness: 0.9, roughness: 0.45 });
   M.x15Glass = new THREE.MeshPhysicalMaterial({ name: 'x15-glass', color: 0x2c3a3c, metalness: 0, roughness: 0.04, transmission: 0, opacity: 0.55, transparent: true, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.2 });
   M.x15Gear = new THREE.MeshStandardMaterial({ name: 'x15-gear-inconel', color: 0x9a9892, metalness: 0.95, roughness: 0.38 });
-  M.x15Skid = new THREE.MeshStandardMaterial({ name: 'x15-skid-4130', color: 0x6b6a66, metalness: 0.9, roughness: 0.5 });
+  // Tyres, and the matte black of the cockpit well and the rocket ports (one material: the
+  // scene's budget is 200).
   M.x15Tyre = new THREE.MeshStandardMaterial({ name: 'x15-tyre', color: 0x1b1b1b, metalness: 0, roughness: 0.85 });
   // The nozzle's inside: heat-darkened, not black, with the long streaks NASM photographed.
   M.x15Nozzle = new THREE.MeshStandardMaterial({ name: 'x15-nozzle', color: 0x4a4038, metalness: 0.75, roughness: 0.62, side: THREE.DoubleSide });
-  M.x15Cockpit = new THREE.MeshStandardMaterial({ name: 'x15-cockpit-dark', color: 0x151619, metalness: 0.2, roughness: 0.7 });
+  // The fuselage: one atlas (seams, rivets, bare panels, stencils); roughness in G and
+  // metalness in B of one map, so the bare panels are metal and the paint is not.
+  const skin = makeX15Skin({ uvAt: arcAt, perimeter: perimeterAt, level: levelPhi, decals: SKIN_DECALS });
+  const coat = { metalness: 1.0, roughness: 1.0, clearcoat: 0.45, clearcoatRoughness: 0.24, envMapIntensity: 1.0 };
+  M.x15Skin = new THREE.MeshPhysicalMaterial({ name: 'x15-skin', ...coat, map: skin.map, normalMap: skin.normalMap, normalScale: new THREE.Vector2(0.6, -0.6), roughnessMap: skin.ormMap, metalnessMap: skin.ormMap });
+  const tile = makeX15SurfaceTile();
+  M.x15Surface = new THREE.MeshPhysicalMaterial({ name: 'x15-surface', ...coat, map: tile.map, normalMap: tile.normalMap, normalScale: new THREE.Vector2(0.55, 0.55), roughnessMap: tile.ormMap, metalnessMap: tile.ormMap });
   return M;
 }
+
+// ---- Fuselage atlas coordinates ------------------------------------------------------------------
+/**
+ * Arc length round the fuselage section at station s and angle phi (degrees, 0 = top, 90 = the
+ * left side, −Z): the same coordinate the skin's UVs carry, tabulated once. The sweep's arc
+ * runs from the top towards +Z, the right side, so phi is turned round first.
+ */
+let ARC_TABLE = null;
+function arcTable() {
+  if (ARC_TABLE) return ARC_TABLE;
+  const step = 0.025, rows = [];
+  for (let s = -0.1; s <= 15.1 + 1e-9; s += step) {
+    const sc = Math.min(Math.max(s, S_BALL), S_BASE);
+    const pts = ring(sc, sc <= S_FAIR_END);
+    const cum = [0];
+    for (let k = 1; k <= pts.length; k++) cum.push(cum[k - 1] + pts[k % pts.length].distanceTo(pts[k - 1]));
+    rows.push(cum);
+  }
+  return (ARC_TABLE = { step, rows });
+}
+function arcAt(s, phiDeg) {
+  const { step, rows } = arcTable();
+  const i = Math.min(rows.length - 2, Math.max(0, Math.floor((s + 0.1) / step)));
+  const f = Math.min(1, Math.max(0, (s + 0.1) / step - i));
+  const q = ((((360 - phiDeg) % 360) + 360) % 360) / 360 * N_AROUND, k = Math.min(N_AROUND - 1, Math.floor(q)), t = q - k;
+  const at = (r) => r[k] + (r[k + 1] - r[k]) * t;
+  return at(rows[i]) + (at(rows[i + 1]) - at(rows[i])) * f;
+}
+const perimeterAt = (s) => arcAt(s, 0.001);
+/** Height above the FRL of the skin at station s, angle phi (degrees, either side). */
+function skinHeight(s, phiDeg) {
+  const sc = Math.min(Math.max(s, S_BALL), S_BASE), phi = phiDeg * D2R;
+  return body(sc).yc + sectionRadius(sc, Math.abs(Math.sin(phi)), Math.cos(phi), sc <= S_FAIR_END) * Math.cos(phi);
+}
+/**
+ * The angle at station s1 at the height the skin has at (s0, phi0), on the same side: the line
+ * a stencil's baseline follows (painted level, not along a line of constant angle).
+ */
+function levelPhi(s0, phi0, s1) {
+  const left = phi0 < 180, base = left ? phi0 : 360 - phi0, y = skinHeight(s0, base);
+  let lo = 1, hi = 179;
+  for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2; if (skinHeight(s1, m) > y) lo = m; else hi = m; }
+  const m = (lo + hi) / 2;
+  return left ? m : 360 - m;
+}
+/** The skin's UVs: (station, arc length), both in metres. The sweep gave (arc, distance). */
+function stationUV(g) {
+  const p = g.attributes.position, uv = g.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, -p.getX(i), uv.getX(i));
+  return g;
+}
+
+/**
+ * The stencils, as photographed on 56-6670 (EC67-1652, NASM): station of the forward edge,
+ * angle of the top (90 = left side, 270 = right), capital height (m). Positions ≈.
+ */
+const SKIN_DECALS = [];
+for (const side of [90, 270]) {
+  const L = side === 90, at = (phi) => (L ? phi : 360 - phi);
+  SKIN_DECALS.push(
+    { s: 9.1, phi: at(64), size: 0.30, lines: ['U.S. AIR FORCE'], color: '#ecebe6' },
+    { s: 2.5, phi: at(66), size: 0.045, lines: ['U.S. AIR FORCE X-15', 'A.F. SERIAL NO. 56-6670'], color: '#e8e6dc', weight: 600 },
+    { s: 3.12, phi: at(97), size: 0.06, lines: ['X15-1'], color: '#e8e6dc', weight: 600 },
+    { s: 1.16, phi: at(78), size: 0.05, lines: ['BEWARE', 'OF BLAST'], color: '#b3261e', box: '#efeee8' },
+    { s: 2.15, phi: at(94), size: 0.16, lines: [' '], color: '#000', arrow: '#e3b51d', arrowLength: 0.92, arrowHeight: 0.26 },
+  );
+}
+// The rescue box is on the left side, under the canopy's external release.
+SKIN_DECALS.push(
+  { s: 3.24, phi: 68, size: 0.07, lines: ['RESCUE'], color: '#1a1a1a', box: '#e3b51d' },
+  { s: 3.18, phi: 80, size: 0.042, lines: ['EMERGENCY ENTRANCE', 'CONTROL ON OTHER SIDE'], color: '#e3b51d', weight: 600 },
+  { s: 3.3, phi: 284, size: 0.045, lines: ['DANGER', 'EJECTION', 'SEAT'], color: '#f2f0ea', triangle: '#c0261c' },
+  { s: 10.6, phi: 112, size: 0.11, lines: ['APU', 'EXHAUST'], color: '#ecebe6' },
+  { s: 12.4, phi: 120, size: 0.07, lines: ['H₂O₂ JETT'], color: '#ecebe6' },
+  { s: 11.6, phi: 248, size: 0.06, lines: ['HYDROGEN PEROXIDE VENT'], color: '#ecebe6' },
+  { s: 2.6, phi: 152, size: 0.032, lines: ['FWD JACKING POINT'], color: '#ecebe6', weight: 600 },
+);
 
 // ---- Fuselage ---------------------------------------------------------------------------------
 const N_AROUND = 112;
@@ -279,19 +361,19 @@ function buildFuselage(M) {
   const axis = (x, y, z, c) => c.set(x, body(-x).yc, 0);
   // Forward and centre fuselage, with the side fairings, to their blunt ends.
   const secs = fuselageStations().map(s => [ring(s, true)]);
-  const fwd = orientOutward(sweep(secs, [true]), axis);
-  g.add(mesh(fwd, M.x15Paint, { name: 'x15-fuselage-skin' }));
+  const fwd = stationUV(orientOutward(sweep(secs, [true]), axis));
+  g.add(mesh(fwd, M.x15Skin, { name: 'x15-fuselage-skin' }));
   // The fairings' blunt ends: from the section with the fairings to the body alone.
   {
     const a = ring(S_FAIR_END, true), b = ring(S_FAIR_END, false);
     const step = sweep([[a], [b]], [true]);
     for (let i = 0; i < step.attributes.normal.count; i++) step.attributes.normal.setXYZ(i, -1, 0, 0);
-    g.add(mesh(orientBack(step), M.x15Paint, { name: 'x15-fairing-base' }));
+    g.add(mesh(orientBack(step), M.x15Surface, { name: 'x15-fairing-base' }));
   }
   // Aft body: the boat-tail to the base.
   const aft = [];
   for (let s = S_FAIR_END; s <= S_BASE + 1e-9; s += 0.08) aft.push([ring(Math.min(s, S_BASE), false)]);
-  g.add(mesh(orientOutward(sweep(aft, [true]), axis), M.x15Paint, { name: 'x15-aft-fuselage' }));
+  g.add(mesh(stationUV(orientOutward(sweep(aft, [true]), axis)), M.x15Skin, { name: 'x15-aft-fuselage' }));
   // Base: an annulus from the boat-tail's edge to the nozzle exit.
   {
     const outer = ring(S_BASE, false), rN = X15.xlr99.exitDiameter / 2 + 0.02, yc = body(S_BASE).yc;
@@ -360,7 +442,7 @@ function buildCanopy(M) {
   // Closed at the back, where it runs down into the spine.
   const last = secs[secs.length - 1][0];
   const rear = cap(last, V(-1, 0, 0));
-  g.add(mesh(mergeAll([shell, rear].map(geometry => ({ geometry }))), M.x15Paint, { name: 'x15-canopy-shell' }));
+  g.add(mesh(mergeAll([shell, rear].map(geometry => ({ geometry }))), M.x15Surface, { name: 'x15-canopy-shell' }));
   // The two windshield panes: the flat faces of the V between the frame, 4 mm proud.
   for (const side of [-1, 1]) {
     const rows = [];
@@ -373,12 +455,12 @@ function buildCanopy(M) {
     orientOutward(pane, (x, y, z, c) => c.set(x, bodyTopAt(-x, 0) - 0.2, 0));
     const n = pane.attributes.normal, p = pane.attributes.position;
     for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) + n.getX(i) * 0.004, p.getY(i) + n.getY(i) * 0.004, p.getZ(i) + n.getZ(i) * 0.004);
-    g.add(mesh(pane, M.x15Glass, { name: side > 0 ? 'x15-windshield-l' : 'x15-windshield-r', castShadow: false }));
+    g.add(mesh(pane, M.x15Glass, { name: side > 0 ? 'x15-windshield-r' : 'x15-windshield-l', castShadow: false }));
   }
   // The dark cockpit behind the glass.
   const inner = [];
   for (let s = 2.15; s <= 2.95; s += 0.05) inner.push([canopySection(s, 24).map(q => q.clone().add(V(0, -0.08, 0)).multiply(V(1, 1, 0.8)))]);
-  g.add(mesh(sweep(inner), M.x15Cockpit, { name: 'x15-cockpit-well', castShadow: false }));
+  g.add(mesh(sweep(inner), M.x15Tyre, { name: 'x15-cockpit-well', castShadow: false }));
   return g;
 }
 
@@ -398,7 +480,7 @@ function wingSection(y, from, to, n = 34) {
 }
 function buildWing(M, side) {
   const g = new THREE.Group();
-  g.name = side > 0 ? 'x15-wing-left' : 'x15-wing-right';
+  g.name = side > 0 ? 'x15-wing-right' : 'x15-wing-left';
   const mirror = (geo) => (side < 0 ? mirrorZ(geo) : geo);
   // Inboard: from inside the fairing to the flap's outer end, cut at the hinge line.
   const inb = [], outb = [];
@@ -445,12 +527,12 @@ function buildWing(M, side) {
     const t = wingSection(WING.semispan, 0, 1);
     skin.push(cap([...t.upper, ...[...t.lower].reverse().slice(0, -1)], V(0, 0, 1)));
   }
-  g.add(mesh(mirror(mergeAll(skin.map(geometry => ({ geometry })))), M.x15Paint, { name: side > 0 ? 'x15-wing-l' : 'x15-wing-r' }));
+  g.add(mesh(mirror(mergeAll(skin.map(geometry => ({ geometry })))), M.x15Surface, { name: side > 0 ? 'x15-wing-r' : 'x15-wing-l' }));
 
   // Flap: its own part, hinged on the fixed line for the flight model to turn.
   {
     const flap = new THREE.Group();
-    flap.name = side > 0 ? 'x15-flap-l' : 'x15-flap-r';
+    flap.name = side > 0 ? 'x15-flap-r' : 'x15-flap-l';
     const rows = [];
     for (const y of [Y_EXPOSED + 0.005, 1.6, 2.1, FLAP_OUT - 0.005]) {
       const w = wingSection(y, hingeFrac(y), 1, 12);
@@ -468,7 +550,7 @@ function buildWing(M, side) {
     const geo = mirror(mergeAll(parts.map(geometry => ({ geometry }))));
     // Pivot on the hinge line: the geometry is moved so the group's origin is on it.
     geo.translate(S_HINGE, 0, 0);
-    const m = mesh(geo, M.x15Paint, { name: `${flap.name}-skin` });
+    const m = mesh(geo, M.x15Surface, { name: `${flap.name}-skin` });
     flap.add(m);
     flap.position.set(-S_HINGE, 0, 0);
     flap.userData.hinge = { axis: [0, 0, side > 0 ? 1 : -1], range: [0, X15.wing.flap.deflection] };
@@ -479,7 +561,7 @@ function buildWing(M, side) {
     const podS = WING.le(WING.semispan) + TIP_POD.front + TIP_POD.length / 2;
     const pod = new THREE.CapsuleGeometry(TIP_POD.radius, TIP_POD.length - 2 * TIP_POD.radius, 10, 28);
     pod.rotateZ(Math.PI / 2);
-    g.add(mesh(pod, M.x15Metal, { name: side > 0 ? 'x15-tip-pod-l' : 'x15-tip-pod-r', position: [-podS, 0, side * (WING.semispan + TIP_POD.radius * 0.6)] }));
+    g.add(mesh(pod, M.x15Metal, { name: side > 0 ? 'x15-tip-pod-r' : 'x15-tip-pod-l', position: [-podS, 0, side * (WING.semispan + TIP_POD.radius * 0.6)] }));
   }
   return g;
 }
@@ -493,7 +575,7 @@ function buildWing(M, side) {
  */
 function buildHTail(M, side) {
   const g = new THREE.Group();
-  g.name = side > 0 ? 'x15-hstab-l' : 'x15-hstab-r';
+  g.name = side > 0 ? 'x15-hstab-r' : 'x15-hstab-l';
   const an = -X15.htail.dihedral * D2R;   // 15° down
   const toAir = (s, e, t) => P(s, -e * Math.sin(an) + t * Math.cos(an), side * (e * Math.cos(an) + t * Math.sin(an)));
   const sec = (e, n = 30) => {
@@ -515,7 +597,7 @@ function buildHTail(M, side) {
   const pe = HTAIL_EXPOSED_ROOT, ps = HTAIL.le(pe) + 0.4 * HTAIL.chord(pe);
   const pivot = toAir(ps, pe, 0);
   geo.translate(-pivot.x, -pivot.y, -pivot.z);
-  g.add(mesh(geo, M.x15Paint, { name: `${g.name}-skin` }));
+  g.add(mesh(geo, M.x15Surface, { name: `${g.name}-skin` }));
   g.position.copy(pivot);
   g.userData.hinge = { axis: [0, -Math.sin(an) * 0, side], range: [-X15.htail.down, X15.htail.up] };
   return g;
@@ -563,12 +645,13 @@ function buildFin(M, fin, sign, name) {
     return out;
   };
   // Fixed panel, forward of the speed brakes.
-  g.add(mesh(mergeAll(faces([y0, hSplit * 0.5, hSplit], 0, 'split-top').map(geometry => ({ geometry }))), M.x15Paint, { name: `${name}-fixed` }));
+  g.add(mesh(mergeAll(faces([y0, hSplit * 0.5, hSplit], 0, 'split-top').map(geometry => ({ geometry }))), sign > 0 ? M.x15Surface : M.x15Metal, { name: `${name}-fixed` }));
+  if (sign > 0) for (const d of finSerial(M, fin)) g.add(d);
   // Speed brakes: the fixed panel's aft sides, closed. Each panel is its own part, hinged at
   // its forward edge (up to 35° out).
   for (const side of [1, -1]) {
     const pan = new THREE.Group();
-    pan.name = `${name}-speedbrake-${side > 0 ? 'l' : 'r'}`;
+    pan.name = `${name}-speedbrake-${side > 0 ? 'r' : 'l'}`;
     const secs = [0.02, hSplit - 0.01].map(h => {
       const q = finSection(fin, h, sign, sbFwd);
       const edge = side > 0 ? q.l : q.r;
@@ -578,7 +661,7 @@ function buildFin(M, fin, sign, name) {
     orientOutward(plateG, (x, y, z, c) => c.set(x, y, 0));
     const hinge = finSection(fin, 0, sign, sbFwd)[side > 0 ? 'l' : 'r'][0];
     plateG.translate(-hinge.x, 0, -hinge.z);
-    pan.add(mesh(plateG, M.x15Paint, { name: `${pan.name}-panel` }));
+    pan.add(mesh(plateG, M.x15Surface, { name: `${pan.name}-panel` }));
     pan.position.set(hinge.x, 0, hinge.z);
     pan.userData.hinge = { axis: [0, sign, 0], range: [0, X15.speedBrake.deflection] };
     g.add(pan);
@@ -593,12 +676,41 @@ function buildFin(M, fin, sign, name) {
     const q = finSection(fin, hSplit, sign);
     const px = -(q.le + 0.4 * (q.te - q.le));   // X = −station: 40 % of the chord aft of the LE
     geo.translate(-px, 0, 0);
-    rud.add(mesh(geo, M.x15Paint, { name: `${rud.name}-skin` }));
+    rud.add(mesh(geo, M.x15Surface, { name: `${rud.name}-skin` }));
     rud.position.set(px, 0, 0);
     rud.userData.hinge = { axis: [0, 1, 0], range: [-X15.upperFin.deflection, X15.upperFin.deflection] };
     g.add(rud);
   }
   return g;
+}
+
+/**
+ * The serial on both sides of the upper fin's fixed panel, white, just under the rudder's joint
+ * (EC67-1652; the band at the tip carries an agency name and stays off, as the brief asks).
+ * Figures ≈0.32 m high from 0.79 to 1.10 m above the FRL, from 10 % to 55 % of the chord, read
+ * off the photograph against the rudder's published height (≈). Each is a flat card tilted 5°
+ * to lie on the wedge's side, 2 mm off it.
+ */
+const FIN_SERIAL = { text: '66670', centre: 0.945, figures: 0.32, from: 0.10, to: 0.55 };
+function finSerial(M, fin) {
+  const h = FIN_SERIAL.centre - fin.rootY;
+  const q = finSection(fin, h, 1);
+  const c = q.te - q.le;
+  const sc = q.le + (FIN_SERIAL.from + FIN_SERIAL.to) / 2 * c;
+  const ph = FIN_SERIAL.figures / 0.86, pw = (FIN_SERIAL.to - FIN_SERIAL.from) * c;
+  if (!M.x15Serial) {
+    const map = makeX15Decal(FIN_SERIAL.text, { w: Math.round(256 * pw / ph), h: 256, color: '#ecebe6', fill: true });
+    M.x15Serial = new THREE.MeshStandardMaterial({ name: 'x15-fin-serial', map, transparent: true, alphaTest: 0.35, metalness: 0, roughness: 0.4, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, depthWrite: false });
+  }
+  const out = [];
+  for (const side of [1, -1]) {
+    const geo = new THREE.PlaneGeometry(pw, ph);
+    const tilt = Math.atan(WEDGE);
+    geo.rotateY(side > 0 ? tilt : Math.PI - tilt);
+    const z = side * ((sc - q.le) * WEDGE + 0.002);
+    out.push(mesh(geo, M.x15Serial, { name: `x15-fin-serial-${side > 0 ? 'r' : 'l'}`, position: [-sc, FIN_SERIAL.centre, z], castShadow: false }));
+  }
+  return out;
 }
 
 // ---- XLR99 nozzle -----------------------------------------------------------------------------------
@@ -645,27 +757,62 @@ function buildGear(M, groundNose, groundSkid, pitch) {
     const s = GEAR.noseStation, rr = X15.gear.noseRollingRadius, R = X15.gear.noseTyreDiameter / 2, w = X15.gear.noseTyreWidth;
     const axleY = groundNose + rr;
     const topY = -keel(s) + 0.05;
+    // Read off the close-up of EC67-1652, scaled by the 18 in tyre (≈): a 104 mm oleo cylinder
+    // with three grooves down to 0.2 m over the axle, a chrome piston into an axle yoke, a
+    // torque link on its forward side, and a door hanging transversely aft of the wheels.
+    const xs = -s + 0.03, cylBot = axleY + 0.2;
     const parts = [];
-    const strut = new THREE.CylinderGeometry(0.045, 0.045, topY - axleY - 0.02, 16);
-    parts.push({ geometry: strut, matrix: mat4([-s + 0.03, (topY + axleY) / 2 + 0.01, 0]) });
-    const oleo = new THREE.CylinderGeometry(0.06, 0.06, 0.16, 16);
-    parts.push({ geometry: oleo, matrix: mat4([-s + 0.03, topY - 0.08, 0]) });
+    parts.push({ geometry: new THREE.CylinderGeometry(0.052, 0.052, topY - cylBot, 20), matrix: mat4([xs, (topY + cylBot) / 2, 0]) });
+    parts.push({ geometry: new THREE.CylinderGeometry(0.06, 0.06, 0.05, 20), matrix: mat4([xs, topY - 0.025, 0]) });   // trunnion collar
+    const yoke = new THREE.BoxGeometry(0.1, 0.1, 0.12);
+    parts.push({ geometry: yoke, matrix: mat4([-s + 0.01, axleY + 0.04, 0]) });
     const axle = new THREE.CylinderGeometry(0.025, 0.025, 0.36, 12);
     parts.push({ geometry: axle, matrix: mat4([-s, axleY, 0], [Math.PI / 2, 0, 0]) });
     ng.add(mesh(mergeAll(parts), M.x15Gear, { name: 'x15-nose-strut' }));
+    const piston = new THREE.CylinderGeometry(0.034, 0.034, cylBot - axleY - 0.05, 16);
+    ng.add(mesh(piston, M.x15Metal, { name: 'x15-nose-piston', position: [xs, (cylBot + axleY + 0.05) / 2, 0] }));
+    const grooves = [];
+    for (let k = 1; k <= 3; k++) grooves.push({ geometry: new THREE.TorusGeometry(0.0525, 0.004, 6, 32), matrix: mat4([xs, cylBot + k * 0.05, 0], [Math.PI / 2, 0, 0]) });
+    ng.add(mesh(mergeAll(grooves), M.x15MetalDark, { name: 'x15-nose-oleo-grooves', castShadow: false }));
+    // Torque link: two arms meeting ahead of the piston.
+    {
+      const top = V(xs + 0.05, cylBot + 0.01, 0), apex = V(xs + 0.12, (cylBot + axleY) / 2 + 0.03, 0), bot = V(-s + 0.06, axleY + 0.07, 0);
+      const arms = [[top, apex], [apex, bot]].map(([a, b]) => {
+        const d = b.clone().sub(a), geo = new THREE.BoxGeometry(0.03, d.length(), 0.05);
+        const q = new THREE.Quaternion().setFromUnitVectors(V(0, 1, 0), d.clone().normalize());
+        return { geometry: geo, matrix: new THREE.Matrix4().compose(a.clone().add(b).multiplyScalar(0.5), q, V(1, 1, 1)) };
+      });
+      ng.add(mesh(mergeAll(arms), M.x15Gear, { name: 'x15-nose-torque-link' }));
+    }
+    // Door: a plate across the bay aft of the wheels, open, its lower edge swung aft.
+    {
+      const sd = s + R + 0.04, top = -keel(sd) + 0.02, len = 0.38;
+      const door = new THREE.BoxGeometry(0.008, len, 0.3);
+      door.translate(0, -len / 2, 0);
+      ng.add(mesh(door, M.x15Surface, { name: 'x15-nose-gear-door', position: [-sd, top, 0], rotation: [0, 0, -13 * D2R] }));
+    }
     for (const z of [-0.105, 0.105]) {
       const tyre = new THREE.TorusGeometry(R - w * 0.42, w * 0.42, 14, 40);
       ng.add(mesh(tyre, M.x15Tyre, { name: 'x15-nose-tyre', position: [-s, axleY, z] }));
       const hub = new THREE.CylinderGeometry(R - w * 0.7, R - w * 0.7, w * 0.8, 28);
       hub.rotateX(Math.PI / 2);
       ng.add(mesh(hub, M.x15Gear, { name: 'x15-nose-hub', position: [-s, axleY, z] }));
+      // The wheel's boss and its five spokes, standing proud of the outer face.
+      const face = Math.sign(z) * w * 0.4, spokes = [];
+      const boss = new THREE.CylinderGeometry(0.035, 0.04, 0.03, 16); boss.rotateX(Math.PI / 2);
+      spokes.push({ geometry: boss, matrix: mat4([-s, axleY, z + face]) });
+      for (let k = 0; k < 5; k++) {
+        const a = k / 5 * Math.PI * 2, rs = (R - w * 0.7) * 0.55;
+        spokes.push({ geometry: new THREE.BoxGeometry(0.032, (R - w * 0.7) * 0.9, 0.02), matrix: mat4([-s + Math.sin(a) * rs, axleY + Math.cos(a) * rs, z + face], [0, 0, -a]) });
+      }
+      ng.add(mesh(mergeAll(spokes), M.x15Metal, { name: 'x15-nose-wheel-spokes' }));
     }
     g.add(ng);
   }
   // Main gear.
   const sk = GEAR.skidStation, half = GEAR.tread / 2;
   for (const side of [1, -1]) {
-    const mg = new THREE.Group(); mg.name = `x15-main-gear-${side > 0 ? 'l' : 'r'}`;
+    const mg = new THREE.Group(); mg.name = `x15-main-gear-${side > 0 ? 'r' : 'l'}`;
     const L = X15.gear.skidLength, W = X15.gear.skidWidth;
     // Skid: a steel channel, 3 ft long, its nose turned up.
     {
@@ -673,7 +820,7 @@ function buildGear(M, groundNose, groundSkid, pitch) {
       const shape = new THREE.Shape(outline.map(([x, y]) => new THREE.Vector2(x, y)));
       const skid = new THREE.ExtrudeGeometry(shape, { depth: W, bevelEnabled: false });
       skid.translate(0, 0, -W / 2);
-      mg.add(mesh(skid, M.x15Skid, { name: 'x15-skid', position: [-sk, groundSkid, side * half], rotation: [0, 0, pitch] }));
+      mg.add(mesh(skid, M.x15MetalDark, { name: 'x15-skid', position: [-sk, groundSkid, side * half], rotation: [0, 0, pitch] }));
     }
     // Leg: from a trunnion on the fuselage side, down, out and aft to the skid's pivot.
     const trunnion = P(sk - 0.55, -0.35, side * 0.64);
@@ -708,7 +855,7 @@ function buildRcsPorts(M) {
       parts.push({ geometry: port, matrix: new THREE.Matrix4().compose(c, q, V(1, 1, 1)) });
     }
   }
-  return mesh(mergeAll(parts), M.x15Cockpit, { name: 'x15-rcs-nose-ports', castShadow: false });
+  return mesh(mergeAll(parts), M.x15Tyre, { name: 'x15-rcs-nose-ports', castShadow: false });
 }
 
 // ---- Assembly ----------------------------------------------------------------------------------------------
