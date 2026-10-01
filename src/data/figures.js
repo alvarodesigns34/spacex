@@ -80,6 +80,15 @@ export const FIGURES = {
     breadth: { value: 1.75, grade: 'D', note: 'body width without mirrors: not published; from the 1.485 m rear track on 225 tyres and the mirrors\' reach' },
     readme: ['footprint', 'mirrors', 'height'],
   },
+  f16: {
+    // TP-1538 figure 2: 5.01 m on the gear to the fin's tip. TP-1538 table I: the wing's 30 ft
+    // span (the launchers at its tips stand outside it). TP-3355 figure 2: the 1/15 model's
+    // 39.47 in, nose probe to the fin's tip.
+    height: { value: 5.01, grade: 'A', ref: 'nasa_tp1538', note: 'on the gear, to the fin tip' },
+    footprint: { value: 9.144, grade: 'A', ref: 'nasa_tp1538', note: 'wing span, 30 ft' },
+    length: { value: 15.038, grade: 'A', ref: 'nasa_tp3355', note: '39.47 in at 1/15, probe to fin tip' },
+    readme: ['length', 'footprint', 'height'],
+  },
   engines: {
     height: { value: 4.4, grade: 'A', ref: 'spacex_starship', note: 'Raptor Vacuum' },
     footprint: { value: 2.3, grade: 'A', ref: 'spacex_starship', note: 'Raptor Vacuum nozzle exit' },

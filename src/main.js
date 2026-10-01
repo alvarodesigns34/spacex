@@ -27,6 +27,8 @@ import { buildDragon } from './vehicles/dragon.js';
 import { buildStarlink } from './vehicles/starlink.js';
 import { buildRoadster } from './vehicles/roadster.js';
 import { buildEngineHall } from './vehicles/enginehall.js';
+import { buildF16 } from './vehicles/f16.js';
+import { RUNWAY, fromRunway } from './core/terrain.js';
 import { buildOrbitalBackdrop } from './core/backdrop.js';
 import { buildLaunchMount, buildPedestal, buildHumanCrowd } from './vehicles/common.js';
 import { seeded, mergeAll } from './geometry/utils.js';
@@ -103,6 +105,13 @@ const LAYOUT = {
     x: 163, z: 0, mount: 0, yaw: -12,
     people: [[4.8, 0, -2.8, -0.6], [-5.8, 0, 2.2, -1.4], [1.2, 0, -3.0, 2.6]],
   },
+  // The F-16 stands on its own runway (terrain.js RUNWAY), as Starship stands on its pad: lined
+  // up on runway 13's threshold, 40 m in, ready to roll. Not in the row (`remote`): the row's
+  // lecterns and its overview leave it out.
+  f16: (() => {
+    const [x, z] = fromRunway(-RUNWAY.length / 2 + 40 + 7.52, 0);
+    return { x, z, mount: 0, yaw: -RUNWAY.angleDeg, remote: true, people: [[3.5, 0, 6.5, 0.6], [-8.0, 0, -6.0, -2.2]] };
+  })(),
 };
 // Recomposed when the Roadster became the sixth exhibit: the old frame was centred on x = -14
 // and the car sat at the right-hand edge, so the first thing a visitor saw did not contain it.
@@ -145,6 +154,10 @@ const OCCLUDER = {
   falcon1: 0.8402,
   starship: 4.5, falcon9: 1.9, falconheavy: 1.9, dragon: 2.0, starlink: 0, roadster: 1.0,
   engines: [[-4.15, 0, 0.50, 2.6], [-1.75, 0, 0.70, 3.4], [1.55, 0, 1.20, 4.9]],
+  // The F-16 along its own X: the fuselage as a chain of cylinders, a wing and a stabilator each
+  // side, the fin. Also the walking visitor's obstacles.
+  f16: [[5.8, 0, 0.6, 2.2], [3.2, 0, 0.9, 3.0], [0.6, 0, 1.0, 2.2], [-2.2, 0, 1.0, 2.4], [-5.0, 0, 1.0, 2.6], [-6.5, 0, 0.9, 5.0],
+    [-1.6, 2.6, 1.6, 2.0], [-1.6, -2.6, 1.6, 2.0], [-6.2, 1.9, 0.9, 2.0], [-6.2, -1.9, 0.9, 2.0]],
 };
 
 const nextFrame = () => new Promise(r => requestAnimationFrame(r));
@@ -251,7 +264,7 @@ async function main() {
   hud.setProgress('Lighting and environment…', 0.25);
   await nextFrame();
   const env = createEnvironment(renderer, scene, M, quality);
-  dressCampus(scene, M, { stops: Object.values(LAYOUT).filter(l => !l.pad).map(l => l.x), quality: quality.name });
+  dressCampus(scene, M, { stops: Object.values(LAYOUT).filter(l => !l.pad && !l.remote).map(l => l.x), quality: quality.name });
 
   // ---- Post-processing (MSAA render target + subtle bloom) ----
   // No stencil. It was added for the scale figures' shadow and made every frame resolve a
@@ -314,6 +327,7 @@ async function main() {
     starlink: [buildStarlink, 'Starlink V2 Mini…'],
     roadster: [buildRoadster, 'Tesla Roadster and Starman…'],
     engines: [buildEngineHall, 'Raptor 3, Raptor Vacuum and Merlin 1D…'],
+    f16: [buildF16, 'F-16A Fighting Falcon…'],
   };
   let step = 0;
   let complex = null;
@@ -364,6 +378,8 @@ async function main() {
       group.add(ped);
       model.position.y = lay.mount + 0.6;
       env.addStation(lay.x, lay.z, 5);
+    } else if (v.id === 'f16') {
+      // On its gear on the runway, no plinth and no apron ring: the runway is its ground.
     } else if (v.id === 'engines') {
       // No plinth: the engines stand on the apron on their own cradles, which is what makes
       // the 4.4 m of a Raptor Vacuum land next to a visitor rather than above one.

@@ -24,12 +24,15 @@ import { RVAC_HULL } from '../vehicles/engineExhibits.js';
 const MEASURE = {
   roadster: { fromHull: true },
   engines: { fromHullSize: true, footprintHull: ['rvac-bell', 'rvac-bell-inner'] },
+  // The span is the wing's (the tip launchers stand outside it); the height the fin's tip above
+  // the ground the airplane stands on; the length the airplane's whole.
+  f16: { fromHull: true, footprintHull: ['f16-wing-box-l', 'f16-wing-box-r'] },
 };
 
 /** Declared reference dimensions, keyed by vehicle id, with the tolerance their grade earns. */
 export const EXPECTED = Object.fromEntries(Object.entries(FIGURES).map(([id, f]) => {
   const e = { ...MEASURE[id], tols: {}, grades: {}, notes: {} };
-  for (const key of ['height', 'footprint', 'breadth', 'mirrors']) {
+  for (const key of ['height', 'footprint', 'breadth', 'mirrors', 'length']) {
     const fig = f[key];
     if (!fig || fig.unchecked) continue;
     e[key] = fig.value;
@@ -108,6 +111,7 @@ function measure(model, hullNames, footprintNames) {
 }
 
 const HULLS = {
+  f16: ['f16-fin-skin', 'f16-rudder-skin'],
   falcon1: ['falcon1-stage1', 'falcon1-stage2', 'falcon1-fairing'],
   starship: ['skirt', 'tanks', 'hull'],
   falcon9: ['stage1', 'interstage', 'stage2', 'fairing'],
@@ -312,6 +316,7 @@ export function verifyExhibits(exhibits, { log = true } = {}) {
     check('envergadura / diámetro', m.footprintWidth ?? (HULLS[id] ? m.hullWidth : m.width), exp.footprint, 'footprint');
     check('anchura de carrocería (reconstruida)', m.hullBreadth, exp.breadth, 'breadth');
     check('anchura total con espejos', m.span, exp.mirrors, 'mirrors');
+    check('longitud', m.width, exp.length, 'length');
   }
   if (log) {
     const bad = rows.filter(r => !r.ok);

@@ -1,6 +1,6 @@
 # SpaceX Vehicle Center
 
-Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones técnicas de ocho expositores de SpaceX:
+Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones técnicas de ocho expositores de SpaceX y un caza, el F-16A, con su propia pista:
 
 | Vehículo | Configuración modelada | Altura / envergadura |
 |---|---|---|
@@ -12,6 +12,7 @@ Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones
 | Starlink | V2 Mini con las dos alas solares desplegadas | 30 m de envergadura |
 | Tesla Roadster | 1.ª generación (modelo 2010, carrocería anterior al 2.5) con Starman, carga útil del vuelo inaugural del Falcon Heavy | 3,946 m · 1,851 m de ancho con espejos · 1,127 m de alto |
 | Engine Row | Raptor 3, Raptor Vacuum y Merlin 1D sobre cunas, a 1:1 | 4,4 m (RVac) |
+| F-16A | Block 15 con motor F100-PW-200, sobre su tren en la cabecera de su pista; geometría de los informes NASA TP-1538 y TP-3355 | 15,038 m de largo · 9,144 m de envergadura · 5,01 m de alto |
 
 **Starship** encabeza la lista, porque es el expositor principal y el del lanzamiento (tecla **1**). Le sigue el **Falcon 1** (tecla **2**), que abre la línea histórica: Falcon 1 → Falcon 9 → Falcon Heavy.
 
@@ -333,6 +334,33 @@ Un caza cruza el disco del recinto (2,5 km de radio) en pocos segundos. Para que
 - **Celdas:** crecen con la distancia y son cuadradas en planta (un 2,45 % del radio: ≈60 m en el borde del disco, ≈11 km en el borde exterior). En total son ≈111.000 triángulos, sin materiales ni texturas nuevos.
 - **Bruma de vuelo:** la niebla del museo deja unos pocos kilómetros de visibilidad y pondría un muro blanco alrededor de un avión. En vuelo (`env.setAltitude(h, { flight: true })`) la bruma da ≈40 km de visibilidad a nivel del suelo y se aclara con la densidad del aire (escala de 8 km). El suelo de debajo se ve nítido y el horizonte se funde en ella a cualquier altura (≈, un día claro de costa). En vuelo el disco tampoco se estira.
 - **Lanzamiento y reentrada:** siguen como estaban, con su disco estirado y su globo; el anillo no se dibuja mientras corren, ni en órbita.
+
+### F-16, fase 3: el modelo exterior (1 de octubre de 2026)
+
+El F-16A Block 15 ya está en el centro, a escala 1:1 (`src/vehicles/f16.js`, datos en `src/data/f16.js`, acabado en `src/materials/f16Textures.js`). Está sobre su tren, en la cabecera de la pista 13, a 40 m del umbral y alineado con ella. La pista se dibuja en la fase 4; por ahora el terreno de debajo ya está allanado y sin matorral.
+
+- **Medidas publicadas (grado A):**
+  - **15,038 m** de largo, de la punta de la sonda del morro al borde de salida de la deriva: el modelo acotado de TP-3355 (39,47 in a escala 1/15).
+  - **9,144 m** de envergadura (30 ft) sin los lanzadores de punta de ala.
+  - **5,01 m** de alto sobre el tren: TP-1538, figura 2.
+  - El ala sale de TP-1538, tabla I, y de TP-3355, tabla II: 27,87 m² (300 ft²), alargamiento 3,0, estrechamiento 0,2275, flecha de 40° en el borde de ataque, cuerda media de 3,45 m (11,32 ft) y perfil NACA 64A204. Es un trapecio con el borde de salida recto; sus cuerdas, de 4,966 y 1,130 m, se derivan de esas cifras.
+  - El estabilizador, la deriva y las aletas ventrales salen de TP-3355, tabla II: área, envergadura, cuerda media y flecha.
+  - Los recorridos de los mandos salen de TP-1538, tabla I: flaperones ±21,5°, flaps de borde de ataque 0–25°, frenos aerodinámicos hasta 60°.
+  - La toma de aire tiene 0,533 m² y la tobera 0,402 m² de salida (TP-3355).
+- **Reconstruido (≈):**
+  - Las secciones del fuselaje se calcaron de las tres vistas acotadas de TP-3355: alto, fondo, anchura, quilla y toma.
+  - Los hombros anchos del cuerpo fusionado se mezclan entre 4,5 y 6,5 m con una cúbica sacada de fotografías.
+  - El 64A204 es el 64A006 de NACA TN-1368 escalado al 4 % con una línea media a = 1 (la diferencia con la a = 0,8 modificada es menor del 0,2 % de la cuerda).
+  - El tren (batalla 4,00 m, vía 2,36 m, neumáticos de 27,75×8,75 in y 18×5,7 in), la cabina (tina, panel, visera, combinador del HUD y asiento ACES II) y el lanzador de punta de ala.
+- **Acabado:**
+  - Gris de superioridad aérea de la USAF: FS 36270 encima y FS 36375 en los costados y debajo, con la línea entre los dos pulverizada; el radomo, más oscuro. Los valores sRGB aproximan las muestras FS (≈).
+  - Costuras, paneles de acceso, remaches y la boca del cañón M61 a la izquierda. Sin insignias ni marcas de unidad, como manda la norma del centro sobre banderas y logotipos.
+- **Nada transparente por dentro:**
+  - La toma es un conducto oscuro que se estrecha hasta la cara del fan, un disco macizo.
+  - La tobera lleva al fondo la cara de la turbina, también maciza.
+  - Desde ningún ángulo se ve el cielo a través del avión. Este fue el fallo más grave del X-15.
+- **Partes móviles:** los flaps de borde de ataque, los flaperones, el estabilizador, el timón y los frenos aerodinámicos son grupos con su eje de bisagra y su recorrido, listos para el modelo de vuelo de la fase 5.
+- **Comprobaciones:** `verify()` mide en la escena el largo, la envergadura y la altura contra las tres cifras de grado A. La tabla de arriba y la ficha se validan con `provenance-check`.
 
 ### Historial
 

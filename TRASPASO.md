@@ -13,12 +13,17 @@ El X-15 se construyó y se retiró (commits `5f77233`–`f688ba8`; la razón est
 - **Despegue:** parte de su propia pista, con su tren de ruedas. Despega, vuela y aterriza **sin cambios de plano**: siempre en el entorno de la simulación, nunca en otro escenario. Nada de B-52 ni de suelta.
 - **Entorno:** se amplía el actual (llanura, lomas, costa, Golfo) hasta ≈100–150 km, con el mismo estilo y menos detalle a lo lejos. **Nada de imagen de satélite**: al usuario no le gustó.
 - **Complejo:** una pista «con algún detalle», **sin aeropuerto**.
-- **Al acabar:** actualizar el README, hacer commit y regenerar la galería (aprobado).
+- **Al acabar:** actualizar el README y hacer commit de cada fase seguida, sin pararse a preguntar. **La galería no se regenera hasta que el usuario lo confirme** (orden del 01-10-2026, que sustituye a la aprobación anterior).
 
 Fases, cada una un commit con check a 0, empujado a las cinco ramas (las cuatro de abajo y `claude/affectionate-euler-o447rh`):
 1. Quitar el X-15: **hecha**, commit «Retire the X-15».
 2. Entorno ampliado: **hecha**, commit «F-16 phase 2: the surroundings out to 450 km». `src/core/outerGround.js` (anillo de tierra y mar con el material del disco, curvatura `curvatureDrop`), `groundSample` en `environment.js`, `env.outer` (oculto en lanzamiento, reentrada y órbita, desde `main.js`) y `env.setAltitude(h, { flight: true })` (bruma de vuelo, sin estirar el disco).
-3. Modelo 3D exterior del F-16 a escala 1:1.
+3. Modelo 3D exterior: **hecha**, commit «F-16 phase 3: exterior model from NASA's geometry».
+   - Código: `src/data/f16.js` (cifras con su etiqueta PUBLISHED/DERIVED/TRACED/ESTIMATE), `src/vehicles/f16.js` y `src/materials/f16Textures.js`.
+   - Marco: s = metros detrás de la punta de la sonda, z sobre WL 6,607. `P(s, z, y)` lo pasa a la escena.
+   - Bisagras con `userData.hinge` (eje y recorrido): `f16-lef-*`, `f16-flaperon-*`, `f16-stab-*`, `f16-rudder` y `f16-speedbrake-*`. El tren es `f16-landing-gear`.
+   - La pista ya existe como máscara del terreno (`RUNWAY`, `toRunway` y `fromRunway` en `terrain.js`: 2.743,2 × 45,72 m, a 30°). El avión está a 40 m del umbral de la 13.
+   - Las capturas de comprobación se hacen fuera del repositorio. La galería **no se regenera hasta que el usuario lo confirme**.
 4. Complejo de la pista.
 5. Modelo de vuelo de 6 grados de libertad (TP-1538 y TP-3355, F100, *fly-by-wire*, tren).
 6. Modo de vuelo: despegue, vuelo, aterrizaje, cámaras, cabina y HUD.

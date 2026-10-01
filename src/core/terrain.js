@@ -81,6 +81,31 @@ export const poolStretch = (seed) => 1.5 + 0.8 * noise2(seed * 3.7, 0.5);
 const POOLS = POOL_SPEC.map(([x, z, r, seed]) => [x, z, r * 1.3 * Math.sqrt(poolStretch(seed))]);
 
 /**
+ * The F-16's runway: a strip on the open plain north-west of the site, on the longest clear
+ * straight inside the ground disc that crosses no loma, pool, the beach or the site. 9,000 ft by
+ * 150 ft (2,743 × 45.7 m), a common length and width for a fighter base's runway (≈: no particular
+ * runway is drawn); true bearing 130.8° for runway 13. Its taxiway and apron (runway.js) lie on
+ * the side towards the site.
+ *  - (a, c): along the centre line (+a towards the south-east end) and across it (+c towards
+ *    the north-east side), metres from the runway's centre.
+ */
+export const RUNWAY = { x: -790, z: 1360, angleDeg: 30, length: 2743.2, width: 45.72, margin: 60 };
+const RW_C = Math.cos(RUNWAY.angleDeg * Math.PI / 180), RW_S = Math.sin(RUNWAY.angleDeg * Math.PI / 180);
+/** World (x, z) → runway (a, c). */
+export function toRunway(x, z) { const dx = x - RUNWAY.x, dz = z - RUNWAY.z; return [dx * RW_C + dz * RW_S, -dx * RW_S + dz * RW_C]; }
+/** Runway (a, c) → world [x, z]. */
+export function fromRunway(a, c) { return [RUNWAY.x + a * RW_C - c * RW_S, RUNWAY.z + a * RW_S + c * RW_C]; }
+/** The apron and its taxiway, in runway coordinates: the side towards the site (−c). */
+export const APRON = { a0: -1000, a1: -880, c0: -190, c1: -95, taxi: { a: -940, c0: -95, c1: -RUNWAY.width / 2, width: 23 } };
+/** 0 on the runway, its shoulders, the taxiway and the apron (plus a margin), 1 in open country. */
+export function runwayMask(x, z) {
+  const [a, c] = toRunway(x, z), M = RUNWAY.margin;
+  const strip = Math.hypot(Math.max(0, Math.abs(a) - RUNWAY.length / 2 - 60), Math.max(0, Math.abs(c) - RUNWAY.width / 2 - 10));
+  const ap = Math.hypot(Math.max(0, APRON.a0 - a, a - APRON.a1), Math.max(0, APRON.c0 - c, c - APRON.c1));
+  return smooth(0, M, Math.min(strip, ap));
+}
+
+/**
  * Where the land must stay flat and bare: 0 on the built site (the exhibit row and its roads,
  * the pad and its berm, the access road) and round the tidal pools, 1 in open country, with a
  * soft edge.
@@ -92,7 +117,7 @@ export function siteMask(x, z) {
   // Pad 2, its berm, tank farm and the access road to it.
   m = Math.min(m, smooth(250, 330, Math.hypot(x, z + 185)));
   for (const [px, pz, pr] of POOLS) m = Math.min(m, smooth(pr * 1.05, pr * 1.6, Math.hypot(x - px, z - pz)));
-  return m;
+  return Math.min(m, runwayMask(x, z));
 }
 
 /** 0 on the beach and the foredune, 1 from ~260 m inland of the waterline. */
@@ -145,6 +170,7 @@ export function marsh(x, z) {
   let m = smooth(0, 30, Math.hypot(dx, dz));
   m = Math.min(m, smooth(150, 200, Math.hypot(x, z + 185)));   // berm 82 m, tank farm to ~120 m
   for (const [px, pz, pr] of POOLS) m = Math.min(m, smooth(pr * 1.05, pr * 1.5, Math.hypot(x - px, z - pz)));
+  m = Math.min(m, runwayMask(x, z));
   m *= inland(x, z);
   if (m <= 0) return 0;
   return m * (1 - smooth(0.02, 0.25, loma(x, z).k));

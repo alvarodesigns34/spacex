@@ -32,7 +32,7 @@ const README = readFileSync(fileURLToPath(new URL('../README.md', import.meta.ur
 const LABEL_FILES = {
   'pad.js': ['starship'], 'starship.js': ['starship'], 'falcon.js': ['falcon9', 'falconheavy'],
   'falcon1.js': ['falcon1'], 'dragon.js': ['dragon'], 'starlink.js': ['starlink'],
-  'roadster.js': ['roadster'], 'enginehall.js': ['engines'],
+  'roadster.js': ['roadster'], 'enginehall.js': ['engines'], 'f16.js': ['f16'],
 };
 // The guided tour's captions (main.js): each stop names an exhibit, so each figure it states
 // answers to that exhibit's sheet, exactly as a 3-D label does.
@@ -130,7 +130,7 @@ export function audit({ figures, pad, counts, vehicles, sources, readme, builder
     if (!f) { bad(`${v.id}: sin cifras en figures.js`); continue; }
     if (v.height !== f.height?.value) bad(`${v.id}: la ficha declara altura ${v.height} y figures.js ${f.height?.value}`);
     if (v.footprint !== f.footprint?.value) bad(`${v.id}: la ficha declara huella ${v.footprint} y figures.js ${f.footprint?.value}`);
-    for (const key of ['height', 'footprint', 'breadth', 'mirrors']) {
+    for (const key of ['height', 'footprint', 'breadth', 'mirrors', 'length']) {
       const fig = f[key];
       if (!fig) continue;
       graded(`${v.id}.${key}`, fig);
