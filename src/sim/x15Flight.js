@@ -292,7 +292,7 @@ export function aeroCoefficients(M, alpha, beta, p, q, r, V, c) {
 // ---- Propulsion -----------------------------------------------------------------------------------
 const EXIT_AREA = Math.PI * (XLR99.exitDiameterIn * 0.0254 / 2) ** 2;
 const F_VAC = XLR99.thrustLbf * LBF, FLOW = XLR99.flowLbPerMin / 60 * LB;
-/** Thrust (N) and propellant flow (kg/s) at a throttle setting (0 or 0.5–1) and ambient pressure. */
+/** Thrust (N) and propellant flow (kg/s) at a throttle setting (0 or 0.4–1) and ambient pressure. */
 export function xlr99(throttle, pAmb) {
   if (!(throttle >= XLR99.throttleMin)) return { thrust: 0, flow: 0 };
   const t = Math.min(1, throttle);
@@ -349,7 +349,7 @@ export function describe(s, groundAlt = 0) {
 // ---- Equations of motion -----------------------------------------------------------------------------
 /**
  * Controls (all optional): dh, da, dv (deg; the pilot's, before the dampers), throttle (0, or
- * 0.5–1), speedBrake (deg), flaps (deg), gear (bool), rcs [roll, pitch, yaw] each −1 … 1 (one
+ * 0.4–1), speedBrake (deg), flaps (deg), gear (bool), rcs [roll, pitch, yaw] each −1 … 1 (one
  * thruster pair at 1; both systems fire), rcsSystems (1 or 2), sas (bool), sasGain (0–1),
  * groundAlt (m, the ground's altitude for the gear).
  */

@@ -550,6 +550,10 @@ try {
     const stale = await consistent();
     report(!stale.ok, 'Negative control: a camera moved without the chapter re-applying reads as inconsistent', stale);
     await page.evaluate(() => window.__vc.reentry.seek(35440));
+    // The launch's reset with nothing launched (a shot, a key) must not tell the view the vehicle
+    // is back on its mount while the re-entry runs: the pad's callouts came back over the Pacific.
+    const kept = await page.evaluate(() => { const v = window.__vc; v.launch.reset(false); return { flying: v.view.flying, running: v.reentry.running, pad: v.scene.getObjectByName('labels-pad').visible }; });
+    report(kept.flying && kept.running && !kept.pad, 'A launch reset during the re-entry keeps the vehicle flying and the pad callouts away', kept);
 
     // A drag takes the camera: the scripted shot stops writing it and the orbit rides the ship.
     await page.evaluate(() => { const v = window.__vc; v.reentry.setFollow('director'); v.reentry.seek(35000); v.reentry.setSpeed(1); v.reentry.setPaused(false); });

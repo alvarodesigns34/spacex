@@ -508,6 +508,7 @@ export const VEHICLES = [
       { id: 'tail', label: 'Tail, speed brakes and XLR99', pos: [-11.8, 2.9, 5.0], target: [-6.5, 1.8, 0] },
       { id: 'gear', label: 'Skids and nose gear', pos: [-2.2, 0.8, 4.4], target: [-5.6, 0.25, 1.2] },
       { id: 'planform', label: 'Planform', pos: [0.5, 24, 0.5], target: [0, 0, 0] },
+      { id: 'cockpit', label: 'Open canopy and cockpit', pos: [5.4, 3.7, 2.4], target: [4.0, 1.5, 0] },
     ],
   },
 ];

@@ -572,7 +572,12 @@ async function main() {
       if (completed) hud.notice('The ship flies on: on flight 14 it reached orbit, deployed its payload and came back nine and a half hours in, splashing down in the Pacific. Press X to watch its re-entry.', 9000);
     },
   });
-  launch.setVisibilityHook((flying) => view.setFlying(flying));
+  // Whichever sequence reports, the vehicle has left its mount while any of them runs: the
+  // launch's reset, called with nothing launched, used to clear it under a running re-entry and
+  // bring the pad's callouts back over the Pacific (found in the October 2026 review).
+  const sequences = {};   // filled in as the re-entry and the X-15's flight are made, below
+  const anyFlying = (flying) => flying || !!launch.running || !!sequences.reentry?.running || !!sequences.x15?.running;
+  launch.setVisibilityHook((flying) => view.setFlying(anyFlying(flying)));
   // Opt-in engine sound. Assigned here, after the HUD that toggles it, hence `let` above.
   sound = createLaunchSound({ launch, camera });
   const samples = (f, a, b) => Array.from({ length: 220 }, (_, i) => { const t = a + (b - a) * i / 219; return [t, f(t)]; });
@@ -614,8 +619,9 @@ async function main() {
       goPreset('starship', 'overview');
       if (completed) hud.notice('Flight 14\'s ship splashed down on target in the northern Pacific, nine hours and fifty minutes after liftoff.', 8000);
     },
-    visibilityHook: (flying) => view.setFlying(flying),
+    visibilityHook: (flying) => view.setFlying(anyFlying(flying)),
   });
+  sequences.reentry = reentry;
   function seq() { return reentry?.running ? reentry : launch; }
 
   // ---- The X-15 in flight ----
@@ -643,8 +649,10 @@ async function main() {
       enforce(view.claim('launch'));
     },
     onFinish: () => { goPreset('x15', 'overview'); },
-    visibilityHook: (flying) => view.setFlying(flying),
+    visibilityHook: (flying) => view.setFlying(anyFlying(flying)),
   });
+  sequences.x15 = x15fly;
+
   function startFly(name) {
     flightPanel.choose(false);
     // As for the launch: a visitor who turned the sound on gets it again (this is a click or a key).
@@ -1440,6 +1448,7 @@ async function main() {
       hole: env.ground.visible ? env.groundRadius * env.ground.scale.x : 0,
       visible: !env.inSpace && !reentry.running,
     });
+    launch.flightEarth.setCut(realTerrain.visible ? realTerrain.cover : null);
     const free = rig.mode !== 'orbit';
     const target = free ? tmp.copy(camera.position).addScaledVector(camera.getWorldDirection(_fwd), rig.mode === 'walk' ? 12 : 25) : rig.target;
     const dist = free ? (rig.mode === 'walk' ? 12 : 25) : rig.distance;

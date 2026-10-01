@@ -170,5 +170,11 @@ export function buildRealTerrain({ padX, padZ }) {
       u.uHole.value = hole;
     }
   }
-  return { group, update, regions };
+  // Where the terrain is fully drawn, past the far region's fading edge: the globe leaves it to
+  // the terrain (FlightEarth.setCut).
+  const F = TERRAIN_TILES.far, inset = 0.06;
+  const [latN, lonW] = tileToGeo(F.x0 + inset * F.nx, F.y0 + inset * F.ny, F.z);
+  const [latS, lonE] = tileToGeo(F.x0 + (1 - inset) * F.nx, F.y0 + (1 - inset) * F.ny, F.z);
+  const cover = [lonW, latS, lonE, latN];
+  return { group, update, regions, cover, get visible() { return group.visible; } };
 }

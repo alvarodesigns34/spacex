@@ -1,0 +1,9 @@
+[
+  { "name": "x15-overview.jpg", "jump": ["x15", "overview"], "wait": 1400 },
+  { "name": "x15-cockpit-open.jpg", "jump": ["x15", "cockpit"], "labels": false, "ruler": false },
+  { "name": "x15-tail.jpg", "jump": ["x15", "tail"], "labels": false, "ruler": false },
+  { "name": "x15-drop-plume.jpg", "x15": { "scenario": "drop", "engine": true, "seconds": 2, "camera": "orbit", "offset": [-6, 1, 16], "look": [-22, 0, 0] }, "hud": false },
+  { "name": "x15-panel.jpg", "x15": { "scenario": "drop", "engine": true, "seconds": 2, "camera": "cockpit" } },
+  { "name": "x15-chase.jpg", "x15": { "scenario": "drop", "engine": true, "seconds": 2, "camera": "chase" } },
+  { "name": "x15-approach.jpg", "x15": { "scenario": "approach", "seconds": 1, "camera": "chase" }, "hud": false }
+]

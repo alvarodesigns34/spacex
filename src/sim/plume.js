@@ -1505,6 +1505,8 @@ const EARTH_FRAG = /* glsl */`
   uniform mat3 uGeo;
   uniform sampler2D uColour, uLand;
   uniform vec4 uBox;   // lon0, lat0, lon span, lat span (radians)
+  uniform vec4 uCut;   // lon0, lat0, lon1, lat1 (radians): left to the real terrain when uCutOn
+  uniform float uCutOn;
   varying vec3 vN, vW;
   float h3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
   float n3(vec3 x) {
@@ -1525,7 +1527,11 @@ const EARTH_FRAG = /* glsl */`
     float water = land > 0.0 ? 0.0 : 1.0;
     // The mapped surface: the point's latitude and longitude from the carried geographic frame.
     vec3 e = uGeo * n;
-    vec2 uv = (vec2(atan(e.y, e.x), asin(clamp(e.z, -1.0, 1.0))) - uBox.xy) / uBox.zw;
+    vec2 ll = vec2(atan(e.y, e.x), asin(clamp(e.z, -1.0, 1.0)));
+    // Under the real terrain (realTerrain.js) the ground is the terrain's: drawn here too, the
+    // two would fight for depth wherever the depth buffer cannot tell 0.3 m from 40 m apart.
+    if (uCutOn > 0.5 && ll.x > uCut.x && ll.x < uCut.z && ll.y > uCut.y && ll.y < uCut.w) discard;
+    vec2 uv = (ll - uBox.xy) / uBox.zw;
     float inBox = uMapped * step(0.0, uv.x) * step(uv.x, 1.0) * step(0.0, uv.y) * step(uv.y, 1.0);
     if (inBox > 0.0) {
       vec3 bm = texture2D(uColour, uv).rgb;
@@ -1630,6 +1636,7 @@ export class FlightEarth {
       uSun: { value: new THREE.Vector3(0, 1, 0) }, uOpacity: { value: 0 },
       uGeo: { value: new THREE.Matrix3() }, uMapped: { value: 0 }, uOcean: { value: ocean ? 1 : 0 },
       uColour: { value: null }, uLand: { value: null },
+      uCut: { value: new THREE.Vector4() }, uCutOn: { value: 0 },
       uBox: { value: new THREE.Vector4(GULF.lon0 * d2r, GULF.lat0 * d2r, (GULF.lon1 - GULF.lon0) * d2r, (GULF.lat1 - GULF.lat0) * d2r) },
     };
     this.u = uni;
@@ -1719,6 +1726,12 @@ export class FlightEarth {
     this.u.uCam.value.copy(camera.position);
     if (sunDir) this.u.uSun.value.copy(sunDir);
     this.u.uOpacity.value = k;
+  }
+
+  /** Leaves a box of latitude and longitude (radians: lon0, lat0, lon1, lat1) to the real terrain; null gives it back. */
+  setCut(box) {
+    this.u.uCutOn.value = box ? 1 : 0;
+    if (box) this.u.uCut.value.set(box[0], box[1], box[2], box[3]);
   }
 
   hide() { this.group.visible = false; }

@@ -573,9 +573,13 @@ function buildCockpit(M) {
     g.add(panel);
     // Its case behind it and the glare shield over it.
     // Clear of the panel's top, which leans 4 cm forward with its 10°.
-    const box = new THREE.BoxGeometry(0.1, PANEL_SIZE.height * 0.62, PANEL_SIZE.width * 0.7);
+    // Both no wider than the opening there: above the fuselage's top line, anything wider came
+    // out through the skin beside the opening when the canopy was up (found in the October 2026
+    // review).
+    const open = (st) => 2 * (canHalf(st) - 0.035);
+    const box = new THREE.BoxGeometry(0.1, PANEL_SIZE.height * 0.62, Math.min(PANEL_SIZE.width * 0.7, open(COCKPIT.panelStation - 0.18)));
     g.add(mesh(box, M.x15Tyre, { name: 'x15-panel-case', position: [-(COCKPIT.panelStation - 0.13), COCKPIT.panelTop - PANEL_SIZE.height * 0.36, 0], castShadow: false }));
-    const shield = new THREE.BoxGeometry(0.12, 0.01, 0.6);
+    const shield = new THREE.BoxGeometry(0.12, 0.01, Math.min(0.6, open(COCKPIT.panelStation - 0.14)));
     g.add(mesh(shield, M.x15Tyre, { name: 'x15-glare-shield', position: [-(COCKPIT.panelStation - 0.08), COCKPIT.panelTop + 0.012, 0], castShadow: false }));
   }
   // Side consoles: their tops ≈0.05 m above the FRL, from the panel to the seat.

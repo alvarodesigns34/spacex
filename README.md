@@ -64,7 +64,7 @@ y abrir la URL que indique. `npm run serve` es un servidor en Node (`tools/serve
 - **J** (o el botón *X-15 · Fly*) **pilota el X-15** (ver *X-15 #1: fase 4*). Se elige entre la suelta desde el B-52 (45.000 ft, Mach 0,8, todo el propulsante, 300 km antes de la pista) y una aproximación (9 km de altura, a 30 km). Mandos:
   - `W`/`S` cabeceo y `A`/`D` alabeo (también las flechas), `Q`/`E` timón de dirección;
   - `,`/`.` compensación del estabilizador;
-  - `I` enciende y apaga el XLR99, y `R`/`F` mueven el mando de gases del 50 al 100 %;
+  - `I` enciende y apaga el XLR99, y `R`/`F` mueven el mando de gases del 40 al 100 %;
   - manteniendo la **barra espaciadora**, la palanca mueve los cohetes de control;
   - `B` aerofrenos, `N` flaps, `G` tren (solo se baja una vez, como en el avión) e `Y` amortiguadores;
   - `C` cámara (persecución, cabina, torre o tu propia órbita, que también se toma arrastrando), `K` pausa y `Esc` vuelve al expositor;
@@ -423,7 +423,7 @@ El X-15 ya tiene un **modelo de vuelo de seis grados de libertad** (`src/sim/x15
   - compensación de **TM X-714** (fig. 8);
   - amortiguamiento en alabeo derivado de **CR-2144** (tablas V-1 y V-6).
 - **El momento de cabeceo** se construye para que el avión se compense donde TM X-714 lo midió. Entre las curvas, el control que resulta concuerda con el medido en TN D-2532: −0,0081 frente a −0,0088 por grado a Mach 3.
-- **XLR99 de SP-60:** 57.000 lbf, 13.000 lb de propulsante por minuto, 18.000 lb y mando de gases del 50 al 100 %.
+- **XLR99 de SP-60:** 57.000 lbf, 13.000 lb de propulsante por minuto, 18.000 lb y mando de gases del 40 al 100 % (hasta la revisión del 1 de octubre decía 50 %, pero SP-60 dice 40).
 - **Masa e inercias variables** según el peso (TN D-2532, fig. 3), con el centro de gravedad al 20 % de la cuerda media.
 - **Cohetes de control** de morro y alas, con dos sistemas.
 - **Amortiguadores (SAS)** convencionales con las ganancias de CR-2144.
@@ -568,7 +568,7 @@ Cada zona es un atlas JPEG (`src/assets/terrain/`, 2,1 MB entre los dos) y una r
 - **Celdas de choque:** su separación es L ≈ 1,22·D<sub>j</sub>·√(M<sub>j</sub>² − 1), la estimación clásica de Pack (1950) para un chorro supersónico mal expandido. Cada celda termina en la banda brillante de un disco de Mach.
 - **Cifras resultantes:** a nivel del mar el chorro está sobreexpandido y sus celdas miden ≈1,6 m. A 45.000 ft miden ≈4,9 m. A 30 km el chorro ya mide varios metros de ancho y sus celdas decenas de metros. Más arriba se dibuja como un cono ancho y tenue.
 - **Lo que es de esta simulación (≈):** los colores, el brillo y la distancia a la que se apagan los diamantes, ajustados a ojo con esas fotos.
-- **Solo en vuelo:** el chorro se cuelga del avión al despegar y se quita al acabar. Oculto en el expositor, contaba igualmente en su caja: `verify()` medía 15,009 m de largo en vez de 15,005, y la prueba de `ux-check` lo detectó.
+- **Solo en vuelo:** el chorro se cuelga del avión al empezar el vuelo y se quita al acabar. Oculto en el expositor, contaba igualmente en su caja: `verify()` medía 15,009 m de largo en vez de 15,005, y la prueba de `ux-check` lo detectó.
 
 **El calentamiento aerodinámico** (`src/sim/x15Heating.js`) sale de lo que se midió en el propio avión: **NASA TM X-1705** (Quinn y Olinger, 1969). Son medidas de 200 termopares en la piel de Inconel X en dos vuelos casi estacionarios: el 2-22 (Mach 5,1, α 2,0°) y el 2-28 (Mach 4,98, α 16,3°).
 - **Dónde:** en la línea central inferior del fuselaje (φ = 0, figura 4), la de barlovento y la más caliente, en los cinco termopares medidos en los dos vuelos (tabla V). Cada uno tiene su propia piel, con la capacidad térmica ρcτ que da el informe.
@@ -588,6 +588,26 @@ Cada zona es un atlas JPEG (`src/assets/terrain/`, 2,1 MB entre los dos) y una r
 - **Todo sintetizado** sobre los mismos ruidos base del lanzamiento, con niveles a oído (≈).
 
 **Corrección de paso:** por encima de 20 km el vuelo ponía el plano cercano de la cámara a 2 m, que en la vista de cabina recortaba el panel y la carlinga, a menos de un metro. Ahora la cabina lo mantiene en 5 cm a cualquier altura.
+
+### Revisión de las fases 1–7 del X-15 (1 de octubre de 2026)
+
+Se revisaron el código, los datos y su procedencia, y se renderizaron todas las vistas: las 26 de la galería del museo, las 19 del lanzamiento y la reentrada y siete nuevas del X-15. Las ocho del Roadster se revisaron en la galería regenerada. También vuelos de prueba a 45.000 ft, a 40 y 60 km sobre la ruta y en la aproximación, con cada cámara. Lo que se encontró y se corrigió:
+- **Mando de gases del XLR99:** SP-60, la fuente citada, dice que el motor se regula «del 40 al 100 % del empuje», y el modelo usaba un mínimo del 50 %. Ahora es el 40 %.
+- **La caja del panel y la visera antirreflejos** eran más anchas que el hueco de la cabina y, con la carlinga abierta, salían por la piel a los lados del hueco. Ahora no pasan de su anchura.
+- **El globo y el terreno real se peleaban por la profundidad:**
+  - a gran altura, y sobre todo desde la cabina, cuyo plano cercano está a 5 cm, el búfer de profundidad no distingue a 100 km dos superficies separadas 0,3 m (en el vuelo) o 40 m (en el lanzamiento);
+  - ahora el globo no se dibuja donde el terreno real está entero (`FlightEarth.setCut`). Solo se solapan en la franja en que el terreno se funde, como debe ser.
+- **Las etiquetas del pad aparecían sobre el Pacífico** durante la reentrada, en cuanto algo llamaba a `launch.reset` con el lanzamiento parado: su gancho de visibilidad decía «el vehículo está en su soporte» aunque la reentrada siguiera. Ahora los tres ganchos (lanzamiento, reentrada y X-15) miran si alguna de las tres secuencias sigue en marcha. `ux-check` lo comprueba.
+- **Nombre de la fuente:** el chorro del XLR99 atribuía a SP-60 el «empuje en el vacío». SP-60 da 57.000 lbf sin decir a qué altura; ahora consta que tomarlo como empuje en el vacío es decisión del modelo (≈).
+
+**Añadido para la galería:**
+- el encuadre *Open canopy and cockpit* del X-15;
+- el campo `x15` de `tools/shot.mjs`, que hace volar el avión antes de la foto;
+- el manifiesto `tools/x15-shots.json`: expositor, carlinga abierta, cola, chorro, cabina, persecución y aproximación sobre el terreno real.
+
+**Revisado y sin cambios:**
+- **Sonido:** se activó en un vuelo con Chromium sin pantalla; el contexto de audio corre y no hay errores.
+- **Fotograma de transición:** un rectángulo oscuro que salió al teletransportar el avión a 60 km era la cámara de persecución alcanzándolo. Un fotograma después desaparece, y en un vuelo normal no ocurre.
 
 ### Historial
 

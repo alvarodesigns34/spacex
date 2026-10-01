@@ -315,7 +315,8 @@ export const INERTIA = {
 export const XLR99 = {
   src: 'SP-60', tag: 'PUBLISHED',
   thrustLbf: 57000, flowLbPerMin: 13000, propellantLb: 18000, burnTimeS: 85,
-  throttleMin: 0.5, exitDiameterIn: 39.3,
+  // SP-60: "throttled from 40-percent to 100-percent thrust" (0.5 until the October 2026 review).
+  throttleMin: 0.4, exitDiameterIn: 39.3,
 };
 
 /**
