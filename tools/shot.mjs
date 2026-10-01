@@ -18,10 +18,6 @@
  *
  * `reentry` is a mission time in the re-entry chapter (reentry.js), with `cam` the camera
  * ('director' by default, 'onboard' or 'chase').
- *
- * `x15` flies the X-15 (x15Fly.js) before the frame: { scenario ('drop' or 'approach'), engine,
- * throttle, seconds of flight, camera ('chase', 'cockpit', 'tower', 'orbit'), and for the orbit
- * camera an offset [x, y, z] from the airplane and a point to look at, both in metres }.
  */
 import { createServer } from 'node:http';
 import { staticHandler } from './static.mjs';
@@ -84,7 +80,6 @@ for (const s of shots) {
     // Reset the state a previous shot may have left, so order cannot change a frame.
     if (s.seek === undefined) v.launch.reset(false);
     if (s.reentry === undefined && v.reentry?.running) v.reentry.reset(false);
-    if (s.x15 === undefined && v.x15fly?.running) v.x15fly.reset(false);
     v.ortho(null);
     v.env.setSun(s.sun ?? sun, 34);
     v.setToggle('labels', s.labels ?? true);
@@ -102,19 +97,6 @@ for (const s of shots) {
       v.reentry.setSpeed(0);
       v.reentry.setFollow(s.cam ?? 'director');
       v.reentry.seek(s.reentry);
-    }
-    else if (s.x15) {
-      const f = s.x15, x = v.x15fly;
-      x.start(f.scenario ?? 'drop');
-      if (f.engine) { x.input.engine = true; x.input.throttle = f.throttle ?? 1; }
-      for (let t = 0; t < (f.seconds ?? 1); t += 0.05) x.update(0.05);
-      x.setCamera(f.camera ?? 'chase');
-      x.update(0.02);
-      if (f.offset) {
-        const p = x.position, o = f.offset, l = f.look ?? [0, 0, 0];
-        v.camera.position.set(p.x + o[0], p.y + o[1], p.z + o[2]);
-        v.camera.lookAt(p.x + l[0], p.y + l[1], p.z + l[2]);
-      }
     }
     else if (s.seek !== undefined) {
       v.launch.setSpeed(s.speed ?? 1);

@@ -14,8 +14,6 @@ import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer
 import { createMaterials, WAVE_TIME } from './materials/library.js';
 import { createEnvironment } from './core/environment.js';
 import { dressCampus } from './core/campus.js';
-import { buildRunway } from './core/runway.js';
-import { buildRealTerrain } from './core/realTerrain.js';
 import { CameraRig } from './core/cameraRig.js';
 import { ViewState } from './core/viewState.js';
 import { pickQuality, applyQuality } from './core/quality.js';
@@ -26,7 +24,6 @@ import { buildStarship, STACK_YAW_DEG, BOOSTER_AFT } from './vehicles/starship.j
 import { buildFalcon9, buildFalconHeavy } from './vehicles/falcon.js';
 import { buildFalcon1, buildFalcon1GroundEquipment } from './vehicles/falcon1.js';
 import { buildDragon } from './vehicles/dragon.js';
-import { buildX15 } from './vehicles/x15.js';
 import { buildStarlink } from './vehicles/starlink.js';
 import { buildRoadster } from './vehicles/roadster.js';
 import { buildEngineHall } from './vehicles/enginehall.js';
@@ -40,8 +37,6 @@ import { createLaunch, EVENTS, MILESTONES, ENGINE_LAYOUT, altitudeAt, boosterAlt
 import { createMissionClock } from './sim/missionClock.js';
 import { createLaunchSound } from './sim/sound.js';
 import { createReentry } from './sim/reentry.js';
-import { createX15Flight } from './sim/x15Fly.js';
-import { createFlightPanel } from './ui/flightPanel.js';
 import { CHAPTER as REENTRY_CHAPTER, MILESTONES_RE, reentryAltAt } from './sim/reentryFlight.js';
 
 // Exhibit layout (world X, metres). Mount heights are presentation choices.
@@ -108,13 +103,6 @@ const LAYOUT = {
     x: 163, z: 0, mount: 0, yaw: -12,
     people: [[4.8, 0, -2.8, -0.6], [-5.8, 0, 2.2, -1.4], [1.2, 0, -3.0, 2.6]],
   },
-  // The X-15 stands on its own gear on the apron, as it stood on the lakebed after a flight:
-  // no plinth. In the open stretch of the row between Falcon Heavy's mount and Dragon, in
-  // front of the pad, turned a little towards the road the visitors arrive on.
-  x15: {
-    x: -18, z: 0, mount: 0, yaw: -18,
-    people: [[3.0, 0, 4.2, 0.9], [-9.5, 0, 3.2, -0.6]],
-  },
 };
 // Recomposed when the Roadster became the sixth exhibit: the old frame was centred on x = -14
 // and the car sat at the right-hand edge, so the first thing a visitor saw did not contain it.
@@ -157,10 +145,6 @@ const OCCLUDER = {
   falcon1: 0.8402,
   starship: 4.5, falcon9: 1.9, falconheavy: 1.9, dragon: 2.0, starlink: 0, roadster: 1.0,
   engines: [[-4.15, 0, 0.50, 2.6], [-1.75, 0, 0.70, 3.4], [1.55, 0, 1.20, 4.9]],
-  // The X-15 lies along its own X: the fuselage as a chain of cylinders, the wings and tails
-  // as one each side. Also the walking visitor's obstacles.
-  x15: [[6.2, 0, 0.55, 1.2], [3.6, 0, 0.8, 1.9], [1.0, 0, 1.15, 1.6], [-1.6, 0, 1.15, 1.7], [-4.3, 0, 1.15, 1.9], [-6.6, 0, 1.2, 3.5],
-    [-0.4, 2.3, 1.2, 1.2], [-0.4, -2.3, 1.2, 1.2], [-6.0, 2.1, 0.9, 1.2], [-6.0, -2.1, 0.9, 1.2]],
 };
 
 const nextFrame = () => new Promise(r => requestAnimationFrame(r));
@@ -240,7 +224,6 @@ async function main() {
     onReset: () => select(null),
     onLaunch: () => toggleLaunch(),
     onReentry: () => toggleReentry(),
-    onFly: () => toggleFly(),
     // The panel drives whichever sequence is playing: the launch, or the re-entry chapter.
     onLaunchAbort: () => seq()?.reset(),
     onLaunchSpeed: (k) => seq()?.setSpeed(k),
@@ -269,8 +252,6 @@ async function main() {
   await nextFrame();
   const env = createEnvironment(renderer, scene, M, quality);
   dressCampus(scene, M, { stops: Object.values(LAYOUT).filter(l => !l.pad).map(l => l.x), quality: quality.name });
-  // The X-15's runway on the saline flat, north-west of the site (terrain.js RUNWAY).
-  scene.add(buildRunway());
 
   // ---- Post-processing (MSAA render target + subtle bloom) ----
   // No stencil. It was added for the scale figures' shadow and made every frame resolve a
@@ -333,7 +314,6 @@ async function main() {
     starlink: [buildStarlink, 'Starlink V2 Mini…'],
     roadster: [buildRoadster, 'Tesla Roadster and Starman…'],
     engines: [buildEngineHall, 'Raptor 3, Raptor Vacuum and Merlin 1D…'],
-    x15: [buildX15, 'X-15 · 56-6670…'],
   };
   let step = 0;
   let complex = null;
@@ -384,9 +364,6 @@ async function main() {
       group.add(ped);
       model.position.y = lay.mount + 0.6;
       env.addStation(lay.x, lay.z, 5);
-    } else if (v.id === 'x15') {
-      // On its gear, no plinth.
-      env.addStation(lay.x, lay.z, 10);
     } else if (v.id === 'engines') {
       // No plinth: the engines stand on the apron on their own cradles, which is what makes
       // the 4.4 m of a Raptor Vacuum land next to a visitor rather than above one.
@@ -572,11 +549,11 @@ async function main() {
       if (completed) hud.notice('The ship flies on: on flight 14 it reached orbit, deployed its payload and came back nine and a half hours in, splashing down in the Pacific. Press X to watch its re-entry.', 9000);
     },
   });
-  // Whichever sequence reports, the vehicle has left its mount while any of them runs: the
-  // launch's reset, called with nothing launched, used to clear it under a running re-entry and
-  // bring the pad's callouts back over the Pacific (found in the October 2026 review).
-  const sequences = {};   // filled in as the re-entry and the X-15's flight are made, below
-  const anyFlying = (flying) => flying || !!launch.running || !!sequences.reentry?.running || !!sequences.x15?.running;
+  // Whichever sequence reports, the vehicle has left its mount while either runs: the launch's
+  // reset, called with nothing launched, used to clear it under a running re-entry and bring the
+  // pad's callouts back over the Pacific (found in the October 2026 review).
+  const sequences = {};   // the re-entry, once it is made below
+  const anyFlying = (flying) => flying || !!launch.running || !!sequences.reentry?.running;
   launch.setVisibilityHook((flying) => view.setFlying(anyFlying(flying)));
   // Opt-in engine sound. Assigned here, after the HUD that toggles it, hence `let` above.
   sound = createLaunchSound({ launch, camera });
@@ -623,47 +600,6 @@ async function main() {
   });
   sequences.reentry = reentry;
   function seq() { return reentry?.running ? reentry : launch; }
-
-  // ---- The X-15 in flight ----
-  // The exhibit's airplane leaves its gear and flies on the flight model (x15Fly.js), from a
-  // drop or an approach to a landing on runway 13; the instruments are a panel (flightPanel.js).
-  const flightPanel = createFlightPanel({
-    root: document.getElementById('hud'),
-    onStart: (name) => startFly(name),
-    onEnd: () => x15fly.reset(),
-    onCamera: () => x15fly.cycleCamera(),
-    onSound: () => { hud.toggleSound(); flightPanel.setSound(!!sound?.enabled); },
-  });
-  // The real ground beyond the disc (realTerrain.js), on the same map about the pad as the globe.
-  const realTerrain = buildRealTerrain({ padX: exhibits.starship.lay.x, padZ: exhibits.starship.lay.z });
-  scene.add(realTerrain.group);
-  const x15fly = createX15Flight({
-    scene, exhibits, env, rig, camera, flightEarth: launch.flightEarth,
-    groundAt: (x, z) => rig.groundAt(x, z),
-    padX: exhibits.starship.lay.x, padZ: exhibits.starship.lay.z,
-    panel: flightPanel,
-    onStart: () => {
-      if (launch.running) launch.reset(false);
-      if (reentry.running) reentry.reset(false);
-      if (view.exhibit !== 'x15') { enforce(view.select('x15')); syncHud(); }
-      enforce(view.claim('launch'));
-    },
-    onFinish: () => { goPreset('x15', 'overview'); },
-    visibilityHook: (flying) => view.setFlying(anyFlying(flying)),
-  });
-  sequences.x15 = x15fly;
-
-  function startFly(name) {
-    flightPanel.choose(false);
-    // As for the launch: a visitor who turned the sound on gets it again (this is a click or a key).
-    if (hud.soundWanted() && !sound.enabled) sound.setEnabled(true);
-    flightPanel.setSound(!!sound?.enabled);
-    x15fly.start(name);
-  }
-  function toggleFly() {
-    if (x15fly.running) { x15fly.reset(); return; }
-    flightPanel.choose(!flightPanel.choosing);
-  }
 
   hud.setProgress('Compiling shaders…', 0.95);
   await nextFrame();
@@ -952,7 +888,6 @@ async function main() {
     // The re-entry chapter holds the camera under the same owner as the launch: picking a
     // vehicle or starting the tour left it running under them (audit, 30-09).
     if (stop?.launch && reentry?.running) reentry.reset(false);
-    if (stop?.launch && x15fly?.running) x15fly.reset(false);
   }
 
   /** Brings the HUD into line with the state, after the scene has been. */
@@ -1119,8 +1054,6 @@ async function main() {
     else if (k === '0') select(null);
     else if (k === 'c' && (launch.running || reentry.running) && rig.mode === 'orbit') cycleLaunchCamera();
     else if (k === 'x') toggleReentry();
-    else if (k === 'j') toggleFly();
-    else if (k === 'escape' && flightPanel.choosing) flightPanel.choose(false);
     else if (k === 'f') toggleMode();
     else if (k === 'v') toggleWalk();
     else if (k === 'g') toggleLaunch();
@@ -1435,20 +1368,11 @@ async function main() {
     rig.update(dt);
     launch.update(steps.mission);
     reentry.update(steps.mission);
-    x15fly.update(dt);
     sound?.update();
-    sound?.x15(x15fly.running ? x15fly.state.readout : null, x15fly.position);
     // Water keeps moving whatever the camera or the launch is doing.
     WAVE_TIME.value += dt;
     // The sky is a finite box; centring it on the viewer is what lets it survive an ascent.
     env.followCamera(camera);
-    // Not under the re-entry's Pacific nor in orbit; within the disc (and its ascent stretch)
-    // the disc is the ground.
-    realTerrain.update(camera, env.sunDir, {
-      hole: env.ground.visible ? env.groundRadius * env.ground.scale.x : 0,
-      visible: !env.inSpace && !reentry.running,
-    });
-    launch.flightEarth.setCut(realTerrain.visible ? realTerrain.cover : null);
     const free = rig.mode !== 'orbit';
     const target = free ? tmp.copy(camera.position).addScaledVector(camera.getWorldDirection(_fwd), rig.mode === 'walk' ? 12 : 25) : rig.target;
     const dist = free ? (rig.mode === 'walk' ? 12 : 25) : rig.distance;
@@ -1498,7 +1422,6 @@ async function main() {
   const verify = ({ forceDetail = true } = {}) => {
     launch.reset(false);
     reentry.reset(false);
-    x15fly.reset(false);
     if (forceDetail) lod.forceDetailed();
     return {
       dimensions: verifyExhibits(exhibits),
@@ -1565,7 +1488,7 @@ async function main() {
   }
 
   window.__vc = {
-    M, scene, camera, rig, exhibits, complex, launch, reentry, x15fly, select, goPreset, jump, renderer, env,
+    M, scene, camera, rig, exhibits, complex, launch, reentry, select, goPreset, jump, renderer, env,
     setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour,
     claimUserControl, tourRunToEnd, toggleMode, toggleWalk,
     walkRouteFor: (hit) => { const r = walkRoute(hit); rig.travelTo(r.route, r.look); return r; },

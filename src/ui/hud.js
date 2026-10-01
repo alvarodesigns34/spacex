@@ -7,7 +7,7 @@ import { SOURCES, SOURCE_LABEL } from '../data/specs.js';
 const fmtHeight = (h) => `${h >= 10 ? Math.round(h) : h} m`;
 const THREE_DEG20 = Math.PI / 9;
 
-export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWalk, onSun, onReset, onLaunch, onReentry, onFly, onLaunchAbort, onLaunchSpeed, onLaunchSound, onLaunchPause, onLaunchSeek, onLaunchRestart, onLaunchCamera, onTour, onHelp }) {
+export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWalk, onSun, onReset, onLaunch, onReentry, onLaunchAbort, onLaunchSpeed, onLaunchSound, onLaunchPause, onLaunchSeek, onLaunchRestart, onLaunchCamera, onTour, onHelp }) {
   const root = document.getElementById('hud');
   root.innerHTML = `
     <header class="hud-header">
@@ -46,7 +46,6 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
       <label class="tool tool-sun">Sun <input type="range" id="sun" min="4" max="75" value="20" step="1" title="Sun elevation, from low evening light to midday"></label>
       <button class="tool tool-btn tool-launch" id="launch-btn" title="Starship launch sequence from Pad 2 (G)">Starship · Launch <kbd>G</kbd></button>
       <button class="tool tool-btn" id="reentry-btn" title="Starship's re-entry and splashdown, on flight 14's timeline (X)">Reentry <kbd>X</kbd></button>
-      <button class="tool tool-btn" id="fly-btn" title="Fly the X-15: a drop from the B-52 or an approach, landing on runway 13 (J)">X-15 · Fly <kbd>J</kbd></button>
       <button class="tool tool-btn" id="tour-btn" title="Guided tour of the centre (P)">Tour <kbd>P</kbd></button>
       <button class="tool tool-btn" id="mode-btn" title="Switch camera mode (F)">Orbit <kbd>F</kbd></button>
       <button class="tool tool-btn" id="walk-btn" type="button" aria-pressed="false" title="Walk the apron at eye height, 1.7 m (V)">Walk <kbd>V</kbd></button>
@@ -172,16 +171,6 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
               <dt><kbd>C</kbd></dt><dd>camera: broadcast shots, or ride with the booster or the ship</dd>
               <dt>Panel</dt><dd>×¼ to ×10 speed · click the flight profile to jump</dd>
               <dt><kbd>X</kbd></dt><dd>the ship's re-entry and splashdown, flight 14 (on-board, chase and buoy cameras)</dd>
-            </dl>
-          </section>
-          <section class="guide-sec" data-mode="x15">
-            <h3>Fly the X-15 <kbd>J</kbd> <span class="guide-here">you are here</span></h3>
-            <dl>
-              <dt><kbd>W</kbd><kbd>S</kbd> · <kbd>A</kbd><kbd>D</kbd> · <kbd>Q</kbd><kbd>E</kbd></dt><dd>pitch · roll · rudder (arrows too)</dd>
-              <dt><kbd>I</kbd> · <kbd>R</kbd><kbd>F</kbd></dt><dd>XLR99 start/stop · throttle 50–100 %</dd>
-              <dt><kbd>,</kbd><kbd>.</kbd> · hold <kbd>space</kbd></dt><dd>stabilizer trim · reaction jets</dd>
-              <dt><kbd>B</kbd> <kbd>N</kbd> <kbd>G</kbd> <kbd>Y</kbd></dt><dd>speed brakes · flaps · gear (once) · dampers</dd>
-              <dt><kbd>C</kbd> · <kbd>K</kbd> · <kbd>Esc</kbd></dt><dd>camera · pause · back to the exhibit</dd>
             </dl>
           </section>
           <section class="guide-sec">
@@ -396,7 +385,6 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
   launchBtn.addEventListener('click', () => onLaunch?.());
   const reentryBtn = el('#reentry-btn');
   reentryBtn.addEventListener('click', () => onReentry?.());
-  el('#fly-btn').addEventListener('click', () => onFly?.());
   el('#mission-abort').addEventListener('click', () => onLaunchAbort?.());
   el('#mission-restart').addEventListener('click', () => onLaunchRestart?.());
   const camBtn = el('#mission-cam');
@@ -772,5 +760,5 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
   };
   root.querySelector('#coach-close').addEventListener('click', hideCoach);
 
-  return { toggleSound: () => soundBtn.click(), setActive, setPreset, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setMissionText, setTrajectory, setTour, showHelp, setMap, setMapCamera, showCoach, hideCoach, soundWanted, milestoneStep, notice };
+  return { setActive, setPreset, setMode, setScale, setProgress, hideLoading, toggleSheet, toggle, setMission, setMissionText, setTrajectory, setTour, showHelp, setMap, setMapCamera, showCoach, hideCoach, soundWanted, milestoneStep, notice };
 }

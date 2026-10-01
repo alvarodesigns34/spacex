@@ -602,61 +602,6 @@ try {
       'A vehicle key ends the re-entry: ship home, site shown, heat glow off, the launch\'s panel text back', back);
   }
 
-  // ---- Flying the X-15 (phase 4) ----------------------------------------------------------------
-  // J opens the chooser, the drop starts from a click; the flight owns its keys (a vehicle key
-  // does not leave it), the engine burns propellant, the stick moves the stabilizer and the
-  // airplane pitches, C and G work; Esc puts the airframe back on its gear in the row.
-  {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.evaluate(() => { const v = window.__vc; v.launch.reset(false); v.reentry.reset(false); v.x15fly.reset(false); v.jump('x15', 'overview'); document.activeElement?.blur?.(); });
-    await settle(600);
-    const base = await page.evaluate(() => { const v = window.__vc; return { far: v.camera.far, parent: v.exhibits.x15.model.getObjectByName('x15-airframe').parent.name }; });
-    await page.keyboard.press('j');
-    const chooser = await page.evaluate(() => !document.querySelector('.x15-chooser').classList.contains('hidden'));
-    await page.click('.x15-go[data-s="drop"]');
-    await page.waitForFunction(() => window.__vc.x15fly.running);
-    const started = await page.evaluate(() => {
-      const v = window.__vc, r = v.x15fly.state.readout;
-      return { panel: !document.querySelector('.x15-panel').classList.contains('hidden'), rail: getComputedStyle(document.getElementById('rail')).display, alt: Math.round(r.altitudeFt), mach: +r.mach.toFixed(2), flying: v.scene.getObjectByName('x15-flight').visible };
-    });
-    report(chooser && started.panel && started.rail === 'none' && Math.abs(started.alt - 45000) < 300 && Math.abs(started.mach - 0.8) < 0.02 && started.flying,
-      'J and a click drop the X-15 at 45,000 ft and Mach 0.8, the museum panels put away', { chooser, ...started });
-
-    await page.evaluate(() => document.activeElement?.blur?.());
-    await page.keyboard.press('i');
-    await page.keyboard.press('1');
-    const t0 = await page.evaluate(() => window.__vc.x15fly.state.t);
-    await page.waitForFunction((t) => window.__vc.x15fly.state.t > t + 1, t0, { timeout: 60000 }).catch(() => {});
-    const lit = await page.evaluate(() => { const v = window.__vc, r = v.x15fly.state.readout; return { engine: r.engine, prop: Math.round(r.propellantLb), running: v.x15fly.running, exhibit: v.view?.exhibit ?? null }; });
-    report(lit.engine && lit.prop < 18000 && lit.running, 'I lights the XLR99 and it burns propellant; a vehicle key does not leave the flight', lit);
-
-    // Pull: the stabilizer goes leading edge down (nose up) past the trim, the pitch rate rises.
-    const before = await page.evaluate(() => { const r = window.__vc.x15fly.state.readout; return { dh: r.dh, trim: r.trim, t: r.t }; });
-    await page.keyboard.down('s');
-    await page.waitForFunction((t) => window.__vc.x15fly.state.t > t + 0.8, before.t, { timeout: 60000 }).catch(() => {});
-    const pulled = await page.evaluate(() => { const v = window.__vc, r = v.x15fly.state.readout; return { dh: r.dh, trim: r.trim, q: v.x15fly.state.sim.w[1], stick: v.x15fly.input.pitch }; });
-    await page.keyboard.up('s');
-    report(pulled.stick > 0.5 && pulled.dh < pulled.trim - 2 && pulled.q > 0.01, 'S pulls the stick: the stabilizer goes nose up past the trim and the airplane pitches up', { before, pulled });
-
-    await page.keyboard.press('c');
-    await page.keyboard.press('g');
-    await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
-    const cfg = await page.evaluate(() => { const v = window.__vc; return { camera: v.x15fly.state.camera, gear: v.x15fly.input.gear, gearShown: v.scene.getObjectByName('x15-landing-gear').visible }; });
-    report(cfg.camera === 'cockpit' && cfg.gear && cfg.gearShown, 'C goes to the cockpit view, G lowers the gear (shown on the airplane)', cfg);
-
-    await page.keyboard.press('Escape');
-    await page.waitForFunction(() => !window.__vc.x15fly.running, null, { timeout: 30000 }).catch(() => {});
-    await settle(600);
-    const back = await page.evaluate(() => {
-      const v = window.__vc, air = v.exhibits.x15.model.getObjectByName('x15-airframe');
-      const hidden = v.scene.children.filter(o => (o.name.startsWith('exhibit-') || o.name === 'campus' || o.name === 'ground' || o.name === 'x15-runway') && !o.visible).map(o => o.name);
-      const dims = v.verify().dimensions.filter(d => d.vehicle === 'x15').map(d => d.built);
-      return { running: v.x15fly.running, inExhibit: !!air && air.parent.name === 'x15-on-gear', hidden, far: v.camera.far, panel: document.querySelector('.x15-panel').classList.contains('hidden'), rail: getComputedStyle(document.getElementById('rail')).display, dims };
-    });
-    report(!back.running && back.inExhibit && !back.hidden.length && back.far === base.far && back.panel && back.rail !== 'none' && back.dims.join() === '3.505,6.815,15.005',
-      'Esc ends the flight: the airframe back on its gear (verify 3.505 / 6.815 / 15.005 m), the site and the panels back', { base, back });
-  }
-
   // A lost and restored WebGL context keeps the lighting (the reflection probe is rebuilt).
   await page.setViewportSize({ width: 960, height: 540 });
   const lumaAfterRestore = (sabotage) => page.evaluate(async (sabotage) => {

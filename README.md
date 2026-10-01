@@ -1,6 +1,6 @@
 # SpaceX Vehicle Center
 
-Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones técnicas de nueve expositores: ocho de SpaceX y el X-15, el avión cohete hipersónico de la NASA y la USAF:
+Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones técnicas de ocho expositores de SpaceX:
 
 | Vehículo | Configuración modelada | Altura / envergadura |
 |---|---|---|
@@ -12,7 +12,6 @@ Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones
 | Starlink | V2 Mini con las dos alas solares desplegadas | 30 m de envergadura |
 | Tesla Roadster | 1.ª generación (modelo 2010, carrocería anterior al 2.5) con Starman, carga útil del vuelo inaugural del Falcon Heavy | 3,946 m · 1,851 m de ancho con espejos · 1,127 m de alto |
 | Engine Row | Raptor 3, Raptor Vacuum y Merlin 1D sobre cunas, a 1:1 | 4,4 m (RVac) |
-| X-15 | North American X-15 #1, USAF 56-6670, sobre su tren (patines y rueda de morro) como tras un vuelo: aleta ventral soltada, *ball nose* | 14,986 m de largo · 6,815 m de envergadura · 3,505 m de alto en configuración de aterrizaje |
 
 **Starship** encabeza la lista, porque es el expositor principal y el del lanzamiento (tecla **1**). Le sigue el **Falcon 1** (tecla **2**), que abre la línea histórica: Falcon 1 → Falcon 9 → Falcon Heavy.
 
@@ -55,28 +54,12 @@ y abrir la URL que indique. `npm run serve` es un servidor en Node (`tools/serve
   - Andando con el teclado no se atraviesan las mesas, peanas, la mesa de lanzamiento, la base de la torre, **la valla** ni **el borde de la zanja** (una caída de 4,2 m sin salida). Un escalón de más de 0,6 m (los muros de 2,5 m del pad) es una pared. En vez de pararse en seco, el visitante se desliza a lo largo del obstáculo.
 - La vista **In orbit** del Roadster cambia la peana por el adaptador de carga y el suelo por la Tierra, y deja el coche solo: la explanada, sus matorrales, los camiones de servicio y los otros siete expositores se ocultan al entrar y vuelven al salir (antes seguían ahí, y el coche aparecía aparcado sobre hormigón a 30 km de altura).
 - El **plano del recinto** (arriba a la derecha) muestra la franja de exposición, los viales y el complejo de lanzamiento, con cada expositor como una parada numerada —un clic la visita— y la cámara como una cuña que apunta hacia donde mira. Se aparta cuando se despliega la ficha técnica y se oculta en pantallas estrechas, durante el vuelo y en la vista orbital del Roadster.
-- **1–9** selecciona expositor (Starship primero, luego del Falcon 1 al Engine Row y el X-15), **0** vista general, **L** etiquetas, **R** regla de altura, **T** pliega la ficha, **H** o **?** (o el botón *Guide*) abre la **guía rápida**: tres primeros pasos numerados y una tarjeta por cada forma de moverse (mirar, pasear, volar, lanzamiento) más expositores y pantalla, con la tarjeta del modo en uso marcada como *You are here*. La tercera línea de la primera visita lo recuerda.
+- **1–8** selecciona expositor (Starship primero, luego del Falcon 1 al Engine Row), **0** vista general, **L** etiquetas, **R** regla de altura, **T** pliega la ficha, **H** o **?** (o el botón *Guide*) abre la **guía rápida**: tres primeros pasos numerados y una tarjeta por cada forma de moverse (mirar, pasear, volar, lanzamiento) más expositores y pantalla, con la tarjeta del modo en uso marcada como *You are here*. La tercera línea de la primera visita lo recuerda.
 - **P** (o el botón *Tour*) recorre el centro parada por parada; cualquier arrastre, rueda o clic lo termina y devuelve la cámara. Cada parada lleva un **texto breve con su fuente**: una cifra o un hecho de lo que hay en pantalla, con el enlace a la fuente de la ficha. `tools/provenance-check.mjs` comprueba que toda cifra con unidad de esos textos está en la ficha del expositor, que una cifra estimada o reconstruida lleva ≈ o la salvedad, y que la fuente existe, con tres controles negativos.
 - **Primera visita:** tres líneas arriba en el centro explican cómo moverse, cómo llegar a los expositores y cómo lanzar. Desaparecen con la primera interacción (arrastrar, rueda, tecla o cualquier pulsación fuera de ellas) o a los 20 s, y no vuelven a salir (se guarda en `localStorage`; en una ventana privada se muestran una vez por visita). Por debajo de 1100 px de ancho no hay un hueco que no toque la ficha o las herramientas, así que no se muestran.
 - **Encuadre en la parte libre de la pantalla:** en escritorio, la lista de vehículos ocupa los primeros ~256 px, y una vista centrada en toda la ventana dejaba su cuarto izquierdo debajo de ella (en la vista general, el Falcon 1 y el Falcon 9 quedaban enteros bajo la lista). Ahora el centro de proyección se desplaza hacia la zona libre con `setViewOffset`, sin mover la cámara, así que la selección con el ratón, las etiquetas y la profundidad siguen cuadrando. En el modo de escena limpia y en la vista orbital no hay desplazamiento.
 - **G** (o el botón *Starship · Launch*) arranca la secuencia de Starship. Durante la cuenta atrás y el ascenso la cámara sigue un plan de planos, pero **arrastrar o girar la rueda devuelve el control al instante** sin detener la secuencia, y **la cámara sigue montada en el cohete**: el centro de la órbita se mueve con el vehículo y la cámara con él, así que se puede girar alrededor, pausar, reanudar o saltar a otro instante sin perderlo. Antes, al tomar el control la cámara se quedaba quieta donde la había dejado el plan de planos y el cohete salía de cuadro en segundos, con pausa o sin ella. El botón **Camera** (o **C**) elige entre los **planos de realización** y **tu órbita montada en el propulsor** o **en la nave** (tras la separación van cada uno por su lado); el cielo, los planos de recorte y las sombras siguen al vehículo en el que vas. El panel de misión lleva reloj, fase y el siguiente hito con su hora; **las dos etapas lado a lado, como en la retransmisión** (Super Heavy y Starship, cada una con su velocidad, su altitud y un **esquema de motores** que enciende un círculo por motor en el orden real: los 33 a la vez en el arranque del propulsor V3, 5 en la separación en caliente, y los 6 de la nave); un rótulo que aparece sobre la imagen al cruzar cada hito; un botón **Sound** (apagado por defecto, se recuerda) un botón **Pause** (o **K**, o la barra espaciadora fuera del vuelo libre) que congela el reloj de misión dejando la cámara libre para rodear la escena parada, un selector de velocidad **×¼** (cámara lenta) / ×1 / ×2 / ×5 / ×10 que multiplica el reloj (no salta hitos; el reloj de misión sigue al tiempo real aunque la imagen vaya a pocos fotogramas, y se detiene con la pestaña oculta) un botón **Restart** que vuelve a T−40 y un botón para terminar. Debajo de las cifras hay un **perfil de vuelo**: la altitud de la nave y la del propulsor en toda la misión, en escala de raíz cuadrada para que los 150 m de la captura y los ≈106 km del apogeo del propulsor quepan en la misma gráfica. Lleva una marca por hito y un cursor en el instante actual. Las curvas se muestrean de la misma trayectoria integrada que mueve los vehículos, así que no pueden contradecirse. El perfil es también la **línea de tiempo**: un clic o un arrastre sobre él salta a ese instante, y **←** / **→** van al hito anterior o siguiente. `seek(t)` es determinista (la nube se vuelve a simular desde la ignición), así que un salto cae en el mismo fotograma que se alcanzaría reproduciendo. En pantallas de menos de 560 px de alto se oculta.
 - **X** (o el botón *Reentry*) reproduce la **reentrada de la nave del vuelo 14** y su amerizaje en el Pacífico norte, con los tiempos publicados por SpaceX (ver *Reentrada de Starship*). Usa el mismo panel de misión: reloj en horas (T+09:28:56…), fase, siguiente hito, velocidad y altitud de la nave, esquema de motores (3 → 2 → 1 en el encendido de aterrizaje) y perfil de altitud que sirve de línea de tiempo (sin la columna ni la leyenda del propulsor, y con el botón *Reentry* encendido en lugar de *Launch*). Arranca a ×10, porque son 22 minutos. **C** alterna entre realización, cámara a bordo y persecución. **Arrastrar o girar la rueda toma la cámara** como en el lanzamiento: la órbita queda montada en la nave y la sigue en su caída (el botón dice *riding the ship*), y **C** devuelve la cámara a la realización. **K** pausa, **←**/**→** saltan entre hitos y **X** o *End* terminan; también la terminan **G**, elegir un vehículo o la visita guiada. Si se pulsa X paseando, la cámara vuelve al modo órbita.
-- **J** (o el botón *X-15 · Fly*) **pilota el X-15** (ver *X-15 #1: fase 4*). Se elige entre la suelta desde el B-52 (45.000 ft, Mach 0,8, todo el propulsante, 300 km antes de la pista) y una aproximación (9 km de altura, a 30 km). Mandos:
-  - `W`/`S` cabeceo y `A`/`D` alabeo (también las flechas), `Q`/`E` timón de dirección;
-  - `,`/`.` compensación del estabilizador;
-  - `I` enciende y apaga el XLR99, y `R`/`F` mueven el mando de gases del 40 al 100 %;
-  - manteniendo la **barra espaciadora**, la palanca mueve los cohetes de control;
-  - `B` aerofrenos, `N` flaps, `G` tren (solo se baja una vez, como en el avión) e `Y` amortiguadores;
-  - `C` cámara (persecución, cabina, torre o tu propia órbita, que también se toma arrastrando), `K` pausa y `Esc` vuelve al expositor;
-  - un mando de juego también sirve.
-  
-  Mientras se vuela, los paneles del museo se apartan y queda un panel de instrumentos con:
-  - horizonte artificial;
-  - Mach, KEAS, altitud, velocidad vertical, α y β, factor de carga, q̄ y rumbo;
-  - motor y propulsante con el tiempo de combustión que queda;
-  - estabilizador y compensación, configuración, y distancia y rumbo a la pista 13.
-  
-  Al pararse en la pista, o al estrellarse, un resumen da la velocidad vertical de la toma, su velocidad, su posición respecto al umbral y al eje, y el recorrido. Las teclas del museo no actúan mientras se vuela.
 - **Vista general en una ventana alta** (un monitor en vertical): la cámara retrocede por su propia línea de visión hasta que los extremos de la fila caben en el campo horizontal. En una ventana apaisada no cambia nada.
 - **`?perf`** en la URL muestra un medidor pequeño: fotogramas por segundo, tiempo medio y percentil 95 de los dos últimos segundos, llamadas de dibujo y triángulos de todo el fotograma (todas las pasadas del compositor), el nivel de calidad y la GPU que declara el navegador. Es la forma de tener cifras de una GPU real: la puerta de CI corre sobre un rasterizador por software.
 - Deslizador **Sol** de 4° a 75° de elevación: de la luz rasante y cálida de última hora a mediodía (se recalibran luz, sombras, niebla y mapa de entorno). No hay modo noche: el centro es una exposición de día. La inspección visual de referencia es **18°**: a esa elevación el sol es rasante, la exposición ACES queda en ≈0,72 (0,7 a los 20° de inicio; sigue a la luz a medias, ver *Revisión corriendo la simulación*) y el relleno hemisférico es bajo para que el acero satinado, la pintura blanca, el aluminio y el hormigón no se confundan ni se quemen. El azimut está fijado para iluminar los vehículos desde el lado desde el que miran las vistas por defecto. La simulación **arranca con el sol a 20°**. Antes arrancaba más alto, y con el sol bajo la escena ganaba relieve: sombras largas, el acero y la pintura modelados, menos velo. Se compararon 16°, 20°, 22°, 28° y 42° en los mismos encuadres, y 20° da esa luz rasante sin que las caras en sombra se queden negras.
@@ -323,291 +306,23 @@ Una auditoría del repositorio entero (ramas, CI, Pages, `npm run check`, revisi
 
 **Pendiente, a decisión del usuario: la orientación del Pad 2.** Con las huellas de OpenStreetMap del 30 de septiembre, la conversión al marco de la zanja reproduce las posiciones del modelo: la torre sale a (−25,5, −20,2) m, frente a (−23,8, −18,3) m, y los tanques del deluge a (−104, 47) m, frente a (−107, 47) m. Pero respecto a la geografía de la escena (+X al rumbo de 100,8°, el mismo marco que ya siguen la costa y el globo) es **una reflexión, no un giro**. Los desfases de la torre y de los tanques son distintos (−36° y +198°), cosa que solo pasa con un espejo. En Starbase los tanques del deluge quedan al NE y ENE de la mesa (≈35–58°, hacia el mar) y la torre al norte (≈355°); en el modelo quedan al OSO (≈256°) y al NO (≈319°). Corregirlo significa reflejar el pad respecto al eje de la zanja y girarlo ≈67° respecto a la fila de expositores, con todas las vistas, obstáculos y pruebas que dependen de él. No se ha tocado.
 
-### X-15 #1, USAF 56-6670 (fase 1: el modelo exterior, 30 de septiembre de 2026)
+### El X-15 se retira; viene un F-16 (1 de octubre de 2026)
 
-El noveno expositor es el **North American X-15 #1** (56-6670), el avión cohete de investigación hipersónica de la NASA y la USAF (tecla **9**). Está en la fila, entre el Falcon Heavy y la Dragon, delante de la plataforma, **de pie sobre su propio tren**: rueda de morro doble y dos patines de acero, con la aleta ventral soltada, como quedaba en el lago seco de Rogers tras un vuelo. No tiene peana. Es la primera de siete fases; en las siguientes podrá **volar**.
+Entre el 30 de septiembre y el 1 de octubre se construyó un X-15 #1 (56-6670) volable, en siete fases y una revisión. El usuario lo probó y decidió quitarlo: el avión real se soltaba desde un B-52, no despegaba por sí mismo, quemaba todo su propulsante en 85 s y planeaba sin motor hasta aterrizar sobre patines. Para el vuelo que se busca —despegar de una pista, volar en el entorno de la simulación sin cambios de escenario y aterrizar— ponía demasiadas trabas.
 
-Plan por fases:
-1. modelo exterior (esta);
-2. acabados y detalle;
-3. motor de vuelo 6-DOF con pruebas contra datos de vuelo de la NASA;
-4. pista de aterrizaje y modo de vuelo;
-5. cabina;
-6. terreno real ampliado;
-7. chorro del XLR99, calentamiento y sonido.
+- **Qué se ha quitado:**
+  - el expositor del X-15 y su modo de vuelo, sus instrumentos y su cabina;
+  - la pista 13/31 del noroeste;
+  - el terreno de imagen de satélite de alrededor;
+  - el chorro del XLR99, el calentamiento y el sonido del vuelo;
+  - sus pruebas (`x15-check`) y su documentación.
 
-**Publicado y usado tal cual:**
-- **NASA TN D-3343, tabla I:** superficies, cuerdas, flechas y límites de mando del ala, los flaps, el estabilizador horizontal, las aletas y los aerofrenos.
-- **NASA TM X-236, tabla II:** las ordenadas del **NACA 66-005 modificado**, con una tabla para el ala y otra para el estabilizador. El 5 % de espesor al 45 % de la cuerda, los flancos rectos a partir del 67 % y el **borde de fuga romo del 1 %** salen de la tabla, no de un generador NACA genérico. En el estabilizador, sus puntos del 75 y el 90 % ya están sobre esa recta (1,652 % calculado frente a 1,653 % impreso).
-- **NASA TM X-236, figura 2:** un three-view **acotado** del modelo a escala 0,02, en pulgadas; cada cota ×50 es la medida real. De ahí salen las estaciones:
-  - borde de ataque del ala en la raíz, 7,000 m desde la punta del morro;
-  - raíz expuesta del estabilizador, 12,164 m;
-  - aletas, 11,468 m;
-  - carenados laterales desde 3,81 m;
-  - límite del timón, 1,156 m del eje;
-  - puntas de las aletas, 2,108 m y 1,880 m. Suman 3,988 m, exactamente los 13 ft 1 in del manual.
-- **NASA SP-60:** la tobera del XLR99, de **39,3 in** (0,998 m), con relación de áreas 9,8.
-- **NASA TM X-207:** el tren. Patines de 3 ft × 6 in de acero 4130, neumáticos de morro de 18 × 4,4 in y **39,1 ft** entre la rueda de morro y los patines.
-- **Manual de vuelo T.O. 1X-15-1:** **14,986 m** de largo (49 ft 2 in) y **3,505 m** de alto en configuración de aterrizaje (11 ft 6 in).
-- La envergadura, **6,815 m** (22,36 ft), es la de TN D-3343. El manual la redondea a 22 ft 4 in.
-
-**Comprobaciones hechas sobre el dibujo:**
-- La cuerda media del ala, 2,465 in, da 3,130 m, y su posición en envergadura, 1,043 in (1,325 m), es la que sale de la geometría.
-- El estabilizador horizontal solo cierra en su propio plano con anhedral: 45° en el cuarto de cuerda y 50,58° en el borde de ataque exigen una semienvergadura de 2,853 m sobre la superficie. Con 15° de anhedral se proyectan en los 2,755 m publicados, y la flecha del borde de fuga resulta de 19,5° (19,28° en el dibujo).
-
-**Medido (≈ ±1 cm):** el contorno del fuselaje, trazado sobre la figura 2: la quilla, el lomo bajo la cabina, la cabina en alzado y en planta, y los carenados laterales con sus bordes. Superpuesto al dibujo, el modelo coincide casi al trazo en planta y en alzado.
-
-**Reconstruido (≈):**
-- **Secciones del fuselaje:** entre esos contornos, el cuerpo es una elipse y los carenados un lóbulo superelíptico, unidos con un acuerdo de 5 cm.
-- **Cabina:** un parabrisas en V de dos lunas planas con montante central y un techo redondeado, según las fotos del NASM.
-- **Ball nose:** los 49 ft 2 in del manual son 5 cm más que la ojiva del dibujo, y una bola en su punta dejaría el avión 14 cm más corto todavía. El morro del 56-6670 es, en todas sus fotos, un cono recto de metal desnudo desde un anillo remachado a ≈0,9 m. Su longitud es la que da la longitud del manual.
-- Los montantes y tirantes del tren, los pivotes de timones y estabilizadores, y las góndolas de punta de ala. El 56-6670 las lleva en el Smithsonian; los dibujos de los años sesenta no.
-- **Actitud en tierra, ≈1,4° morro abajo:** en la foto de la NASA EC67-1652 (el 56-6670 en Rogers, 1967), con el neumático de 18 in como regla, la quilla queda a 0,61 m del lecho en la rueda de morro. El esquemático de 1959 de TM X-207 dibuja ese tren ≈0,25 m más bajo.
-
-**Verificación:** `verify.js` mide ahora también la **longitud**. El X-15 da 3,505 m de alto (hasta la punta de la aleta, como el manual), 6,815 m de envergadura (solo las alas, sin las góndolas) y 15,005 m de largo (+0,13 %, por la actitud en tierra). Las superficies móviles (flaps, estabilizadores, timones, aerofrenos) son piezas propias con su bisagra, preparadas para el modelo de vuelo.
-
-**Todavía no:** cabina interior y vuelo (fases 3 a 7).
-
-### X-15 #1: fase 2, acabados y detalle (1 de octubre de 2026)
-
-Referencias: la foto de la NASA **EC67-1652** (el 56-6670 en Rogers, 1967; en alta resolución, con el neumático de 18 in como regla) y las 25 fotos del Smithsonian. Solo se han usado como referencia; ninguna está en el repositorio. Todas las posiciones y tamaños leídos en ellas son aproximados (≈).
-
-**Fuselaje: un atlas propio, no una losa repetida.** Sus coordenadas de textura son (estación, longitud de arco alrededor de la sección), ambas en metros. Así, cada costura, fila de remaches, panel desnudo y rótulo cae donde está en el avión. El atlas lleva:
-- **20 cuadernas y 10 largueros** como costuras;
-- **remaches**: filas dobles a ≈25 mm en las cuadernas y filas sencillas cada 20° alrededor;
-- **un tono y un brillo por chapa**, porque en las fotos las chapas se distinguen por cómo reflejan la luz;
-- **chamuscado** marrón y gris azulado bajo la cola;
-- **metal desnudo**: los paneles de los cohetes de control del morro y la bahía de cámaras bajo el morro, con sus dos ventanas;
-- **grano** de la pintura.
-
-**Materiales.** La pintura negra es un dieléctrico con barniz (*clearcoat*). Rugosidad y metalicidad van en un mismo mapa, de modo que solo el metal desnudo es metal. Las alas, los estabilizadores, las aletas, los aerofrenos, los timones, los flaps y la carlinga comparten una losa métrica de 1,2 m con chapas y filas de remaches. La parte fija de la aleta inferior es de **metal desnudo**: es el muñón que queda al soltar la ventral, como en EC67-1652. Para no pasar del presupuesto de la escena (200 materiales), varias piezas comparten material: la aleta usa el metal desnudo del morro, los patines usan el metal oscuro, y el pozo de la cabina y las toberas de control usan el negro mate de los neumáticos.
-
-**Rótulos, solo texto.** No llevan la insignia de la USAF ni la marca de la NASA, que la regla del centro sobre banderas y logotipos deja fuera. Por eso tampoco está la banda amarilla con el nombre de la agencia en la punta de la aleta.
-- **«U.S. AIR FORCE»** grande en ambos costados.
-- En el costado izquierdo, como en EC67-1652:
-  - **«U.S. AIR FORCE X-15 / A.F. SERIAL NO. 56-6670»** y **«X15-1»**;
-  - la **flecha amarilla de rescate**, apuntando adelante;
-  - **«RESCUE»** con **«EMERGENCY ENTRANCE / CONTROL ON OTHER SIDE»**.
-- **«BEWARE OF BLAST»** junto a los cohetes del morro, en los dos costados.
-- El **triángulo rojo «DANGER / EJECTION SEAT»** en el derecho, como en el Smithsonian.
-- **«APU EXHAUST»**, **«H₂O₂ JETT»**, **«HYDROGEN PEROXIDE VENT»** y **«FWD JACKING POINT»**.
-- **«66670»** en los dos lados de la parte fija de la aleta superior, bajo la junta del timón. Las cifras miden ≈0,32 m y van del 10 al 55 % de la cuerda, según la foto ampliada.
-
-Los rótulos se pintan **a nivel**: conservan su altura sobre la línea de referencia aunque la sección crezca. Cada costado lleva la simetría que hace que el texto se lea bien: de morro a cola en el izquierdo y de cola a morro en el derecho.
-
-**Tren de morro según EC67-1652:**
-- cilindro del amortiguador de ≈104 mm con tres ranuras;
-- vástago cromado;
-- horquilla del eje;
-- compás de torsión por delante;
-- llantas de cinco radios con su buje;
-- compuerta transversal abierta detrás de las ruedas.
-
-**Corrección del marco.** Con X adelante e Y arriba, +Z es el costado **derecho** (X × Y), no el izquierdo como decía la fase 1. Los nombres de las piezas (`x15-wing-r`, `x15-flap-l`…) y la documentación están corregidos. Las piezas eran simétricas, así que la geometría no cambia; los rótulos asimétricos ya caen en su lado.
-
-**Verificación.** `verify()` sigue dando 3,505 m, 6,815 m y 15,005 m, y no encuentra ningún problema de escena: escala de UV, normales ni islas degeneradas. Para que la escala de UV de flaps y puntas sea la de la losa, las tapas planas llevan UV métricas desde su primer punto. El atlas se pinta en ≈1,8 s con el renderizador por software de las pruebas. El grano se superpone como dos patrones de ruido, sin leer y reescribir los 6,7 millones de texels.
-
-**Pendiente de la fase 2, aplazado:** la carlinga que se abre por detrás, que irá con la cabina (fase 5).
-
-### X-15 #1: fase 3, el motor de vuelo (1 de octubre de 2026)
-
-El X-15 ya tiene un **modelo de vuelo de seis grados de libertad** (`src/sim/x15Flight.js`). Funciona sin navegador y está validado contra datos de vuelo de la NASA. Todavía no se puede pilotar en el centro: la pista, los mandos y las cámaras son la fase 4.
-
-**Qué simula:**
-- **Tierra esférica sin rotación** con gravedad del inverso del cuadrado. La rotación terrestre se omite (≈): la aceleración de Coriolis a Mach 6 es ≈0,2 % de g.
-- **Atmósfera estándar de 1976:** por capas hasta 86 km; por encima, con los valores tabulados de la norma.
-- **Aerodinámica medida en vuelo, con el timón inferior quitado,** como el avión expuesto y los últimos vuelos. Cada tabla de `src/data/x15Aero.js` va marcada como PUBLISHED, DIGITIZED, DERIVED o ESTIMATE:
-  - fuerza normal de **TN D-2532** (fig. 14);
-  - resistencia en vuelo compensado de **TN D-3343** (fig. 9, digitalizada a 300 ppp);
-  - estabilidad y control en cabeceo, guiñada y alabeo de TN D-2532 (figs. 15 a 25);
-  - compensación de **TM X-714** (fig. 8);
-  - amortiguamiento en alabeo derivado de **CR-2144** (tablas V-1 y V-6).
-- **El momento de cabeceo** se construye para que el avión se compense donde TM X-714 lo midió. Entre las curvas, el control que resulta concuerda con el medido en TN D-2532: −0,0081 frente a −0,0088 por grado a Mach 3.
-- **XLR99 de SP-60:** 57.000 lbf, 13.000 lb de propulsante por minuto, 18.000 lb y mando de gases del 40 al 100 % (hasta la revisión del 1 de octubre decía 50 %, pero SP-60 dice 40).
-- **Masa e inercias variables** según el peso (TN D-2532, fig. 3), con el centro de gravedad al 20 % de la cuerda media.
-- **Cohetes de control** de morro y alas, con dos sistemas.
-- **Amortiguadores (SAS)** convencionales con las ganancias de CR-2144.
-- **Contacto con el suelo:** rueda de morro y patines, con amortiguadores y rozamiento.
-
-**Validación** (`npm run check:x15`, dentro del check):
-- **Periodo corto:** en siete maniobras de TN D-2532 con el amortiguador de cabeceo apagado, el periodo cae dentro de un 25 % (1,42 s frente a 1,40 s a Mach 3,4; 3,05 frente a 2,90 s a Mach 4,5).
-- **Balanceo holandés:** en seis maniobras de la tabla V, dentro de un 20 % (2,52 frente a 2,50 s a Mach 0,82). A Mach 2,3 sale un 15 % más corto.
-- **Combustión del XLR99:** 83,1 s frente a los 85 s de SP-60.
-- **Perfiles propulsados**, desde la suelta a 45.000 ft y Mach 0,8 con un piloto automático sencillo: de velocidad, Mach 5,7 (el récord del avión básico es 6,04); de altura, 334.000 ft (el récord es 354.200 ft).
-- **Aterrizaje:** primero los patines, y la rueda de morro 0,71 s después (TM X-207 midió 0,52 s). En reposo queda a −1,42°, la actitud del expositor (−1,40°).
-- **Otras pruebas:** atmósfera dentro del 0,3 %, energía conservada en vacío y aceleración angular de los cohetes igual a par entre inercia.
-- **Mutantes:** cinco versiones saboteadas tienen que fallar, y fallan: la compensación extrapolada al revés, sin consumo de propulsante, el amortiguamiento con el signo cambiado, la Tierra plana y Cnβ de túnel en lugar del de vuelo.
-
-**Aproximaciones declaradas (≈):**
-- la rigidez de los amortiguadores del tren y el rozamiento de los patines (μ ≈ 0,3), con los que el avión desliza ≈1,7 km;
-- los incrementos de flaps y tren;
-- la autoridad del SAS;
-- el amortiguamiento en guiñada, medido solo con el timón inferior puesto;
-- el empuje de 57.000 lbf tomado como empuje en vacío;
-- por debajo de Mach 1, la compensación de Mach 1;
-- los cohetes de control (datos de la ficha del usuario) y sus brazos;
-- sin calentamiento, sin viento, sin dinámica de actuadores y sin el agua oxigenada que alimenta los cohetes.
-
-**Corrección de la fase 1:** la actitud sobre el tren (`groundAttitude`) está ahora en `src/data/x15.js`. La usan el expositor y el tren del modelo de vuelo, así que el avión en reposo y el expositor tienen la misma actitud por construcción.
-
-### X-15 #1: fase 4, la pista y el vuelo (1 de octubre de 2026)
-
-**La pista 13/31** es la única excepción autorizada a «sin objetos nuevos». Es una franja marcada sobre la arcilla desnuda de la llanura salina, al estilo de las pistas del lecho seco de Rogers donde aterrizaba el X-15:
-- **Emplazamiento:** al noroeste del recinto. Ocupa la recta libre más larga dentro del disco de suelo (≈2,5 km de radio) que no pisa lomas, charcas, la playa ni el recinto.
-- **Dimensiones:** 3,4 km de largo con rumbo verdadero 130,8° y 300 ft (91,4 m) de ancho, el de una pista del lecho seco. Las dos cifras son ≈: la longitud es la que cabe y la anchura no está contrastada con un plano.
-- **Terreno:** el suelo se mantiene llano y desnudo en la franja y en un margen de 40 m, sin canales de marea ni matorral (`terrain.js`, `RUNWAY`).
-- **Superficie:** arcilla clara con grietas de desecación en dos escalas.
-- **Marcas negras:** líneas de borde, barras de umbral y los números «13» y «31» en cada cabecera, todo ≈. Comparten material con la arcilla, oscurecida por color de vértice como el alquitrán sobre ella, para que la escena siga en los 200 materiales de su presupuesto.
-
-**El vuelo** (`src/sim/x15Fly.js`) usa el modelo de la fase 3 en tiempo real:
-- **El avión es el del expositor:** el armazón sale de su tren y vuelve a él al terminar, así que el 56-6670 nunca está en dos sitios a la vez.
-- **Superficies móviles:**
-  - los estabilizadores, juntos para el cabeceo y en diferencial para el alabeo;
-  - el timón superior;
-  - los flaps y los cuatro aerofrenos, que se abren hacia fuera;
-  - el tren, que se ve al bajarlo.
-- **Integración:** pasos de 1/200 s en vuelo y de 1/400 s cerca del suelo.
-- **Proyección:** la escena es un mapa equidistante azimutal alrededor de la plataforma, la misma proyección del globo con el mapa del Golfo. La actitud se transporta de vuelta por el mismo círculo máximo, así que el avión, el mapa y la pista coinciden al metro estén donde estén. Una prueba lo comprueba: el rumbo de un vuelo radial llega exacto a la plataforma.
-- **Suelo:** a más de 40 km de la plataforma se guarda el recinto, porque el disco plano flotaría sobre el horizonte curvo (7 km de caída a 300 km) y el globo es entonces el suelo. Más cerca, el globo queda 1,2 m por debajo y asoma por el borde del disco. Desde la fase 6, el terreno real cubre el resto.
-- **Toma de contacto:**
-  - los patines y la rueda de morro son los muelles del modelo;
-  - por encima de 9 ft/s, el límite de diseño del tren según TM X-207, la toma cuenta como accidente;
-  - también es accidente que toque el suelo cualquier otra parte (morro, cola, puntas de ala, muñón de la aleta inferior), por ejemplo al aterrizar sin tren.
-
-**Mandos:**
-- La palanca mueve los estabilizadores ±20° alrededor de la compensación en cabeceo y ±15° en diferencial, los límites del piloto según TN D-2532. Los pedales mueven el timón ±7,5°.
-- **Lo que es de esta simulación (≈):**
-  - la respuesta cúbica de la palanca, para que las entradas pequeñas sean finas;
-  - las rampas del teclado;
-  - fusionar la palanca de cohetes con la principal mientras se mantiene la barra espaciadora (el avión tenía una palanca aparte a la izquierda);
-  - los dos escenarios: el B-52 no aparece, y la aproximación es una posición de partida razonable, no un circuito publicado.
-
-**Pruebas:**
-- **`ux-check` lo pilota con teclas reales:**
-  - J y el botón de la suelta lo dejan a 45.000 ft y Mach 0,8 con los paneles del museo apartados;
-  - I enciende el motor y gasta propulsante, y una tecla de vehículo no saca del vuelo;
-  - S tira de la palanca, el estabilizador pasa de la compensación hacia morro arriba y el avión cabecea;
-  - C pasa a la cabina y G baja el tren;
-  - Esc devuelve el armazón a su tren, y `verify()` sigue dando 3,505 / 6,815 / 15,005 m.
-- **`x15-check` añade la proyección:** ida y vuelta al nanómetro, y el transporte del rumbo.
-
-**Lo que no había todavía en esta fase:** la cabina (fase 5), el terreno real fuera del disco (fase 6) y el chorro del XLR99, el calentamiento y el sonido (fase 7).
-
-### X-15 #1: fase 5, la cabina (1 de octubre de 2026)
-
-La cabina se construye siguiendo el manual de vuelo **T.O. 1X-15-1, sección 1** (figura 1-2, el panel de instrumentos, y las figuras de las consolas). El manual está escaneado sin texto: se ha renderizado y leído página a página, solo como consulta, fuera del repositorio.
-
-**La carlinga se abre hacia atrás**, como en la foto EC67 del 56-6670 en tierra:
-- la parte que se abre va desde el parabrisas hasta la bisagra en la estación 4,0 m, justo detrás del asiento (≈, leída del perfil);
-- detrás queda fijo el carenado hasta la estación 5,0 m;
-- en el expositor está abierta 50° (≈, el ángulo de la foto) y en vuelo se cierra;
-- por dentro lleva forro, y las lunas siguen siendo transparentes.
-
-**El panel de instrumentos** (`src/materials/x15Panel.js`):
-- es el de la figura 1-2: el panel principal abombado con sus dos alas inferiores, y cada instrumento, caja de luces e interruptor en su sitio. Las coordenadas son las de la figura;
-- la escala sale de un dato estándar: la caja del altímetro es la de un instrumento de 3⅛ in (≈);
-- los instrumentos que funcionan son los del propio manual, alimentados por el modelo de vuelo hasta 30 veces por segundo:
-  - velocidad (nudos), altímetro de tres agujas, ángulo de ataque, acelerómetro (g), actitud (bola con cielo blanco y tierra negra), azimut, velocidad vertical;
-  - altura y velocidad inerciales, régimen de alabeo, cantidad de propulsante, presión de cámara del XLR99 y reloj;
-- las escalas se leen de la figura. Donde la figura no las muestra (el fondo de escala de los inerciales, las unidades del indicador de propulsante), son de esta simulación (≈);
-- el resto de relojes (hidráulica, APU, helio, cabina…) están dibujados con la aguja en reposo;
-- **este panel no tiene machímetro**, así que en la vista de cabina el panel de la pantalla se reduce a una línea con el Mach, la altitud, la KEAS, α, la carga, el motor y el propulsante.
-
-**El interior** (posiciones y tamaños reconstruidos de las figuras del manual, todos ≈):
-- bañera de la cabina, mamparos delantero y trasero, y el reborde del hueco;
-- visera antirreflejos y caja del panel;
-- consolas laterales;
-- **palanca central**, **palanca lateral derecha** (la del piloto en vuelo atmosférico) y **palanca de los cohetes de reacción a la izquierda**;
-- palanca de gases del XLR99 y mando de los aerofrenos;
-- **asiento eyectable** con sus guías y los dos brazos estabilizadores.
-
-En vuelo, la palanca central y la lateral siguen a la del simulador, y la de los cohetes se mueve con la barra espaciadora.
-
-**La vista de cabina** (C en vuelo) pone el ojo del piloto en la estación 3,25 m, 0,62 m sobre la línea de referencia del fuselaje (≈). Mira 12° hacia abajo, para que se vean el panel y el horizonte a la vez.
-
-**Presupuesto:** la cabina añade dos materiales, la pintura del interior y el lienzo del panel, que es único. El techo de materiales de `check.mjs` pasa de 200 a 240, con la justificación en el código.
-
-### X-15 #1: fase 6, el terreno real (1 de octubre de 2026)
-
-Más allá del disco del recinto, el suelo es ahora **el real**: alturas e imagen de datos públicos, solo suelo. La imagen es una fotografía tendida sobre el relieve; no se modela ninguna planta, edificio ni objeto.
-
-**Fuentes** (descargadas con `tools/terrain-fetch.mjs`, que guarda la caché fuera del repositorio):
-- **Alturas:** *Terrain Tiles* de AWS, codificación Terrarium (datos abiertos de Mapzen y la Linux Foundation, que en EE. UU. vienen del 3DEP y el NED del USGS, en otros sitios del SRTM, y mar adentro del ETOPO1). El fondo del mar se lleva a cota 0: la batimetría no es suelo.
-- **Imagen:** *EOxCloudless 2016*, el mosaico sin nubes de Sentinel-2 de EOX IT Services GmbH (contiene datos Copernicus Sentinel modificados de 2016), con licencia **CC BY 4.0**. La atribución va en las fuentes del X-15.
-- **Lo que se probó y se descartó:** la imagen del USGS (*USGSImageryOnly*, de dominio público) solo cubre Estados Unidos: México, a 3 km al sur de la plataforma, salía en blanco y el mar en negro. Sentinel-2 cubre los dos lados igual. Las capas de EOX de 2018 en adelante tienen licencia no comercial, y por eso se usa la de 2016.
-
-**Dos zonas** de teselas Web Mercator:
-- **cerca:** zoom 13, 8 × 8 teselas (≈35 km de lado) alrededor de la plataforma; ≈17 m por píxel y una altura cada ≈275 m;
-- **lejos:** zoom 10, 10 × 9 teselas (≈350 × 320 km), desde el Golfo hasta más allá del punto de suelta, 300 km al noroeste; ≈138 m por píxel y una altura cada ≈2,2 km. Deja fuera lo que ya cubre la de cerca y se funde con el globo en su borde exterior.
-
-Cada zona es un atlas JPEG (`src/assets/terrain/`, 2,1 MB entre los dos) y una rejilla de alturas en decímetros (`src/data/terrainTiles.js`).
-
-**Cómo casa con el resto** (`src/core/realTerrain.js`, `src/core/geoMap.js`):
-- **Mapa:** cada vértice va con el mismo mapa equidistante azimutal alrededor de la plataforma que usan el vuelo y el globo del lanzamiento. `x15-check` lo comprueba: Brownsville, Port Isabel, Laredo, el punto de suelta y una esquina de la zona lejana caen en la esfera del modelo de vuelo a menos de 1 cm. Un mutante que cambia norte por este tiene que fallar.
-- **Curvatura:** se curva hacia abajo alrededor de la cámara como el globo, que es una esfera de radio terrestre con la cima bajo la cámara.
-- **Luz y bruma:** usa la luz y la bruma del globo, y cerca del suelo la niebla de la escena, como el disco.
-- **El disco:** dentro de su radio no se dibuja, porque allí el suelo es el disco. La costa del disco cae sobre la real.
-- **Lo que no casa:** el disco es una reconstrucción (lomas, charcas y matorral verosímiles, no levantados), así que su borde no coincide con la foto. Se nota desde el aire: el disco es un círculo más verde con su propio mar.
-
-**Vuelo y lanzamiento:**
-- en el vuelo del X-15 el disco ya no se estira con la altitud, porque taparía el terreno real;
-- en el lanzamiento sí sigue estirándose (hasta ≈85 km de diámetro), como antes, y el terreno real solo asoma más allá;
-- no se dibuja en órbita ni bajo el Pacífico de la reentrada.
-
-**Presupuesto:** dos texturas y ≈79 000 triángulos. El techo de texturas de `check.mjs` pasa de 120 a 150, con la justificación en el código.
-
-**De paso, una prueba más robusta:** la de `ux-check` que arrastra la cámara en la reentrada pedía que la nave cayera más de 100 m en lo que tardara la medida. En un ejecutor lento de CI midió 1,7 s y la nave cayó justo 100 m, así que falló sin que nada estuviera mal. Ahora pide al menos 25 m/s, un tercio de los ≈58 m/s a los que cae ahí.
-
-### X-15 #1: fase 7, el chorro, el calentamiento y el sonido (1 de octubre de 2026)
-
-**El chorro del XLR99** (`src/sim/x15Plume.js`). El amoníaco anhidro quemado con oxígeno líquido da una llama casi transparente de día: en las fotos de la NASA del X-15 con el motor encendido (solo como referencia, ninguna en el repositorio) se ve un chorro tenue entre salmón y naranja, con una fila de diamantes de choque brillantes a poca altura, y arriba un resplandor ancho y pálido. La forma sale de la dinámica de gases del chorro:
-- **Datos publicados de la tobera:** 39,3 in de salida y 57.000 lbf (SP-60), con la relación de áreas de 9,8 de la tobera estándar (NASA, la misma del modelo). SP-60 no dice a qué altura se dan esas 57.000 lbf; aquí, como en el modelo de vuelo, se toman como empuje en el vacío (≈).
-- **Lo supuesto:** γ = 1,22 para los productos de la combustión (≈).
-- **Presiones derivadas:** de ahí salen una presión de cámara de ≈1,8 MPa (267 psia), por el coeficiente de empuje en el vacío, y una presión de salida de ≈22 kPa (3,2 psia), por la expansión isentrópica (≈).
-- **Forma del chorro:** frente a la presión del aire, el chorro se abre (presión de salida mayor que la ambiente) o se estrecha (menor), hasta el Mach y el diámetro de un chorro perfectamente expandido.
-- **Celdas de choque:** su separación es L ≈ 1,22·D<sub>j</sub>·√(M<sub>j</sub>² − 1), la estimación clásica de Pack (1950) para un chorro supersónico mal expandido. Cada celda termina en la banda brillante de un disco de Mach.
-- **Cifras resultantes:** a nivel del mar el chorro está sobreexpandido y sus celdas miden ≈1,6 m. A 45.000 ft miden ≈4,9 m. A 30 km el chorro ya mide varios metros de ancho y sus celdas decenas de metros. Más arriba se dibuja como un cono ancho y tenue.
-- **Lo que es de esta simulación (≈):** los colores, el brillo y la distancia a la que se apagan los diamantes, ajustados a ojo con esas fotos.
-- **Solo en vuelo:** el chorro se cuelga del avión al empezar el vuelo y se quita al acabar. Oculto en el expositor, contaba igualmente en su caja: `verify()` medía 15,009 m de largo en vez de 15,005, y la prueba de `ux-check` lo detectó.
-
-**El calentamiento aerodinámico** (`src/sim/x15Heating.js`) sale de lo que se midió en el propio avión: **NASA TM X-1705** (Quinn y Olinger, 1969). Son medidas de 200 termopares en la piel de Inconel X en dos vuelos casi estacionarios: el 2-22 (Mach 5,1, α 2,0°) y el 2-28 (Mach 4,98, α 16,3°).
-- **Dónde:** en la línea central inferior del fuselaje (φ = 0, figura 4), la de barlovento y la más caliente, en los cinco termopares medidos en los dos vuelos (tabla V). Cada uno tiene su propia piel, con la capacidad térmica ρcτ que da el informe.
-- **Cómo:** con la reducción de datos del propio informe, pero hacia delante (sus ecuaciones 1–5): ρcτ·dT<sub>w</sub>/dt = St·ρV·(H<sub>R</sub> − H<sub>w</sub>) − εσT<sub>w</sub>⁴, con H<sub>R</sub> = H + η·V²/2, el factor de recuperación η = 0,9 y la emisividad ε = 0,76 del informe.
-- **El número de Stanton** en cada punto es el medido. Entre los dos vuelos se interpola según el ángulo de ataque, y se mantiene fuera de ellos. Antes, cada vuelo se lleva a un mismo flujo másico con la ley turbulenta de placa plana St ∝ Re<sup>−0,2</sup> (≈).
-- **Lo que no se modela:** la conducción a lo largo de la piel y hacia la estructura, y la transición de la capa límite.
-- **Comprobación:** `x15-check` rehace los dos puntos del informe con sus propias cifras y exige los calentamientos medidos en los diez casos (cinco termopares, dos vuelos) con un margen del 5 %. Lo cumple dentro del 2,5 %. Un mutante con recuperación total (η = 1) tiene que fallar.
-- **En pantalla:** el panel de vuelo da la temperatura de la piel del vientre (el más caliente de los cinco puntos) y su máximo del vuelo, en °F como en los informes; la línea de la cabina también la lleva.
-- **Sin resplandor dibujado:** el Inconel X a 900–1.000 K, lo más alto de estos vuelos, brilla tan poco al lado de la piel iluminada por el sol que de día no se vería, así que no se pinta ninguno.
-
-**El sonido** (`src/sim/sound.js`, con el mismo interruptor que el del lanzamiento y un botón *Sound* en el panel de vuelo):
-- **Desde fuera:** el XLR99 se coloca en el avión y se apaga con el aire igual que los motores del lanzamiento, con el retumbar, el chasquido de los choques y la absorción de los agudos con la distancia.
-- **Desde la cabina:**
-  - el motor tal como lo transmite la estructura, un retumbar grave que sigue en el vacío, porque no viaja por el aire;
-  - el aire que pasa sobre la carlinga, según la presión dinámica;
-  - el silbido de los cohetes de peróxido cuando están en uso.
-- **Todo sintetizado** sobre los mismos ruidos base del lanzamiento, con niveles a oído (≈).
-
-**Corrección de paso:** por encima de 20 km el vuelo ponía el plano cercano de la cámara a 2 m, que en la vista de cabina recortaba el panel y la carlinga, a menos de un metro. Ahora la cabina lo mantiene en 5 cm a cualquier altura.
-
-### Revisión de las fases 1–7 del X-15 (1 de octubre de 2026)
-
-Se revisaron el código, los datos y su procedencia, y se renderizaron todas las vistas: las 26 de la galería del museo, las 19 del lanzamiento y la reentrada y siete nuevas del X-15. Las ocho del Roadster se revisaron en la galería regenerada. También vuelos de prueba a 45.000 ft, a 40 y 60 km sobre la ruta y en la aproximación, con cada cámara. Lo que se encontró y se corrigió:
-- **Mando de gases del XLR99:** SP-60, la fuente citada, dice que el motor se regula «del 40 al 100 % del empuje», y el modelo usaba un mínimo del 50 %. Ahora es el 40 %.
-- **La caja del panel y la visera antirreflejos** eran más anchas que el hueco de la cabina y, con la carlinga abierta, salían por la piel a los lados del hueco. Ahora no pasan de su anchura.
-- **El globo y el terreno real se peleaban por la profundidad:**
-  - a gran altura, y sobre todo desde la cabina, cuyo plano cercano está a 5 cm, el búfer de profundidad no distingue a 100 km dos superficies separadas 0,3 m (en el vuelo) o 40 m (en el lanzamiento);
-  - ahora el globo no se dibuja donde el terreno real está entero (`FlightEarth.setCut`). Solo se solapan en la franja en que el terreno se funde, como debe ser.
-- **Las etiquetas del pad aparecían sobre el Pacífico** durante la reentrada, en cuanto algo llamaba a `launch.reset` con el lanzamiento parado: su gancho de visibilidad decía «el vehículo está en su soporte» aunque la reentrada siguiera. Ahora los tres ganchos (lanzamiento, reentrada y X-15) miran si alguna de las tres secuencias sigue en marcha. `ux-check` lo comprueba.
-- **Nombre de la fuente:** el chorro del XLR99 atribuía a SP-60 el «empuje en el vacío». SP-60 da 57.000 lbf sin decir a qué altura; ahora consta que tomarlo como empuje en el vacío es decisión del modelo (≈).
-
-**Añadido para la galería:**
-- el encuadre *Open canopy and cockpit* del X-15;
-- el campo `x15` de `tools/shot.mjs`, que hace volar el avión antes de la foto;
-- el manifiesto `tools/x15-shots.json`: expositor, carlinga abierta, cola, chorro, cabina, persecución y aproximación sobre el terreno real.
-
-**Revisado y sin cambios:**
-- **Sonido:** se activó en un vuelo con Chromium sin pantalla; el contexto de audio corre y no hay errores.
-- **Fotograma de transición:** un rectángulo oscuro que salió al teletransportar el avión a 60 km era la cámara de persecución alcanzándolo. Un fotograma después desaparece, y en un vuelo normal no ocurre.
+  El historial de git los conserva: commits del `5f77233` al `f688ba8`.
+- **Qué se conserva, porque no era del X-15:**
+  - **Etiquetas en la reentrada:** las del pad ya no vuelven sobre el Pacífico durante la reentrada. Antes, `launch.reset` con el lanzamiento parado decía a la vista que el vehículo había vuelto a su soporte. Ahora los ganchos de visibilidad miran si alguna secuencia sigue en marcha, y `ux-check` lo comprueba.
+  - **Prueba de arrastre en la reentrada:** la de `ux-check` pedía que la nave cayera más de 100 m. En un ejecutor lento de CI midió 1,7 s y la nave cayó justo 100 m, así que falló sin que nada estuviera mal. Ahora pide al menos 25 m/s.
+  - **Espera de `ux-check`:** la altura del panel del lanzamiento espera 60 s, como las demás esperas ligadas a fotogramas.
+- **Lo que viene:** un **F-16A Block 15** con su propia pista. Despegará, volará dentro del entorno de la simulación, ampliado con el mismo estilo de suelo, y aterrizará. Su modelo de vuelo saldrá de los datos públicos de la NASA: TP-1538 (aerodinámica a baja velocidad hasta 90° de ángulo de ataque, motor y mandos de vuelo) y TP-3355 (supersónico, Mach 1,6 a 2,16).
 
 ### Historial
 

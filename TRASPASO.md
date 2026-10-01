@@ -4,16 +4,36 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ---
 
-## ⭐ Empieza aquí (estado real al 01-10-2026: X-15 en sus siete fases, revisado, galería regenerada)
+## ⭐ Empieza aquí (estado real al 01-10-2026: X-15 retirado, F-16 en marcha)
 
-### El 01-10-2026, sin pedir confirmaciones (encargo programado del usuario)
+### Proyecto en curso: F-16A Block 15 volable (desde el 01-10-2026)
 
-Fases 5, 6 y 7 del X-15, la revisión de las siete fases y la galería regenerada. Cada una es un commit con `npm run check` a 0, empujado a las cinco ramas (las cuatro de siempre más `claude/affectionate-euler-o447rh`). Lo que se decidió sin preguntar, y por qué, está en el README, en las secciones *X-15 #1: fase 5*, *fase 6*, *fase 7* y *Revisión de las fases 1–7*.
+El X-15 se construyó y se retiró (commits `5f77233`–`f688ba8`; la razón está en el README, *El X-15 se retira*). Decisiones del usuario para el F-16:
+- **Caza:** F-16A Block 15 (motor F100-PW-200), elegido por los datos públicos que tiene.
+- **Despegue:** parte de su propia pista, con su tren de ruedas. Despega, vuela y aterriza **sin cambios de plano**: siempre en el entorno de la simulación, nunca en otro escenario. Nada de B-52 ni de suelta.
+- **Entorno:** se amplía el actual (llanura, lomas, costa, Golfo) hasta ≈100–150 km, con el mismo estilo y menos detalle a lo lejos. **Nada de imagen de satélite**: al usuario no le gustó.
+- **Complejo:** una pista «con algún detalle», **sin aeropuerto**.
+- **Al acabar:** actualizar el README, hacer commit y regenerar la galería (aprobado).
+
+Fases, cada una un commit con check a 0, empujado a las cinco ramas (las cuatro de abajo y `claude/affectionate-euler-o447rh`):
+1. Quitar el X-15: **hecha**, commit «Retire the X-15».
+2. Entorno ampliado.
+3. Modelo 3D exterior del F-16 a escala 1:1.
+4. Complejo de la pista.
+5. Modelo de vuelo de 6 grados de libertad (TP-1538 y TP-3355, F100, *fly-by-wire*, tren).
+6. Modo de vuelo: despegue, vuelo, aterrizaje, cámaras, cabina y HUD.
+7. Revisión, README, galería.
+
+Fuentes descargadas para consulta, fuera del repositorio (en la carpeta temporal de la sesión; se pueden volver a bajar de NTRS):
+- **NASA TP-1538** (Nguyen et al., 1979), NTRS 19800005879: tabla I (peso 20.500 lb; Ix 9.496, Iy 55.814, Iz 63.100, Ixz 982 slug·ft²; envergadura 30 ft, 300 ft², cuerda media 11,32 ft; centro de gravedad de referencia 0,35 c̄), tabla III (aerodinámica, α −20…90°, β ±30°), tabla VI (empuje en ralentí, militar y máximo, de 0 a 50.000 ft y de Mach 0,2 a 1,0) y apéndice A (mandos de vuelo).
+- **NASA TP-3355** (1993), NTRS 19930022544: F-16C y un derivado, de Mach 1,6 a 2,16, con planos de tres vistas.
+- **Hueco:** no hay datos públicos del F-16 en la zona transónica (Mach 0,6–1,6), ni de empuje por encima de Mach 1. Habrá que interpolar y marcarlo como ≈.
+
 
 ### Al retomar
 
 1. `git fetch --all` y comprueba:
-   - que las cuatro ramas (`claude/spacex-vehicle-center-3d-48zlkm`, `claude/dreamy-bell-qn1eth`, `grok/sun18-audit-10c9929`, `claude/elegant-ptolemy-l99qgo`), y `claude/affectionate-euler-o447rh` cuando se use, apuntan al mismo commit, el último con este TRASPASO;
+   - que las cuatro ramas (`claude/spacex-vehicle-center-3d-48zlkm`, `claude/dreamy-bell-qn1eth`, `grok/sun18-audit-10c9929`, `claude/elegant-ptolemy-l99qgo`), y `claude/affectionate-euler-o447rh`, apuntan al mismo commit, el último con este TRASPASO;
    - que los últimos workflows de GitHub Actions pasaron;
    - que Pages sirve ese commit (`curl` a un archivo cambiado con `?x=<aleatorio>`).
 2. Lee «Auditoría del 30-09» (abajo) y «Lo que NO se terminó», y espera a que el usuario diga qué priorizar.
@@ -56,53 +76,6 @@ Fases 5, 6 y 7 del X-15, la revisión de las siete fases y la galería regenerad
   - bloque *re-entry* en `cloud-check.mjs`, con el mutante `skip`;
   - bloque *Re-entry chapter* en `ux-check.mjs`: X desde el paseo, salto en pausa con control negativo, arrastre, C, G y tecla de vehículo;
   - el *fixture* de `cloud-check` lleva ahora `rig.mode = 'orbit'`.
-
-### Proyecto en curso: X-15 #1 volable (desde el 30-09-2026)
-
-El usuario pidió añadir el **X-15 #1, USAF 56-6670**, con un **simulador de vuelo hiperrealista** («nada de bajar el listón»). Sus decisiones:
-- **Vuelo:** suelta en vuelo, sin B-52 (≈13,7 km, Mach ≈0,8).
-- **Marcas:** solo texto, sin insignia de la USAF ni marca de la NASA.
-- **Terreno:** ampliado con datos reales públicos (elevación e imagen), solo suelo, sin plantas ni objetos.
-- **Pista:** tiene que haberla. Queda **autorizada** como excepción a «sin objetos nuevos». Propuesta: pista marcada sobre la llanura mareal, al estilo de las del lecho de Rogers.
-- **Expositor:** «donde veas lógico»; va en la fila en x = −18, sobre su tren.
-
-Fases (cada una es un commit con check a 0):
-1. **Modelo exterior: hecha.** Commit «X-15 #1 as the ninth exhibit», README *X-15 #1… fase 1*.
-2. **Acabados y detalle: hecha.** Commit «X-15 phase 2: finishes and detail», README *X-15 #1: fase 2*.
-   - Atlas del fuselaje en `src/materials/x15Textures.js`, con UV = (estación, arco) en metros. `arcAt`, `levelPhi` y `SKIN_DECALS` están en `x15.js`.
-   - El ángulo de los rótulos es físico: 90 es la izquierda (−Z). El arco del barrido va hacia +Z, así que `arcAt` lo invierte.
-   - El atlas va sin `flipY`, y el mapa normal lleva `normalScale.y` negativo.
-   - Queda la carlinga que se abre por detrás: va con la cabina (fase 5).
-3. **Motor de vuelo 6-DOF: hecha.** Commit «X-15 phase 3: six-degree-of-freedom flight model», README *X-15 #1: fase 3*.
-   - Archivos: `src/sim/x15Flight.js` (modelo), `src/data/x15Aero.js` (tablas con procedencia) y `tools/x15-check.mjs` (pruebas y mutantes, dentro de `check:static`).
-   - Ejes del cuerpo: x adelante, y a la derecha, z abajo. Marco inercial con el origen en el centro de la Tierra, y el punto de suelta en lat 0, lon 0 (+X arriba, +Y este, +Z norte). Modelo 3D: y_modelo = −z_cuerpo y z_modelo = y_cuerpo.
-   - API: `makeState({altitude, speed, heading, gamma, alpha, bank, propellant})`, `step(s, controls, dt)` (RK4; 1/200 s en vuelo y 1/400 s en el suelo) y `describe(s)`.
-   - Controles: `dh`, `da`, `dv` en grados (los del piloto, antes del SAS), `throttle` (0 o 0,4–1), `speedBrake`, `flaps`, `gear`, `rcs` [alabeo, cabeceo, guiñada] de −1 a 1, `sas` y `sasGain`.
-   - Documentos descargados (solo consulta, fuera del repositorio): TN D-2532, TM X-714 y CR-2144, de NTRS.
-4. **Pista y modo de vuelo: hecha.** Commit «X-15 phase 4: runway 13/31 and flying the X-15», README *X-15 #1: fase 4*.
-   - Pista: `RUNWAY` en `src/core/terrain.js` (suelo llano y desnudo, sin canales) y `src/core/runway.js` (arcilla y marcas). Centro (−790, 1360), 3,4 km × 91,4 m, 30° desde +X: rumbo 130,8°.
-   - Vuelo: `src/sim/x15Fly.js`, que reparenta el armazón del expositor en un `holder` en el CG. Panel en `src/ui/flightPanel.js` y CSS en `styles.css` (`#hud.is-x15` aparta los paneles del museo).
-   - Proyección: escena = plataforma + mapa equidistante azimutal (`groundTrack`, `toOriginFrame` en `x15Flight.js`), la misma del `FlightEarth` del lanzamiento, que se comparte (`launch.flightEarth`; `update(..., { force, drop })`).
-   - Teclas capturadas en fase de captura mientras se vuela (`stopImmediatePropagation`); J abre el selector en `main.js`. `__vc.x15fly` para las pruebas.
-   - Pendiente para las fases 5–7: cabina, terreno real, chorro, calentamiento y sonido. El B-52 no aparece (decisión del usuario: suelta sin B-52).
-5. **Cabina: hecha.** Commit «X-15 phase 5: cockpit», README *X-15 #1: fase 5*.
-   - Panel: `src/materials/x15Panel.js` (lienzo con la maquetación de la figura 1-2 en píxeles de figura; `update(readout)` lo redibuja a ≤30 Hz). Se cuelga de `root.userData.panel`.
-   - Carlinga: bisagra `x15-canopy-hinge` en la estación 4,0 (`userData.hinge`, abierta 50° en el expositor, cerrada en vuelo). El carenado fijo va de 4,0 a 5,0.
-   - Interior: `buildCockpit(M)` en `x15.js`, con `COCKPIT` exportado (ojo del piloto y panel). La piel del fuselaje se recorta con `cutCockpit`.
-   - Vista de cabina en `x15Fly.js`; el panel de la pantalla se reduce a `#x15-mini` (`.is-cockpit`).
-6. **Terreno real: hecho.** Commit «X-15 phase 6: real terrain», README *X-15 #1: fase 6*.
-   - `tools/terrain-fetch.mjs` descarga las teselas (caché en `.cache/terrain`, ignorada) y escribe `src/assets/terrain/{near,far}.jpg` y `src/data/terrainTiles.js` (generado; no editar). Para regenerar: `node tools/terrain-fetch.mjs`.
-   - Fuentes: alturas de AWS Terrain Tiles (Terrarium) e imagen de EOxCloudless 2016 (CC BY 4.0; la de 2018+ es no comercial). La imagen del USGS se descartó porque no cubre México.
-   - `src/core/realTerrain.js` construye las mallas (ShaderMaterial con la luz y la bruma del globo, curvatura alrededor de la cámara y hueco del disco). La proyección está en `src/core/geoMap.js`, sin three.js, y la prueba `x15-check` (mutante `geo`).
-   - `main.js` llama a `realTerrain.update` en cada fotograma (hueco = radio del disco × su estiramiento, o 0 si el disco está oculto). `env.setAltitude(h, { stretch: false })` en el vuelo del X-15.
-7. **Efectos: hechos.** Commit «X-15 phase 7: XLR99 plume, skin heating and sound», README *X-15 #1: fase 7*.
-   - Chorro: `src/sim/x15Plume.js` (`jetShape(throttle, pa)`: Mach y diámetro del chorro expandido, celdas de Pack). Se cuelga de `x15-xlr99-nozzle` en `x15Fly.js`, y `x15fly.plume` queda expuesto para las pruebas.
-   - Calentamiento: `src/sim/x15Heating.js` (TM X-1705, cinco termopares de la línea inferior). `state.skin` en el vuelo, y `skinK`/`skinPeakK` en el readout. `x15-check` lo compara con los dos vuelos del informe (mutante `recovery`). El PDF está en la carpeta temporal (solo consulta).
-   - Sonido: `x15(readout, pos)` en `src/sim/sound.js`, con el mismo contexto e interruptor que el lanzamiento (`hud.toggleSound`, botón *Sound* del panel de vuelo).
-8. **Revisión de las fases 1–7: hecha.** Commit «X-15 review of phases 1-7», README *Revisión de las fases 1–7*. Corrigió el mínimo de gases (40 %, SP-60), la caja del panel que salía por la piel, la lucha de profundidad entre el globo y el terreno real (`FlightEarth.setCut`) y las etiquetas del pad sobre el Pacífico (`anyFlying` en `main.js`). Añadió el encuadre *Open canopy and cockpit*, el campo `x15` de `tools/shot.mjs` y `tools/x15-shots.json`.
-9. **Galería regenerada** con `npm run shots` (aprobado por el usuario en el encargo), con las vistas del X-15.
-
-Datos y figuras en `src/data/x15.js` (con procedencia) y el modelo en `src/vehicles/x15.js`. Marco del avión: X adelante (X = −estación), Y arriba desde la FRL, **Z a la derecha** (X × Y; la fase 1 decía «izquierda» por error, corregido en la fase 2 con los nombres de las piezas). Documentos descargados (solo consulta, fuera del repositorio): TN D-3343, TM X-236, TM X-207, SP-60 y el manual, sección 1 (escaneado sin texto: hay que renderizarlo y leerlo). NTRS, images-api.nasa.gov, ids.si.edu y sierrafoot.org funcionaron desde el contenedor.
 
 ### Qué es y cómo se trabaja (resumen; el detalle está en las secciones 0–5)
 

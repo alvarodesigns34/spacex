@@ -81,27 +81,6 @@ export const poolStretch = (seed) => 1.5 + 0.8 * noise2(seed * 3.7, 0.5);
 const POOLS = POOL_SPEC.map(([x, z, r, seed]) => [x, z, r * 1.3 * Math.sqrt(poolStretch(seed))]);
 
 /**
- * The X-15's runway (authorised by the user as the one exception to "no new objects"): a strip
- * marked on the bare clay of the saline flat, in the manner of the lakebed runways on Rogers Dry
- * Lake where the X-15 landed. Placed on the longest straight stretch of open flat inside the
- * ground disc that clears the lomas, the pools, the beach and the built site: 3.4 km on a true
- * bearing of 130.8° (the scene's +X is 100.8°, the strip 30° round from it), "runway 13/31".
- * Its length is what the scene's ground allows and its width the 300 ft of a lakebed runway
- * (≈); neither is a survey of anything.
- */
-export const RUNWAY = { x: -790, z: 1360, angleDeg: 30, length: 3400, width: 91.44 };
-const RW_C = Math.cos(RUNWAY.angleDeg * Math.PI / 180), RW_S = Math.sin(RUNWAY.angleDeg * Math.PI / 180);
-/** World (x, z) → runway [along (from the centre, + towards the 13 end's far side), across]. */
-export function toRunway(x, z) { const dx = x - RUNWAY.x, dz = z - RUNWAY.z; return [dx * RW_C + dz * RW_S, -dx * RW_S + dz * RW_C]; }
-/** Runway (along, across) → world [x, z]. */
-export function fromRunway(a, c) { return [RUNWAY.x + a * RW_C - c * RW_S, RUNWAY.z + a * RW_S + c * RW_C]; }
-/** Metres outside the runway's rectangle (0 on it). */
-export function offRunway(x, z) {
-  const [a, c] = toRunway(x, z);
-  return Math.hypot(Math.max(0, Math.abs(a) - RUNWAY.length / 2), Math.max(0, Math.abs(c) - RUNWAY.width / 2));
-}
-
-/**
  * Where the land must stay flat and bare: 0 on the built site (the exhibit row and its roads,
  * the pad and its berm, the access road) and round the tidal pools, 1 in open country, with a
  * soft edge.
@@ -113,8 +92,6 @@ export function siteMask(x, z) {
   // Pad 2, its berm, tank farm and the access road to it.
   m = Math.min(m, smooth(250, 330, Math.hypot(x, z + 185)));
   for (const [px, pz, pr] of POOLS) m = Math.min(m, smooth(pr * 1.05, pr * 1.6, Math.hypot(x - px, z - pz)));
-  // The runway and a margin of bare flat round it.
-  m = Math.min(m, smooth(40, 120, offRunway(x, z)));
   return m;
 }
 
@@ -168,7 +145,6 @@ export function marsh(x, z) {
   let m = smooth(0, 30, Math.hypot(dx, dz));
   m = Math.min(m, smooth(150, 200, Math.hypot(x, z + 185)));   // berm 82 m, tank farm to ~120 m
   for (const [px, pz, pr] of POOLS) m = Math.min(m, smooth(pr * 1.05, pr * 1.5, Math.hypot(x - px, z - pz)));
-  m = Math.min(m, smooth(40, 120, offRunway(x, z)));
   m *= inland(x, z);
   if (m <= 0) return 0;
   return m * (1 - smooth(0.02, 0.25, loma(x, z).k));

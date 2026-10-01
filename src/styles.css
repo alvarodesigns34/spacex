@@ -168,11 +168,6 @@ body.is-flying .guide-sec[data-mode="launch"] { border-color: color-mix(in srgb,
 #hud.walk .guide-sec[data-mode="walk"] .guide-here,
 #hud.fly .guide-sec[data-mode="fly"] .guide-here,
 body.is-flying .guide-sec[data-mode="launch"] .guide-here { display: inline-block; }
-/* Flying the X-15: its section is the one that applies, whatever the camera mode says. */
-#hud.is-x15 .guide-sec[data-mode] { border-color: var(--surface-line); background: transparent; }
-#hud.is-x15 .guide-sec[data-mode] .guide-here { display: none; }
-#hud.is-x15 .guide-sec[data-mode="x15"] { border-color: color-mix(in srgb, var(--accent) 60%, transparent); background: var(--accent-quiet); }
-#hud.is-x15 .guide-sec[data-mode="x15"] .guide-here { display: inline-block; }
 @media (max-width: 1100px) { .guide-grid { grid-template-columns: repeat(2, 1fr); } }
 .btn { padding: 8px 18px; border: 1px solid var(--surface-line); border-radius: 999px; background: transparent; cursor: pointer; }
 .btn:hover { border-color: var(--ink-muted); }
@@ -401,51 +396,3 @@ body.is-touring .coach { display: none; }
 /* Re-entry chapter: the ship alone; the booster column goes. */
 .mission.is-reentry .mt-booster,
 .mission.is-reentry .mp-booster { display: none; }
-
-/* X-15 flight: the instruments panel and the scenario chooser (ui/flightPanel.js). While the
-   airplane flies, the museum's panels step aside; the guide and the notices stay. */
-#hud.is-x15 > *:not(.x15-panel):not(.help):not(.callout):not(.x15-chooser) { display: none !important; }
-.x15-panel {
-  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
-  width: min(780px, calc(100vw - 32px));
-  display: flex; flex-direction: column; gap: 4px; padding: 8px 12px 6px;
-  background: var(--surface-solid); border: 1px solid var(--surface-line);
-  border-radius: var(--radius-panel); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
-  box-shadow: var(--shadow-panel); font-size: 0.82rem;
-}
-.x15-top { display: flex; align-items: center; gap: 10px; }
-.x15-top .eyebrow { flex: 1; font-size: 0.68rem; }
-.x15-clock { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--accent); }
-.x15-btn { padding: 3px 9px; background: transparent; border: 1px solid var(--surface-line); border-radius: var(--radius-ctl); cursor: pointer; font-size: 0.8rem; }
-.x15-btn:hover { background: var(--surface-hover); }
-.x15-body { display: grid; grid-template-columns: 112px 1fr 1fr; gap: 14px; align-items: center; }
-.x15-adi { width: 112px; height: 112px; display: block; }
-.x15-air, .x15-sys { margin: 0; display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; row-gap: 0; }
-.x15-sys { grid-template-columns: 1fr; }
-.x15-air div, .x15-sys div { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--surface-line); padding: 0; }
-.x15-air dt, .x15-sys dt { color: var(--ink-muted); font-size: 0.74rem; letter-spacing: 0.03em; }
-.x15-air dd, .x15-sys dd { margin: 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 0.8rem; white-space: nowrap; }
-.x15-sys .x15-bar { height: 4px; padding: 0; border: 0; background: rgba(236, 233, 226, 0.08); border-radius: 2px; overflow: hidden; }
-.x15-bar span { display: block; height: 100%; width: 0; background: var(--accent); transition: width var(--dur-fast); }
-.x15-mini { display: none; margin: 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 0.82rem; }
-.x15-panel.is-cockpit .x15-mini { display: block; }
-.x15-panel.is-cockpit .x15-body, .x15-panel.is-cockpit .x15-keys { display: none; }
-.x15-msgs { list-style: none; margin: 0; padding: 0; min-height: 1.3em; font-size: 0.8rem; color: var(--accent); display: flex; gap: 14px; flex-wrap: wrap; }
-.x15-keys { margin: 0; font-size: 0.7rem; color: var(--ink-faint); line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.x15-keys kbd { margin-right: 1px; }
-.x15-result {
-  position: fixed; left: 50%; top: 22%; transform: translateX(-50%); width: min(520px, calc(100vw - 32px));
-  padding: 16px 18px; background: var(--surface-solid); border: 1px solid var(--surface-line);
-  border-radius: var(--radius-panel); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); box-shadow: var(--shadow-panel);
-}
-.x15-result p { margin: 0 0 8px; }
-.x15-result-btns { display: flex; gap: 8px; flex-wrap: wrap; }
-.x15-chooser {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(440px, calc(100vw - 32px));
-  display: flex; flex-direction: column; gap: 8px; padding: 16px 18px;
-  background: var(--surface-solid); border: 1px solid var(--surface-line);
-  border-radius: var(--radius-panel); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); box-shadow: var(--shadow-panel);
-}
-.x15-chooser p { margin: 0 0 4px; color: var(--ink-muted); font-size: 0.88rem; }
-.x15-chooser .x15-go { text-align: left; padding: 9px 12px; }
-.x15-chooser .x15-go small { display: block; color: var(--ink-faint); font-size: 0.76rem; }

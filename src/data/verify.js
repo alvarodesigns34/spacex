@@ -24,18 +24,12 @@ import { RVAC_HULL } from '../vehicles/engineExhibits.js';
 const MEASURE = {
   roadster: { fromHull: true },
   engines: { fromHullSize: true, footprintHull: ['rvac-bell', 'rvac-bell-inner'] },
-  // The span is the wings' (the tip pods stand outside it); the length and height the
-  // airplane's whole, on its gear.
-  // The height is the upper fin's tip above the ground (the model's origin), as the manual
-  // gives it: the nose tyres are drawn at their free radius on an axle at the loaded rolling
-  // radius, squashed 2.6 cm into the ground, and must not count.
-  x15: { fromHull: true, footprintHull: ['x15-wing-l', 'x15-wing-r'] },
 };
 
 /** Declared reference dimensions, keyed by vehicle id, with the tolerance their grade earns. */
 export const EXPECTED = Object.fromEntries(Object.entries(FIGURES).map(([id, f]) => {
   const e = { ...MEASURE[id], tols: {}, grades: {}, notes: {} };
-  for (const key of ['height', 'footprint', 'breadth', 'mirrors', 'length']) {
+  for (const key of ['height', 'footprint', 'breadth', 'mirrors']) {
     const fig = f[key];
     if (!fig || fig.unchecked) continue;
     e[key] = fig.value;
@@ -125,7 +119,6 @@ const HULLS = {
   // body-shell is a Group, so measure() — which only looks at meshes — never saw it and the
   // check silently fell back to the whole model. body-paint is the actual painted hull.
   roadster: ['body-paint', 'windshield-surround', 'windshield-glass'],
-  x15: ['x15-upper-fin-fixed', 'x15-upper-fin-rudder-skin'],
   // Only the Raptor Vacuum: the row also holds a Raptor 3 and a Merlin, and the display
   // cradles are furniture.
   engines: RVAC_HULL,
@@ -319,7 +312,6 @@ export function verifyExhibits(exhibits, { log = true } = {}) {
     check('envergadura / diámetro', m.footprintWidth ?? (HULLS[id] ? m.hullWidth : m.width), exp.footprint, 'footprint');
     check('anchura de carrocería (reconstruida)', m.hullBreadth, exp.breadth, 'breadth');
     check('anchura total con espejos', m.span, exp.mirrors, 'mirrors');
-    check('longitud', m.width, exp.length, 'length');
   }
   if (log) {
     const bad = rows.filter(r => !r.ok);
