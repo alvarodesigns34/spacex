@@ -16,7 +16,7 @@
  * f16-speedbrake-*, f16-landing-gear.
  */
 import * as THREE from 'three';
-import { mergeAll, curve, mesh } from '../geometry/utils.js';
+import { mergeAll, curve, mesh, mat4 } from '../geometry/utils.js';
 import { WING, HTAIL, FIN, VENTRAL, LINES, GEAR, NACA_64A006, OVERALL } from '../data/f16.js';
 import { makeF16Skin, makeF16SurfaceTile, FS_COLOURS, SKIN_LEN } from '../materials/f16Textures.js';
 
@@ -203,6 +203,10 @@ function f16Materials(M) {
   });
   // The inlet duct, the gear wells and the cockpit: flat dark paint (≈).
   M.f16Dark = new THREE.MeshStandardMaterial({ name: 'f16-dark', color: 0x2a2c2f, metalness: 0.1, roughness: 0.85 });
+  // The nozzle (≈ from photographs): the outer flaps' heat-darkened titanium, bluish brown; the
+  // divergent flaps inside, pale streaked metal. Facets shaded flat, as the flaps are flat.
+  M.f16NozzleOuter = new THREE.MeshStandardMaterial({ name: 'f16-nozzle-outer', color: 0x5f5b56, metalness: 0.75, roughness: 0.5, flatShading: true });
+  M.f16NozzleInner = new THREE.MeshStandardMaterial({ name: 'f16-nozzle-inner', color: 0xa69d90, metalness: 0.55, roughness: 0.55, flatShading: true });
   // Gear legs, wheels and the wells' doors' insides: gloss white (≈, as photographed).
   M.f16GearWhite = new THREE.MeshStandardMaterial({ name: 'f16-gear-white', color: 0xd9dad6, metalness: 0.15, roughness: 0.42 });
   return M;
@@ -244,8 +248,40 @@ function buildFuselage(M) {
     geo.rotateZ(Math.PI / 2);
     g.add(mesh(geo, M.alumDark, { name: 'f16-nose-probe', position: [0, (top(0.62) + foreBottom(0.62)) / 2 + GROUND, 0], castShadow: false }));
   }
+  // Angle-of-attack probes either side of the nose, and the blade antennas: the UHF/IFF blades on
+  // the spine and under the inlet aft of the nose gear (stations ≈,
+  // from the photographs).
+  {
+    const probes = [];
+    for (const sd of [-1, 1]) {
+      const sp = 1.75, yy = sd * (width(sp) - 0.004), zz = chine(sp) + 0.04;
+      const geo = new THREE.ConeGeometry(0.012, 0.16, 10);
+      geo.rotateZ(Math.PI / 2 - 0.12);
+      geo.rotateY(-sd * 0.25);
+      const at = P(sp - 0.06, zz, yy + sd * 0.02);
+      geo.translate(at.x, at.y, at.z);
+      const base = new THREE.CylinderGeometry(0.022, 0.022, 0.03, 12);
+      base.rotateX(Math.PI / 2);
+      const b0 = P(sp, zz, yy);
+      base.translate(b0.x, b0.y, b0.z);
+      probes.push({ geometry: geo }, { geometry: base });
+    }
+    g.add(mesh(mergeAll(probes), M.alumDark, { name: 'f16-aoa-probes', castShadow: false }));
+    const blade = (sp, zz, up, h, len, name) => {
+      const sh = new THREE.Shape();
+      sh.moveTo(0, 0); sh.lineTo(len, 0); sh.lineTo(len * 0.75, h); sh.lineTo(len * 0.45, h); sh.closePath();
+      const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.012, bevelEnabled: false });
+      geo.translate(-len, 0, -0.006);
+      geo.scale(1, up, 1);
+      const at = P(sp, zz, 0);
+      geo.translate(at.x, at.y, at.z);
+      return mesh(geo, M.f16Lower, { name, castShadow: false });
+    };
+    g.add(blade(7.6, top(7.6) - 0.01, 1, 0.13, 0.3, 'f16-antenna-spine'));
+    g.add(blade(6.6, intakeBottom(6.6) + 0.01, -1, 0.1, 0.26, 'f16-antenna-belly'));
+  }
   g.add(buildInlet(M, rowsFore[rowsFore.length - 1], rowsMain[0]));
-  g.add(buildNozzle(M));
+  g.add(buildNozzle(M, rowsMain[rowsMain.length - 1]));
   return g;
 }
 
@@ -290,24 +326,104 @@ function buildInlet(M, foreRing, mainRing) {
 }
 
 /**
- * The F100's convergent–divergent nozzle: a ring of overlapping petals from the aft fuselage's
- * edge to the exit, its exit area the model's (TP-3355, 0.40 m²), the turbine's dark face inside.
+ * The F100's convergent–divergent nozzle, as USAF photographs show it from behind (the
+ * maintenance photograph "F16 Pratt & Whitney F100 nozzle maintenance", public domain, read for
+ * reference only):
+ *  - a boat-tail fairing that closes the aft fuselage's section onto the nozzle's circle, so
+ *    nothing can be seen between them;
+ *  - the outer flaps, sixteen facets with dark seals and hinge brackets at the lip;
+ *  - inside, the divergent flaps and their seals (16, faceted, pale heat-streaked metal) down to
+ *    the throat, the convergent flaps opening back out, then the afterburner's liner;
+ *  - deep inside, the flameholder's rings with its radial spray bars and the tail cone, in front
+ *    of a solid back wall.
+ * The nozzle is shown at rest, wide open, as photographed; its exit, throat, duct and flameholder
+ * are read off the photograph (≈).
  */
-function buildNozzle(M) {
+function buildNozzle(M, lastRing) {
   const g = new THREE.Group();
   g.name = 'f16-nozzle';
   const { s0, s1, r0, r1, exitArea } = LINES.nozzle;
-  const rExit = Math.sqrt(exitArea / Math.PI), zc = (top(s0) + intakeBottom(s0)) / 2;
-  const prof = [[s0 - 0.05, r0 + 0.01], [s0 + 0.1, r0], [s1 - 0.12, r1 + 0.01], [s1, r1], [s1, rExit + 0.03], [s1 - 0.25, rExit], [s0 + 0.15, r0 - 0.08]];
-  // Walked from the inside out: with the axis running aft (−s), that keeps the faces outward.
-  const geo = new THREE.LatheGeometry(prof.reverse().map(([s, r]) => new THREE.Vector2(r, -s)), 30);
-  geo.rotateZ(-Math.PI / 2);
-  geo.rotateX(Math.PI / 30);   // a petal's edge on top
-  g.add(mesh(geo, M.titanium, { name: 'f16-nozzle-petals', position: [0, GROUND + zc, 0] }));
-  // The turbine's face and the afterburner's flameholder, deep inside: dark and solid.
-  const face = new THREE.CircleGeometry(rExit * 1.05, 32);
-  face.rotateY(-Math.PI / 2);
-  g.add(mesh(face, M.blackMatte ?? M.f16Dark, { name: 'f16-turbine-face', position: [-(s1 - 0.6), GROUND + zc, 0], castShadow: false }));
+  // At rest, engine off, the nozzle hangs wide open (the photograph): the divergent flaps' edge
+  // nearly meets the outer flaps' (≈). TP-3355's 0.40 m² is the model's exit in flight.
+  void exitArea;
+  const rExit = r1 - 0.035, zc = (top(s0) + intakeBottom(s0)) / 2, yc = GROUND + zc;
+  const N = 16;
+  // The boat-tail: each point of the fuselage's last ring carried onto the nozzle's circle at its
+  // own angle round the nozzle's axis.
+  if (lastRing) {
+    const sEnd = s0 + 0.08, rEnd = r0 + 0.012;
+    const far = lastRing.map((p) => {
+      const a = Math.atan2(p.y - yc, p.z);
+      return P(sEnd, zc + rEnd * Math.sin(a), rEnd * Math.cos(a));
+    });
+    const mid = lastRing.map((p, k) => p.clone().lerp(far[k], 0.55).add(V(0, 0, 0)));
+    const geo = outward(loft([lastRing, mid, far], { closed: true }), (x, y, z, c) => c.set(x, yc, 0));
+    g.add(mesh(geo, M.f16Lower, { name: 'f16-boattail' }));
+  }
+  // Outer flaps: a sixteen-sided shell from the boat-tail to the lip.
+  {
+    const prof = [[s0 + 0.04, r0 + 0.012], [s0 + 0.2, r0 + 0.004], [s1 - 0.1, r1 + 0.008], [s1, r1]];
+    const geo = new THREE.LatheGeometry(prof.map(([ss, r]) => new THREE.Vector2(r, -ss)), N);
+    geo.rotateZ(-Math.PI / 2);
+    // A lathe's normals are analytic, whatever its winding: take them from the winding first.
+    geo.computeVertexNormals();
+    outward(geo, (x, y, z, c) => c.set(x, 0, 0));   // faces away from the axis
+    g.add(mesh(geo, M.f16NozzleOuter, { name: 'f16-nozzle-petals', position: [0, yc, 0] }));
+    // The seals between the flaps, and a hinge bracket on each at the lip.
+    const seals = [], brackets = [];
+    for (let k = 0; k < N; k++) {
+      const a = (k / N) * Math.PI * 2;
+      const len = s1 - s0 - 0.3;
+      seals.push({ geometry: new THREE.BoxGeometry(len, 0.007, 0.022), matrix: mat4([-(s0 + 0.18 + len / 2), (r0 + 0.002) * Math.sin(a), (r0 + 0.002) * Math.cos(a)], [Math.PI / 2 - a, 0, 0]) });
+      brackets.push({ geometry: new THREE.BoxGeometry(0.06, 0.018, 0.035), matrix: mat4([-(s1 - 0.05), (r1 + 0.008) * Math.sin(a + Math.PI / N), (r1 + 0.008) * Math.cos(a + Math.PI / N)], [Math.PI / 2 - (a + Math.PI / N), 0, 0]) });
+    }
+    g.add(mesh(mergeAll(seals), M.f16NozzleOuter, { name: 'f16-nozzle-seals', position: [0, yc, 0], castShadow: false }));
+    g.add(mesh(mergeAll(brackets), M.f16Dark, { name: 'f16-nozzle-brackets', position: [0, yc, 0], castShadow: false }));
+  }
+  // The lip, the divergent flaps to the throat, the convergent flaps back out to the liner.
+  const rThroat = 0.42, sThroat = s1 - 0.34, rLiner = 0.46, sLiner = s1 - 0.62, sBack = 12.25;
+  {
+    // The lip: an annulus at the exit plane between the outer flaps and the inner ones, facing
+    // aft. It closes the nozzle's wall: without it the outer shell's inside showed through.
+    const lip = new THREE.RingGeometry(rExit - 0.004, r1 + 0.003, N, 1, Math.PI / 2, Math.PI * 2);
+    lip.rotateY(-Math.PI / 2);
+    g.add(mesh(lip, M.f16NozzleOuter, { name: 'f16-nozzle-lip', position: [-s1, yc, 0] }));
+    const prof = [[s1, rExit], [sThroat, rThroat], [sLiner, rLiner]];
+    const geo = new THREE.LatheGeometry(prof.map(([ss, r]) => new THREE.Vector2(r, -ss)), N);
+    geo.rotateZ(-Math.PI / 2);
+    // The flaps look into the nozzle: taken from the winding, away from the axis, then turned in.
+    geo.computeVertexNormals();
+    flip(outward(geo, (x, y, z, c) => c.set(x, 0, 0)));
+    g.add(mesh(geo, M.f16NozzleInner, { name: 'f16-nozzle-flaps', position: [0, yc, 0] }));
+    const seals = [];
+    for (let k = 0; k < N; k++) {
+      const a = (k / N) * Math.PI * 2, rr = (rExit + rThroat) / 2 - 0.006, len = s1 - sThroat;
+      const tilt = Math.atan2(rExit - rThroat, len);
+      seals.push({ geometry: new THREE.BoxGeometry(len, 0.008, 0.05), matrix: mat4([-(s1 + sThroat) / 2, rr * Math.sin(a), rr * Math.cos(a)], [Math.PI / 2 - a, 0, 0]).multiply(new THREE.Matrix4().makeRotationZ(-tilt)) });
+    }
+    g.add(mesh(mergeAll(seals), M.f16NozzleOuter, { name: 'f16-nozzle-flap-seals', position: [0, yc, 0], castShadow: false }));
+  }
+  // The afterburner's liner, the flameholder and the tail cone, closed by a solid back wall.
+  {
+    const liner = new THREE.CylinderGeometry(rLiner, rLiner, sLiner - sBack, 32, 1, true);
+    liner.rotateZ(Math.PI / 2);
+    liner.computeVertexNormals();
+    flip(outward(liner, (x, y, z, c) => c.set(x, 0, 0)));   // seen from inside
+    g.add(mesh(liner, M.f16Dark, { name: 'f16-afterburner-liner', position: [-(sLiner + sBack) / 2, yc, 0], castShadow: false }));
+    const parts = [];
+    for (const r of [0.17, 0.3]) { const t = new THREE.TorusGeometry(r, 0.018, 6, 40); t.rotateY(Math.PI / 2); parts.push({ geometry: t, matrix: mat4([-(sBack + 0.12), 0, 0]) }); }
+    for (let k = 0; k < 24; k++) {
+      const a = (k / 24) * Math.PI * 2;
+      parts.push({ geometry: new THREE.BoxGeometry(0.03, 0.3, 0.025), matrix: mat4([-(sBack + 0.1), 0.26 * Math.sin(a), 0.26 * Math.cos(a)], [-a + Math.PI / 2, 0, 0]) });
+    }
+    const cone = new THREE.LatheGeometry([[0.13, 0], [0.11, 0.1], [0.05, 0.2], [0.012, 0.25]].map(([r, y]) => new THREE.Vector2(r, y)), 20);
+    cone.rotateZ(Math.PI / 2);
+    parts.push({ geometry: cone, matrix: mat4([-(sBack + 0.05), 0, 0]) });
+    g.add(mesh(mergeAll(parts), M.alumDark, { name: 'f16-flameholder', position: [0, yc, 0], castShadow: false }));
+    const wall = new THREE.CircleGeometry(rLiner + 0.01, 32);
+    wall.rotateY(-Math.PI / 2);
+    g.add(mesh(wall, M.blackMatte ?? M.f16Dark, { name: 'f16-turbine-face', position: [-sBack, yc, 0], castShadow: false }));
+  }
   return g;
 }
 
@@ -610,23 +726,75 @@ function buildVentrals(M) {
   return g;
 }
 
-/** The tail booms beside the nozzle that carry the stabilators, and the split speed brakes at their ends. */
+/**
+ * The tail booms beside the nozzle that carry the stabilators, and the split speed brakes at their
+ * ends. Each boom is a rounded fairing growing out of the fuselage's side under the stabilator's
+ * root; its last 0.75 m is the clamshell speed brake, an upper and a lower petal hinged at their
+ * forward edge that open to 60° (TP-1538) and close to a blunt edge (sections and lengths ≈, from
+ * the photographs).
+ */
+const BOOM = { zc: 0.02, y: 0.88, s0: 10.9, s1: 11.8, sb: 13.7, end: 14.45, w: 0.16, h: 0.12 };
+const boomSection = (s, phi0, phi1, n, scale = [1, 1]) => {
+  const grow = 0.15 + 0.85 * sstep(BOOM.s0, BOOM.s1, s);
+  const t = Math.max(0, (s - BOOM.sb) / (BOOM.end - BOOM.sb));
+  const w = BOOM.w * grow * (1 - 0.45 * t) * scale[0], h = BOOM.h * grow * (1 - 0.8 * Math.pow(t, 1.4)) * scale[1];
+  const se = (v, e) => Math.sign(v) * Math.pow(Math.abs(v), e);
+  return Array.from({ length: n + 1 }, (_, j) => {
+    const ph = phi0 + (phi1 - phi0) * j / n;
+    return [w * se(Math.cos(ph), 0.8), h * se(Math.sin(ph), 0.8)];
+  });
+};
+/** Moves a part's UVs to start at 0: caps project world coordinates, metres from the origin, and
+ *  merged with a loft's they would stretch one tile over the whole range. */
+function uvFromZero(g) {
+  const uv = g.attributes.uv;
+  let u0 = Infinity, v0 = Infinity;
+  for (let i = 0; i < uv.count; i++) { u0 = Math.min(u0, uv.getX(i)); v0 = Math.min(v0, uv.getY(i)); }
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) - u0, uv.getY(i) - v0);
+  return g;
+}
 function buildBooms(M) {
   const g = new THREE.Group();
   g.name = 'f16-booms';
+  const N = 24;
   for (const side of [-1, 1]) {
     const tag = side > 0 ? 'r' : 'l';
-    const boom = new THREE.BoxGeometry(2.2, 0.22, 0.28);
-    g.add(mesh(boom, M.f16Lower, { name: `f16-boom-${tag}`, position: [-(12.6), GROUND + 0.02, side * 0.88] }));
-    // Speed brakes: upper and lower petals, hinged at their forward edge, opening to 60°.
+    const at = (s, [dz, dy]) => P(s, BOOM.zc + dy, side * (BOOM.y + dz));
+    // The fixed fairing, s0 → sb, closed round; its aft face shows when the brakes open.
+    const rows = [];
+    for (let i = 0; i <= 14; i++) {
+      const sx = BOOM.s0 + (BOOM.sb - BOOM.s0) * i / 14;
+      rows.push(boomSection(sx, 0, 2 * Math.PI, N).slice(0, -1).map(q => at(sx, q)));
+    }
+    const fair = outward(loft(rows, { closed: true }), (x, y, z, c) => c.set(x, GROUND + BOOM.zc, side * BOOM.y));
+    const face = cap(rows[rows.length - 1], V(-1, 0, 0));
+    g.add(mesh(mergeAll([{ geometry: uvFromZero(fair) }, { geometry: uvFromZero(face) }]), M.f16Lower, { name: `f16-boom-${tag}` }));
+    // Speed brakes: each petal a half shell with its flat inner face on the split line.
     for (const up of [1, -1]) {
       const h = new THREE.Group();
       h.name = `f16-speedbrake-${tag}-${up > 0 ? 'upper' : 'lower'}`;
-      h.position.copy(P(13.7, 0.02 + up * 0.11, side * 0.88));
-      h.userData.hinge = { axis: [0, 0, up * side], range: [0, 60] };
-      const plate = new THREE.BoxGeometry(0.75, 0.025, 0.3);
-      plate.translate(-0.375, 0, 0);
-      h.add(mesh(plate, M.f16Lower, { name: `f16-speedbrake-panel-${tag}-${up > 0 ? 'u' : 'd'}` }));
+      const h0 = boomSection(BOOM.sb, Math.PI / 2, Math.PI / 2, 1)[0][1];
+      const hinge = at(BOOM.sb, [0, up * h0]);
+      h.position.copy(hinge);
+      // Upper petal's trailing edge swings up, the lower's down, on both sides.
+      h.userData.hinge = { axis: [0, 0, -up], range: [0, 60] };
+      const pr = [];
+      for (let i = 0; i <= 8; i++) {
+        const sx = BOOM.sb + (BOOM.end - BOOM.sb) * i / 8;
+        // A hair in from the split line, so the closed petals do not fight over one plane.
+        pr.push(boomSection(sx, up > 0 ? 0 : Math.PI, up > 0 ? Math.PI : 2 * Math.PI, N / 2).map(([dz, dy]) => at(sx, [dz, dy + up * 0.002])));
+      }
+      const shell = outward(loft(pr), (x, y, z, c) => c.set(x, GROUND + BOOM.zc, side * BOOM.y));
+      const lip = [...pr.map(r => r[0]), ...pr.slice().reverse().map(r => r[r.length - 1])];
+      const inner = cap(lip, V(0, -up, 0));
+      const tail = cap(pr[pr.length - 1], V(-1, 0, 0)), front = cap(pr[0], V(1, 0, 0));
+      const geo = mergeAll([shell, inner, tail, front].map(x => ({ geometry: uvFromZero(x) })));
+      geo.translate(-hinge.x, -hinge.y, -hinge.z);
+      h.add(mesh(geo, M.f16Lower, { name: `f16-speedbrake-panel-${tag}-${up > 0 ? 'u' : 'd'}` }));
+      // The actuator's clevis on the inner face, and its rod into the boom (≈).
+      const clevis = new THREE.BoxGeometry(0.08, 0.03, 0.05);
+      clevis.translate(-0.22, -up * (h0 - 0.015), 0);
+      h.add(mesh(clevis, M.alumDark, { name: `f16-speedbrake-clevis-${tag}-${up > 0 ? 'u' : 'd'}` }));
       g.add(h);
     }
   }
@@ -634,56 +802,141 @@ function buildBooms(M) {
 }
 
 // ---- Landing gear --------------------------------------------------------------------------------
-function wheel(M, d, w, name) {
+/** A wheel on its axle along Z: the tyre's section a rounded profile turned round the axle, the
+ *  rim's flanges and the hub with its bolt circle (≈ in proportion, sizes published). */
+function wheel(M, d, w, name, { brake = false } = {}) {
   const g = new THREE.Group();
   g.name = name;
-  const r = d / 2;
-  const tyre = new THREE.TorusGeometry(r - w * 0.38, w * 0.42, 12, 40);
+  const r = d / 2, hw = w / 2, rr = r * 0.6;            // bead seat ≈ 60 % of the tyre's radius
+  // Tyre: from bead to bead round the tread, fullest at the centre line.
+  const prof = [];
+  for (let k = 0; k <= 16; k++) {
+    const t = -Math.PI / 2 + Math.PI * k / 16;
+    prof.push(new THREE.Vector2(rr + (r - rr) * Math.pow(Math.cos(t), 0.4), hw * 0.95 * Math.sin(t)));
+  }
+  const tyre = new THREE.LatheGeometry(prof, 48);
+  tyre.computeVertexNormals();
+  outward(tyre, (x, y, z, c) => c.set(0, y, 0));
+  tyre.rotateX(Math.PI / 2);
   g.add(mesh(tyre, M.boot ?? M.f16Dark, { name: `${name}-tyre` }));
-  const hub = new THREE.CylinderGeometry(r * 0.55, r * 0.55, w * 0.8, 24);
-  hub.rotateX(Math.PI / 2);
-  g.add(mesh(hub, M.f16GearWhite, { name: `${name}-hub` }));
+  // Rim: a drum between the beads with a flange each side, the hub cap proud of it.
+  const rim = new THREE.CylinderGeometry(rr + 0.004, rr + 0.004, w * 0.86, 32, 1, true);
+  rim.computeVertexNormals();
+  flip(rim);                                            // seen from the axle's side, inside the tyre
+  rim.rotateX(Math.PI / 2);
+  g.add(mesh(rim, M.f16GearWhite, { name: `${name}-rim` }));
+  for (const sd of [-1, 1]) {
+    const disc = new THREE.CylinderGeometry(rr + 0.01, rr + 0.01, 0.012, 32);
+    disc.rotateX(Math.PI / 2); disc.translate(0, 0, sd * w * 0.42);
+    g.add(mesh(disc, M.f16GearWhite, { name: `${name}-flange-${sd > 0 ? 'o' : 'i'}` }));
+    const hub = new THREE.CylinderGeometry(r * 0.2, r * 0.24, 0.05, 20);
+    hub.rotateX(Math.PI / 2); hub.translate(0, 0, sd * (w * 0.42 + 0.03));
+    g.add(mesh(hub, brake && sd < 0 ? M.alumDark : M.f16GearWhite, { name: `${name}-hub-${sd > 0 ? 'o' : 'i'}` }));
+    const bolts = [];
+    for (let k = 0; k < 8; k++) {
+      const a = k / 8 * Math.PI * 2, b = new THREE.CylinderGeometry(0.008, 0.008, 0.02, 6);
+      b.rotateX(Math.PI / 2); b.translate(Math.cos(a) * r * 0.32, Math.sin(a) * r * 0.32, sd * (w * 0.42 + 0.012));
+      bolts.push({ geometry: b });
+    }
+    g.add(mesh(mergeAll(bolts), M.alumDark, { name: `${name}-bolts-${sd > 0 ? 'o' : 'i'}` }));
+  }
+  return g;
+}
+/** A strut between two points: a cylinder from a to b, its own radius at each end. */
+function strut(a, b, r0, r1, mat, name, seg = 14) {
+  const geo = new THREE.CylinderGeometry(r1, r0, a.distanceTo(b), seg);
+  const m = mesh(geo, mat, { name });
+  m.position.copy(a.clone().add(b).multiplyScalar(0.5));
+  m.quaternion.setFromUnitVectors(V(0, 1, 0), b.clone().sub(a).normalize());
+  return m;
+}
+/** Torque links: two flat arms meeting at a knee ahead of an oleo, from its cylinder to its axle. */
+function torqueLinks(M, top, bot, ahead, name) {
+  const g = new THREE.Group();
+  g.name = name;
+  const knee = top.clone().add(bot).multiplyScalar(0.5).add(ahead);
+  for (const [a, b, n] of [[top, knee, 'u'], [knee, bot, 'l']]) {
+    const len = a.distanceTo(b), geo = new THREE.BoxGeometry(0.03, len, 0.05);
+    const m = mesh(geo, M.f16GearWhite, { name: `${name}-${n}` });
+    m.position.copy(a.clone().add(b).multiplyScalar(0.5));
+    m.quaternion.setFromUnitVectors(V(0, 1, 0), b.clone().sub(a).normalize());
+    g.add(m);
+  }
+  const pin = new THREE.CylinderGeometry(0.018, 0.018, 0.07, 10);
+  pin.rotateX(Math.PI / 2);
+  g.add(mesh(pin, M.alumDark, { name: `${name}-knee`, position: [knee.x, knee.y, knee.z] }));
   return g;
 }
 
 function buildGear(M) {
   const g = new THREE.Group();
   g.name = 'f16-landing-gear';
-  // Nose gear: an oleo strut from the inlet's floor, the wheel on a short trailing fork (≈).
+  // Nose gear, on the inlet's floor aft of the lip: the oleo's white cylinder, its chrome piston (the shared bright metal)
+  // (≈ 18 cm showing at the static load), torque links ahead of it and a fork round the 18 in wheel
+  // trailing a little behind the strut's line (≈).
   {
     const s = GEAR.nose.s, rw = GEAR.nose.d / 2, zFloor = intakeBottom(s) + GROUND, axleY = rw;
-    const strut = new THREE.CylinderGeometry(0.055, 0.06, zFloor - axleY, 12);
-    g.add(mesh(strut, M.f16GearWhite, { name: 'f16-nose-strut', position: [-s, (zFloor + axleY) / 2, 0] }));
+    const axle = V(-(s + 0.08), axleY, 0);
+    const forkTop = V(-(s + 0.02), axleY + rw + 0.05, 0);
+    const pistonTop = V(-s, forkTop.y + 0.18, 0), top = V(-s, zFloor, 0);
+    g.add(strut(pistonTop, top, 0.065, 0.06, M.f16GearWhite, 'f16-nose-strut'));
+    g.add(strut(forkTop, pistonTop.clone().add(V(0, 0.02, 0)), 0.042, 0.042, M.aluminum, 'f16-nose-piston'));
+    // The fork: a crown over the tyre and an arm down each side to the axle.
+    const crown = new THREE.BoxGeometry(0.16, 0.05, GEAR.nose.w + 0.06);
+    g.add(mesh(crown, M.f16GearWhite, { name: 'f16-nose-fork', position: [forkTop.x, forkTop.y, 0] }));
+    for (const sd of [-1, 1]) {
+      g.add(strut(V(forkTop.x, forkTop.y, sd * (GEAR.nose.w / 2 + 0.03)), V(axle.x, axle.y, sd * (GEAR.nose.w / 2 + 0.03)), 0.022, 0.026, M.f16GearWhite, `f16-nose-fork-${sd > 0 ? 'r' : 'l'}`));
+    }
+    g.add(torqueLinks(M, V(-s, pistonTop.y + 0.04, 0), V(forkTop.x, forkTop.y + 0.02, 0), V(0.09, 0, 0), 'f16-nose-torque'));
+    // Taxi and landing lights on the strut (≈).
+    const lamp = new THREE.CylinderGeometry(0.045, 0.04, 0.05, 16);
+    lamp.rotateZ(Math.PI / 2);
+    g.add(mesh(lamp, M.alumDark, { name: 'f16-nose-lamp', position: [-s + 0.07, pistonTop.y + 0.2, 0] }));
     const w = wheel(M, GEAR.nose.d, GEAR.nose.w, 'f16-nose-wheel');
-    w.position.set(-(s + 0.08), axleY, 0);
+    w.position.copy(axle);
     g.add(w);
-    const fork = new THREE.BoxGeometry(0.14, 0.05, 0.2);
-    g.add(mesh(fork, M.f16GearWhite, { name: 'f16-nose-fork', position: [-(s + 0.04), axleY + rw + 0.04, 0] }));
-    const door = new THREE.BoxGeometry(0.75, 0.3, 0.012);
-    g.add(mesh(door, M.f16Lower, { name: 'f16-nose-door', position: [-(s - 0.2), zFloor - 0.15, 0.2] }));
+    // The doors: a long one each side of the well, hanging open (≈).
+    for (const sd of [-1, 1]) {
+      const door = new THREE.BoxGeometry(0.85, 0.32, 0.01);
+      const dm = mesh(door, M.f16Lower, { name: `f16-nose-door-${sd > 0 ? 'r' : 'l'}`, position: [-(s - 0.25), zFloor - 0.15, sd * 0.2] });
+      dm.rotation.x = sd * 0.08;
+      g.add(dm);
+    }
   }
-  // Main gear: legs from the lower fuselage's sides out to the wheels at the published track.
+  // Main gear: each leg from its trunnion in the lower fuselage's side out and down to the axle at
+  // the published track, a drag brace forward to the fuselage, torque links, the 27.75 in wheel with
+  // its brake inboard, and the door on the leg's outer side.
   for (const side of [-1, 1]) {
     const tag = side > 0 ? 'r' : 'l';
     const s = GEAR.main.s, rw = GEAR.main.d / 2, axleY = rw;
     const top0 = P(s, intakeBottom(s) + 0.18, side * 0.62);
-    const axle = V(-s, axleY, side * (GEAR.track / 2 - GEAR.main.w * 0.55));
-    const leg = new THREE.CylinderGeometry(0.06, 0.07, top0.distanceTo(axle), 12);
-    const m = mesh(leg, M.f16GearWhite, { name: `f16-main-strut-${tag}` });
-    m.position.copy(top0.clone().add(axle).multiplyScalar(0.5));
-    m.quaternion.setFromUnitVectors(V(0, 1, 0), top0.clone().sub(axle).normalize());
-    g.add(m);
-    const w = wheel(M, GEAR.main.d, GEAR.main.w, `f16-main-wheel-${tag}`);
+    const axle = V(-s, axleY, side * (GEAR.track / 2 - GEAR.main.w * 0.55 - 0.04));
+    const dir = top0.clone().sub(axle).normalize();
+    const pistonTop = axle.clone().add(dir.clone().multiplyScalar(0.36)).add(V(0, 0.05, 0));
+    g.add(strut(pistonTop, top0, 0.078, 0.07, M.f16GearWhite, `f16-main-strut-${tag}`));
+    const axleBoss = axle.clone().add(V(0, 0.06, 0));
+    g.add(strut(axleBoss, pistonTop.clone().add(dir.clone().multiplyScalar(0.04)), 0.05, 0.05, M.aluminum, `f16-main-piston-${tag}`));
+    // Axle beam from the piston's foot out to the wheel.
+    const stub = new THREE.CylinderGeometry(0.035, 0.035, 0.22, 12);
+    stub.rotateX(Math.PI / 2);
+    g.add(mesh(stub, M.f16GearWhite, { name: `f16-main-axle-${tag}`, position: [axle.x, axle.y, axle.z + side * 0.07] }));
+    // Drag brace, forward and up into the fuselage (≈).
+    const braceTop = P(s - 0.75, intakeBottom(s - 0.75) + 0.12, side * 0.55);
+    g.add(strut(pistonTop.clone().add(dir.clone().multiplyScalar(0.12)), braceTop, 0.03, 0.028, M.f16GearWhite, `f16-main-brace-${tag}`));
+    g.add(torqueLinks(M, pistonTop.clone().add(dir.clone().multiplyScalar(0.06)), axleBoss, V(-0.1, 0, 0), `f16-main-torque-${tag}`));
+    const w = wheel(M, GEAR.main.d, GEAR.main.w, `f16-main-wheel-${tag}`, { brake: true });
     w.position.set(-s, axleY, side * GEAR.track / 2);
+    w.scale.z = side;                                    // the brake's side faces the airplane
     g.add(w);
-    const door = new THREE.BoxGeometry(1.1, 0.42, 0.012);
-    const dm = mesh(door, M.f16Lower, { name: `f16-main-door-${tag}`, position: [-(s - 0.1), GROUND + intakeBottom(s) - 0.12, side * 0.78] });
-    dm.rotation.x = side * 0.25;
+    // The door: on the leg's outer face, following its slope.
+    const door = new THREE.BoxGeometry(1.05, top0.distanceTo(axle) * 0.72, 0.012);
+    const dm = mesh(door, M.f16Lower, { name: `f16-main-door-${tag}` });
+    dm.position.copy(top0.clone().lerp(axle, 0.4).add(V(0.05, 0, side * 0.07)));
+    dm.quaternion.setFromUnitVectors(V(0, 1, 0), dir);
     g.add(dm);
   }
   return g;
 }
-
 // ---- Assembly ----------------------------------------------------------------------------------------
 export function buildF16Airframe(M) {
   f16Materials(M);

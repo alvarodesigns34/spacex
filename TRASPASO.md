@@ -4,7 +4,7 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ---
 
-## ⭐ Empieza aquí (estado real al 01-10-2026: F-16 volable, fases 1–7 hechas; galería pendiente de confirmación)
+## ⭐ Empieza aquí (estado real al 01-10-2026: F-16 volable y revisado, pista 10/28 junto al recinto; siguiente: Porsche 911 GT3 RS; galería pendiente de confirmación)
 
 ### Proyecto en curso: F-16A Block 15 volable (desde el 01-10-2026)
 
@@ -22,7 +22,7 @@ Fases, cada una un commit con check a 0, empujado a las cinco ramas (las cuatro 
    - Código: `src/data/f16.js` (cifras con su etiqueta PUBLISHED/DERIVED/TRACED/ESTIMATE), `src/vehicles/f16.js` y `src/materials/f16Textures.js`.
    - Marco: s = metros detrás de la punta de la sonda, z sobre WL 6,607. `P(s, z, y)` lo pasa a la escena.
    - Bisagras con `userData.hinge` (eje y recorrido): `f16-lef-*`, `f16-flaperon-*`, `f16-stab-*`, `f16-rudder` y `f16-speedbrake-*`. El tren es `f16-landing-gear`.
-   - La pista ya existe como máscara del terreno (`RUNWAY`, `toRunway` y `fromRunway` en `terrain.js`: 2.743,2 × 45,72 m, a 30°). El avión está a 40 m del umbral de la 13.
+   - La pista ya existe como máscara del terreno (`RUNWAY`, `toRunway` y `fromRunway` en `terrain.js`: 2.743,2 × 45,72 m, a 30°). El avión está a 40 m del umbral de la 13 (en la fase 7 la pista pasó a ser la 10/28 y se acercó al recinto).
    - Las capturas de comprobación se hacen fuera del repositorio. La galería **no se regenera hasta que el usuario lo confirme**.
 4. Complejo de la pista: **hecha**, commit «F-16 phase 4: runway 13/31 with FAA markings».
    - `src/core/runway.js`: `buildRunway(M)` y `runwaySurface(a, c)`, la altura del pavimento en coordenadas de pista. Sirve para posar el avión y, en la fase 5, para el contacto de las ruedas.
@@ -55,7 +55,13 @@ Fases, cada una un commit con check a 0, empujado a las cinco ramas (las cuatro 
    - Al volver a rodar tras parar, el cartel «Landed» se retira.
    - La velocidad del HUD es la calibrada de verdad (`calibrated(M, P)` en `f16Fly.js`), no la equivalente.
    - Corrección tras probarlo el usuario: el vuelo corre con `steps.mission` (tiempo de pared, máximo 0,5 s por paso), no con `steps.view` (máximo 0,05 s), que lo ponía a cámara lenta por debajo de 20 fps. `ux-check` lo comprueba.
-   - Mandos simples por petición del usuario («demasiado complejo»): `easyControls` en `f16Fly.js`, activo por defecto (`state.assist`); el botón *Simple* de la barra vuelve a los mandos completos. W despega/morro abajo, S morro arriba, A/D inclinación hasta 60°, G tren; el motor y los frenos son automáticos.
+   - Mandos simples por petición del usuario («demasiado complejo»): `easyControls` en `f16Fly.js`, activo por defecto (`state.assist`); el botón *Simple* de la barra vuelve a los mandos completos. W despega/morro abajo, S morro arriba, A/D inclinación (ver abajo), G tren; el motor y los frenos son automáticos.
+   - Segunda ronda tras probarlo el usuario («no me gusta lo de la estabilidad», «muy difícil girar», «la pista exageradamente lejos», «mejora el modelo»):
+     - **Viraje directo** en `easyControls`: A/D cambian `bankCmd` a 90°/s (±80°), que se mantiene al soltar; sin nivelar alas ni mantener altura. Si al soltar la orden se aleja más de 25° de la inclinación real, se iguala a ella.
+     - **Pista 10/28** (`RUNWAY` en `terrain.js`: 0°, 2.438,4 m, centro (−1000, 500), `idents`). El avión espera en la cabecera 28 (+a). `runway.js` dibuja los numerales de `RUNWAY.idents`. Se eligió con un script de búsqueda que está en la carpeta temporal: la línea llana más cercana a la fila.
+     - **Modelo:** `buildNozzle` (tobera maciza, citando la foto de dominio público de la USAF), `buildBooms` con `BOOM` (carenado y pétalos de concha; el eje de bisagra es `[0, 0, -up]` en los dos lados) y tren detallado (`wheel`, `strut`, `torqueLinks`, vástagos con `M.aluminum` para no pasar de 200 materiales), sondas de α y antenas.
+     - **Lección:** en `LatheGeometry`, llama a `computeVertexNormals()` antes de `outward()`, porque sus normales analíticas no siguen el orden de los vértices, y dibuja un borde que mira hacia atrás como `RingGeometry` aparte.
+     - **Siguiente vehículo (orden del usuario):** Porsche 911 GT3 RS (992, 2023, 525 CV) en Arctic Grey. Conducible con las cifras reales de aceleración, frenada y velocidad, con un circuito realista y una explanada pequeña de asfalto, y derrapes que dejen marcas.
    - **Galería sin regenerar:** el usuario pidió esperar a su confirmación. Cuando la dé, añade a `tools/docs-shots.json` las vistas del F-16 y de la pista (y, si quiere, alguna del vuelo) y regenera con `npm run shots`.
 
 Fuentes descargadas para consulta, fuera del repositorio (en la carpeta temporal de la sesión; se pueden volver a bajar de NTRS):

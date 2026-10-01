@@ -625,7 +625,7 @@ try {
       };
     });
     report(started.running && started.wow && started.cls && started.hud && started.onRunway && started.ground && !started.crashed,
-      'J starts the F-16 on runway 13, on its wheels, with the HUD, in the same scene', started);
+      'J starts the F-16 on runway 28, on its wheels, with the HUD, in the same scene', started);
     // The exhibit's shortcuts are the flight's while it runs: 2 must not pick the Falcon 1.
     await page.keyboard.press('2');
     await page.waitForTimeout(200);
@@ -651,20 +651,23 @@ try {
     const ok = clock.frames.length >= 2 && clock.frames.every(f => Math.abs(f.dt - Math.min(f.gap, 0.5)) < 0.05 + 0.1 * f.gap);
     report(ok && Math.abs(clock.step - 0.3) < 1e-6, 'The flight keeps wall time: each frame hands it its real interval', clock);
     // The simple controls: one press of W on the runway and it takes off, climbs and raises the
-    // gear by itself; D held banks to 60° and letting go levels the wings.
+    // gear by itself; D banks directly and the bank holds when it is let go (no wing levelling), A
+    // brings it back.
     const easy = await page.evaluate(() => {
       const F = window.__vc.f16fly, s = F.sim.state;
       const key = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code, key: code.slice(-1).toLowerCase(), bubbles: true }));
       const fly = (sec) => { for (let k = 0; k < sec * 30; k++) F.update(1 / 30); };
       key('keydown', 'KeyW'); fly(0.3); key('keyup', 'KeyW'); fly(40);
       const up = { alt: s.agl, gear: F.pilot.gearDown, crashed: s.crashed?.what ?? null };
-      key('keydown', 'KeyD'); fly(4); const banked = F.state.readout.roll; key('keyup', 'KeyD'); fly(8);
+      key('keydown', 'KeyD'); fly(0.8); key('keyup', 'KeyD'); fly(1); const banked = F.state.readout.roll;
+      fly(4); const held = F.state.readout.roll;
+      key('keydown', 'KeyA'); fly(0.8); key('keyup', 'KeyA'); fly(3);
       const level = F.state.readout.roll;
       F.restart();
-      return { ...up, banked: +banked.toFixed(1), level: +level.toFixed(1), assist: F.state.assist };
+      return { ...up, banked: +banked.toFixed(1), held: +held.toFixed(1), level: +level.toFixed(1), assist: F.state.assist };
     });
-    report(easy.assist && easy.alt > 150 && !easy.gear && !easy.crashed && Math.abs(easy.banked - 60) < 8 && Math.abs(easy.level) < 5,
-      'Simple controls: W takes off by itself, D banks to 60° and letting go levels the wings', easy);
+    report(easy.assist && easy.alt > 150 && !easy.gear && !easy.crashed && easy.banked > 50 && Math.abs(easy.held - easy.banked) < 10 && Math.abs(easy.level) < 12,
+      'Simple controls: W takes off by itself, D banks and the bank holds, A brings it back', easy);
     // A take-off on the flight model, flown in real time steps by a scripted pilot.
     const flown = await page.evaluate(async () => {
       const v = window.__vc, F = v.f16fly, s = F.sim.state, P = F.pilot;

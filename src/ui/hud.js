@@ -46,7 +46,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
       <label class="tool tool-sun">Sun <input type="range" id="sun" min="4" max="75" value="20" step="1" title="Sun elevation, from low evening light to midday"></label>
       <button class="tool tool-btn tool-launch" id="launch-btn" title="Starship launch sequence from Pad 2 (G)">Starship · Launch <kbd>G</kbd></button>
       <button class="tool tool-btn" id="reentry-btn" title="Starship's re-entry and splashdown, on flight 14's timeline (X)">Reentry <kbd>X</kbd></button>
-      <button class="tool tool-btn" id="fly-btn" title="Fly the F-16 from runway 13: take off, fly anywhere, land (J)">F-16 · Fly <kbd>J</kbd></button>
+      <button class="tool tool-btn" id="fly-btn" title="Fly the F-16 from runway 28: take off, fly anywhere, land (J)">F-16 · Fly <kbd>J</kbd></button>
       <button class="tool tool-btn" id="tour-btn" title="Guided tour of the centre (P)">Tour <kbd>P</kbd></button>
       <button class="tool tool-btn" id="mode-btn" title="Switch camera mode (F)">Orbit <kbd>F</kbd></button>
       <button class="tool tool-btn" id="walk-btn" type="button" aria-pressed="false" title="Walk the apron at eye height, 1.7 m (V)">Walk <kbd>V</kbd></button>

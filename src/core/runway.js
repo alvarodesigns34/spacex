@@ -1,5 +1,5 @@
 /**
- * The F-16's runway complex (terrain.js RUNWAY has where and why): runway 13/31, one taxiway
+ * The F-16's runway complex (terrain.js RUNWAY has where and why): runway 10/28, one taxiway
  * and a small apron. A runway with its markings, lights and a windsock, not an airport: no
  * terminal, hangars, tower or buildings.
  *
@@ -14,7 +14,7 @@
  *    out between the two designations (§2.4: the AC adjusts it at the midpoint, ≈ here);
  *  - aiming point: two bars 150 ft × 30 ft, inner sides 72 ft apart, from 1,020 ft (§2.6);
  *  - touchdown zone: bars 75 ft × 6 ft, 5 ft apart, inner sides 72 ft apart, in groups of 3, 3,
- *    2, 2 and 1 every 500 ft; a 9,000 ft runway takes the full set at both ends (table 2-4);
+ *    2, 2 and 1 every 500 ft; an 8,000 ft runway (≥7,990 ft) takes the full set at both ends (table 2-4);
  *  - edge lines 3 ft wide along the full length (§2.8);
  *  - taxiway: yellow centre line 6 in wide, dual edge lines 6 in wide 6 in apart, and the runway
  *    holding position marking, pattern A: two solid and two dashed lines 12 in wide, 12 in apart
@@ -24,7 +24,7 @@
  * AC 150/5340-30 maximum for edge lights), the PAPI's place and units, the windsock (a 12 ft
  * sock) and the rubber deposits in the touchdown zones are plausible, not drawn from a plan (≈).
  *
- * Frame: built in runway coordinates (a along the centre line towards the 31 end, c across,
+ * Frame: built in runway coordinates (a along the centre line towards the 28 end, c across,
  * +c to the right of +a, towards the south-west), then turned onto the world by the group's yaw.
  */
 import * as THREE from 'three';
@@ -120,14 +120,20 @@ function paintBatch() {
 }
 
 /**
- * The numerals 1 and 3 in a 60 ft × 20 ft box, as strokes (u across the box from the pilot's
- * left, v along it from the end nearest the threshold), 5 ft wide (≈ the form of figure A-6).
+ * The numerals in a 60 ft × 20 ft box, as strokes (u across the box from the pilot's left, v
+ * along it from the end nearest the threshold, the numeral's foot), 5 ft wide (≈ the form of
+ * figure A-6).
  */
 const STROKE = 5 * FT, NUM_H = 60 * FT, NUM_W = 20 * FT, NUM_GAP = 15 * FT;
 const GLYPHS = {
   1: [[NUM_W / 2 - STROKE / 2, NUM_W / 2 + STROKE / 2, 0, NUM_H]],
   3: [[0, NUM_W, NUM_H - STROKE, NUM_H], [NUM_W * 0.2, NUM_W, NUM_H / 2 - STROKE / 2, NUM_H / 2 + STROKE / 2], [0, NUM_W, 0, STROKE],
     [NUM_W - STROKE, NUM_W, 0, NUM_H]],
+  0: [[0, STROKE, 0, NUM_H], [NUM_W - STROKE, NUM_W, 0, NUM_H], [STROKE, NUM_W - STROKE, NUM_H - STROKE, NUM_H], [STROKE, NUM_W - STROKE, 0, STROKE]],
+  2: [[0, NUM_W, NUM_H - STROKE, NUM_H], [NUM_W - STROKE, NUM_W, NUM_H / 2, NUM_H - STROKE], [0, NUM_W, NUM_H / 2 - STROKE / 2, NUM_H / 2 + STROKE / 2],
+    [0, STROKE, STROKE, NUM_H / 2], [0, NUM_W, 0, STROKE]],
+  8: [[0, STROKE, 0, NUM_H], [NUM_W - STROKE, NUM_W, 0, NUM_H], [STROKE, NUM_W - STROKE, NUM_H - STROKE, NUM_H], [STROKE, NUM_W - STROKE, 0, STROKE],
+    [STROKE, NUM_W - STROKE, NUM_H / 2 - STROKE / 2, NUM_H / 2 + STROKE / 2]],
 };
 
 function markRunway(paint, WHITE) {
@@ -136,7 +142,7 @@ function markRunway(paint, WHITE) {
     // Distance d from this end's threshold, lateral u to the pilot's right.
     const end = -dir * L2;
     const at = (d) => end + dir * d;
-    // The pilot faces +a at the 13 end and −a at the 31 end; +c lies to the right of +a.
+    // The pilot faces +a at the west (10) end and −a at the east (28) end; +c lies to the right of +a.
     const cOf = (u) => dir * u;
     const bar = (d0, d1, u0, u1) => {
       const a0 = at(d0), a1 = at(d1), c0 = cOf(u0), c1 = cOf(u1);
@@ -148,8 +154,8 @@ function markRunway(paint, WHITE) {
       const u0 = 11.5 * FT / 2 + k * 2 * sw;
       bar(T, T + 150 * FT, s * u0, s * (u0 + sw));
     }
-    // Designation: 13 at this end means the pilot reads "1" left, "3" right; 31 the reverse.
-    const digits = dir > 0 ? ['1', '3'] : ['3', '1'];
+    // Designation, read left to right by the pilot landing here: "10" at the west end, "28" east.
+    const digits = (dir > 0 ? RUNWAY.idents[0] : RUNWAY.idents[1]).split('');
     const d0 = T + 150 * FT + 40 * FT, total = NUM_W * 2 + NUM_GAP;
     digits.forEach((ch, i) => {
       const u0 = -total / 2 + i * (NUM_W + NUM_GAP);
@@ -213,7 +219,7 @@ function buildFixtures(g, M, lensMat, sockMat) {
   }
   // Threshold and end lights across each end, 3 m beyond it (≈ eight per end in two groups):
   // green to the approaching pilot, red to the one rolling out. The lens is drawn green at the
-  // 13 end and red at the 31 end only for the eye; both ends carry both in a real fixture.
+  // west end and red at the east end only for the eye; both ends carry both in a real fixture.
   for (const s of [-1, 1]) for (const c of [-21, -18, -15, -12, 12, 15, 18, 21]) lights.push([s * (L2 + 3), c, s < 0 ? GREEN : RED]);
 
   const stem = new THREE.CylinderGeometry(0.025, 0.03, 0.26, 8);
@@ -240,7 +246,7 @@ function buildFixtures(g, M, lensMat, sockMat) {
   ]);
   const papis = [];
   for (const dir of [1, -1]) for (let k = 0; k < 4; k++) {
-    // The pilot's left: −c landing on 13 (towards +a), +c landing on 31.
+    // The pilot's left: −c landing on 10 (towards +a), +c landing on 28.
     papis.push([-dir * L2 + dir * 1100 * FT, -dir * (HALF + 50 * FT + k * 30 * FT)]);
   }
   const boxes = new THREE.InstancedMesh(unit, M.alumDark ?? M.aluminum, papis.length);
@@ -261,9 +267,9 @@ function buildFixtures(g, M, lensMat, sockMat) {
   faces.name = 'runway-papi-lenses';
   g.add(faces);
 
-  // Windsock near the 13 end, clear of the runway safety area (≈ a 12 ft sock on a hinged mast).
+  // Windsock near the 28 end, by the site, clear of the runway safety area (≈ a 12 ft sock on a hinged mast).
   // It streams to the north-west on the coast's south-easterly sea breeze.
-  const wa = -L2 + 1000 * FT, wc = 110;
+  const wa = L2 - 1000 * FT, wc = 110;
   const [wx, wz] = fromRunway(wa, wc);
   const sock = new THREE.Group();
   sock.name = 'runway-windsock';
@@ -271,11 +277,11 @@ function buildFixtures(g, M, lensMat, sockMat) {
   const mast = 5.0;
   sock.add(mesh(new THREE.CylinderGeometry(0.05, 0.07, mast, 10), M.aluminum, { position: [0, mast / 2, 0], name: 'runway-windsock-mast' }));
   // The sock streams along −x of its frame; the frame turns it to the north-west (315° true).
-  // +a bears 130.8° and +c lies to its right (clockwise), so 315° is 184.2° clockwise of +a:
-  // (−cos 4.2°, −sin 4.2°) in (a, c).
+  // +a bears 100.8° + the runway's turn, +c lies to its right (clockwise); the frame turns −x of
+  // the sock onto 315°.
   const frame = new THREE.Group();
   frame.position.set(0, mast, 0);
-  frame.rotation.y = -(315 - 130.8 - 180) * Math.PI / 180;
+  frame.rotation.y = -(315 - (100.8 + RUNWAY.angleDeg) - 180) * Math.PI / 180;
   frame.add(mesh(new THREE.TorusGeometry(0.46, 0.02, 6, 20), M.aluminum, { rotation: [0, Math.PI / 2, 0], name: 'runway-windsock-ring' }));
   const L = 12 * FT;
   const cloth = new THREE.CylinderGeometry(0.46, 0.23, L, 20, 6, true);

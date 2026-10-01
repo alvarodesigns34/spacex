@@ -81,22 +81,27 @@ export const poolStretch = (seed) => 1.5 + 0.8 * noise2(seed * 3.7, 0.5);
 const POOLS = POOL_SPEC.map(([x, z, r, seed]) => [x, z, r * 1.3 * Math.sqrt(poolStretch(seed))]);
 
 /**
- * The F-16's runway: a strip on the open plain north-west of the site, on the longest clear
- * straight inside the ground disc that crosses no loma, pool, the beach or the site. 9,000 ft by
- * 150 ft (2,743 × 45.7 m), a common length and width for a fighter base's runway (≈: no particular
- * runway is drawn); true bearing 130.8° for runway 13. Its taxiway and apron (runway.js) lie on
- * the side towards the site.
- *  - (a, c): along the centre line (+a towards the south-east end) and across it (+c to the
- *    right of +a, the south-west side), metres from the runway's centre.
+ * The F-16's runway: a strip on the open plain just south-west of the site, parallel to the
+ * exhibit row, its east end ≈500 m from the row. Placed by a search for the line nearest the site
+ * that stays inside the ground disc, ≥300 m inland of the shoreline, clear of the site, the pad
+ * and the pools (until 1 Oct 2026 it lay 1.5 km out, which the user found far too far). 8,000 ft
+ * by 150 ft (2,438 × 45.7 m), a common size for a fighter base's runway (≈: no particular runway
+ * is drawn; 9,000 ft did not fit this close). True bearing 100.8° (the scene's +X): runway 10/28.
+ * The F-16 waits on the 28 end, next to the site; its taxiway and apron (runway.js) lie there too,
+ * on the side towards the site.
+ *  - (a, c): along the centre line (+a towards the east end) and across it (+c to the right of
+ *    +a, the south side), metres from the runway's centre.
+ *  - idents: the designation painted at the west end (landing towards +a) and at the east end.
  */
-export const RUNWAY = { x: -790, z: 1360, angleDeg: 30, length: 2743.2, width: 45.72, margin: 60 };
+export const RUNWAY = { x: -1000, z: 500, angleDeg: 0, length: 2438.4, width: 45.72, margin: 60, idents: ['10', '28'] };
 const RW_C = Math.cos(RUNWAY.angleDeg * Math.PI / 180), RW_S = Math.sin(RUNWAY.angleDeg * Math.PI / 180);
 /** World (x, z) → runway (a, c). */
 export function toRunway(x, z) { const dx = x - RUNWAY.x, dz = z - RUNWAY.z; return [dx * RW_C + dz * RW_S, -dx * RW_S + dz * RW_C]; }
 /** Runway (a, c) → world [x, z]. */
 export function fromRunway(a, c) { return [RUNWAY.x + a * RW_C - c * RW_S, RUNWAY.z + a * RW_S + c * RW_C]; }
 /** The apron and its taxiway, in runway coordinates: the side towards the site (−c). */
-export const APRON = { a0: -1000, a1: -880, c0: -190, c1: -95, taxi: { a: -940, c0: -95, c1: -RUNWAY.width / 2, width: 23 } };
+// Near the 28 end, 371–491 m in from its threshold.
+export const APRON = { a0: RUNWAY.length / 2 - 491, a1: RUNWAY.length / 2 - 371, c0: -190, c1: -95, taxi: { a: RUNWAY.length / 2 - 431, c0: -95, c1: -RUNWAY.width / 2, width: 23 } };
 /** 0 on the runway, its shoulders, the taxiway and the apron (plus a margin), 1 in open country. */
 export function runwayMask(x, z) {
   const [a, c] = toRunway(x, z), M = RUNWAY.margin;

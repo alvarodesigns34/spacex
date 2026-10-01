@@ -28,7 +28,7 @@ export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause, onAssi
     <button type="button" class="f16-btn" id="f16-cam" title="Camera: chase, cockpit, tower, your own orbit (C)">Chase <kbd>C</kbd></button>
     <button type="button" class="f16-btn" id="f16-assist" aria-pressed="true" title="Simple controls (W S A D and G); off gives every control of the airplane">Simple</button>
     <button type="button" class="f16-btn" id="f16-pause" aria-pressed="false" title="Pause (K)">Pause <kbd>K</kbd></button>
-    <button type="button" class="f16-btn" id="f16-restart" title="Back to runway 13's threshold (Enter)">Runway <kbd>Enter</kbd></button>
+    <button type="button" class="f16-btn" id="f16-restart" title="Back to the runway's threshold (Enter)">Runway <kbd>Enter</kbd></button>
     <button type="button" class="f16-btn f16-end" id="f16-end" title="Back to the exhibit (Esc)">End <kbd>Esc</kbd></button>
     <p class="f16-keys f16-easy"><kbd>W</kbd> take off, then nose down · <kbd>S</kbd> nose up · <kbd>A</kbd><kbd>D</kbd> turn · <kbd>G</kbd> gear · <kbd>C</kbd> camera — engine and brakes look after themselves</p>
     <p class="f16-keys f16-full"><kbd>W</kbd><kbd>S</kbd> stick fore/aft (<kbd>Shift</kbd> full) · <kbd>A</kbd><kbd>D</kbd> roll · <kbd>Q</kbd><kbd>E</kbd> rudder and nose wheel · <kbd>R</kbd><kbd>F</kbd> throttle · <kbd>Space</kbd> brakes · <kbd>B</kbd> speed brakes · <kbd>G</kbd> gear</p>
@@ -73,7 +73,7 @@ export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause, onAssi
     if (msgs !== lastMsgs) { lastMsgs = msgs; $('#f16-msgs').innerHTML = r.messages.map(m => `<li>${m}</li>`).join(''); }
     const res = $('#f16-result');
     res.classList.toggle('hidden', !r.outcome);
-    if (r.outcome) res.innerHTML = `<b>${r.outcome.kind === 'crash' ? 'Crash' : 'Landed'}</b> ${r.outcome.why} <span>Enter: runway 13 · Esc: back to the exhibit</span>`;
+    if (r.outcome) res.innerHTML = `<b>${r.outcome.kind === 'crash' ? 'Crash' : 'Landed'}</b> ${r.outcome.why} <span>Enter: back to the runway · Esc: back to the exhibit</span>`;
 
     const cockpit = r.camera === 'cockpit';
     g.save();

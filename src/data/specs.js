@@ -476,7 +476,7 @@ export const VEHICLES = [
       { label: 'Flight model · beyond Mach 0.6', value: 'lift slope and wave drag through the transonic range to linear supersonic theory: no public F-16 data between Mach 0.6 and 1.6', source: 'derived', approx: true },
       { label: 'Flight model · engine', value: 'installed thrust at idle, military and full afterburner, 0–15,240 m, Mach 0.2–1.0; extrapolated beyond (≈)', source: 'nasa', ref: 'nasa_tp1538' },
       { label: 'Flight control system', value: 'load-factor command with an α limit of ≈25°, roll-rate command to 308°/s, yaw damper, aileron–rudder interconnect and the leading-edge flap\'s schedule, from TP-1538 appendix A; the gains are tuned, not published', source: 'nasa', ref: 'nasa_tp1538' },
-      { label: 'Runway 13/31', value: '≈9,000 × 150 ft (2,743 × 45.7 m) asphalt with ≈25 ft paved shoulders, a common size for a fighter base (no particular runway is drawn); true bearing 130.8°', source: 'derived', approx: true },
+      { label: 'Runway 10/28', value: '≈8,000 × 150 ft (2,438 × 45.7 m) asphalt with ≈25 ft paved shoulders, a common size for a fighter base (no particular runway is drawn); true bearing 100.8°, its east end ≈500 m from the row', source: 'derived', approx: true },
       { label: 'Runway markings', value: 'precision runway, 150 ft wide: 12 threshold stripes 150 × 5.75 ft, 60 ft numerals, centre line 120 ft stripes and 80 ft gaps 36 in wide, aiming point 150 × 30 ft at 1,020 ft, touchdown zone bars 75 × 6 ft every 500 ft, 3 ft edge lines; taxiway centre and edge lines and a pattern A holding position marking', source: 'faa', ref: 'faa_ac5340' },
       { label: 'Runway lights and windsock', value: 'edge lights every 200 ft, threshold and end lights, a four-unit PAPI on the left of each end, a 12 ft orange windsock: placed plausibly, not to a plan', source: 'derived', approx: true },
     ],
@@ -495,7 +495,7 @@ export const VEHICLES = [
       { id: 'tail', label: 'Tail and nozzle', pos: [-12.0, 3.0, 5.5], target: [-6.0, 2.0, 0] },
       { id: 'gear', label: 'Main gear', pos: [0.6, 0.7, 4.6], target: [-1.8, 0.5, 0] },
       { id: 'planform', label: 'Planform', pos: [0.5, 30, 0.5], target: [0, 0, 0] },
-      { id: 'runway', label: 'Runway 13', pos: [-55, 9, 6], target: [120, 0, 0] },
+      { id: 'runway', label: 'Runway 28', pos: [-55, 9, 6], target: [120, 0, 0] },
     ],
   },
 ];

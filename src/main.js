@@ -111,13 +111,13 @@ const LAYOUT = {
     people: [[4.8, 0, -2.8, -0.6], [-5.8, 0, 2.2, -1.4], [1.2, 0, -3.0, 2.6]],
   },
   // The F-16 stands on its own runway (terrain.js RUNWAY), as Starship stands on its pad: lined
-  // up on runway 13's threshold, 40 m in, ready to roll. Not in the row (`remote`): the row's
+  // up on runway 28's threshold (the east end, next to the site), 40 m in, ready to roll. Not in the row (`remote`): the row's
   // lecterns and its overview leave it out.
   f16: (() => {
     // People are placed by world offsets; each stands on the pavement where it falls.
-    const a = -RUNWAY.length / 2 + 40 + 7.52, [x, z] = fromRunway(a, 0);
+    const a = RUNWAY.length / 2 - 40 - 7.52, [x, z] = fromRunway(a, 0);
     const person = (dx, dz, ry) => [dx, runwaySurface(...toRunway(x + dx, z + dz)), dz, ry];
-    return { x, z, mount: runwaySurface(a, 0), yaw: -RUNWAY.angleDeg, remote: true, people: [person(3.5, 6.5, 0.6), person(-8.0, -6.0, -2.2)] };
+    return { x, z, mount: runwaySurface(a, 0), yaw: 180 - RUNWAY.angleDeg, remote: true, people: [person(3.5, 6.5, 0.6), person(-8.0, -6.0, -2.2)] };
   })(),
 };
 // Recomposed when the Roadster became the sixth exhibit: the old frame was centred on x = -14
@@ -627,7 +627,7 @@ async function main() {
   sequences.reentry = reentry;
 
   // ---- The F-16 in flight ----
-  // The exhibit's airplane leaves its spot on runway 13 and flies on the flight model
+  // The exhibit's airplane leaves its spot on runway 28 and flies on the flight model
   // (sim/f16Flight.js) in this same scene; the HUD and the flight's bar are ui/f16Hud.js.
   // The ground under it is the one drawn: the runway's pavement, the terrain's height
   // function with the beach and the sea, and past the disc the curvature's drop.
