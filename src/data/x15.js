@@ -188,3 +188,23 @@ export const GEAR = {
 export const TIP_POD = { radius: 0.105, length: 1.12, front: -0.18 };
 
 export const MODEL_INCH = MODEL_IN;
+
+/**
+ * The attitude on the gear (landing configuration): the FRL pitched nose down by the angle that
+ * puts the nose gear's FRL at GEAR.noseFRLHeight and the upper fin's tip (trailing edge) at the
+ * manual's 11 ft 6 in. Radians, negative nose down sign-free here: the angle returned is the
+ * FRL's rise towards the tail. Shared by the exhibit and the flight model's gear.
+ */
+export function groundAttitude() {
+  // FRL height above the ground at station s: h0 + (s − s0)·tan θ. The highest point of the
+  // airplane is the upper fin's tip at its trailing edge.
+  const s0 = GEAR.noseStation, h0 = GEAR.noseFRLHeight;
+  const sTip = UPPER_FIN.rootLE + UPPER_FIN.rootChord, yTip = STATIONS.upperFinTip;
+  let th = 0.04;
+  for (let i = 0; i < 30; i++) {
+    const hFRL = h0 + (sTip - s0) * Math.tan(th);
+    const f = hFRL + yTip * Math.cos(th) - X15.landingHeight;
+    th -= f / ((sTip - s0) / Math.cos(th) ** 2);
+  }
+  return th;
+}

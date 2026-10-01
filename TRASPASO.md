@@ -69,11 +69,12 @@ Fases (cada una es un commit con check a 0):
    - El ángulo de los rótulos es físico: 90 es la izquierda (−Z). El arco del barrido va hacia +Z, así que `arcAt` lo invierte.
    - El atlas va sin `flipY`, y el mapa normal lleva `normalScale.y` negativo.
    - Queda la carlinga que se abre por detrás: va con la cabina (fase 5).
-3. **Motor de vuelo 6-DOF, sin navegador** (`src/sim/x15Flight.js` o similar), con pruebas:
-   - aerodinámica digitalizada de TN D-3343 (CL/CD de Mach 0,65 a 6), TN D-2532 (derivadas) y TM X-236 (Mach 6,83), cada valor marcado PUBLISHED, DIGITIZED o DERIVED;
-   - masa, CG e inercias variables: anclaje en 14 318 lb con Ixx 3 600, Iyy 85 000, Izz 86 500 e Ixz −650 slug·ft²;
-   - XLR99 regulable, RCS por propulsor (A: 113 lbf en el morro; B: 40 lbf en las alas; 2 sistemas) y SAS convencional (no el MH-96 del #3);
-   - contacto de patines y rueda de morro.
+3. **Motor de vuelo 6-DOF: hecha.** Commit «X-15 phase 3: six-degree-of-freedom flight model», README *X-15 #1: fase 3*.
+   - Archivos: `src/sim/x15Flight.js` (modelo), `src/data/x15Aero.js` (tablas con procedencia) y `tools/x15-check.mjs` (pruebas y mutantes, dentro de `check:static`).
+   - Ejes del cuerpo: x adelante, y a la derecha, z abajo. Marco inercial con el origen en el centro de la Tierra, y el punto de suelta en lat 0, lon 0 (+X arriba, +Y este, +Z norte). Modelo 3D: y_modelo = −z_cuerpo y z_modelo = y_cuerpo.
+   - API: `makeState({altitude, speed, heading, gamma, alpha, bank, propellant})`, `step(s, controls, dt)` (RK4; 1/200 s en vuelo y 1/400 s en el suelo) y `describe(s)`.
+   - Controles: `dh`, `da`, `dv` en grados (los del piloto, antes del SAS), `throttle` (0 o 0,5–1), `speedBrake`, `flaps`, `gear`, `rcs` [alabeo, cabeceo, guiñada] de −1 a 1, `sas` y `sasGain`.
+   - Documentos descargados (solo consulta, fuera del repositorio): TN D-2532, TM X-714 y CR-2144, de NTRS.
 4. **Pista y modo de vuelo:** controles (teclado, ratón, Gamepad API), cámaras, instrumentos, suelta, aterrizaje y carrera sobre patines.
 5. **Cabina** según el manual (figura 1-2 y consolas).
 6. **Terreno real ampliado** por teselas.

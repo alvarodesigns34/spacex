@@ -20,7 +20,7 @@ import * as THREE from 'three';
 import { curve, mesh, mergeAll, mat4 } from '../geometry/utils.js';
 import {
   X15, STATIONS, OUTLINE, NOSE, WING, HTAIL, HTAIL_EXPOSED_ROOT, UPPER_FIN, LOWER_FIN,
-  WING_AIRFOIL, HTAIL_AIRFOIL, GEAR, TIP_POD,
+  WING_AIRFOIL, HTAIL_AIRFOIL, GEAR, TIP_POD, groundAttitude,
 } from '../data/x15.js';
 import { makeX15Skin, makeX15SurfaceTile, makeX15Decal } from '../materials/x15Textures.js';
 
@@ -882,19 +882,7 @@ export function buildX15Airframe(M, { ventral = false } = {}) {
 }
 
 /** Ground attitude: the FRL's pitch that puts the upper fin tip at the manual's 11 ft 6 in. */
-function groundPitch() {
-  // FRL height above the ground at station s: h0 + (s − s0)·tan θ. The highest point of the
-  // airplane is the upper fin's tip at its trailing edge.
-  const s0 = GEAR.noseStation, h0 = GEAR.noseFRLHeight;
-  const sTip = UPPER_FIN.rootLE + UPPER_FIN.rootChord, yTip = STATIONS.upperFinTip;
-  let th = 0.04;
-  for (let i = 0; i < 30; i++) {
-    const hFRL = h0 + (sTip - s0) * Math.tan(th);
-    const f = hFRL + yTip * Math.cos(th) - X15.landingHeight;
-    th -= f / ((sTip - s0) / Math.cos(th) ** 2);
-  }
-  return th;
-}
+const groundPitch = groundAttitude;
 
 /**
  * The exhibit: the airframe on its gear, landing configuration. The group's origin is on the

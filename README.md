@@ -393,6 +393,47 @@ Los rótulos se pintan **a nivel**: conservan su altura sobre la línea de refer
 
 **Pendiente de la fase 2, aplazado:** la carlinga que se abre por detrás, que irá con la cabina (fase 5).
 
+### X-15 #1: fase 3, el motor de vuelo (1 de octubre de 2026)
+
+El X-15 ya tiene un **modelo de vuelo de seis grados de libertad** (`src/sim/x15Flight.js`). Funciona sin navegador y está validado contra datos de vuelo de la NASA. Todavía no se puede pilotar en el centro: la pista, los mandos y las cámaras son la fase 4.
+
+**Qué simula:**
+- **Tierra esférica sin rotación** con gravedad del inverso del cuadrado. La rotación terrestre se omite (≈): la aceleración de Coriolis a Mach 6 es ≈0,2 % de g.
+- **Atmósfera estándar de 1976:** por capas hasta 86 km; por encima, con los valores tabulados de la norma.
+- **Aerodinámica medida en vuelo, con el timón inferior quitado,** como el avión expuesto y los últimos vuelos. Cada tabla de `src/data/x15Aero.js` va marcada como PUBLISHED, DIGITIZED, DERIVED o ESTIMATE:
+  - fuerza normal de **TN D-2532** (fig. 14);
+  - resistencia en vuelo compensado de **TN D-3343** (fig. 9, digitalizada a 300 ppp);
+  - estabilidad y control en cabeceo, guiñada y alabeo de TN D-2532 (figs. 15 a 25);
+  - compensación de **TM X-714** (fig. 8);
+  - amortiguamiento en alabeo derivado de **CR-2144** (tablas V-1 y V-6).
+- **El momento de cabeceo** se construye para que el avión se compense donde TM X-714 lo midió. Entre las curvas, el control que resulta concuerda con el medido en TN D-2532: −0,0081 frente a −0,0088 por grado a Mach 3.
+- **XLR99 de SP-60:** 57.000 lbf, 13.000 lb de propulsante por minuto, 18.000 lb y mando de gases del 50 al 100 %.
+- **Masa e inercias variables** según el peso (TN D-2532, fig. 3), con el centro de gravedad al 20 % de la cuerda media.
+- **Cohetes de control** de morro y alas, con dos sistemas.
+- **Amortiguadores (SAS)** convencionales con las ganancias de CR-2144.
+- **Contacto con el suelo:** rueda de morro y patines, con amortiguadores y rozamiento.
+
+**Validación** (`npm run check:x15`, dentro del check):
+- **Periodo corto:** en siete maniobras de TN D-2532 con el amortiguador de cabeceo apagado, el periodo cae dentro de un 25 % (1,42 s frente a 1,40 s a Mach 3,4; 3,05 frente a 2,90 s a Mach 4,5).
+- **Balanceo holandés:** en seis maniobras de la tabla V, dentro de un 20 % (2,52 frente a 2,50 s a Mach 0,82). A Mach 2,3 sale un 15 % más corto.
+- **Combustión del XLR99:** 83,1 s frente a los 85 s de SP-60.
+- **Perfiles propulsados**, desde la suelta a 45.000 ft y Mach 0,8 con un piloto automático sencillo: de velocidad, Mach 5,7 (el récord del avión básico es 6,04); de altura, 334.000 ft (el récord es 354.200 ft).
+- **Aterrizaje:** primero los patines, y la rueda de morro 0,71 s después (TM X-207 midió 0,52 s). En reposo queda a −1,42°, la actitud del expositor (−1,40°).
+- **Otras pruebas:** atmósfera dentro del 0,3 %, energía conservada en vacío y aceleración angular de los cohetes igual a par entre inercia.
+- **Mutantes:** cinco versiones saboteadas tienen que fallar, y fallan: la compensación extrapolada al revés, sin consumo de propulsante, el amortiguamiento con el signo cambiado, la Tierra plana y Cnβ de túnel en lugar del de vuelo.
+
+**Aproximaciones declaradas (≈):**
+- la rigidez de los amortiguadores del tren y el rozamiento de los patines (μ ≈ 0,3), con los que el avión desliza ≈1,7 km;
+- los incrementos de flaps y tren;
+- la autoridad del SAS;
+- el amortiguamiento en guiñada, medido solo con el timón inferior puesto;
+- el empuje de 57.000 lbf tomado como empuje en vacío;
+- por debajo de Mach 1, la compensación de Mach 1;
+- los cohetes de control (datos de la ficha del usuario) y sus brazos;
+- sin calentamiento, sin viento, sin dinámica de actuadores y sin el agua oxigenada que alimenta los cohetes.
+
+**Corrección de la fase 1:** la actitud sobre el tren (`groundAttitude`) está ahora en `src/data/x15.js`. La usan el expositor y el tren del modelo de vuelo, así que el avión en reposo y el expositor tienen la misma actitud por construcción.
+
 ### Historial
 
 Las rondas anteriores —entorno, vehículos contra las fotos, nube y sonido del lanzamiento, revisión corriendo la simulación y las auditorías externas de Grok y ChatGPT— están en [docs/historial.md](docs/historial.md), rotuladas como históricas. Este README describe el estado actual.

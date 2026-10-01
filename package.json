@@ -12,8 +12,9 @@
     "check:scene": "node tools/check.mjs",
     "check:ux": "node tools/ux-check.mjs",
     "check:provenance": "node tools/provenance-check.mjs",
+    "check:x15": "node tools/x15-check.mjs",
     "lint": "eslint .",
-    "check:static": "npm run lint && node tools/provenance-check.mjs && node tools/cloud-check.mjs && node tools/hardware-check.mjs",
+    "check:static": "npm run lint && node tools/provenance-check.mjs && node tools/cloud-check.mjs && node tools/x15-check.mjs && node tools/hardware-check.mjs",
     "check:lod": "node tools/lod-pop.mjs"
   },
   "devDependencies": {
