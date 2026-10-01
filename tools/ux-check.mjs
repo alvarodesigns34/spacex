@@ -75,9 +75,11 @@ try {
     await page.evaluate(() => window.__vc.launch.seek(6));
     // ResizeObserver publishes the panel's measured height after layout; wait for that
     // real condition instead of assuming a 180 ms software-rendered frame has completed.
+    // 60 s like the file's other frame-bound waits: the first launch frame at 1024 × 768 is
+    // the slowest of the run, and one runner took over 30 s for it (1 Oct 2026).
     await page.waitForFunction(() => Math.abs(
       Number.parseFloat(document.getElementById('hud').style.getPropertyValue('--mission-height'))
-      - document.getElementById('mission').getBoundingClientRect().height) < 1, null, { timeout: 30000 });
+      - document.getElementById('mission').getBoundingClientRect().height) < 1, null, { timeout: 60000 });
     r = await bounds();
     report(!r.outside.length && !r.overlap.length, `${width}x${height} launch controls`, r);
     if (width === 1366) await page.screenshot({ path: join(OUT, `launch-${width}x${height}.jpg`), type: 'jpeg', quality: 82, timeout: SHOT_MS });
