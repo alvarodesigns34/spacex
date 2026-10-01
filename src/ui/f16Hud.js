@@ -13,7 +13,7 @@ import * as THREE from 'three';
 const GREEN = 'rgba(80, 255, 140, 0.95)', DIM = 'rgba(80, 255, 140, 0.55)';
 const fmt = (x, d = 0) => (Number.isFinite(x) ? x.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
 
-export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause }) {
+export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause, onAssist }) {
   const canvas = document.createElement('canvas');
   canvas.className = 'f16-hud hidden';
   canvas.setAttribute('aria-hidden', 'true');
@@ -26,10 +26,12 @@ export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause }) {
   bar.innerHTML = `
     <span class="eyebrow">F-16A Block 15 · flight model from NASA wind-tunnel data</span>
     <button type="button" class="f16-btn" id="f16-cam" title="Camera: chase, cockpit, tower, your own orbit (C)">Chase <kbd>C</kbd></button>
+    <button type="button" class="f16-btn" id="f16-assist" aria-pressed="true" title="Simple controls (W S A D and G); off gives every control of the airplane">Simple</button>
     <button type="button" class="f16-btn" id="f16-pause" aria-pressed="false" title="Pause (K)">Pause <kbd>K</kbd></button>
     <button type="button" class="f16-btn" id="f16-restart" title="Back to runway 13's threshold (Enter)">Runway <kbd>Enter</kbd></button>
     <button type="button" class="f16-btn f16-end" id="f16-end" title="Back to the exhibit (Esc)">End <kbd>Esc</kbd></button>
-    <p class="f16-keys"><kbd>W</kbd><kbd>S</kbd> stick fore/aft (<kbd>Shift</kbd> full) · <kbd>A</kbd><kbd>D</kbd> roll · <kbd>Q</kbd><kbd>E</kbd> rudder and nose wheel · <kbd>R</kbd><kbd>F</kbd> throttle · <kbd>Space</kbd> brakes · <kbd>B</kbd> speed brakes · <kbd>G</kbd> gear</p>
+    <p class="f16-keys f16-easy"><kbd>W</kbd> take off, then nose down · <kbd>S</kbd> nose up · <kbd>A</kbd><kbd>D</kbd> turn · <kbd>G</kbd> gear · <kbd>C</kbd> camera — engine and brakes look after themselves</p>
+    <p class="f16-keys f16-full"><kbd>W</kbd><kbd>S</kbd> stick fore/aft (<kbd>Shift</kbd> full) · <kbd>A</kbd><kbd>D</kbd> roll · <kbd>Q</kbd><kbd>E</kbd> rudder and nose wheel · <kbd>R</kbd><kbd>F</kbd> throttle · <kbd>Space</kbd> brakes · <kbd>B</kbd> speed brakes · <kbd>G</kbd> gear</p>
     <ul class="f16-msgs" id="f16-msgs" aria-live="polite"></ul>
     <div class="f16-result hidden" id="f16-result" role="status"></div>
   `;
@@ -39,6 +41,7 @@ export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause }) {
   $('#f16-cam').addEventListener('click', () => onCamera?.());
   $('#f16-restart').addEventListener('click', () => onRestart?.());
   $('#f16-pause').addEventListener('click', () => onPause?.());
+  $('#f16-assist').addEventListener('click', () => onAssist?.());
 
   function resize() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -64,6 +67,8 @@ export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause }) {
     if (!r) return;
     $('#f16-cam').firstChild.textContent = `${r.camera[0].toUpperCase()}${r.camera.slice(1)} `;
     $('#f16-pause').setAttribute('aria-pressed', String(!!r.paused));
+    $('#f16-assist').setAttribute('aria-pressed', String(!!r.assist));
+    bar.classList.toggle('is-assist', !!r.assist);
     const msgs = r.messages.join('|');
     if (msgs !== lastMsgs) { lastMsgs = msgs; $('#f16-msgs').innerHTML = r.messages.map(m => `<li>${m}</li>`).join(''); }
     const res = $('#f16-result');
@@ -170,6 +175,14 @@ export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause }) {
     if (r.speedBrake > 0.05) cfg.push('SPD BRK');
     if (r.brake && r.wow) cfg.push('BRAKES');
     if (r.paused) cfg.push('PAUSED');
+    // On the ground at idle, the one thing to do next, in the middle of the view.
+    if (r.wow && r.throttle < 0.05 && !r.outcome) {
+      g.font = '700 18px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+      g.fillStyle = 'rgba(255, 210, 60, 0.95)';
+      g.fillText(r.assist ? 'PRESS W TO TAKE OFF' : 'HOLD R FOR THROTTLE · S TO ROTATE AT 135 KT', W / 2, H * 0.3);
+      g.font = '600 15px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+      g.fillStyle = GREEN;
+    }
     g.fillText(cfg.join('  ·  '), cx, cy + half * 0.92);
     const warn = [];
     if (!r.wow && r.gear < 0.98 && r.aglFt < 500 && r.vsFpm < -200) warn.push('GEAR');

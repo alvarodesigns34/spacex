@@ -54,6 +54,8 @@ Fases, cada una un commit con check a 0, empujado a las cinco ramas (las cuatro 
    - Freno de estacionamiento al empezar: al ralentí el F100 empuja más de lo que frena la rodadura, y el avión avanzaba solo.
    - Al volver a rodar tras parar, el cartel «Landed» se retira.
    - La velocidad del HUD es la calibrada de verdad (`calibrated(M, P)` en `f16Fly.js`), no la equivalente.
+   - Corrección tras probarlo el usuario: el vuelo corre con `steps.mission` (tiempo de pared, máximo 0,5 s por paso), no con `steps.view` (máximo 0,05 s), que lo ponía a cámara lenta por debajo de 20 fps. `ux-check` lo comprueba.
+   - Mandos simples por petición del usuario («demasiado complejo»): `easyControls` en `f16Fly.js`, activo por defecto (`state.assist`); el botón *Simple* de la barra vuelve a los mandos completos. W despega/morro abajo, S morro arriba, A/D inclinación hasta 60°, G tren; el motor y los frenos son automáticos.
    - **Galería sin regenerar:** el usuario pidió esperar a su confirmación. Cuando la dé, añade a `tools/docs-shots.json` las vistas del F-16 y de la pista (y, si quiere, alguna del vuelo) y regenera con `npm run shots`.
 
 Fuentes descargadas para consulta, fuera del repositorio (en la carpeta temporal de la sesión; se pueden volver a bajar de NTRS):

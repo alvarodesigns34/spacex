@@ -646,6 +646,7 @@ async function main() {
     onCamera: () => f16fly.cycleCamera(),
     onRestart: () => f16fly.restart(),
     onPause: () => f16fly.setPaused(!f16fly.state.paused),
+    onAssist: () => f16fly.setAssist(!f16fly.state.assist),
   });
   const f16fly = createF16Fly({
     scene, exhibit: exhibits.f16, env, rig, camera, ground: f16Ground, hud: f16Hud,
@@ -1436,7 +1437,9 @@ async function main() {
     rig.update(dt);
     launch.update(steps.mission);
     reentry.update(steps.mission);
-    f16fly.update(dt);
+    // Wall time, like the launch: on the view's clamped step the flight ran in slow motion
+    // under 20 fps (at 10 fps, at half speed).
+    f16fly.update(steps.mission);
     sound?.update();
     // Water keeps moving whatever the camera or the launch is doing.
     WAVE_TIME.value += dt;

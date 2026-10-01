@@ -177,10 +177,10 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
           <section class="guide-sec" data-mode="f16">
             <h3>Fly the F-16 <kbd>J</kbd> <span class="guide-here">you are here</span></h3>
             <dl>
-              <dt><kbd>W</kbd><kbd>S</kbd> · <kbd>A</kbd><kbd>D</kbd></dt><dd>stick: pull, push · roll (<kbd>Shift</kbd> for full travel)</dd>
-              <dt><kbd>R</kbd> <kbd>F</kbd> · <kbd>Q</kbd> <kbd>E</kbd></dt><dd>throttle, afterburner past 77 % · rudder and nose wheel</dd>
-              <dt><kbd>space</kbd> · <kbd>B</kbd> · <kbd>G</kbd></dt><dd>wheel brakes · speed brakes · gear</dd>
-              <dt><kbd>C</kbd> · <kbd>Enter</kbd> · <kbd>Esc</kbd></dt><dd>camera · back to runway 13 · end</dd>
+              <dt><kbd>W</kbd></dt><dd>take off from the runway; in the air, nose down</dd>
+              <dt><kbd>S</kbd></dt><dd>nose up · let go and it flies level</dd>
+              <dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>turn (and steer on the ground)</dd>
+              <dt><kbd>G</kbd> · <kbd>C</kbd> · <kbd>Esc</kbd></dt><dd>gear, to land · camera · end</dd>
             </dl>
           </section>
           <section class="guide-sec">

@@ -102,7 +102,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
   const sim = createF16Flight({ ground });
   const s = sim.state;
   // `manual`: the checks set `pilot` themselves and the keyboard is not read.
-  const state = { running: false, paused: false, camera: 'chase', outcome: null, touchdown: null, messages: [], readout: null, flown: false, manual: false };
+  const state = { running: false, paused: false, camera: 'chase', outcome: null, touchdown: null, messages: [], readout: null, flown: false, manual: false, assist: true };
   const saved = { parent: null, position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), near: 0, far: 0, fov: 0 };
 
   // ---- Controls ---------------------------------------------------------------------------------
@@ -110,7 +110,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
   const pilot = { pitch: 0, roll: 0, yaw: 0, throttle: 0, brake: 1, parking: true, speedBrake: false, gearDown: true };
   const typing = (t) => t.tagName === 'TEXTAREA' || t.isContentEditable || (t.tagName === 'INPUT' && t.type !== 'range');
   const CODES = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-    'KeyR', 'KeyF', 'Space', 'KeyB', 'KeyG', 'KeyC', 'KeyK', 'Escape', 'Enter', 'ShiftLeft', 'ShiftRight']);
+    'KeyR', 'KeyF', 'PageUp', 'PageDown', 'Space', 'KeyB', 'KeyG', 'KeyC', 'KeyK', 'Escape', 'Enter', 'ShiftLeft', 'ShiftRight']);
   function onKeyDown(e) {
     if (!state.running || typing(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
     // The flight owns the keyboard while it runs: the centre's own shortcuts (the vehicle
@@ -138,6 +138,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
     pilot.gearDown = !pilot.gearDown;
     note(pilot.gearDown ? 'Gear down' : 'Gear up');
   }
+  function setAssist(on) { state.assist = !!on; note(state.assist ? 'Simple controls: W S A D and G' : 'Full controls: every control is yours'); }
   function note(text) { state.messages.push({ text, t: performance.now() }); if (state.messages.length > 4) state.messages.shift(); }
 
   const padPrev = new Map();
@@ -145,6 +146,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
   /** Keyboard and gamepad to stick, pedals, throttle and brakes. dt in real seconds. */
   function readControls(dt) {
     if (state.manual) { toSim(); return; }
+    if (state.assist) { easyControls(dt); toSim(); return; }
     const k = (...c) => (c.some(x => keys.has(x)) ? 1 : 0);
     const ramp = (cur, target, rate) => cur + THREE.MathUtils.clamp(target - cur, -rate * dt, rate * dt);
     // Pull (S, ↓) is nose up. Held, the stick moves out at a rate; Shift doubles its reach.
@@ -155,9 +157,10 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
     pilot.pitch = ramp(pilot.pitch, tp, tp ? 1.2 : 3);
     pilot.roll = ramp(pilot.roll, tr, tr ? 2.5 : 5);
     pilot.yaw = ramp(pilot.yaw, ty, ty ? 2 : 4);
-    // Throttle: R forward, F back, 0.35 of the lever's travel a second; the afterburner detent at 0.77.
+    // The afterburner detent at 0.77.
     const before = pilot.throttle;
-    pilot.throttle = THREE.MathUtils.clamp(pilot.throttle + (k('KeyR') - k('KeyF')) * 0.35 * dt, 0, 1);
+    // Throttle: R (or Page Up) forward, F (or Page Down) back, half the lever's travel a second.
+    pilot.throttle = THREE.MathUtils.clamp(pilot.throttle + (k('KeyR', 'PageUp') - k('KeyF', 'PageDown')) * 0.5 * dt, 0, 1);
     if (before < 0.77 && pilot.throttle >= 0.77) note('Afterburner');
     if (before >= 0.77 && pilot.throttle < 0.77) note('Military power');
     // The parking brake holds the airplane on the threshold until the throttle comes off idle:
@@ -181,6 +184,68 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
       break;
     }
     toSim();
+  }
+
+  /**
+   * The simple controls (on by default; the bar's Assist button gives every control back). The
+   * airplane and its control laws are the same; only the controls a beginner finds hard are
+   * worked for them, as a second pilot would:
+   *  - W on the runway starts the take-off: full afterburner, brakes off. It rotates by itself
+   *    at 140 kt to 10° of pitch (never past 11°: the nozzle strikes at ≈14.5°), holds that in the
+   *    climb-out and raises the gear.
+   *  - In the air: S nose up, W nose down, A/D bank up to 60°; let go and it flies level, wings
+   *    level. The throttle holds 350 kt, or 145 kt with the gear down for the approach.
+   *  - After a touchdown: idle and the brakes. A/D steer the nose wheel on the ground.
+   */
+  const _a = new THREE.Vector3();
+  let assistClimb = false, rolling = false, atI = 0, gearAuto = false;
+  function easyControls(dt) {
+    const k = (...c) => (c.some(x => keys.has(x)) ? 1 : 0);
+    const ramp = (cur, target, rate) => cur + THREE.MathUtils.clamp(target - cur, -rate * dt, rate * dt);
+    const up = k('KeyS', 'ArrowDown'), down = k('KeyW', 'ArrowUp');
+    const tr = k('KeyD', 'ArrowRight') - k('KeyA', 'ArrowLeft');
+    const pitchDeg = Math.asin(THREE.MathUtils.clamp(_a.set(1, 0, 0).applyQuaternion(s.q).y, -1, 1)) * R2D;
+    const bank = Math.asin(THREE.MathUtils.clamp(-_a.set(0, 0, 1).applyQuaternion(s.q).y, -1, 1)) * R2D;
+    if (s.wow) {
+      pilot.roll = ramp(pilot.roll, tr, tr ? 2.5 : 5);
+      if (down && s.tas < 5) {
+        if (!rolling) note('Take-off: full afterburner');
+        rolling = true; state.touchdown = null; if (state.outcome?.kind === 'stopped') state.outcome = null;
+        pilot.parking = false;
+      }
+      if (state.touchdown) rolling = false;
+      pilot.throttle = rolling ? 1 : 0;
+      pilot.brake = rolling ? 0 : 1;
+      pilot.yaw = pilot.roll;
+      pilot.pitch = rolling && s.tas > 140 * KT ? THREE.MathUtils.clamp(0.08 * (10 - pitchDeg), -0.2, 0.8) : 0;
+      if (pitchDeg > 11) pilot.pitch = Math.min(pilot.pitch, 0);
+      assistClimb = rolling; atI = 0;
+      return;
+    }
+    rolling = false;
+    pilot.yaw = 0;
+    pilot.brake = 0;
+    // A/D ask for a bank angle, up to 60°, not a roll rate; let go and the wings come level.
+    const bankWant = tr * 60;
+    pilot.roll = THREE.MathUtils.clamp(0.03 * (bankWant - bank) - 0.004 * s.w.x * R2D, -0.6, 0.6);
+    // W/S move the nose; let go and it holds level flight, pulling the g a turn needs.
+    const want = (up - down) * 0.5;
+    if (want) assistClimb = false;
+    const turnG = (1 / Math.max(0.5, Math.cos(bank * D2R)) - 1) / 8;
+    if (assistClimb && s.agl < 150) pilot.pitch = THREE.MathUtils.clamp(0.03 * (10 - pitchDeg) - 0.01 * s.w.y * R2D, -0.15, 0.3);
+    else if (want) { assistClimb = false; pilot.pitch = ramp(pilot.pitch, want + turnG, 1.2); }
+    else pilot.pitch = ramp(pilot.pitch, turnG + THREE.MathUtils.clamp(-0.004 * s.vel.y, -0.12, 0.12), 3);
+    // The gear comes up by itself once, climbing away from the take-off.
+    if (pilot.gearDown && !gearAuto && s.agl > 60 && s.vel.y > 2) { pilot.gearDown = false; gearAuto = true; note('Gear up · G lowers it to land'); }
+    // Autothrottle on calibrated airspeed: 350 kt, or 145 kt with the gear down.
+    // Full power through the climb-out, until the gear is up.
+    if (!gearAuto) { pilot.throttle = 1; return; }
+    const target = (pilot.gearDown ? 145 : 350) * KT, cas = calibrated(s.mach, atmosphere(s.pos.y).P);
+    const err = target - cas;
+    atI = THREE.MathUtils.clamp(atI + err * 0.004 * dt, -0.6, 0.6);
+    pilot.throttle = THREE.MathUtils.clamp(0.45 + atI + err * 0.02, 0, 1);
+    // Too fast with the gear down: the speed brakes come out.
+    pilot.speedBrake = pilot.gearDown && err < -15 * KT;
   }
   function toSim() {
     Object.assign(sim.input, {
@@ -308,6 +373,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
     sim.reset({ x: nx, z: nz, yaw: -RUNWAY.angleDeg * D2R });
     Object.assign(pilot, { pitch: 0, roll: 0, yaw: 0, throttle: 0, brake: 1, parking: true, speedBrake: false, gearDown: true });
     Object.assign(state, { outcome: null, touchdown: null, flown: false, paused: false });
+    rolling = false; assistClimb = false; atI = 0; gearAuto = false;
   }
   function start() {
     if (state.running) return;
@@ -331,7 +397,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
     window.addEventListener('blur', onBlur);
     visibilityHook?.(true);
     hud?.show(true);
-    note('Runway 13 · R throttle, Space brakes, S to rotate at 135 kt');
+    note(state.assist ? 'W to take off · S up, W down, A/D turn · G gear to land' : 'Hold R for throttle (afterburner past 77 %) · at 135 kt hold S to rotate');
     apply(0);
   }
   function restart() {
@@ -368,7 +434,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
     readControls(dt);
     if (!state.paused && !state.outcome?.kind?.startsWith('crash') && dt > 0) {
       const vy = s.vel.y;
-      sim.advance(Math.min(dt, 0.1));
+      sim.advance(Math.min(dt, 0.5));
       if (s.wow && vy < 0) lastSink = -vy;
       judge();
     }
@@ -382,7 +448,6 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
 
   /** What the HUD shows. */
   function publish() {
-    const e = new THREE.Euler().setFromQuaternion(s.q, 'YXZ');
     // Heading: the nose's direction on the ground; the scene's +X bears 100.8°, angles grow
     // clockwise seen from above (towards +Z).
     _v.set(1, 0, 0).applyQuaternion(s.q);
@@ -392,11 +457,11 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
     state.readout = {
       kcas: cas / KT, ktas: s.tas / KT, mach: s.mach, altFt: (s.pos.y - CG.y) / FT, aglFt: s.agl / FT,
       vsFpm: s.vel.y / FT * 60, alpha: s.alpha, beta: s.beta, nz: s.load, heading: hdg,
-      pitch: Math.asin(THREE.MathUtils.clamp(_v.y, -1, 1)) * R2D, roll: -e.z * R2D,
+      pitch: Math.asin(THREE.MathUtils.clamp(_v.y, -1, 1)) * R2D, roll: Math.asin(THREE.MathUtils.clamp(-_u.set(0, 0, 1).applyQuaternion(s.q).y, -1, 1)) * R2D,
       throttle: pilot.throttle, power: s.power, ab: s.power > 50, thrust: s.thrust,
       gear: s.gear, gearDown: pilot.gearDown, brake: pilot.brake > 0, speedBrake: s.sb, wow: s.wow,
       runway: { along: a + RUNWAY.length / 2, across: c, heading: RW_HEADING },
-      camera: state.camera, paused: state.paused, outcome: state.outcome, touchdown: state.touchdown,
+      camera: state.camera, paused: state.paused, assist: state.assist, outcome: state.outcome, touchdown: state.touchdown,
       messages: state.messages.filter(m => performance.now() - m.t < 5000).map(m => m.text),
       velocity: s.vel, position: s.pos, quaternion: s.q,
     };
@@ -407,7 +472,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
     get state() { return state; },
     get running() { return state.running; },
     get position() { return holder.position; },
-    sim, start, reset, restart, setPaused, setCamera, cycleCamera,
+    sim, start, reset, restart, setPaused, setCamera, cycleCamera, setAssist,
     update(dt) { if (state.running) apply(dt); },
     /** For the checks: the pilot's controls, set directly (the keyboard is read over them). */
     pilot,

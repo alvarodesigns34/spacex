@@ -430,3 +430,6 @@ body.is-touring .coach { display: none; }
 .f16-result b { display: block; font-size: 1.05rem; margin-bottom: 4px; }
 .f16-result span { display: block; margin-top: 8px; color: var(--ink-muted); font-size: 0.8rem; }
 .f16-result.hidden, .f16-bar.hidden { display: none; }
+.f16-bar .f16-full { display: none; }
+.f16-bar:not(.is-assist) .f16-easy { display: none; }
+.f16-bar:not(.is-assist) .f16-full { display: block; }
