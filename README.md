@@ -362,6 +362,31 @@ El F-16A Block 15 ya está en el centro, a escala 1:1 (`src/vehicles/f16.js`, da
 - **Partes móviles:** los flaps de borde de ataque, los flaperones, el estabilizador, el timón y los frenos aerodinámicos son grupos con su eje de bisagra y su recorrido, listos para el modelo de vuelo de la fase 5.
 - **Comprobaciones:** `verify()` mide en la escena el largo, la envergadura y la altura contra las tres cifras de grado A. La tabla de arriba y la ficha se validan con `provenance-check`.
 
+### F-16, fase 4: la pista (1 de octubre de 2026)
+
+El F-16 tiene su propio complejo, como Starship tiene el suyo: una pista con su calle de rodaje y una plataforma pequeña, en la llanura al noroeste del recinto (`src/core/runway.js`). Es una pista con detalle, **no un aeropuerto**: no hay terminal, hangares, torre ni edificios.
+
+- **Pista 13/31:**
+  - 9.000 × 150 ft (2.743 × 45,7 m) de asfalto, con arcenes pavimentados de ≈25 ft. Es un tamaño corriente en una base de cazas; no se dibuja ninguna pista concreta (≈).
+  - Rumbo verdadero 130,8° (de ahí el 13).
+  - Bombeo del 1 % desde el eje (≈) y una franja más oscura de caucho en cada zona de toma de contacto (≈).
+- **Marcas, según la FAA** (AC 150/5340-1M, *Standards for Airport Markings*, 2019, con el cambio 1 de 2020; pista de precisión de 150 ft, figura A-1):
+  - **Umbral:** 12 franjas de 150 × 5,75 ft con huecos de 5,75 ft, el par central a 11,5 ft, a 20 ft del umbral.
+  - **Números:** de 60 ft de alto, 40 ft después de las franjas. El trazo de los números (5 ft) es aproximado a la figura A-6.
+  - **Eje:** trazos de 120 ft, huecos de 80 ft y 36 in de ancho. La AC ajusta el patrón en el centro de la pista; aquí los huecos se igualan a lo largo (≈).
+  - **Punto de visada:** dos barras de 150 × 30 ft a 1.020 ft, con 72 ft entre sus caras interiores.
+  - **Zona de toma de contacto:** barras de 75 × 6 ft separadas 5 ft, en grupos de 3, 3, 2, 2 y 1 cada 500 ft. Una pista de 9.000 ft lleva el juego completo en las dos cabeceras (tabla 2-4).
+  - **Bordes:** líneas de 3 ft en toda la longitud.
+  - **Calle de rodaje:** eje amarillo de 6 in, bordes dobles de 6 in y la marca de punto de espera de patrón A (dos líneas continuas y dos discontinuas de 12 in). Está a 250 ft del eje de la pista, una distancia habitual para cazas (≈).
+- **Luces y manga (≈, verosímiles, sin plano):**
+  - Luces de borde elevadas cada 200 ft (el máximo de AC 150/5340-30).
+  - Luces de umbral y de final en cada cabecera.
+  - Un PAPI de cuatro unidades a la izquierda de cada cabecera, a 50 ft del borde.
+  - Una manga naranja de 12 ft que apunta al noroeste, con la brisa del sureste de la costa.
+  - De día las luces se ven como vidrio; no hay modo noche.
+- **El F-16** está a 40 m dentro del umbral de la 13, sobre el bombeo, alineado para despegar hacia el sureste. La ficha tiene una vista nueva, *Runway 13*.
+- **Presupuesto:** dos materiales nuevos (las lentes, con el color por instancia, y la tela de la manga) y ninguna textura nueva. El asfalto, el hormigón y la pintura reutilizan los mapas de la carretera y del recinto.
+
 ### Historial
 
 Las rondas anteriores —entorno, vehículos contra las fotos, nube y sonido del lanzamiento, revisión corriendo la simulación y las auditorías externas de Grok y ChatGPT— están en [docs/historial.md](docs/historial.md), rotuladas como históricas. Este README describe el estado actual.

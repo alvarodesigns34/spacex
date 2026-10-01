@@ -56,6 +56,7 @@ export const SOURCES = {
   // The F-16A (consulted 1 Oct 2026), NASA's reports through NTRS.
   nasa_tp1538: { label: 'NASA TP-1538 (1979) — Simulator study of stall/post-stall characteristics of a fighter airplane with relaxed longitudinal static stability (the F-16): table I mass and dimensions, figure 2 three-view, aerodynamic and engine data', url: 'https://ntrs.nasa.gov/citations/19800005879' },
   nasa_tp3355: { label: 'NASA TP-3355 (1993) — Supersonic aerodynamic characteristics of an advanced F-16 derivative aircraft configuration: table II, the F-16C model\'s geometry; figure 2, its dimensioned three-view', url: 'https://ntrs.nasa.gov/citations/19930022544' },
+  faa_ac5340: { label: 'FAA AC 150/5340-1M (2019, Change 1 2020) — Standards for Airport Markings: precision runway markings (figure A-1), taxiway and holding position markings', url: 'https://www.faa.gov/documentLibrary/media/Advisory_Circular/150-5340-1M-Chg-1-Airport-Markings.pdf' },
   naca_tn1368: { label: 'NACA TN-1368 (1947) — Theoretical and experimental data for a number of NACA 6A-series airfoil sections: figure 7, the 64A006 thickness form', url: 'https://ntrs.nasa.gov/citations/19930082006' },
   nasa_crs28_vertical: { label: 'NASA — CRS-28 Cargo Dragon vertical on LC-39A, capsule–trunk joint (KSC-20230602-PH-SPX01-0006)', url: 'https://images.nasa.gov/details/KSC-20230602-PH-SPX01-0006' },
   nasa_crew13_vertical: { label: 'NASA — Crew-13 Crew Dragon rollout and vertical at SLC-40 (KSC-20260927-PH-SPX01_0010)', url: 'https://images.nasa.gov/details/KSC-20260927-PH-SPX01_0010' },
@@ -470,6 +471,9 @@ export const VEHICLES = [
       { label: 'Weight and inertias (as simulated)', value: '20,500 lb (91.2 kN); Ix 9,496, Iy 55,814, Iz 63,100, Ixz 982 slug·ft²', source: 'nasa', ref: 'nasa_tp1538' },
       { label: 'Engine', value: 'Pratt & Whitney F100-PW-200 afterburning turbofan', source: 'nasa', ref: 'nasa_tp1538' },
       { label: 'Landing gear', value: '≈4.00 m wheelbase, ≈2.36 m track, 27.75 × 8.75 in main and 18 × 5.7 in nose tyres', source: 'derived', approx: true },
+      { label: 'Runway 13/31', value: '≈9,000 × 150 ft (2,743 × 45.7 m) asphalt with ≈25 ft paved shoulders, a common size for a fighter base (no particular runway is drawn); true bearing 130.8°', source: 'derived', approx: true },
+      { label: 'Runway markings', value: 'precision runway, 150 ft wide: 12 threshold stripes 150 × 5.75 ft, 60 ft numerals, centre line 120 ft stripes and 80 ft gaps 36 in wide, aiming point 150 × 30 ft at 1,020 ft, touchdown zone bars 75 × 6 ft every 500 ft, 3 ft edge lines; taxiway centre and edge lines and a pattern A holding position marking', source: 'faa', ref: 'faa_ac5340' },
+      { label: 'Runway lights and windsock', value: 'edge lights every 200 ft, threshold and end lights, a four-unit PAPI on the left of each end, a 12 ft orange windsock: placed plausibly, not to a plan', source: 'derived', approx: true },
     ],
     approximations: [
       'Published and used as given: the surfaces\' areas, spans, chords, sweeps, dihedral, cant and sections (TP-3355 table II, the F-16C model at 1/15), the wing\'s figures and the control limits (TP-1538 table I), the 64A006 thickness form (TN-1368) scaled to the 64A204\'s 4 %.',
@@ -478,7 +482,7 @@ export const VEHICLES = [
       'The gear\'s wheelbase, track and tyres are the figures published everywhere for the F-16; no primary source was reached for them (the US government\'s own sites refuse automated readers), so they are marked ≈.',
       'Finish (≈): the USAF air-superiority greys, FS 36270 above and FS 36375 on the sides and below, the radome darker; seams, access panels and fastener rows are plausible, not drawn from the airframe\'s drawings. No insignia, unit or national markings.',
     ],
-    sources: ['nasa_tp1538', 'nasa_tp3355', 'naca_tn1368'],
+    sources: ['nasa_tp1538', 'nasa_tp3355', 'naca_tn1368', 'faa_ac5340'],
     presets: [
       { id: 'overview', label: 'Overview', pos: [14.0, 4.6, 13.0], target: [0, 1.7, 0] },
       { id: 'cockpit', label: 'Canopy and cockpit', pos: [6.0, 4.1, 3.2], target: [3.0, 2.3, 0] },
@@ -486,6 +490,7 @@ export const VEHICLES = [
       { id: 'tail', label: 'Tail and nozzle', pos: [-12.0, 3.0, 5.5], target: [-6.0, 2.0, 0] },
       { id: 'gear', label: 'Main gear', pos: [0.6, 0.7, 4.6], target: [-1.8, 0.5, 0] },
       { id: 'planform', label: 'Planform', pos: [0.5, 30, 0.5], target: [0, 0, 0] },
+      { id: 'runway', label: 'Runway 13', pos: [-55, 9, 6], target: [120, 0, 0] },
     ],
   },
 ];

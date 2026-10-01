@@ -514,6 +514,12 @@ float vcNoise(vec2 p) {
   M.safetyYellow = new THREE.MeshStandardMaterial({
     color: 0xd49b25, metalness: 0.25, roughness: 0.55,
   });
+  // The runway's light lenses: one material, the colour per instance (white edge lights, green
+  // and red at the ends, the PAPI's lenses). Glass, lit by day; there is no night to light them.
+  M.runwayLens = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0, roughness: 0.18, name: 'runway-lens' });
+  // The windsock's fabric: orange (FAA AC 150/5345-27 allows orange, yellow or white), seen
+  // from inside through its open mouth.
+  M.windsock = new THREE.MeshStandardMaterial({ color: 0xe0601e, roughness: 0.85, metalness: 0, side: THREE.DoubleSide, name: 'windsock' });
   M.steelGrating = new THREE.MeshStandardMaterial({
     color: 0x484e56, metalness: 0.75, roughness: 0.42,
   });

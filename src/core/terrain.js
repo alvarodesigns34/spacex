@@ -86,8 +86,8 @@ const POOLS = POOL_SPEC.map(([x, z, r, seed]) => [x, z, r * 1.3 * Math.sqrt(pool
  * 150 ft (2,743 × 45.7 m), a common length and width for a fighter base's runway (≈: no particular
  * runway is drawn); true bearing 130.8° for runway 13. Its taxiway and apron (runway.js) lie on
  * the side towards the site.
- *  - (a, c): along the centre line (+a towards the south-east end) and across it (+c towards
- *    the north-east side), metres from the runway's centre.
+ *  - (a, c): along the centre line (+a towards the south-east end) and across it (+c to the
+ *    right of +a, the south-west side), metres from the runway's centre.
  */
 export const RUNWAY = { x: -790, z: 1360, angleDeg: 30, length: 2743.2, width: 45.72, margin: 60 };
 const RW_C = Math.cos(RUNWAY.angleDeg * Math.PI / 180), RW_S = Math.sin(RUNWAY.angleDeg * Math.PI / 180);

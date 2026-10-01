@@ -24,7 +24,10 @@ Fases, cada una un commit con check a 0, empujado a las cinco ramas (las cuatro 
    - Bisagras con `userData.hinge` (eje y recorrido): `f16-lef-*`, `f16-flaperon-*`, `f16-stab-*`, `f16-rudder` y `f16-speedbrake-*`. El tren es `f16-landing-gear`.
    - La pista ya existe como máscara del terreno (`RUNWAY`, `toRunway` y `fromRunway` en `terrain.js`: 2.743,2 × 45,72 m, a 30°). El avión está a 40 m del umbral de la 13.
    - Las capturas de comprobación se hacen fuera del repositorio. La galería **no se regenera hasta que el usuario lo confirme**.
-4. Complejo de la pista.
+4. Complejo de la pista: **hecha**, commit «F-16 phase 4: runway 13/31 with FAA markings».
+   - `src/core/runway.js`: `buildRunway(M)` y `runwaySurface(a, c)`, la altura del pavimento en coordenadas de pista. Sirve para posar el avión y, en la fase 5, para el contacto de las ruedas.
+   - Marcas según la FAA AC 150/5340-1M, descargada a la carpeta temporal.
+   - En coordenadas de pista, +c queda a la derecha de +a, hacia el suroeste. El comentario antiguo de `terrain.js`, que decía noreste, se corrigió.
 5. Modelo de vuelo de 6 grados de libertad (TP-1538 y TP-3355, F100, *fly-by-wire*, tren).
 6. Modo de vuelo: despegue, vuelo, aterrizaje, cámaras, cabina y HUD.
 7. Revisión, README, galería.

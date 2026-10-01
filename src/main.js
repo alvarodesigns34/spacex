@@ -28,7 +28,8 @@ import { buildStarlink } from './vehicles/starlink.js';
 import { buildRoadster } from './vehicles/roadster.js';
 import { buildEngineHall } from './vehicles/enginehall.js';
 import { buildF16 } from './vehicles/f16.js';
-import { RUNWAY, fromRunway } from './core/terrain.js';
+import { buildRunway, runwaySurface } from './core/runway.js';
+import { RUNWAY, fromRunway, toRunway } from './core/terrain.js';
 import { buildOrbitalBackdrop } from './core/backdrop.js';
 import { buildLaunchMount, buildPedestal, buildHumanCrowd } from './vehicles/common.js';
 import { seeded, mergeAll } from './geometry/utils.js';
@@ -109,8 +110,10 @@ const LAYOUT = {
   // up on runway 13's threshold, 40 m in, ready to roll. Not in the row (`remote`): the row's
   // lecterns and its overview leave it out.
   f16: (() => {
-    const [x, z] = fromRunway(-RUNWAY.length / 2 + 40 + 7.52, 0);
-    return { x, z, mount: 0, yaw: -RUNWAY.angleDeg, remote: true, people: [[3.5, 0, 6.5, 0.6], [-8.0, 0, -6.0, -2.2]] };
+    // People are placed by world offsets; each stands on the pavement where it falls.
+    const a = -RUNWAY.length / 2 + 40 + 7.52, [x, z] = fromRunway(a, 0);
+    const person = (dx, dz, ry) => [dx, runwaySurface(...toRunway(x + dx, z + dz)), dz, ry];
+    return { x, z, mount: runwaySurface(a, 0), yaw: -RUNWAY.angleDeg, remote: true, people: [person(3.5, 6.5, 0.6), person(-8.0, -6.0, -2.2)] };
   })(),
 };
 // Recomposed when the Roadster became the sixth exhibit: the old frame was centred on x = -14
@@ -265,6 +268,7 @@ async function main() {
   await nextFrame();
   const env = createEnvironment(renderer, scene, M, quality);
   dressCampus(scene, M, { stops: Object.values(LAYOUT).filter(l => !l.pad && !l.remote).map(l => l.x), quality: quality.name });
+  scene.add(buildRunway(M));
 
   // ---- Post-processing (MSAA render target + subtle bloom) ----
   // No stencil. It was added for the scale figures' shadow and made every frame resolve a
@@ -380,6 +384,7 @@ async function main() {
       env.addStation(lay.x, lay.z, 5);
     } else if (v.id === 'f16') {
       // On its gear on the runway, no plinth and no apron ring: the runway is its ground.
+      model.position.y = lay.mount;
     } else if (v.id === 'engines') {
       // No plinth: the engines stand on the apron on their own cradles, which is what makes
       // the 4.4 m of a Raptor Vacuum land next to a visitor rather than above one.
