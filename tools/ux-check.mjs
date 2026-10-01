@@ -630,6 +630,11 @@ try {
     await page.keyboard.press('2');
     await page.waitForTimeout(200);
     report(await page.evaluate(() => window.__vc.f16fly.running && window.__vc.viewState().exhibit === 'f16'), 'While flying, the number keys do not leave the airplane');
+    // At idle the engine pushes harder than the tyres roll: the parking brake holds it until the throttle moves.
+    const p0 = await page.evaluate(() => window.__vc.f16fly.sim.state.pos.toArray());
+    await page.waitForTimeout(2000);
+    const held = await page.evaluate((p0) => { const p = window.__vc.f16fly.sim.state.pos; return { moved: Math.hypot(p.x - p0[0], p.z - p0[2]), brake: window.__vc.f16fly.pilot.parking }; }, p0);
+    report(held.moved < 0.05 && held.brake, 'The parking brake holds the F-16 on the threshold at idle', held);
     // A take-off on the flight model, flown in real time steps by a scripted pilot.
     const flown = await page.evaluate(async () => {
       const v = window.__vc, F = v.f16fly, s = F.sim.state, P = F.pilot;

@@ -12,7 +12,7 @@
  * Keyboard stick and pedals ramp in and centre themselves when let go (≈ this simulation's).
  */
 import * as THREE from 'three';
-import { createF16Flight, CG } from './f16Flight.js';
+import { createF16Flight, CG, atmosphere } from './f16Flight.js';
 import { RUNWAY, fromRunway, toRunway } from '../core/terrain.js';
 import { COCKPIT } from '../vehicles/f16.js';
 import { OVERALL, LINES } from '../data/f16.js';
@@ -21,6 +21,27 @@ const D2R = Math.PI / 180, R2D = 180 / Math.PI, FT = 0.3048, KT = 0.514444;
 /** Runway 13's true heading: the scene's +X bears 100.8° (gulf.js), the runway is 30° from it. */
 const RW_HEADING = 130.8;
 const CAMERAS = ['chase', 'cockpit', 'tower', 'orbit'];
+
+/**
+ * Calibrated airspeed, m/s, as the airspeed indicator reads it: from the pitot's impact pressure,
+ * isentropic below Mach 1 and behind the normal shock (Rayleigh's pitot formula) above, converted
+ * at sea-level standard conditions.
+ */
+export function calibrated(M, P) {
+  const P0 = 101325, a0 = 340.294;
+  const qc = M <= 1 ? P * (Math.pow(1 + 0.2 * M * M, 3.5) - 1)
+    : P * (166.921 * Math.pow(M, 7) / Math.pow(7 * M * M - 1, 2.5) - 1);
+  // The inverse at sea level, subsonic or supersonic (by iteration on the Rayleigh form).
+  const r = qc / P0;
+  let V = a0 * Math.sqrt(5 * (Math.pow(r + 1, 2 / 7) - 1));
+  if (V > a0) {
+    for (let i = 0; i < 20; i++) {
+      const m = V / a0;
+      V = a0 * 0.881285 * Math.sqrt((r + 1) * Math.pow(1 - 1 / (7 * m * m), 2.5));
+    }
+  }
+  return V;
+}
 
 export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, onStart = () => {}, onFinish = () => {}, visibilityHook = null }) {
   const airframe = exhibit.model.getObjectByName('f16-airframe');
@@ -86,7 +107,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
 
   // ---- Controls ---------------------------------------------------------------------------------
   const keys = new Set();
-  const pilot = { pitch: 0, roll: 0, yaw: 0, throttle: 0, brake: 1, speedBrake: false, gearDown: true };
+  const pilot = { pitch: 0, roll: 0, yaw: 0, throttle: 0, brake: 1, parking: true, speedBrake: false, gearDown: true };
   const typing = (t) => t.tagName === 'TEXTAREA' || t.isContentEditable || (t.tagName === 'INPUT' && t.type !== 'range');
   const CODES = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
     'KeyR', 'KeyF', 'Space', 'KeyB', 'KeyG', 'KeyC', 'KeyK', 'Escape', 'Enter', 'ShiftLeft', 'ShiftRight']);
@@ -139,7 +160,10 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
     pilot.throttle = THREE.MathUtils.clamp(pilot.throttle + (k('KeyR') - k('KeyF')) * 0.35 * dt, 0, 1);
     if (before < 0.77 && pilot.throttle >= 0.77) note('Afterburner');
     if (before >= 0.77 && pilot.throttle < 0.77) note('Military power');
-    pilot.brake = k('Space') ? 1 : 0;
+    // The parking brake holds the airplane on the threshold until the throttle comes off idle:
+    // at idle the F100 pushes harder than the tyres roll, and it crept off on its own.
+    if (pilot.parking && pilot.throttle > 0.05) { pilot.parking = false; note('Parking brake off'); }
+    pilot.brake = k('Space') || pilot.parking ? 1 : 0;
     const pads = typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
     for (const g of pads) {
       if (!g || !g.connected) continue;
@@ -258,6 +282,8 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
       note(why);
       return;
     }
+    // Moving again after a stop: the last landing's card goes away.
+    if (state.outcome?.kind === 'stopped' && s.tas > 3) { state.outcome = null; state.touchdown = null; }
     if (!s.wow) { if (state.touchdown && s.agl > 3) state.touchdown = null; state.flown ||= s.agl > 15; return; }
     if (state.flown && !state.touchdown) {
       const [a, c] = toRunway(s.pos.x, s.pos.z);
@@ -280,7 +306,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
     const a = -RUNWAY.length / 2 + 40 + OVERALL.length / 2;
     const [nx, nz] = fromRunway(a + OVERALL.length / 2, 0);   // the nose tip
     sim.reset({ x: nx, z: nz, yaw: -RUNWAY.angleDeg * D2R });
-    Object.assign(pilot, { pitch: 0, roll: 0, yaw: 0, throttle: 0, brake: 1, speedBrake: false, gearDown: true });
+    Object.assign(pilot, { pitch: 0, roll: 0, yaw: 0, throttle: 0, brake: 1, parking: true, speedBrake: false, gearDown: true });
     Object.assign(state, { outcome: null, touchdown: null, flown: false, paused: false });
   }
   function start() {
@@ -361,10 +387,10 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
     // clockwise seen from above (towards +Z).
     _v.set(1, 0, 0).applyQuaternion(s.q);
     const hdg = (100.8 + Math.atan2(_v.z, _v.x) * R2D + 360) % 360;
-    const atm = s.qbar > 0 ? Math.sqrt(2 * s.qbar / 1.225) : 0;   // equivalent airspeed, m/s
+    const cas = calibrated(s.mach, atmosphere(s.pos.y).P);
     const [a, c] = toRunway(s.pos.x, s.pos.z);
     state.readout = {
-      kcas: atm / KT, ktas: s.tas / KT, mach: s.mach, altFt: (s.pos.y - CG.y) / FT, aglFt: s.agl / FT,
+      kcas: cas / KT, ktas: s.tas / KT, mach: s.mach, altFt: (s.pos.y - CG.y) / FT, aglFt: s.agl / FT,
       vsFpm: s.vel.y / FT * 60, alpha: s.alpha, beta: s.beta, nz: s.load, heading: hdg,
       pitch: Math.asin(THREE.MathUtils.clamp(_v.y, -1, 1)) * R2D, roll: -e.z * R2D,
       throttle: pilot.throttle, power: s.power, ab: s.power > 50, thrust: s.thrust,

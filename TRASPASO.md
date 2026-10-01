@@ -4,7 +4,7 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ---
 
-## ⭐ Empieza aquí (estado real al 01-10-2026: X-15 retirado, F-16 en marcha)
+## ⭐ Empieza aquí (estado real al 01-10-2026: F-16 volable, fases 1–7 hechas; galería pendiente de confirmación)
 
 ### Proyecto en curso: F-16A Block 15 volable (desde el 01-10-2026)
 
@@ -50,7 +50,11 @@ Fases, cada una un commit con check a 0, empujado a las cinco ramas (las cuatro 
      - `sequences.f16`, que entra en `anyFlying` y en `enforce`;
      - la clase `is-f16` del `#hud`.
    - Mientras vuela, el teclado es del avión: `onKeyDown` en captura detiene todos los atajos salvo H y ?.
-7. Revisión, README, galería.
+7. Revisión: **hecha**, commit «F-16 phase 7: review».
+   - Freno de estacionamiento al empezar: al ralentí el F100 empuja más de lo que frena la rodadura, y el avión avanzaba solo.
+   - Al volver a rodar tras parar, el cartel «Landed» se retira.
+   - La velocidad del HUD es la calibrada de verdad (`calibrated(M, P)` en `f16Fly.js`), no la equivalente.
+   - **Galería sin regenerar:** el usuario pidió esperar a su confirmación. Cuando la dé, añade a `tools/docs-shots.json` las vistas del F-16 y de la pista (y, si quiere, alguna del vuelo) y regenera con `npm run shots`.
 
 Fuentes descargadas para consulta, fuera del repositorio (en la carpeta temporal de la sesión; se pueden volver a bajar de NTRS):
 - **NASA TP-1538** (Nguyen et al., 1979), NTRS 19800005879: tabla I (peso 20.500 lb; Ix 9.496, Iy 55.814, Iz 63.100, Ixz 982 slug·ft²; envergadura 30 ft, 300 ft², cuerda media 11,32 ft; centro de gravedad de referencia 0,35 c̄), tabla III (aerodinámica, α −20…90°, β ±30°), tabla VI (empuje en ralentí, militar y máximo, de 0 a 50.000 ft y de Mach 0,2 a 1,0) y apéndice A (mandos de vuelo).

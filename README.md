@@ -458,6 +458,13 @@ El F-16 se pilota (`src/sim/f16Fly.js`, HUD en `src/ui/f16Hud.js`). **J** o *F-1
   - Esc deja el avión en su sitio, con la cámara y la escena como estaban.
 - **Sin sonido** por ahora.
 
+### F-16, fase 7: revisión (1 de octubre de 2026)
+
+- **Freno de estacionamiento al empezar.** Al ralentí, el F100 empuja 2,8 kN, más de lo que frena la rodadura de los neumáticos (≈1,8 kN). En cuanto se soltaba el freno inicial, el avión echaba a rodar solo. Ahora el freno de estacionamiento lo sujeta hasta que se dan gases.
+- **El cartel de la toma se retira** al volver a rodar después de pararse.
+- **Velocidad calibrada en el HUD.** Antes era la equivalente, que sale de la presión dinámica como si el aire fuera incompresible. Ahora sale de la presión de impacto del tubo de Pitot: isentrópica por debajo de Mach 1, con la fórmula de Rayleigh por encima, y convertida a nivel del mar estándar, como la lee el anemómetro. A Mach 0,8 y 30.000 ft marca 304 kt, igual que las tablas.
+- **La galería de capturas no se ha regenerado**, a la espera de la confirmación del usuario.
+
 ### Historial
 
 Las rondas anteriores —entorno, vehículos contra las fotos, nube y sonido del lanzamiento, revisión corriendo la simulación y las auditorías externas de Grok y ChatGPT— están en [docs/historial.md](docs/historial.md), rotuladas como históricas. Este README describe el estado actual.
