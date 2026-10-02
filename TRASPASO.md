@@ -4,7 +4,7 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ---
 
-## ⭐ Empieza aquí (estado real al 02-10-2026: F-16 volable y revisado; Porsche 911 GT3 RS conducible con su circuito y su explanada; galería pendiente de confirmación)
+## ⭐ Empieza aquí (estado real al 02-10-2026: F-16 volable con mandos sencillos; Porsche 911 GT3 RS conducible con PSM y derrape con Espacio; pasada vehículo a vehículo hecha; galería regenerada el 02-10)
 
 ### Proyecto en curso: F-16A Block 15 volable (desde el 01-10-2026)
 
@@ -62,7 +62,7 @@ Fases, cada una un commit con check a 0, empujado a las cinco ramas (las cuatro 
      - **Modelo:** `buildNozzle` (tobera maciza, citando la foto de dominio público de la USAF), `buildBooms` con `BOOM` (carenado y pétalos de concha; el eje de bisagra es `[0, 0, -up]` en los dos lados) y tren detallado (`wheel`, `strut`, `torqueLinks`, vástagos con `M.aluminum` para no pasar de 200 materiales), sondas de α y antenas.
      - **Lección:** en `LatheGeometry`, llama a `computeVertexNormals()` antes de `outward()`, porque sus normales analíticas no siguen el orden de los vértices, y dibuja un borde que mira hacia atrás como `RingGeometry` aparte.
      - **Siguiente vehículo (orden del usuario):** Porsche 911 GT3 RS (992, 2023, 525 CV) en Arctic Grey. Conducible con las cifras reales de aceleración, frenada y velocidad, con un circuito realista y una explanada pequeña de asfalto, y derrapes que dejen marcas.
-   - **Galería sin regenerar:** el usuario pidió esperar a su confirmación. Cuando la dé, añade a `tools/docs-shots.json` las vistas del F-16 y de la pista (y, si quiere, alguna del vuelo) y regenera con `npm run shots`.
+   - **Galería regenerada el 02-10-2026** con la aprobación del usuario («Regenera todo y actualiza todo»). `tools/docs-shots.json` lleva el F-16, la pista, el vuelo, el Porsche y el derrape (campo `play` de `shot.mjs`).
 
 Fuentes descargadas para consulta, fuera del repositorio (en la carpeta temporal de la sesión; se pueden volver a bajar de NTRS):
 - **NASA TP-1538** (Nguyen et al., 1979), NTRS 19800005879: tabla I (peso 20.500 lb; Ix 9.496, Iy 55.814, Iz 63.100, Ixz 982 slug·ft²; envergadura 30 ft, 300 ft², cuerda media 11,32 ft; centro de gravedad de referencia 0,35 c̄), tabla III (aerodinámica, α −20…90°, β ±30°), tabla VI (empuje en ralentí, militar y máximo, de 0 a 50.000 ft y de Mach 0,2 a 1,0) y apéndice A (mandos de vuelo).
@@ -149,6 +149,14 @@ Lo hecho en 1 y 2 (detalle en el README, sección del 2 de octubre):
   - vista del corte del Falcon 1;
   - texturas `makeRoadPaint` y las grietas de `makeAsphalt`.
   - Los guiones de captura se hacen fuera del repositorio con `frames.mjs`.
+
+### Galería regenerada (02-10-2026, orden del usuario: «Regenera todo y actualiza todo»)
+
+- Se ejecutaron `npm run shots` (`docs/screenshots`), `docs/hud` y `docs/review-sun18`, y el README lista todas las capturas.
+- `tools/shot.mjs` admite `play: { mode: 'f16' | 'gt3', steps: [[teclas, s], …], camera }`. Tras el guion congela la simulación (si no, el bucle de la página seguía conduciendo en tiempo real mientras se estabilizaba la interfaz) y la libera en la captura siguiente.
+- `tools/hud-shots.json`: el dock de vehículos solo aparece ya en el modo de escena limpia, así que se quitaron los clics a `#dock-vehicles`, la escena limpia se activa con `#clean-btn` y se eliminaron las capturas `*-views` y `*-tools` de tableta y móvil (sus vistas ya no existen). Las de tableta y móvil enseñan paneles solapados: es lo esperado desde que la web es solo para ordenador (28-09), no una regresión.
+- Corregido de paso: el cuadro del Porsche se dibujaba encima de la barra de botones; ahora se coloca por encima de ella.
+- La regla sigue: no regenerar sin aprobación expresa cada vez.
 
 ### Al retomar
 
@@ -255,7 +263,7 @@ Commits, del más antiguo al más reciente, en las cuatro ramas; el detalle est�
 
 ### Lo que NO se terminó
 
-- **Galería:** aprobada por el usuario el 29-09, pero **no regenerada**. La ejecución se paró a medias y se restauró `docs/`. Cuando el usuario lo apruebe de nuevo:
+- **Galería:** regenerada entera el 02-10-2026 (lo de abajo es el procedimiento, ya ejecutado):
   - `npm run shots` (53 capturas);
   - `node tools/shot.mjs docs/hud tools/hud-shots.json`;
   - `node tools/shot.mjs docs/review-sun18 tools/sun18-shots.json --sun 18`;

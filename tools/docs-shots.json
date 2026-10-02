@@ -217,5 +217,218 @@
       "merlin"
     ],
     "wait": 1400
+  },
+  {
+    "name": "f16.jpg",
+    "jump": [
+      "f16",
+      "overview"
+    ],
+    "wait": 1400
+  },
+  {
+    "name": "f16-cockpit.jpg",
+    "jump": [
+      "f16",
+      "cockpit"
+    ],
+    "wait": 1400
+  },
+  {
+    "name": "f16-runway.jpg",
+    "jump": [
+      "f16",
+      "runway"
+    ],
+    "wait": 1400
+  },
+  {
+    "name": "f16-tail.jpg",
+    "jump": [
+      "f16",
+      "tail"
+    ],
+    "wait": 1400
+  },
+  {
+    "name": "f16-takeoff.jpg",
+    "jump": [
+      "f16",
+      "overview"
+    ],
+    "play": {
+      "mode": "f16",
+      "steps": [
+        [
+          [
+            "KeyW"
+          ],
+          13.5
+        ]
+      ],
+      "camera": "chase"
+    },
+    "wait": 1400
+  },
+  {
+    "name": "f16-flight.jpg",
+    "jump": [
+      "f16",
+      "overview"
+    ],
+    "play": {
+      "mode": "f16",
+      "steps": [
+        [
+          [
+            "KeyW"
+          ],
+          30
+        ],
+        [
+          [
+            "KeyA"
+          ],
+          1.2
+        ]
+      ],
+      "camera": "chase"
+    },
+    "wait": 1400
+  },
+  {
+    "name": "f16-hud.jpg",
+    "jump": [
+      "f16",
+      "overview"
+    ],
+    "play": {
+      "mode": "f16",
+      "steps": [
+        [
+          [
+            "KeyW"
+          ],
+          30
+        ],
+        [
+          [
+            "KeyA"
+          ],
+          1.2
+        ]
+      ],
+      "camera": "cockpit"
+    },
+    "wait": 1400
+  },
+  {
+    "name": "gt3rs.jpg",
+    "jump": [
+      "gt3rs",
+      "overview"
+    ],
+    "wait": 1400
+  },
+  {
+    "name": "gt3rs-front.jpg",
+    "jump": [
+      "gt3rs",
+      "front"
+    ],
+    "wait": 1400
+  },
+  {
+    "name": "gt3rs-rear.jpg",
+    "jump": [
+      "gt3rs",
+      "rear"
+    ],
+    "wait": 1400
+  },
+  {
+    "name": "gt3rs-side.jpg",
+    "jump": [
+      "gt3rs",
+      "side"
+    ],
+    "wait": 1400
+  },
+  {
+    "name": "gt3rs-wheel.jpg",
+    "jump": [
+      "gt3rs",
+      "wheel"
+    ],
+    "wait": 1400
+  },
+  {
+    "name": "gt3rs-circuit.jpg",
+    "jump": [
+      "gt3rs",
+      "circuit"
+    ],
+    "wait": 1400
+  },
+  {
+    "name": "gt3rs-drift.jpg",
+    "jump": [
+      "gt3rs",
+      "overview"
+    ],
+    "play": {
+      "mode": "gt3",
+      "steps": [
+        [
+          [
+            "KeyW"
+          ],
+          3
+        ],
+        [
+          [
+            "KeyW",
+            "KeyA"
+          ],
+          0.6
+        ],
+        [
+          [
+            "KeyA",
+            "Space"
+          ],
+          0.35
+        ],
+        [
+          [
+            "KeyW",
+            "KeyA"
+          ],
+          0.8
+        ]
+      ],
+      "camera": "chase"
+    },
+    "wait": 1400
+  },
+  {
+    "name": "gt3rs-cockpit.jpg",
+    "jump": [
+      "gt3rs",
+      "overview"
+    ],
+    "play": {
+      "mode": "gt3",
+      "steps": [
+        [
+          [
+            "KeyW"
+          ],
+          2.5
+        ]
+      ],
+      "camera": "driver"
+    },
+    "wait": 1400
   }
 ]

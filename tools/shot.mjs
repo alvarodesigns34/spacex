@@ -14,7 +14,10 @@
  * previous shot left behind, so a manifest reordered or run alone produces the same frames:
  *
  *   { name, jump:[id, preset] (+ pos+target to reframe) | pos+target | ortho | seek | reentry,
- *     sun, labels, ruler, humans, launch, wait }
+ *     sun, labels, ruler, humans, launch, wait, play }
+ *
+ * `play` flies the F-16 or drives the Porsche with the visitor's keys before the frame:
+ * { mode: 'f16' | 'gt3', steps: [[['KeyW'], seconds], …], camera }, stepped at 1/30 s.
  *
  * `reentry` is a mission time in the re-entry chapter (reentry.js), with `cam` the camera
  * ('director' by default, 'onboard' or 'chase').
@@ -80,6 +83,10 @@ for (const s of shots) {
     // Reset the state a previous shot may have left, so order cannot change a frame.
     if (s.seek === undefined) v.launch.reset(false);
     if (s.reentry === undefined && v.reentry?.running) v.reentry.reset(false);
+    // A drive or a flight a previous shot played: unfreeze it and put it away.
+    if (v.__shotFrozen) { v.__shotFrozen.update = v.__shotFrozen.__update; v.__shotFrozen = null; }
+    if (v.f16fly?.running) v.f16fly.reset(false);
+    if (v.gt3drive?.running) v.gt3drive.reset(false);
     v.ortho(null);
     v.env.setSun(s.sun ?? sun, 34);
     v.setToggle('labels', s.labels ?? true);
@@ -111,8 +118,25 @@ for (const s of shots) {
       if (s.pos) v.rig.jumpTo(s.pos, s.target);
     }
     else v.rig.jumpTo(s.pos, s.target);
+    if (s.play) {
+      const D = s.play.mode === 'f16' ? v.f16fly : v.gt3drive;
+      const key = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code, key: code, bubbles: true }));
+      D.start();
+      for (const [codes, sec] of s.play.steps) {
+        for (const c of codes) key('keydown', c);
+        for (let k = 0; k < sec * 30; k++) D.update(1 / 30);
+        for (const c of codes) key('keyup', c);
+      }
+      if (s.play.camera) D.setCamera(s.play.camera);
+      for (let k = 0; k < 10; k++) D.update(1 / 30);
+      // Frozen where the keys left it: the page's own loop would go on driving it, in real
+      // time and with the keys up, while the frame settles.
+      D.__update = D.update; D.update = () => {}; v.__shotFrozen = D;
+    }
   }, { s, sun: SUN });
-  for (const sel of s.clicks ?? []) await page.click(sel);
+  // Right after a resize the software renderer can take half a minute to present a stable frame:
+  // the clicks get the screenshot's own patience.
+  for (const sel of s.clicks ?? []) await page.click(sel, { timeout: 180000 });
   // SwiftShader can take seconds per frame. A fixed delay captures half-drawn
   // type and a HUD that has not finished layout. Wait for fonts, two presented
   // frames, then a stable HUD rectangle.

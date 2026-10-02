@@ -62,7 +62,9 @@ export function createGt3Hud({ root, onEnd, onCamera, onRestart, onPause, onTrac
     const W = window.innerWidth, H = window.innerHeight;
     g.clearRect(0, 0, W, H);
     // The cluster: bottom centre, a rev arc round the gear and the speed.
-    const R = Math.min(96, W * 0.11), cx = W / 2, cy = H - R - 34;
+    // Above the drive's bar, which sits at the bottom centre too.
+    const barTop = bar.classList.contains('hidden') ? H : bar.getBoundingClientRect().top;
+    const R = Math.min(96, W * 0.11), cx = W / 2, cy = Math.min(H - R - 34, barTop - R - 30);
     g.save();
     g.fillStyle = 'rgba(10, 12, 14, 0.55)';
     g.beginPath(); g.arc(cx, cy, R + 14, 0, Math.PI * 2); g.fill();

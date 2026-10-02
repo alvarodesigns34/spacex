@@ -879,15 +879,20 @@ También **recorre la secuencia de lanzamiento**. `launch.seek(t)` reproduce el 
 | ![Faros y morro](docs/screenshots/roadster-detail.jpg) | ![Tierra al fondo](docs/screenshots/roadster-earth.jpg) |
 | ![Rueda y paso](docs/screenshots/roadster-underbody.jpg) | ![Fila de motores](docs/screenshots/engines-row.jpg) |
 | ![Raptor Vacuum](docs/screenshots/engines-rvac.jpg) | ![Starship completo](docs/screenshots/starship-full.jpg) |
+| ![Raptor 3](docs/screenshots/engines-raptor.jpg) | ![Merlin 1D](docs/screenshots/engines-merlin.jpg) |
+| ![Corte de motores de la nave](docs/screenshots/launch-ship-cutoff.jpg) | ![Reentrada, cámara a bordo](docs/screenshots/reentry-onboard.jpg) |
+| ![Plasma de la reentrada](docs/screenshots/reentry-plasma.jpg) | ![Caída panza abajo](docs/screenshots/reentry-bellyflop.jpg) |
+| ![Volteo y encendido de aterrizaje](docs/screenshots/reentry-flip.jpg) | ![Amerizaje en el Pacífico](docs/screenshots/reentry-splash.jpg) |
+| ![F-16A en la cabecera de la pista 28](docs/screenshots/f16.jpg) | ![Cabina del F-16](docs/screenshots/f16-cockpit.jpg) |
+| ![Pista 10/28](docs/screenshots/f16-runway.jpg) | ![Cola y tobera del F-16](docs/screenshots/f16-tail.jpg) |
+| ![El F-16 despega manteniendo W](docs/screenshots/f16-takeoff.jpg) | ![El F-16 en vuelo, virando](docs/screenshots/f16-flight.jpg) |
+| ![HUD del F-16 desde la cabina](docs/screenshots/f16-hud.jpg) | ![Porsche 911 GT3 RS en su explanada](docs/screenshots/gt3rs.jpg) |
+| ![Frontal del GT3 RS](docs/screenshots/gt3rs-front.jpg) | ![Zaga y ala del GT3 RS](docs/screenshots/gt3rs-rear.jpg) |
+| ![Perfil del GT3 RS](docs/screenshots/gt3rs-side.jpg) | ![Rueda y freno delanteros](docs/screenshots/gt3rs-wheel.jpg) |
+| ![El circuito](docs/screenshots/gt3rs-circuit.jpg) | ![Derrape con el freno de mano](docs/screenshots/gt3rs-drift.jpg) |
+| ![Desde el asiento del conductor](docs/screenshots/gt3rs-cockpit.jpg) | ![Vista general](docs/screenshots/overview.jpg) |
 
-Regenerables con `npm run shots`, que recorre los encuadres declarados en `tools/docs-shots.json`, `tools/launch-shots.json` y `tools/roadster-shots.json`, siempre con el sol a 18° y en calidad alta forzada. Las del HUD en escritorio, tableta y móvil (`docs/hud`) salen de `node tools/shot.mjs docs/hud tools/hud-shots.json`. La última regeneración fue en `b1f09d3`, al final de la revisión corriendo la simulación (septiembre de 2026). **Están desfasadas en el HUD:** después cambiaron los paneles (88 % de opacidad, grises más claros, telemetría ≥ 11 px, horas del modelo con ≈), la etiqueta de la torre («≈144.5 m»), los botones con `aria-pressed` y, en la ronda del 28 de septiembre, la fila de transporte del panel de misión (pausa, ×¼, reinicio), el botón *Walk* y la nave tras la separación. Además, desde esa ronda las capturas del lanzamiento posteriores a T+2:40 muestran una trayectoria de la nave distinta. **Desde el 29 y el 30 de septiembre de 2026 tampoco coinciden:**
-- la vista general, el complejo, la zanja y todas las del lanzamiento: la costa al este, la torre girada −37,5°, el deluge y la granja de propelentes nuevos, el fuego y la cronología del vuelo 14;
-- `engines-row`, `engines-rvac` y `starship-engines`: toberas y motores rehechos;
-- `dragon`: la banda de aluminio y el panel solar continuo;
-- las del HUD: botones *Reentry* y *Guide*, reloj en horas y fila de transporte;
-- las de `docs/review-sun18`.
-
-Faltan ocho capturas ya declaradas en los guiones: `engines-raptor`, `engines-merlin`, `launch-ship-cutoff` y las cinco `reentry-*`. La regeneración espera la aprobación del usuario. La anterior fue en c2bec28, tras la ronda vehículo por vehículo.
+Regenerables con `npm run shots`, que recorre los encuadres declarados en `tools/docs-shots.json`, `tools/launch-shots.json` y `tools/roadster-shots.json`, siempre con el sol a 18° y en calidad alta forzada. Las del HUD en escritorio, tableta y móvil (`docs/hud`) salen de `node tools/shot.mjs docs/hud tools/hud-shots.json` (vehículos, ficha, escena limpia y misión en cada tamaño; desde el 28 de septiembre la web es solo para ordenador, así que las de tableta y móvil documentan cómo se ve en un tamaño no admitido, con paneles que se solapan), y las de la revisión con el sol bajo (`docs/review-sun18`) de `node tools/shot.mjs docs/review-sun18 tools/sun18-shots.json --sun 18`. Un encuadre puede llevar `play`: pilota el F-16 o conduce el Porsche con las teclas del visitante antes de la foto (así salen el despegue, el vuelo, el HUD, el derrape y la vista del conductor). **Regeneradas todas el 2 de octubre de 2026**, con la aprobación del usuario, tras la revisión vehículo a vehículo: corresponden al estado actual.
 
 ## Estructura
 
