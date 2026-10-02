@@ -734,6 +734,8 @@ El habitáculo se ha rehecho desde cero en su propio módulo (`src/vehicles/gt3C
   - el retrovisor interior.
 - **Ojo del conductor:** la cámara interior se ha retrasado de x = −0,12 a −0,30 m, con la cabeza justo delante del reposacabezas (≈). Antes la cabeza quedaba 20 cm por delante del asiento.
 - **Luz:** el interior ve solo una parte del cielo que supone el mapa de entorno, así que sus reflejos se han bajado (≈, como término de oclusión). Antes el Alcantara negro se veía gris claro.
+- **Materiales.** Las pantallas comparten una textura (el cuadro y la pantalla central); los relojes, otra (el cuentarrevoluciones y el cronómetro); la aguja, la marcha y la velocidad, un lienzo pequeño. El Alcantara es el mismo material que el forro del techo. Así la escena se queda en sus 240 materiales.
+  - **Corregido:** el commit `bb348c6` se subió con esta comprobación del presupuesto en rojo (249 materiales); este commit la deja en verde.
 - El habitáculo tiene ≈53.000 triángulos. El coche entero, con la carrocería nueva, se queda en ≈452.000 (antes ≈527.000) y la escena, dentro de su presupuesto.
 
 ### Auditoría técnica externa del 2 de octubre de 2026 (ChatGPT): lo corregido

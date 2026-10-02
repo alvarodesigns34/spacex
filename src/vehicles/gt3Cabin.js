@@ -169,10 +169,21 @@ function roundDisplay(x, cx, cy, r, label, value, sub) {
   x.font = `${Math.round(r * 0.2)}px sans-serif`; x.fillStyle = '#9aa3ab'; x.fillText(sub, cx, cy + r * 0.48);
   if (label) { x.font = `${Math.round(r * 0.24)}px sans-serif`; x.fillStyle = '#cfd5da'; x.fillText(label, cx, cy - r * 1.22); }
 }
-/** The cluster's two screens either side of the tachometer (its place left black). */
-function clusterScreens() {
-  return canvas(2048, 384, (x, W, H) => {
-    x.fillStyle = '#030405'; x.fillRect(0, 0, W, H);
+/**
+ * The screens, on one canvas (one texture, one material): the cluster's two screens either side
+ * of the tachometer in the top 384 rows (its place left black), the centre screen's page below
+ * (rows 400–820, the left half). SCREEN_UV gives each its part of the texture.
+ */
+const SCREEN_H = 832;
+export const SCREEN_UV = {
+  cluster: (u, v) => [u, 1 - 384 / SCREEN_H + v * 384 / SCREEN_H],
+  centre: (u, v) => [u * 0.5, 1 - 820 / SCREEN_H + v * 420 / SCREEN_H],
+};
+function screens() {
+  return canvas(2048, SCREEN_H, (x) => {
+    x.fillStyle = '#030405'; x.fillRect(0, 0, 2048, SCREEN_H);
+    // The cluster's screens.
+    const H = 384;
     const panel = (x0, x1) => { const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0b0f13'); g.addColorStop(1, '#05070a'); x.fillStyle = g; x.fillRect(x0, 24, x1 - x0, H - 48); };
     panel(40, 820); panel(1228, 2008);
     roundDisplay(x, 260, 205, 118, 'Compression', '+2', 'Front');
@@ -181,12 +192,37 @@ function clusterScreens() {
     roundDisplay(x, 1788, 205, 118, '', '+4', 'Rear');
     x.fillStyle = '#7f8a94'; x.font = '30px sans-serif'; x.textAlign = 'left';
     x.fillText('13.2 km', 70, 352); x.textAlign = 'right'; x.fillText('24.5 °C  TRACK', 1978, 352);
+    // The centre screen: a dark page of tiles, their values blank (no figures the car has not given; no logos).
+    x.save(); x.translate(0, 400);
+    x.fillStyle = '#05070a'; x.fillRect(0, 0, 1024, 420);
+    x.fillStyle = '#10151b'; x.fillRect(0, 0, 120, 420);
+    for (let k = 0; k < 6; k++) { x.fillStyle = k === 1 ? '#3d8fe0' : '#59636d'; x.beginPath(); x.arc(60, 46 + k * 64, 15, 0, TAU); x.fill(); }
+    const tile = (tx, ty, tw, th, title, big) => {
+      x.fillStyle = '#121920'; x.fillRect(tx, ty, tw, th);
+      x.fillStyle = '#8f9aa4'; x.font = '24px sans-serif'; x.textAlign = 'left'; x.fillText(title, tx + 18, ty + 36);
+      x.fillStyle = '#eef2f5'; x.font = '600 54px sans-serif'; x.fillText(big, tx + 18, ty + th - 30);
+    };
+    tile(140, 20, 420, 180, 'Lap time', '–:––.–');
+    tile(580, 20, 424, 180, 'Best lap', '–:––.–');
+    tile(140, 220, 270, 180, 'Oil', '– °C');
+    tile(424, 220, 270, 180, 'Tyres', '– bar');
+    tile(708, 220, 296, 180, 'Lateral', '– g');
+    x.restore();
   });
 }
-/** The tachometer's dial: 0–10 (× 1,000 /min) over 300°, red from 9. */
-function tachFace() {
-  return canvas(512, 512, (x) => {
-    const c = 256;
+/**
+ * The dials, on one canvas: the tachometer's (the left half: 0–10 × 1,000 /min over 300°, red
+ * from 9) and the stopwatch's (a clock face with its sub-dial, x 640–896, y 128–384). DIAL_UV
+ * maps a circle's own UVs into each.
+ */
+export const DIAL_UV = {
+  tach: (u, v) => [u * 0.5, v],
+  clock: (u, v) => [(640 + u * 256) / 1024, (128 + v * 256) / 512],
+};
+function dials() {
+  return canvas(1024, 512, (x) => {
+    x.fillStyle = '#050607'; x.fillRect(0, 0, 1024, 512);
+    let c = 256;
     const g = x.createRadialGradient(c, c, 40, c, c, 256); g.addColorStop(0, '#111316'); g.addColorStop(1, '#050607');
     x.fillStyle = g; x.beginPath(); x.arc(c, c, 256, 0, TAU); x.fill();
     const a0 = Math.PI * 0.68, span = Math.PI * 1.64;
@@ -202,12 +238,8 @@ function tachFace() {
         x.fillText(String(k / 5), c + Math.cos(a) * 150, c + Math.sin(a) * 150);
       }
     }
-  });
-}
-/** The stopwatch on the dash: a clock face with its sub-dial. */
-function clockFace() {
-  return canvas(256, 256, (x) => {
-    const c = 128;
+    // The stopwatch.
+    x.save(); x.translate(640, 128); c = 128;
     x.fillStyle = '#07080a'; x.beginPath(); x.arc(c, c, 128, 0, TAU); x.fill();
     for (let k = 0; k < 60; k++) {
       const a = TAU * k / 60, big = k % 5 === 0;
@@ -217,26 +249,15 @@ function clockFace() {
     x.strokeStyle = '#444b52'; x.lineWidth = 3; x.beginPath(); x.arc(c, c + 44, 24, 0, TAU); x.stroke();
     x.strokeStyle = '#e9ecef'; x.lineWidth = 5; x.beginPath(); x.moveTo(c, c); x.lineTo(c + 52, c - 42); x.stroke();
     x.lineWidth = 3; x.beginPath(); x.moveTo(c, c); x.lineTo(c - 18, c - 88); x.stroke();
+    x.restore();
   });
 }
-/** The centre screen: a dark home page with tiles and a lap-timer page (no logos). */
-function centreScreen() {
-  return canvas(1024, 420, (x, W, H) => {
-    x.fillStyle = '#05070a'; x.fillRect(0, 0, W, H);
-    x.fillStyle = '#10151b'; x.fillRect(0, 0, 120, H);
-    for (let k = 0; k < 6; k++) { x.fillStyle = k === 1 ? '#3d8fe0' : '#59636d'; x.beginPath(); x.arc(60, 46 + k * 64, 15, 0, TAU); x.fill(); }
-    const tile = (tx, ty, tw, th, title, big) => {
-      x.fillStyle = '#121920'; x.fillRect(tx, ty, tw, th);
-      x.fillStyle = '#8f9aa4'; x.font = '24px sans-serif'; x.textAlign = 'left'; x.fillText(title, tx + 18, ty + 36);
-      x.fillStyle = '#eef2f5'; x.font = '600 54px sans-serif'; x.fillText(big, tx + 18, ty + th - 30);
-    };
-    tile(140, 20, 420, 180, 'Lap time', '1:58.7');
-    tile(580, 20, 424, 180, 'Best lap', '1:57.9');
-    tile(140, 220, 270, 180, 'Oil', '104 °C');
-    tile(424, 220, 270, 180, 'Tyres', '1.9 bar');
-    tile(708, 220, 296, 180, 'Lateral', '1.3 g');
-  });
-}
+/** Remaps a geometry's UVs through f (an atlas's part). */
+const remapUV = (geo, f) => {
+  const uv = geo.attributes.uv;
+  for (let i = 0; i < uv.count; i++) { const [a, b] = f(uv.getX(i), uv.getY(i)); uv.setXY(i, a, b); }
+  return geo;
+};
 /** The door's and the seats' perforated panels: black with a red glow through the holes. */
 function perforated(base, dot) {
   return canvas(256, 256, (x) => {
@@ -252,7 +273,8 @@ function perforated(base, dot) {
 function cabinMaterials(M) {
   if (M.gt3cAlcantara) return M;
   const rep = (t, r) => { if (t) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(r, r); } return t; };
-  M.gt3cAlcantara = new THREE.MeshStandardMaterial({ name: 'gt3c-alcantara', color: 0x1a1b1d, metalness: 0, roughness: 1 });
+  // Alcantara: the body's own lining material (the headliner and the pillars are Alcantara too).
+  M.gt3cAlcantara = M.gt3Interior ?? new THREE.MeshStandardMaterial({ name: 'gt3c-alcantara', color: 0x1a1b1d, metalness: 0, roughness: 1, side: THREE.DoubleSide });
   M.gt3cLeather = new THREE.MeshStandardMaterial({ name: 'gt3c-leather', color: 0x0f1012, metalness: 0, roughness: 0.52 });
   const seatMap = rep(perforated('#3a0c11', '#140405'), 14);
   M.gt3cSeatRed = new THREE.MeshStandardMaterial({ name: 'gt3c-seat-centre', color: seatMap ? 0xffffff : 0x4a1015, map: seatMap, metalness: 0, roughness: 0.82 });
@@ -262,21 +284,19 @@ function cabinMaterials(M) {
   M.gt3cCarbon.name = 'gt3c-carbon'; M.gt3cCarbon.side = THREE.DoubleSide;
   M.gt3cGloss = new THREE.MeshPhysicalMaterial({ name: 'gt3c-piano-black', color: 0x060708, metalness: 0, roughness: 0.12, clearcoat: 1, clearcoatRoughness: 0.05 });
   M.gt3cBlack = new THREE.MeshStandardMaterial({ name: 'gt3c-black', color: 0x0e0f11, metalness: 0.1, roughness: 0.5 });
-  M.gt3cCarpet = new THREE.MeshStandardMaterial({ name: 'gt3c-carpet', color: 0x121314, metalness: 0, roughness: 1 });
+  M.gt3cCarpet = M.gt3cAlcantara;   // the carpets read the same under the dash: one material (the scene's budget)
   M.gt3cAlu = new THREE.MeshStandardMaterial({ name: 'gt3c-alu', color: 0x9aa0a6, metalness: 0.85, roughness: 0.38 });
-  M.gt3cRed = new THREE.MeshStandardMaterial({ name: 'gt3c-belt', color: 0xb5161f, metalness: 0, roughness: 0.66 });
+  M.gt3cRed = new THREE.MeshStandardMaterial({ name: 'gt3c-belt', color: 0xb5161f, metalness: 0, roughness: 0.66, side: THREE.DoubleSide });
   M.gt3cYellow = new THREE.MeshStandardMaterial({ name: 'gt3c-yellow', color: 0xd9c22b, metalness: 0, roughness: 0.85 });
-  M.gt3cCage = new THREE.MeshStandardMaterial({ name: 'gt3c-cage', color: 0x111214, metalness: 0.35, roughness: 0.42 });
+  M.gt3cCage = M.gt3cBlack;
   const scr = (map, name, k = 1) => new THREE.MeshStandardMaterial({ name, color: 0x000000, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: map ? k : 0, roughness: 0.25, metalness: 0 });
-  M.gt3cCluster = scr(clusterScreens(), 'gt3c-cluster-screens', 0.85);
-  M.gt3cTach = scr(tachFace(), 'gt3c-tach-face', 0.95);
-  M.gt3cClock = scr(clockFace(), 'gt3c-clock-face', 0.8);
-  M.gt3cScreen = scr(centreScreen(), 'gt3c-centre-screen', 1.0);
-  M.gt3cNeedle = new THREE.MeshStandardMaterial({ name: 'gt3c-needle', color: 0xffd23a, emissive: 0xffc21a, emissiveIntensity: 1.2 });
-  M.gt3cGlassFace = new THREE.MeshPhysicalMaterial({ name: 'gt3c-dial-glass', color: 0x000000, roughness: 0.04, transparent: true, opacity: 0.18, depthWrite: false });
+  M.gt3cScreen = scr(screens(), 'gt3c-screens', 0.9);
+  M.gt3cCluster = M.gt3cScreen;
+  M.gt3cTach = scr(dials(), 'gt3c-dials', 0.9);
+  M.gt3cClock = M.gt3cTach;
   // The cabin sees a fraction of the sky the environment map assumes (the roof, the pillars, the
   // dash over the footwells): its reflections are turned down to match (≈, an occlusion term).
-  for (const k of ['gt3cAlcantara', 'gt3cLeather', 'gt3cSeatRed', 'gt3cDoorMesh', 'gt3cCarbon', 'gt3cGloss', 'gt3cBlack', 'gt3cCarpet', 'gt3cAlu', 'gt3cRed', 'gt3cYellow', 'gt3cCage']) M[k].envMapIntensity = k === 'gt3cGloss' ? 0.6 : 0.4;
+  for (const k of ['gt3cAlcantara', 'gt3cLeather', 'gt3cSeatRed', 'gt3cDoorMesh', 'gt3cCarbon', 'gt3cGloss', 'gt3cBlack', 'gt3cAlu', 'gt3cRed', 'gt3cYellow']) M[k].envMapIntensity = k === 'gt3cGloss' ? 0.6 : 0.4;
   return M;
 }
 
@@ -323,7 +343,7 @@ function cluster(P, g, M) {
     const geo = gridSurface(rows);
     // UVs across the canvas: u along the band, v up it.
     const uv = geo.attributes.uv;
-    for (let i = 0; i <= 8; i++) for (let j = 0; j <= 48; j++) uv.setXY(i * 49 + j, j / 48, i / 8);
+    for (let i = 0; i <= 8; i++) for (let j = 0; j <= 48; j++) uv.setXY(i * 49 + j, ...SCREEN_UV.cluster(j / 48, i / 8));
     faceFrom(geo, V(...EYE), true);
     g.add(mesh(geo, M.gt3cCluster, { name: 'gt3-cluster-screens', castShadow: false }));
   }
@@ -358,7 +378,7 @@ function cluster(P, g, M) {
   tach.position.copy(c);
   // Facing the driver: local +Z towards the eye.
   tach.lookAt(V(...EYE));
-  const face = new THREE.CircleGeometry(0.049, 48);
+  const face = remapUV(new THREE.CircleGeometry(0.049, 48), DIAL_UV.tach);
   tach.add(mesh(face, M.gt3cTach, { name: 'gt3-tach-face', castShadow: false }));
   const ring = new THREE.TorusGeometry(0.0505, 0.004, 8, 48);
   ring.translate(0, 0, 0.002);
@@ -369,57 +389,62 @@ function cluster(P, g, M) {
   const needle = new THREE.Group();
   needle.name = 'gt3-tach-needle';
   needle.position.z = 0.004;
-  const nGeo = new THREE.BoxGeometry(0.0036, 0.044, 0.0015);
-  nGeo.translate(0, 0.016, 0);
-  needle.add(mesh(nGeo, M.gt3cNeedle, { name: 'gt3-tach-needle-blade', castShadow: false }));
+  // The blade: a strip of the digits' canvas painted yellow (one material for the needle and the digits).
+  const digits = digitsDisplay();
+  if (digits) needle.add(mesh(digits.uv(new THREE.PlaneGeometry(0.0036, 0.044).translate(0, 0.016, 0), 'needle'), digits.material, { name: 'gt3-tach-needle-blade', castShadow: false }));
   needle.add(mesh(new THREE.CylinderGeometry(0.0065, 0.0065, 0.004, 20).rotateX(Math.PI / 2), M.gt3cBlack, { name: 'gt3-tach-hub', castShadow: false }));
   tach.add(needle);
   // The gear over the needle's hub and the speed in the gap at the dial's foot, drawn live.
-  const digits = digitsDisplay();
   if (digits) {
-    tach.add(mesh(new THREE.PlaneGeometry(0.016, 0.016).translate(0, 0.019, 0.003), digits.gearMaterial, { name: 'gt3-tach-gear', castShadow: false }));
-    tach.add(mesh(new THREE.PlaneGeometry(0.030, 0.015).translate(0, -0.033, 0.003), digits.speedMaterial, { name: 'gt3-tach-speed', castShadow: false }));
+    tach.add(mesh(digits.uv(new THREE.PlaneGeometry(0.016, 0.016).translate(0, 0.019, 0.003), 'gear'), digits.material, { name: 'gt3-tach-gear', castShadow: false }));
+    tach.add(mesh(digits.uv(new THREE.PlaneGeometry(0.030, 0.015).translate(0, -0.033, 0.003), 'speed'), digits.material, { name: 'gt3-tach-speed', castShadow: false }));
   }
-  tach.add(mesh(new THREE.CircleGeometry(0.0505, 48).translate(0, 0, 0.0055), M.gt3cGlassFace, { name: 'gt3-tach-glass', castShadow: false }));
   g.add(tach);
   return { needle, digits };
 }
-/** Two small canvases, the gear and the speed, redrawn when they change. */
+/**
+ * One small canvas, redrawn when the gear or the speed changes: the gear (x 0–128, y 0–128), the
+ * speed (y 128–256) and a yellow strip for the needle's blade (x 224–256, y 0–96).
+ */
 function digitsDisplay() {
   if (typeof document === 'undefined') return null;
   try {
-    const make = (w, h) => {
-      const c = document.createElement('canvas');
-      c.width = w; c.height = h;
-      const x = c.getContext('2d');
-      if (!x) return null;
-      const tex = new THREE.CanvasTexture(c);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      return { x, tex, material: new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false }) };
+    const c = document.createElement('canvas');
+    c.width = 256; c.height = 256;
+    const x = c.getContext('2d');
+    if (!x) return null;
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const material = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false });
+    x.fillStyle = '#ffd23a'; x.fillRect(224, 0, 32, 96);
+    const R = { gear: [0, 0, 128, 128], speed: [0, 128, 256, 128], needle: [228, 8, 24, 80] };
+    const uv = (geo, k) => {
+      const [x0, y0, w, h] = R[k];
+      return remapUV(geo, (u, v) => [(x0 + u * w) / 256, 1 - (y0 + (1 - v) * h) / 256]);
     };
-    const G = make(128, 128), S = make(256, 128);
-    if (!G || !S) return null;
     let last = '';
     const draw = (gear, kmh) => {
       const key = `${gear}|${kmh}`;
       if (key === last) return;
       last = key;
-      G.x.clearRect(0, 0, 128, 128); S.x.clearRect(0, 0, 256, 128);
-      G.x.fillStyle = '#f4f6f8'; G.x.textAlign = 'center'; G.x.textBaseline = 'middle'; G.x.font = '700 104px sans-serif'; G.x.fillText(String(gear), 64, 68);
-      S.x.fillStyle = '#f4f6f8'; S.x.textAlign = 'center'; S.x.textBaseline = 'middle'; S.x.font = '600 84px sans-serif'; S.x.fillText(String(kmh), 128, 50);
-      S.x.font = '26px sans-serif'; S.x.fillStyle = '#9aa3ab'; S.x.fillText('km/h', 128, 108);
-      G.tex.needsUpdate = true; S.tex.needsUpdate = true;
+      x.clearRect(0, 0, 128, 128); x.clearRect(0, 128, 256, 128);
+      x.fillStyle = '#f4f6f8'; x.textAlign = 'center'; x.textBaseline = 'middle';
+      x.font = '700 104px sans-serif'; x.fillText(String(gear), 64, 68);
+      x.font = '600 84px sans-serif'; x.fillText(String(kmh), 128, 178);
+      x.font = '26px sans-serif'; x.fillStyle = '#9aa3ab'; x.fillText('km/h', 128, 236);
+      tex.needsUpdate = true;
     };
     draw('N', 0);
-    return { gearMaterial: G.material, speedMaterial: S.material, draw };
+    return { material, uv, draw };
   } catch { return null; }
 }
 /** The centre stack and the console down to the armrest. */
 function centreStack(P) {
   // The touchscreen in its gloss surround, flush with the face.
   P('gloss', at(roundBox(0.014, 0.106, 0.262, 0.005), 0.416, 0.816, 0.045, 0, 0, 0.05));
-  // Turned to face the driver, then leaned back with the surround (an Euler would spin it in its own plane).
-  P('screen', new THREE.PlaneGeometry(0.245, 0.095).rotateY(-Math.PI / 2).rotateZ(0.05).translate(0.4085, 0.817, 0.045));
+  // Turned to face the driver, then leaned back with the surround (an Euler would spin it in its own
+  // plane); just proud of the surround, whose bevel stands ≈5 mm out of its nominal box.
+  P('screen', remapUV(new THREE.PlaneGeometry(0.245, 0.095), SCREEN_UV.centre).rotateY(-Math.PI / 2).rotateZ(0.05).translate(0.4025, 0.817, 0.045));
   // The carbon strip under it, the five toggles, the vents.
   P('carbon', at(roundBox(0.014, 0.016, 0.30, 0.004), 0.422, 0.755, 0.045));
   for (let k = -2; k <= 2; k++) {
@@ -650,9 +675,7 @@ function bucketSeat(M, x, y, z, side) {
       return gridSurface([rows[0], rows[1]]);
     };
     const belts = [ribbon(shoulder, 0.048), ribbon(lap, 0.048)];
-    const red = new THREE.MeshStandardMaterial({ name: 'gt3c-belt-ds', color: 0xb5161f, roughness: 0.66, side: THREE.DoubleSide });
-    M.gt3cBeltDS ??= red;
-    g.add(mesh(mergeAll(belts.map(geometry => ({ geometry }))), M.gt3cBeltDS, { name: `${g.name}-belt`, castShadow: false }));
+    g.add(mesh(mergeAll(belts.map(geometry => ({ geometry }))), M.gt3cRed, { name: `${g.name}-belt`, castShadow: false }));
     const buckle = surfPt(sCrease + 0.02, (side > 0 ? 1 : -1) * -1.02, 0.02);
     g.add(mesh(at(roundBox(0.06, 0.026, 0.02, 0.006), buckle.x, buckle.y, buckle.z, 0, 0, 0.3), M.gt3cAlu, { name: `${g.name}-buckle` }));
   }
@@ -721,7 +744,7 @@ export function buildCabin(M) {
     pod.position.set(0.63, 0.925, 0.0);
     pod.lookAt(V(...EYE).add(V(0, 0.25, 0)));
     pod.add(mesh(new THREE.CylinderGeometry(0.044, 0.05, 0.05, 32).rotateX(Math.PI / 2).translate(0, 0, -0.022), M.gt3cBlack, { name: 'gt3-stopwatch-pod' }));
-    pod.add(mesh(new THREE.CircleGeometry(0.038, 40).translate(0, 0, 0.0035), M.gt3cClock, { name: 'gt3-stopwatch-face', castShadow: false }));
+    pod.add(mesh(remapUV(new THREE.CircleGeometry(0.038, 40), DIAL_UV.clock).translate(0, 0, 0.0035), M.gt3cClock, { name: 'gt3-stopwatch-face', castShadow: false }));
     pod.add(mesh(new THREE.TorusGeometry(0.041, 0.004, 6, 40).translate(0, 0, 0.003), M.gt3cAlu, { name: 'gt3-stopwatch-ring', castShadow: false }));
     g.add(pod);
     P('black', at(roundBox(0.06, 0.03, 0.07, 0.01), 0.635, 0.905, 0.0));
