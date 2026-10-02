@@ -121,5 +121,8 @@ export const TYRES = {
   rolling: 0.012,
 };
 
-/** The paint: Arctic Grey, a solid (non-metallic) Porsche colour — the colour chosen for this car. */
-export const PAINT = { name: 'Arctic Grey', tag: 'ESTIMATE', srgb: 0x8f9395 };
+/**
+ * The paint: the near-white grey of the car in Porsche's studio photographs (reference only),
+ * matched by eye under the centre's light. ESTIMATE: the photographs do not name the colour.
+ */
+export const PAINT = { name: 'light grey (as photographed)', tag: 'ESTIMATE', srgb: 0xc4c7c9 };

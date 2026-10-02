@@ -61,7 +61,7 @@ Fases, cada una un commit con check a 0, empujado a las cinco ramas (las cuatro 
      - **Pista 10/28** (`RUNWAY` en `terrain.js`: 0°, 2.438,4 m, centro (−1000, 500), `idents`). El avión espera en la cabecera 28 (+a). `runway.js` dibuja los numerales de `RUNWAY.idents`. Se eligió con un script de búsqueda que está en la carpeta temporal: la línea llana más cercana a la fila.
      - **Modelo:** `buildNozzle` (tobera maciza, citando la foto de dominio público de la USAF), `buildBooms` con `BOOM` (carenado y pétalos de concha; el eje de bisagra es `[0, 0, -up]` en los dos lados) y tren detallado (`wheel`, `strut`, `torqueLinks`, vástagos con `M.aluminum` para no pasar de 200 materiales), sondas de α y antenas.
      - **Lección:** en `LatheGeometry`, llama a `computeVertexNormals()` antes de `outward()`, porque sus normales analíticas no siguen el orden de los vértices, y dibuja un borde que mira hacia atrás como `RingGeometry` aparte.
-     - **Siguiente vehículo (orden del usuario):** Porsche 911 GT3 RS (992, 2023, 525 CV) en Arctic Grey. Conducible con las cifras reales de aceleración, frenada y velocidad, con un circuito realista y una explanada pequeña de asfalto, y derrapes que dejen marcas.
+     - **Siguiente vehículo (orden del usuario):** Porsche 911 GT3 RS (992, 2023, 525 CV); desde el 02-10 lleva el gris casi blanco y las llantas rojas de las fotos de estudio. Conducible con las cifras reales de aceleración, frenada y velocidad, con un circuito realista y una explanada pequeña de asfalto, y derrapes que dejen marcas.
    - **Galería regenerada el 02-10-2026** con la aprobación del usuario («Regenera todo y actualiza todo»). `tools/docs-shots.json` lleva el F-16, la pista, el vuelo, el Porsche y el derrape (campo `play` de `shot.mjs`).
 
 Fuentes descargadas para consulta, fuera del repositorio (en la carpeta temporal de la sesión; se pueden volver a bajar de NTRS):
@@ -200,6 +200,18 @@ Lo hecho en 1 y 2 (detalle en el README, sección del 2 de octubre):
   - Datos: procedencia por campos y validación independiente (H38, H39, H41, H50).
   - Rendimiento y estructura: arranque progresivo (H42, H44–H46), módulos grandes (H49), telemetría accesible (H25).
   - Repositorio y CI: pad (H37), ventana del Dragon (H40), CI entre navegadores y ramas (H53, H54), Three.js (H58), permisos del flujo de trabajo (H59).
+
+### Porsche: copia visual del coche real (orden del usuario del 02-10-2026)
+
+«Dale con los cambios grandes, ambición máxima… el modelo 3D del Porsche tiene muchos fallos, quiero que hagas una copia idéntica a nivel visual tanto por fuera como por dentro… además quiero que implementes otras mejoras muy grandes.» Plan, un commit por fase:
+1. **Exterior: hecha** (commit «Porsche: new body against the four studio photographs»). Detalle en el README, *mejora 3*.
+   - Banco de pruebas fuera del repositorio (carpeta temporal `bench/`): construye solo el Porsche y lo renderiza con las cámaras de las fotos (`match/cams.json`; q34 resuelta por PnP). `match/overlay.py` superpone los bordes. Las fotos de Porsche están solo en la carpeta temporal.
+   - Extremos: `relief(spec)` con `NOSE`/`TAIL`; `endPatch`, `endBand` e `intake` sobre `ENDS[dir]`. `endNormal` estaba mal para la cola (componentes laterales invertidas): corregido.
+2. Habitáculo nuevo (asientos baquet de carbono, jaula, salpicadero con cinco relojes, volante GT con marca amarilla, palanca PDK, puertas con tirador de cinta).
+3. Dinámica P1 del Porsche (H02, H06–H10).
+4. Flight 14: misión continua de masa puntual (H28–H33).
+5. F-16: marco geodésico, dominio y configuración (H15, H16, H19, H20).
+6. Mejoras propias: telemetría en vivo y accesible (H25) y otras dentro de las reglas.
 
 ### Al retomar
 

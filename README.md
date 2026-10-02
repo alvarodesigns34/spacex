@@ -13,7 +13,7 @@ Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones
 | Tesla Roadster | 1.ª generación (modelo 2010, carrocería anterior al 2.5) con Starman, carga útil del vuelo inaugural del Falcon Heavy | 3,946 m · 1,851 m de ancho con espejos · 1,127 m de alto |
 | Engine Row | Raptor 3, Raptor Vacuum y Merlin 1D sobre cunas, a 1:1 | 4,4 m (RVac) |
 | F-16A | Block 15 con motor F100-PW-200, sobre su tren en la cabecera de su pista; geometría de los informes NASA TP-1538 y TP-3355 | 15,038 m de largo · 9,144 m de envergadura · 5,01 m de alto |
-| Porsche 911 GT3 RS | 992 de 2023 en Arctic Grey, conducible, en la explanada junto a su circuito; cotas de la ficha técnica de Porsche | 4,572 m de largo · 1,900 m de ancho · 1,322 m de alto (al ala) |
+| Porsche 911 GT3 RS | 992 de 2023 en el gris casi blanco y las llantas rojas de las fotos de estudio de Porsche, conducible, en la explanada junto a su circuito; cotas de la ficha técnica de Porsche | 4,572 m de largo · 1,900 m de ancho · 1,322 m de alto (al ala) |
 
 **Starship** encabeza la lista, porque es el expositor principal y el del lanzamiento (tecla **1**). Le sigue el **Falcon 1** (tecla **2**), que abre la línea histórica: Falcon 1 → Falcon 9 → Falcon Heavy.
 
@@ -520,7 +520,7 @@ El usuario no quería la estabilización automática y le costaba virar. Además
 
 ### Porsche 911 GT3 RS, fase 1: el circuito y la explanada (2 de octubre de 2026)
 
-El siguiente vehículo es un **Porsche 911 GT3 RS (992, 2023, 525 CV) en Arctic Grey**, conducible, con un circuito y una explanada de asfalto. Esta primera fase prepara los datos y el terreno; el coche llega en las siguientes.
+El siguiente vehículo es un **Porsche 911 GT3 RS (992, 2023, 525 CV)**, conducible, con un circuito y una explanada de asfalto. Esta primera fase prepara los datos y el terreno; el coche llega en las siguientes.
 
 - **Datos** (`src/data/gt3rs.js`), cada cifra con su etiqueta:
   - de la ficha técnica oficial de Porsche (MY P 08/2022, modelo UE):
@@ -543,7 +543,7 @@ El siguiente vehículo es un **Porsche 911 GT3 RS (992, 2023, 525 CV) en Arctic 
 
 ### Porsche 911 GT3 RS, fase 2: el coche y la conducción (2 de octubre de 2026)
 
-El GT3 RS ya está en el centro, en Arctic Grey: aparcado en la explanada del circuito, mirando al sur a lo largo de ella. Se conduce con **B** o con el botón *Porsche · Drive*.
+El GT3 RS ya está en el centro: aparcado en la explanada del circuito, mirando al sur a lo largo de ella. Se conduce con **B** o con el botón *Porsche · Drive*.
 
 - **Modelo** (`src/vehicles/gt3rs.js`), a 1:1:
   - **Superficie:** la carrocería es una sola superficie maestra. Son secciones de 15 puntos (umbral, entrante, anchura máxima, flanco, cadera, hombro, borde superior y eje) a lo largo de tablas trazadas sobre las fotos de estudio de Porsche, que solo sirven de referencia y no están en el repositorio. La escala sale de la batalla y la altura publicadas, y al superponer el perfil a la foto lateral, los extremos caen a 4,575 m frente a los 4,572 publicados.
@@ -687,6 +687,26 @@ He revisado cada expositor en todas sus vistas, el lanzamiento de Starship hito 
   - el sellado de las grietas, demasiado brillante, reflejaba el sol bajo y dibujaba líneas blancas; ahora es satinado y oscuro, como el betún.
 
 Sin errores de consola en ninguna vista. Lo demás, revisado sin hallazgos: Starship y la torre, Falcon 9, Falcon Heavy, Dragon, Starlink, el Roadster, los motores, el F-16 y el Porsche.
+
+### Porsche 911 GT3 RS, mejora 3: carrocería nueva contra las cuatro fotos de estudio (2 de octubre de 2026)
+
+Orden del usuario: que el Porsche sea una copia visual del coche real, por fuera y por dentro. Esta fase rehace el exterior; el habitáculo llega en la siguiente.
+
+**Método.** Las fotos de prensa de Porsche se usan solo como referencia y no están en el repositorio. A las cámaras lateral, frontal y trasera se suma la de tres cuartos delantera, resuelta por PnP con un error de 36 px sobre 4.000. Cada render del banco de pruebas se superpone a la foto: los bordes de la foto en gris y los del modelo en rojo. Las posiciones quedan a ≈ ±1,5 cm y las profundidades a ≈ ±2 cm.
+
+- **Color.** El coche de las fotos es de un gris casi blanco con llantas rojas, no Arctic Grey. El modelo lleva ese gris (≈ el tono) como pintura lisa con barniz, las llantas rojas y las pinzas negras. El color es una estimación (`PAINT`, etiqueta ESTIMATE) y la ficha lo dice.
+- **Perfil delantero.** La cresta de la aleta, el capó y el hombro siguen ahora la silueta de la foto lateral, que baja de 0,856 m sobre la rueda a 0,60 m donde empieza el paragolpes. Antes el morro quedaba alto y romo.
+- **Morro y cola como relieves.** El barrido de la carrocería termina en x = +2,00 y −2,10 m. Cada extremo es un relieve sobre el contorno de la última sección, que se curva tangente a los costados, de modo que no hay arista entre el extremo y la carrocería. Las tomas son agujeros con su pared, su fondo y su labio a lo largo del contorno exacto, y ya no siguen los escalones de la malla.
+  - **Morro:** la toma central con rejilla, las dos tomas laterales, las ranuras de las esquinas y el borde inferior negro de lado a lado.
+  - **Cola:** el labio del *ducktail* a 0,906 m, el hueco bajo él con la franja de luz, los pilotos que sobresalen ≈2 cm con su lente ahumada, el panel negro inferior con el hueco de la matrícula (sin placa), los catadióptricos, y el paragolpes negro que envuelve las esquinas desde el costado.
+- **Faros.** Cada uno es un cuenco hundido ≈7 cm con su lente abombada y su bisel. Dentro llevan el aro cromado, el módulo del proyector y las cuatro luces diurnas, todo sobre el plano inclinado de la abertura (antes estaban en un plano vertical y quedaban ocultas).
+- **Detrás de la rueda trasera.** La aleta negra alta rodea el borde del paso de rueda a ≈2 cm de la carrocería, con la salida oscura detrás y el paragolpes negro debajo, que sube hacia la cola. Sustituye a dos parches con contorno escalonado.
+- **Difusor.** Seis aletas bajo una rampa que sube del suelo a la cola.
+- **Lamas de la aleta delantera.** Ahora corren a lo largo del coche, escalonadas por la pendiente como en la foto lateral y en el primer plano de la aleta. Antes eran transversales.
+- **Ventanillas.** Toda la abertura es vidrio. El marco negro y el montante B se dibujan como líneas sobre su contorno exacto, sin escalones en los bordes inclinados.
+- **Ruedas y ala.** Los radios son más finos (36 mm en la base). El plano principal del ala es plata satinada y el *flap* del DRS, negro. El borde del *splitter*, los escapes (centros a 0,29 m, separados 0,12 m) y las aletas del difusor (de 0,14 a 0,27 m) se han medido en la foto trasera.
+- **Retrovisores** algo más redondeados.
+- **Corregido de paso:** la normal de la cara trasera tenía invertidas sus componentes laterales. Los parches de la cola se hundían hacia dentro cerca del borde y la cara los tapaba.
 
 ### Auditoría técnica externa del 2 de octubre de 2026 (ChatGPT): lo corregido
 

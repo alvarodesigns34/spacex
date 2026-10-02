@@ -504,7 +504,7 @@ export const VEHICLES = [
   {
     id: 'gt3rs',
     name: 'Porsche 911 GT3 RS',
-    subtitle: 'Porsche 911 GT3 RS (992), 2023 · Arctic Grey',
+    subtitle: 'Porsche 911 GT3 RS (992), 2023 · as photographed by Porsche',
     height: FIGURES.gt3rs.height.value,
     footprint: FIGURES.gt3rs.footprint.value,
     summary: 'The track-focused 911 of the 992 generation: a 4.0-litre naturally aspirated flat six turning to 9,000 rpm behind the rear axle, a seven-speed PDK, a single central radiator in the nose, and active aerodynamics with a swan-neck rear wing and the first DRS on a production Porsche. It waits on its own skid pad, beside its circuit, ready to drive.',
@@ -522,7 +522,7 @@ export const VEHICLES = [
       { label: 'Steering', value: '14.1:1 at the centre, rear-axle steering, 10.5 m turning circle', source: 'official', ref: 'porsche_techdata' },
       { label: 'Performance', value: '0–100 km/h 3.2 s, 0–160 km/h 6.9 s, 0–200 km/h 10.6 s; 296 km/h', source: 'official', ref: 'porsche_techdata' },
       { label: 'Downforce', value: '409 kg at 200 km/h and 860 kg at 285 km/h (901 lb at 124 mph, 1,896 lb at 177 mph), high-downforce setting', source: 'official', ref: 'porsche_presskit' },
-      { label: 'Paint', value: 'Arctic Grey, a solid grey (≈ its shade)', source: 'derived', approx: true },
+      { label: 'Paint', value: 'Near-white grey with red wheels, as on the car in Porsche\'s studio photographs (≈ the shades)', source: 'derived', approx: true },
       { label: 'Drive model', value: 'four tyres, each with its own load and combined slip (a magic formula, ≈), the published torque curve\'s two points, ratios and final drive, 0.1 s shifts (≈), a locking differential (≈), ABS with brake-force distribution, rear-axle steering (≈); PSM on by default — traction and stability control (≈ their logic), standing back for a drift started with the parking brake', source: 'derived', approx: true },
       { label: 'Drive model · checked', value: '0–100 km/h 3.25 s, 0–160 km/h 6.96 s, 0–200 km/h 10.66 s, 296 km/h (tools/gt3rs-check.mjs)', source: 'derived' },
       { label: 'Drive model · aerodynamics', value: 'lift area from the published downforce; drag area 0.89 m² derived from the published 296 km/h (7,940 rpm in seventh, the wings flat under DRS); the airbrake is not modelled', source: 'derived', approx: true },

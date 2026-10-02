@@ -1,5 +1,6 @@
 /**
- * Porsche 911 GT3 RS (type 992, model year 2023) in Arctic Grey, at 1:1.
+ * Porsche 911 GT3 RS (type 992, model year 2023), at 1:1, as Porsche photographed it: near-white
+ * grey, red wheels.
  *
  * PROVENANCE
  *  - Every published figure is in data/gt3rs.js with its source (Porsche's technical data,
@@ -23,8 +24,8 @@
  * centripetal Catmull-Rom through 15 points (sill, tuck, widest point, flank, hip, shoulder and
  * upper edge on each side of the centre line, and the crown), swept along X through key tables. The glass,
  * its frames, the lamps' openings and the skirts are regions of that one surface; the parts with
- * curved or slanted outlines are patches laid on it (bandPatch, loopPatch, facePatch), so neither can drift
- * apart from it. The body, wing, mirrors and cabin hang in group gt3-sprung, which the
+ * curved or slanted outlines are patches laid on it (bandPatch, loopPatch, endPatch), so neither can drift
+ * apart from it; the nose and the tail are reliefs over the last sections (relief). The body, wing, mirrors and cabin hang in group gt3-sprung, which the
  * drive pitches and rolls on the springs; the four wheels are outside it.
  */
 import * as THREE from 'three';
@@ -36,12 +37,10 @@ const RF = WHEELS.front.dia / 2, RR = WHEELS.rear.dia / 2;
 /** Static ride: the tyres stand ≈8 mm compressed under the car's weight (≈). */
 const SQUASH = 0.008;
 /**
- * The swept surface stops short of the published ends; a rounded face closes each (endCap), its
- * middle at the published ±2.286 m, its rim turning tangent into the sides — the bumpers' corners.
- * The faces carry their intakes, panel and lamps as patches (facePatch).
+ * Where the swept body hands over to the ends' reliefs (NOSE and TAIL below): each stands out to
+ * the published ±2.286 m and turns tangent into the sides at its rim — the bumpers' corners.
  */
-const CAP = { nose: { bulge: 0.08, m: 4 }, tail: { bulge: 0.05, m: 5 } };
-const X_NOSE = L2 - CAP.nose.bulge, X_TAIL = -L2 + CAP.tail.bulge;
+const X_NOSE = 2.00, X_TAIL = -2.10;
 export const AXLE_F = { x: AX, y: RF - SQUASH, track: BODY.trackFront, tyre: WHEELS.front };
 export const AXLE_R = { x: -AX, y: RR - SQUASH, track: BODY.trackRear, tyre: WHEELS.rear };
 
@@ -51,10 +50,11 @@ export const AXLE_R = { x: -AX, y: RR - SQUASH, track: BODY.trackRear, tyre: WHE
 
 /** Centre-line crown: the tail's top, engine lid, rear window, roof, windscreen, bonnet, nose. */
 const yCrown = curve([
-  [-L2, 0.80], [-2.27, 0.835], [-2.24, 0.86], [-2.20, 0.875], [-2.13, 0.882], [-1.97, 0.897], [-1.76, 0.922], [-1.55, 0.987],
+  // The engine lid ends in the ducktail: its lip rises ≈2.5 cm over the lid to 0.906 m (side and tail photographs).
+  [-L2, 0.80], [-2.27, 0.835], [-2.20, 0.88], [-2.10, 0.906], [-2.04, 0.894], [-1.97, 0.893], [-1.76, 0.922], [-1.55, 0.987],
   [-1.35, 1.057], [-1.08, 1.153], [-0.93, 1.21], [-0.75, 1.262], [-0.55, 1.282], [-0.30, 1.289], [0, 1.283],
-  [0.20, 1.247], [0.45, 1.075], [0.60, 0.975], [0.78, 0.867], [0.85, 0.842], [1.0, 0.822], [AX, 0.792],
-  [1.50, 0.752], [1.70, 0.707], [1.90, 0.635], [2.05, 0.585], [2.15, 0.56], [2.22, 0.535], [2.26, 0.51], [L2, 0.48],
+  [0.20, 1.247], [0.45, 1.075], [0.60, 0.975], [0.78, 0.867], [0.85, 0.842], [1.0, 0.82], [AX, 0.792],
+  [1.50, 0.750], [1.70, 0.697], [1.85, 0.637], [1.95, 0.585], [2.0, 0.556], [2.10, 0.50], [L2, 0.45],
 ]);
 /** Widest half-width of the body at each station, and the height where it is widest. */
 // The section's curve stands ≈1 % proud of its widest control point, so the table is set that
@@ -86,8 +86,10 @@ const hipZ = curve([
 const hipY = curve([
   [-L2, 0.74], [-2.27, 0.78], [-2.20, 0.815], [-2.0, 0.84], [-1.80, 0.852], [-1.50, 0.858], [-AX, 0.86],
   [-1.0, 0.862], [-0.80, 0.864], [-0.50, 0.866], [0, 0.868], [0.50, 0.868], [0.65, 0.867],
-  [0.78, 0.866], [0.85, 0.866], [1.0, 0.866], [AX, 0.86], [1.50, 0.843], [1.64, 0.834], [1.72, 0.826], [1.79, 0.808], [1.85, 0.773],
-  [1.92, 0.70], [2.05, 0.613], [2.15, 0.563], [2.22, 0.528], [2.26, 0.503], [L2, 0.473],
+  // Ahead of the cowl, TRACED on the side photograph's silhouette (its top there is this crest):
+  // it falls steadily from 0.855 m over the wheel to 0.60 m where the bumper begins.
+  [0.78, 0.864], [0.85, 0.861], [1.0, 0.856], [AX, 0.848], [1.39, 0.838], [1.50, 0.824], [1.61, 0.800],
+  [1.70, 0.762], [1.78, 0.716], [1.85, 0.673], [1.92, 0.636], [2.0, 0.600], [2.10, 0.54], [L2, 0.47],
 ]);
 /**
  * Shoulder: inboard of the hip — the front fender's inner slope down to the bonnet, the side
@@ -103,8 +105,8 @@ const shoulderZ = curve([
 const shoulderY = curve([
   [-L2, 0.765], [-2.27, 0.80], [-2.20, 0.84], [-2.0, 0.868], [-1.80, 0.885], [-1.50, 0.895], [-AX, 0.90],
   [-1.0, 0.90], [-0.80, 0.892], [-0.50, 0.886], [0, 0.884], [0.50, 0.884], [0.65, 0.884],
-  [0.78, 0.876], [0.85, 0.855], [1.0, 0.848], [AX, 0.835], [1.50, 0.81], [1.70, 0.78], [1.90, 0.70],
-  [2.05, 0.605], [2.20, 0.531], [L2, 0.474],
+  [0.78, 0.872], [0.85, 0.853], [1.0, 0.845], [AX, 0.832], [1.50, 0.802], [1.70, 0.738], [1.85, 0.658],
+  [2.0, 0.586], [2.10, 0.53], [L2, 0.465],
 ]);
 /** Upper edge: the bonnet's flank, the A-pillar, the roof's edge, the rear window's, the deck's. */
 const upperZ = curve([
@@ -114,10 +116,10 @@ const upperZ = curve([
   [1.50, 0.43], [1.70, 0.42], [1.90, 0.42], [2.05, 0.41], [2.20, 0.40], [L2, 0.40],
 ]);
 const upperY = curve([
-  [-L2, 0.79], [-2.27, 0.828], [-2.24, 0.853], [-2.20, 0.868], [-2.13, 0.877], [-1.97, 0.892], [-1.76, 0.912], [-1.55, 0.967],
+  [-L2, 0.79], [-2.27, 0.828], [-2.20, 0.872], [-2.10, 0.898], [-2.04, 0.888], [-1.97, 0.888], [-1.76, 0.912], [-1.55, 0.967],
   [-1.35, 1.032], [-1.08, 1.127], [-0.93, 1.182], [-0.75, 1.232], [-0.55, 1.257], [-0.30, 1.267], [0, 1.262],
-  [0.20, 1.232], [0.45, 1.06], [0.60, 0.96], [0.78, 0.897], [0.85, 0.842], [1.0, 0.813], [AX, 0.782],
-  [1.50, 0.742], [1.70, 0.699], [1.90, 0.627], [2.05, 0.578], [2.15, 0.553], [2.22, 0.528], [2.26, 0.503], [L2, 0.474],
+  [0.20, 1.232], [0.45, 1.06], [0.60, 0.96], [0.78, 0.897], [0.85, 0.840], [1.0, 0.815], [AX, 0.786],
+  [1.50, 0.746], [1.70, 0.694], [1.85, 0.634], [1.95, 0.584], [2.0, 0.556], [2.10, 0.50], [L2, 0.45],
 ]);
 
 /** Wheel-arch openings in the side: centre height, radius (tyre plus the gap the RS carries, ≈). */
@@ -323,19 +325,19 @@ export function region(x, t) {
   if (inWindscreen(x, t) || inRearWindow(x, t)) return 'glass';
   if (inSeal(x, t)) return 'seal';
   const p = bodyPoint(x, t, _rp), az = Math.abs(p.z), sill = sillEdge(x);
-  if (inSideBand(t) && inDLO(x, p.y)) return inSideGlass(x, t, p.y) ? 'glass' : 'seal';
+  // The whole opening is glass; its black frame and the B-pillar's cover are laid over it along
+  // their exact outline (buildGlassSeals), where the grid would draw the slanted edges as steps.
+  if (inSideBand(t) && inDLO(x, p.y)) return 'glass';
   if (x > LAMP.x0 && lampD(p) < LAMP.r) return 'lamp';
   // The side skirts between the wheels.
   if (x > -0.86 && x < 0.84 && az > 0.80 && p.y < sill + 0.055) return 'plastic';
-  // Under the tail, ahead of the diffuser's fins.
-  if (x < -1.95 && p.y < 0.24 && az < 0.86) return 'plastic';
   return 'paint';
 }
 
 // ---- Materials -------------------------------------------------------------------------------
 function gt3Materials(M) {
   if (M.gt3Paint) return M;
-  // Arctic Grey: a solid (non-metallic) light grey under a deep clearcoat.
+  // The photographs' near-white grey: a solid (non-metallic) paint under a deep clearcoat.
   M.gt3Paint = new THREE.MeshPhysicalMaterial({
     name: 'gt3-paint', color: PAINT.srgb, metalness: 0, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.06, envMapIntensity: 1.0,
   });
@@ -348,11 +350,13 @@ function gt3Materials(M) {
   M.gt3Interior = new THREE.MeshStandardMaterial({ name: 'gt3-interior', color: 0x161718, metalness: 0, roughness: 0.9, side: THREE.DoubleSide });
   M.gt3Tyre = new THREE.MeshStandardMaterial({ name: 'gt3-tyre', color: 0x18191a, metalness: 0, roughness: 0.86 });
   // The wheels: forged, in a satin dark finish (≈: the colour is a choice for this car).
-  M.gt3Wheel = new THREE.MeshStandardMaterial({ name: 'gt3-wheel', color: 0x2b2d30, metalness: 0.6, roughness: 0.42 });
+  // The wheels painted red and the callipers black, as on the car in Porsche's studio photographs (≈ the colours).
+  M.gt3Wheel = new THREE.MeshPhysicalMaterial({ name: 'gt3-wheel', color: 0xb8211f, metalness: 0.35, roughness: 0.34, clearcoat: 0.8, clearcoatRoughness: 0.12 });
   M.gt3WheelDS = M.gt3Wheel.clone(); M.gt3WheelDS.name = 'gt3-wheel-rim'; M.gt3WheelDS.side = THREE.DoubleSide;
   M.gt3Disc = new THREE.MeshStandardMaterial({ name: 'gt3-disc', color: 0x6e6a66, metalness: 0.8, roughness: 0.48 });
   // Cast-iron brakes carry red callipers (ceramic ones are yellow).
   M.gt3Calliper = new THREE.MeshStandardMaterial({ name: 'gt3-calliper', color: 0xb3141a, metalness: 0.15, roughness: 0.36 });
+  M.gt3CalliperBlack = new THREE.MeshStandardMaterial({ name: 'gt3-calliper-black', color: 0x121314, metalness: 0.2, roughness: 0.4 });
   M.gt3Carbon = new THREE.MeshStandardMaterial({ name: 'gt3-carbon', color: 0x17181a, metalness: 0.3, roughness: 0.3 });
   // Lamps: a clear lens over a dark chrome bowl, the four-point daytime lights lit.
   M.gt3Lens = new THREE.MeshPhysicalMaterial({ name: 'gt3-lens', color: 0xffffff, metalness: 0, roughness: 0.02, transparent: true, opacity: 0.1, envMapIntensity: 0.5, depthWrite: false });
@@ -380,94 +384,335 @@ function gt3Materials(M) {
   return M;
 }
 
-// ---- The body ---------------------------------------------------------------------------------
+// ---- The ends: reliefs over the front and rear elevations ------------------------------------------
+/** Signed distance from (z, y) to a closed polygon [[z, y], …] of an elevation: negative inside. */
+function polySD(z, y, poly) {
+  let d = Infinity, inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [zi, yi] = poly[i], [zj, yj] = poly[j];
+    const ez = zi - zj, ey = yi - yj, wz = z - zj, wy = y - yj;
+    const t = Math.max(0, Math.min(1, (wz * ez + wy * ey) / (ez * ez + ey * ey || 1e-12)));
+    d = Math.min(d, Math.hypot(wz - ez * t, wy - ey * t));
+    if ((yi > y) !== (yj > y) && z < (zj - zi) * (y - yi) / (yj - yi) + zi) inside = !inside;
+  }
+  return inside ? -d : d;
+}
+/** A rounded polygon: each corner [z, y, r] cut by an arc of radius r (r 0: sharp). Outline for polySD and the regions. */
+function roundPoly(corners, nArc = 6) {
+  const out = [], n = corners.length;
+  for (let i = 0; i < n; i++) {
+    const [z, y, r = 0] = corners[i], [zp, yp] = corners[(i + n - 1) % n], [zn, yn] = corners[(i + 1) % n];
+    if (!r) { out.push([z, y]); continue; }
+    const a = Math.atan2(yp - y, zp - z), b = Math.atan2(yn - y, zn - z);
+    const la = Math.hypot(zp - z, yp - y), lb = Math.hypot(zn - z, yn - y), rr = Math.min(r, la * 0.45, lb * 0.45);
+    const pa = [z + Math.cos(a) * rr, y + Math.sin(a) * rr], pb = [z + Math.cos(b) * rr, y + Math.sin(b) * rr];
+    // A quadratic Bézier through the corner stands in for the arc: tangent to both edges.
+    for (let k = 0; k <= nArc; k++) {
+      const t = k / nArc, u = 1 - t;
+      out.push([u * u * pa[0] + 2 * u * t * z + t * t * pb[0], u * u * pa[1] + 2 * u * t * y + t * t * pb[1]]);
+    }
+  }
+  return out;
+}
 /**
- * One end of the body closed with a rounded face: rings shrinking from the last section to its
- * centroid, standing out along ±X by bulge·(1 − f^m)^½ at ring fraction f — flat in the middle,
- * turning through a quarter round at the rim, where it meets the sides tangentially. The face's
- * shape is kept (faceX) for the patches laid on it.
+ * An end of the car as a relief over its elevation. The swept surface stops at x; its last section
+ * is the end's outline, and inside it the end stands out along dir by
+ *   depth(|z|, y) · (1 − u^p)^½ · (1 − f^24)^½,
+ * u the fraction of the outline's half-width at that height and f of the way from the centroid to
+ * the outline: the square roots turn the face tangentially into the sides and the top at the
+ * outline, so the end and the swept body meet without a crease. Built on rings round the centroid.
+ * The intakes are holes in it (every cell touching one is left out); intake() then builds each
+ * one's lip, wall and floor along its exact outline, and endPatch() lays the black panels, lamps
+ * and lights on the face along theirs, so no edge follows the grid's steps.
  */
-const FACES = {};
-function endCap(x, dir, { bulge, m }) {
-  const ts = paramsT(0, 1, 136);
+const ENDS = {};
+function relief(spec) {
+  const { x, dir, holes = [] } = spec;
+  const ts = paramsT(0, 1, spec.n ?? 320);
   const ring = ts.map(t => bodyPoint(x, t));
-  // The section is open across the bottom (sill to sill): close it along the floor.
   const yb = Math.min(ring[0].y, ring[ring.length - 1].y);
   const floor = [];
-  for (let k = 1; k < 24; k++) floor.push(new THREE.Vector3(x, yb, ring[ring.length - 1].z + (ring[0].z - ring[ring.length - 1].z) * k / 24));
+  for (let k = 1; k < 40; k++) floor.push(new THREE.Vector3(x, yb, ring[ring.length - 1].z + (ring[0].z - ring[ring.length - 1].z) * k / 40));
   const loop = [...ring, ...floor];
-  const cy = loop.reduce((s, p) => s + p.y, 0) / loop.length;
-  const prof = (f) => bulge * Math.sqrt(Math.max(0, 1 - f ** m));
-  FACES[dir] = { x, dir, cy, prof, loop: loop.map(p => [p.z, p.y]) };
-  // Rings crowd towards the rim, where the face turns.
-  const K = 28, n = loop.length;
-  const pts = [];
+  const ys = loop.map(p => p.y), y0 = Math.min(...ys), y1 = Math.max(...ys), cy = (y0 + y1) / 2;
+  // The outline's half-width at each height, tabulated.
+  const NY = 400, half = new Float64Array(NY + 1);
+  for (let i = 0; i <= NY; i++) {
+    const y = y0 + (y1 - y0) * i / NY;
+    let w = 0;
+    for (let k = 0; k < loop.length; k++) {
+      const a = loop[k], b = loop[(k + 1) % loop.length];
+      if ((a.y - y) * (b.y - y) <= 0 && a.y !== b.y) w = Math.max(w, Math.abs(a.z + (b.z - a.z) * (y - a.y) / (b.y - a.y)));
+    }
+    half[i] = w;
+  }
+  const halfAt = (y) => { const u = Math.min(NY, Math.max(0, (y - y0) / (y1 - y0) * NY)), i = Math.min(NY - 1, Math.floor(u)); return half[i] + (half[i + 1] - half[i]) * (u - i); };
+  const pOf = typeof spec.p === 'function' ? spec.p : () => spec.p ?? 6;
+  const out = (z, y, f) => {
+    const W = halfAt(y) || 1e-6, u = Math.min(1, Math.abs(z) / W);
+    return spec.depth(Math.abs(z), y) * Math.sqrt(Math.max(0, 1 - u ** pOf(y))) * Math.sqrt(Math.max(0, 1 - f ** 24));
+  };
+  const n = loop.length;
+  const fracAt = (z, y) => {
+    const dz = z, dy = y - cy;
+    if (Math.hypot(dz, dy) < 1e-9) return 0;
+    let best = Infinity;
+    for (let i = 0; i < n; i++) {
+      const a = loop[i], b = loop[(i + 1) % n];
+      const ez = b.z - a.z, ey = b.y - a.y, den = dz * ey - dy * ez;
+      if (Math.abs(den) < 1e-12) continue;
+      const sr = (a.z * ey - (a.y - cy) * ez) / den, uu = (a.z * dy - (a.y - cy) * dz) / den;
+      if (sr > 0 && uu >= 0 && uu <= 1 && sr < best) best = sr;
+    }
+    return Math.min(1, 1 / best);
+  };
+  const xAt = (z, y) => x + dir * out(z, y, fracAt(z, y));
+  const K = spec.rings ?? 64;
+  const pos = new Float32Array((K + 1) * n * 3), uvs = new Float32Array((K + 1) * n * 2), inHole = new Uint8Array((K + 1) * n);
   for (let k = 0; k <= K; k++) {
-    const f = 1 - (k / K) ** 2;
-    for (const p of loop) pts.push(new THREE.Vector3(x + dir * prof(f), cy + (p.y - cy) * f, p.z * f));
+    // Rings closer towards the outline, where the face turns sharply into the sides.
+    const f = 1 - (1 - k / K) ** 2;
+    for (let i = 0; i < n; i++) {
+      const q = loop[i], z = q.z * f, y = cy + (q.y - cy) * f, o = k * n + i;
+      pos[o * 3] = x + dir * out(z, y, f); pos[o * 3 + 1] = y; pos[o * 3 + 2] = z;
+      uvs[o * 2] = z; uvs[o * 2 + 1] = y;
+      for (const h of holes) if (polySD(Math.abs(z), y, h) < 0.0015) { inHole[o] = 1; break; }
+    }
   }
   const idx = [];
   for (let k = 0; k < K; k++) for (let i = 0; i < n; i++) {
     const a = k * n + i, b = k * n + (i + 1) % n, c = (k + 1) * n + i, d = (k + 1) * n + (i + 1) % n;
+    if (inHole[a] || inHole[b] || inHole[c] || inHole[d]) continue;
     idx.push(a, b, c, b, d, c);
   }
-  const pos = new Float32Array(pts.length * 3), uv = new Float32Array(pts.length * 2);
-  pts.forEach((p, i) => { pos.set([p.x, p.y, p.z], i * 3); uv.set([p.z, p.y], i * 2); });
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  g.setIndex(idx);
-  g.computeVertexNormals();
-  // Wound to face out along ±X whichever way the loop ran.
-  let sx = 0; const nn = g.attributes.normal;
-  for (let i = 0; i < nn.count; i += 7) sx += nn.getX(i);
-  if (sx * dir < 0) { g.setIndex(idx.slice().reverse()); g.computeVertexNormals(); }
+  // Wound to face out along dir (summed: the innermost ring sits at the centroid, degenerate).
+  let sx = 0;
+  for (let j = 0; j < idx.length; j += 3) {
+    const a = idx[j] * 3, b = idx[j + 1] * 3, c = idx[j + 2] * 3;
+    sx += (pos[b + 1] - pos[a + 1]) * (pos[c + 2] - pos[a + 2]) - (pos[b + 2] - pos[a + 2]) * (pos[c + 1] - pos[a + 1]);
+  }
+  if (sx * dir < 0) for (let j = 0; j < idx.length; j += 3) [idx[j + 1], idx[j + 2]] = [idx[j + 2], idx[j + 1]];
+  const g = indexed(Array.from(pos), Array.from(uvs), idx);
+  ENDS[dir] = { x, dir, xAt, halfAt, cy, y0, y1 };
   return g;
 }
-/** The face's x at (z, y) of its front elevation: the ring through the point, by its fraction. */
-function faceX(dir, z, y) {
-  const F = FACES[dir], dz = z, dy = y - F.cy, r = Math.hypot(dz, dy);
-  if (r < 1e-9) return F.x + dir * F.prof(0);
-  // Where the ray from the centroid through (z, y) leaves the face's outline.
-  let best = Infinity;
-  const L = F.loop, n = L.length;
-  for (let i = 0; i < n; i++) {
-    const [z1, y1] = L[i], [z2, y2] = L[(i + 1) % n];
-    const ez = z2 - z1, ey = (y2 - F.cy) - (y1 - F.cy), den = dz * ey - dy * ez;
-    if (Math.abs(den) < 1e-12) continue;
-    const s = (z1 * ey - (y1 - F.cy) * ez) / den, u = (z1 * dy - (y1 - F.cy) * dz) / den;
-    if (s > 0 && u >= 0 && u <= 1 && s < best) best = s;
-  }
-  const f = Math.min(1, 1 / best);
-  return F.x + dir * F.prof(f);
+/** The face's outward normal at (z, y). */
+function endNormal(dir, z, y, out = new THREE.Vector3()) {
+  const E = ENDS[dir], e = 0.003;
+  const dxz = (E.xAt(z + e, y) - E.xAt(z - e, y)) / (2 * e), dxy = (E.xAt(z, y + e) - E.xAt(z, y - e)) / (2 * e);
+  // The face is x = X + dir·out(z, y): its outward normal is (dir, −out_y, −out_z), and xAt's slopes are dir·out_y, dir·out_z.
+  return out.set(dir, -dxy * dir, -dxz * dir).normalize();
 }
 /**
- * A patch on an end face over a closed outline [[z, y], …] of its front elevation, `lift` out
- * along the face's normal, fanned in rings from the centroid. UVs in metres.
+ * A patch on an end over a closed outline [[z, y], …] (full width: z signed), `lift` out along its
+ * normal, fanned from the centroid; open where `holes` are (the intakes it surrounds).
  */
-function facePatch(dir, outline, lift = 0.003, minRings = 3) {
-  const loop = densify(outline), n = loop.length;
-  const cz = loop.reduce((s, p) => s + p[0], 0) / n, cy = loop.reduce((s, p) => s + p[1], 0) / n;
-  const rings = ringsFor(loop, cz, cy, minRings);
-  const pos = [], uv = [], idx = [];
-  const e = 0.004, nrm = new THREE.Vector3();
-  const put = (z, y) => {
-    const x = faceX(dir, z, y);
-    nrm.set(dir, -(faceX(dir, z, y + e) - faceX(dir, z, y - e)) / (2 * e), -(faceX(dir, z + e, y) - faceX(dir, z - e, y)) / (2 * e)).normalize();
-    if (nrm.x * dir < 0) nrm.negate();
-    pos.push(x + nrm.x * lift, y + nrm.y * lift, z + nrm.z * lift); uv.push(z, y);
-  };
+function endPatch(dir, outline, lift = 0.0015, holes = [], ringPow = 1) {
+  const loop = densify(outline, 0.008), n = loop.length;
+  const cz = loop.reduce((s, q) => s + q[0], 0) / n, cy = loop.reduce((s, q) => s + q[1], 0) / n;
+  const R = Math.max(...loop.map(([z, y]) => Math.hypot(z - cz, y - cy)));
+  const rings = Math.max(3, Math.min(30, Math.ceil(R / 0.012)));
+  const pos = [], uv = [], idx = [], nn = new THREE.Vector3();
+  // Out along the normal, and as far again along dir: where the face rolls under, its normal turns
+  // downwards and a patch lifted along it alone would sink into the face.
+  const put = (z, y) => { endNormal(dir, z, y, nn); const xx = ENDS[dir].xAt(z, y); pos.push(xx + (nn.x + 0.6 * dir) * lift, y + nn.y * lift, z + nn.z * lift); uv.push(z, y); };
   put(cz, cy);
-  for (let k = 1; k <= rings; k++) for (const [z, y] of loop) put(cz + (z - cz) * k / rings, cy + (y - cy) * k / rings);
+  for (let k = 1; k <= rings; k++) { const f = 1 - (1 - k / rings) ** ringPow; for (const [z, y] of loop) put(cz + (z - cz) * f, cy + (y - cy) * f); }
   for (let j = 0; j < n; j++) idx.push(0, 1 + j, 1 + (j + 1) % n);
   for (let k = 1; k < rings; k++) for (let j = 0; j < n; j++) {
     const a = 1 + (k - 1) * n + j, b = 1 + (k - 1) * n + (j + 1) % n;
     idx.push(a, a + n, b, b, a + n, b + n);
   }
+  if (holes.length) {
+    const keep = [];
+    for (let j = 0; j < idx.length; j += 3) {
+      const zc = (uv[idx[j] * 2] + uv[idx[j + 1] * 2] + uv[idx[j + 2] * 2]) / 3, yc = (uv[idx[j] * 2 + 1] + uv[idx[j + 1] * 2 + 1] + uv[idx[j + 2] * 2 + 1]) / 3;
+      if (!holes.some(h => polySD(zc, yc, h) < 0.002)) keep.push(idx[j], idx[j + 1], idx[j + 2]);
+    }
+    idx.length = 0; idx.push(...keep);
+  }
   const g = indexed(pos, uv, idx);
-  let sx = 0; const nn = g.attributes.normal;
-  for (let i = 0; i < nn.count; i++) sx += nn.getX(i);
-  if (sx * dir < 0) { g.setIndex(idx.map((_, k) => idx[k - (k % 3) + [0, 2, 1][k % 3]])); g.computeVertexNormals(); }
+  const nrm = g.attributes.normal;
+  let sxx = 0;
+  for (let i = 0; i < nrm.count; i++) sxx += nrm.getX(i);
+  if (sxx * dir < 0) { const ix = g.index.array; g.setIndex(Array.from(ix, (_, k) => ix[k - (k % 3) + [0, 2, 1][k % 3]])); g.computeVertexNormals(); }
+  return g;
+}
+/**
+ * A rounded rectangle on an end as a grid (rows up it, columns across): long thin panels and
+ * strips, which a fan from the centroid would fill with slivers. Its half-width runs from `hb`
+ * at the foot y0 to `ht` at the head y1; corners of radius r.
+ */
+function endRect(dir, { y0, y1, hb, ht = hb, r = 0, lift = 0.0015, step = 0.01 }) {
+  const ny = Math.max(2, Math.ceil((y1 - y0) / step)), nz = Math.max(2, Math.ceil(2 * Math.max(hb, ht) / step));
+  const pos = [], uv = [], idx = [], nn = new THREE.Vector3();
+  for (let i = 0; i <= ny; i++) {
+    const y = y0 + (y1 - y0) * i / ny, f = i / ny;
+    const d = Math.max(0, r - Math.min(y - y0, y1 - y));
+    const H = hb + (ht - hb) * f - r + Math.sqrt(Math.max(0, r * r - d * d));
+    for (let j = 0; j <= nz; j++) {
+      const z = H * (-1 + 2 * j / nz);
+      endNormal(dir, z, y, nn);
+      const xx = ENDS[dir].xAt(z, y);
+      pos.push(xx + (nn.x + 0.6 * dir) * lift, y + nn.y * lift, z + nn.z * lift); uv.push(z, y);
+    }
+  }
+  for (let i = 0; i < ny; i++) for (let j = 0; j < nz; j++) {
+    const a = i * (nz + 1) + j, b = a + nz + 1;
+    idx.push(a, a + 1, b, a + 1, b + 1, b);
+  }
+  const g = indexed(pos, uv, idx);
+  const nrm = g.attributes.normal;
+  let sx = 0;
+  for (let i = 0; i < nrm.count; i++) sx += nrm.getX(i);
+  if (sx * dir < 0) { const ix = g.index.array; g.setIndex(Array.from(ix, (_, k) => ix[k - (k % 3) + [0, 2, 1][k % 3]])); g.computeVertexNormals(); }
+  return g;
+}
+/** A band on an end along a closed outline, from `inner` inside it to `outer` outside (signed metres), `lift` proud: an opening's lip. */
+function endBand(dir, outline, inner, outer, lift = 0.0015) {
+  const loop = densify(outline, 0.006), n = loop.length;
+  // Offset each vertex along its 2-D normal (outward of the outline, which polySD decides).
+  const off = loop.map(([z, y], i) => {
+    const [z0, y0] = loop[(i + n - 1) % n], [z1, y1] = loop[(i + 1) % n];
+    let tz = z1 - z0, ty = y1 - y0; const l = Math.hypot(tz, ty) || 1; tz /= l; ty /= l;
+    let nz = ty, ny = -tz;
+    if (polySD(z + nz * 0.002, y + ny * 0.002, loop) < 0) { nz = -nz; ny = -ny; }
+    return [nz, ny];
+  });
+  const pos = [], uv = [], idx = [], nn = new THREE.Vector3();
+  for (let i = 0; i < n; i++) for (const d of [-inner, outer]) {
+    const z = loop[i][0] + off[i][0] * d, y = loop[i][1] + off[i][1] * d;
+    endNormal(dir, z, y, nn);
+    const xx = ENDS[dir].xAt(z, y);
+    pos.push(xx + nn.x * lift, y + nn.y * lift, z + nn.z * lift); uv.push(z, y);
+  }
+  for (let i = 0; i < n; i++) { const a = i * 2, b = ((i + 1) % n) * 2; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+  const g = indexed(pos, uv, idx);
+  const nrm = g.attributes.normal;
+  let sxx = 0;
+  for (let i = 0; i < nrm.count; i++) sxx += nrm.getX(i);
+  if (sxx * dir < 0) { const ix = g.index.array; g.setIndex(Array.from(ix, (_, k) => ix[k - (k % 3) + [0, 2, 1][k % 3]])); g.computeVertexNormals(); }
+  return g;
+}
+/**
+ * An opening in an end along its exact outline: the wall from the face straight back `depth`
+ * along −dir (narrowing by `taper`), and the floor at its foot. Returns { wall, floor }.
+ */
+function intake(dir, outline, depth, taper = 0.01) {
+  const loop = densify(outline, 0.006), n = loop.length;
+  const cz = loop.reduce((s, q) => s + q[0], 0) / n, cy = loop.reduce((s, q) => s + q[1], 0) / n;
+  const pos = [], uvw = [], idx = [];
+  const back = [];
+  for (let i = 0; i < n; i++) {
+    const [z, y] = loop[i], xx = ENDS[dir].xAt(z, y);
+    const L = Math.hypot(z - cz, y - cy) || 1, k = Math.max(0, 1 - taper / L);
+    const zb = cz + (z - cz) * k, yb = cy + (y - cy) * k, xb = xx - dir * depth;
+    pos.push(xx + dir * 0.002, y, z, xb, yb, zb); uvw.push(i * 0.006, 0, i * 0.006, depth);
+    back.push([zb, yb, xb]);
+  }
+  for (let i = 0; i < n; i++) { const a = i * 2, b = ((i + 1) % n) * 2; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+  const wall = indexed(pos, uvw, idx);
+  // Facing into the opening (towards its centre line).
+  {
+    const nrm = wall.attributes.normal, P = wall.attributes.position;
+    let s = 0;
+    for (let i = 0; i < nrm.count; i++) s += nrm.getY(i) * (cy - P.getY(i)) + nrm.getZ(i) * (cz - P.getZ(i));
+    if (s < 0) { const ix = wall.index.array; wall.setIndex(Array.from(ix, (_, k) => ix[k - (k % 3) + [0, 2, 1][k % 3]])); wall.computeVertexNormals(); }
+  }
+  // Floor: the foot of the wall, fanned from its centre.
+  const fpos = [], fuv = [], fidx = [];
+  const fx = back.reduce((s, q) => s + q[2], 0) / n;
+  fpos.push(fx, cy, cz); fuv.push(cz, cy);
+  for (const [zb, yb, xb] of back) { fpos.push(xb, yb, zb); fuv.push(zb, yb); }
+  for (let i = 0; i < n; i++) fidx.push(0, 1 + i, 1 + (i + 1) % n);
+  const fl = indexed(fpos, fuv, fidx);
+  if (fl.attributes.normal.getX(0) * dir < 0) { const ix = fl.index.array; fl.setIndex(Array.from(ix, (_, k) => ix[k - (k % 3) + [0, 2, 1][k % 3]])); fl.computeVertexNormals(); }
+  return { wall, floor: fl };
+}
+/** Mirrors a half outline (z ≥ 0) to the other side, reversed so it stays one way round. */
+const mirrorZ = (poly) => poly.map(([z, y]) => [-z, y]).reverse();
+
+/**
+ * The nose and the tail as reliefs (relief above), TRACED on the front and rear studio photographs
+ * with their solved cameras and on the side one (positions ≈ ±1.5 cm, depths ≈ ±2 cm). Outlines
+ * for one side (z ≥ 0), mirrored; a centred one runs across.
+ *  - Nose: the bumper's face stands at the published 2.286 m between 0.15 and 0.44 m and rolls back
+ *    over its top to the front lid. In it: the central intake with its mesh, the two side intakes
+ *    under their brows, the slots at the corners, the black lip below.
+ *  - Tail: the ducktail's lip at 0.86 m, the face falling back to the light bar and the lamps at
+ *    the corners, the bumper's widest at 2.286 m, the black lower panel and the black
+ *    lower bumper wrapping round its corners, the reflectors.
+ */
+const NOSE = {
+  // Rounder in plan low down, where the bumper's corners sweep back to the wheels (the
+  // three-quarter photograph), squarer at the lamps' height.
+  x: 2.00, dir: 1, p: (y) => 3.2 + 3.4 * Math.min(1, Math.max(0, (y - 0.12) / 0.25)),
+  depth: (() => { const c = curve([[0.04, 0.10], [0.10, 0.205], [0.14, 0.262], [0.18, 0.275], [0.30, 0.2775], [0.42, 0.273], [0.46, 0.243], [0.50, 0.178], [0.53, 0.108], [0.56, 0.035], [0.64, 0]]); return (az, y) => Math.max(0, c(y)); })(),
+  central: roundPoly([[-0.392, 0.168, 0.035], [0.392, 0.168, 0.035], [0.414, 0.336, 0.05], [0, 0.352], [-0.414, 0.336, 0.05]]),
+  side: roundPoly([[0.448, 0.232, 0.02], [0.612, 0.232, 0.025], [0.640, 0.452, 0.035], [0.458, 0.424, 0.03]]),
+  corner: roundPoly([[0.805, 0.17, 0.01], [0.852, 0.17, 0.012], [0.862, 0.468, 0.02], [0.815, 0.468, 0.02]]),
+  lip: roundPoly([[-0.80, 0.02], [0.80, 0.02], [0.80, 0.172, 0.01], [-0.80, 0.172, 0.01]]),
+  // The black lower edge of the bumper across its width, between the white cheeks at the corners
+  // (front and three-quarter photographs); the intakes' surrounds are black too (buildEnds).
+  lower: roundPoly([[-0.79, 0.152], [0.79, 0.152], [0.79, 0.205, 0.015], [-0.79, 0.205, 0.015]]),
+};
+NOSE.holes = [NOSE.central, NOSE.side, NOSE.corner];
+const TAIL = {
+  x: -2.10, dir: -1, p: 8,
+  // From the top: the ducktail's lip (its trailing edge 0.88 m up, 6 cm out), the recess under it
+  // with the light band, the bumper bulging out below the band to its widest, and in to the floor.
+  depth: (() => { const c = curve([[0.12, 0.0], [0.17, 0.065], [0.20, 0.105], [0.26, 0.152], [0.36, 0.186], [0.55, 0.19], [0.63, 0.172], [0.70, 0.142], [0.76, 0.104],
+    [0.785, 0.066], [0.812, 0.048], [0.835, 0.036], [0.855, 0.032], [0.872, 0.052], [0.882, 0.060], [0.893, 0.040], [0.906, 0.0]]); return (az, y) => Math.max(0, c(y)); })(),
+  band: { y0: 0.783, y1: 0.812, hb: 0.645, r: 0.006, lift: 0.002, step: 0.008 },
+  bar: { y0: 0.7935, y1: 0.8015, hb: 0.632, r: 0.003, lift: 0.0035, step: 0.008 },
+  lamp: roundPoly([[0.598, 0.764, 0.01], [0.835, 0.772, 0.03], [0.858, 0.834, 0.02], [0.618, 0.830, 0.01]]),
+  // Between the white corners that come down beside it to the floor (rear photograph).
+  panel: { y0: 0.168, y1: 0.575, hb: 0.74, ht: 0.765, r: 0.05, step: 0.014 },
+  plate: { y0: 0.432, y1: 0.556, hb: 0.30, r: 0.02, lift: 0.004 },
+  reflector: roundPoly([[0.585, 0.442, 0.008], [0.718, 0.442, 0.008], [0.718, 0.470, 0.008], [0.585, 0.470, 0.008]]),
+};
+function buildEnds(M) {
+  const g = new THREE.Group();
+  g.name = 'gt3-ends';
+  const add = (list, mat, name, castShadow = false) => g.add(mesh(mergeAll(list.map(geometry => ({ geometry }))), mat, { name, castShadow }));
+  const both = (poly) => [poly, mirrorZ(poly)];
+  // Nose.
+  add([relief(NOSE)], M.gt3Paint, 'gt3-nose-face', true);
+  {
+    const walls = [], floors = [], mesh_ = [], lips = [];
+    const c = intake(1, NOSE.central, 0.11, 0.012);
+    walls.push(c.wall); mesh_.push(c.floor);
+    lips.push(endBand(1, NOSE.central, 0.0, 0.024));
+    for (const poly of [...both(NOSE.side), ...both(NOSE.corner)]) {
+      const o = intake(1, poly, poly === NOSE.corner || poly === mirrorZ(NOSE.corner) ? 0.07 : 0.13, 0.01);
+      walls.push(o.wall); floors.push(o.floor);
+      lips.push(endBand(1, poly, 0.0, 0.012));
+    }
+    add(walls, M.gt3Plastic, 'gt3-nose-intake-walls');
+    add(floors, M.gt3Void, 'gt3-nose-intake-floors');
+    add(mesh_, M.gt3Mesh, 'gt3-nose-mesh');
+    add(lips, M.gt3Plastic, 'gt3-nose-intake-lips');
+    add([endPatch(1, NOSE.lower, 0.0012, NOSE.holes.flatMap(h => [h, mirrorZ(h)]))], M.gt3Plastic, 'gt3-nose-lower', true);
+  }
+  // Tail.
+  add([relief(TAIL)], M.gt3Paint, 'gt3-tail-face', true);
+  {
+    add([endRect(-1, TAIL.panel)], M.gt3Plastic, 'gt3-tail-panel', true);
+    // The black lower bumper wrapping round each corner from the side (buildBodyDetails), up to
+    // 0.39 m at the outline, falling to the panel's foot: its outer edge just inside the outline.
+    {
+      const E = ENDS[-1], yb = E.y0 + 0.003, edge = range(yb, 0.39, 16).map(y => [E.halfAt(y) - 0.0015, y]);
+      const corner = [[0.70, yb], ...edge, [0.84, 0.36], [0.78, 0.29], [0.72, 0.24], [0.70, 0.22]];
+      add(both(corner).map(pl => endPatch(-1, pl, 0.003, [], 2)), M.gt3Plastic, 'gt3-tail-corners', true);
+    }
+    add([endRect(-1, TAIL.plate)], M.gt3Plastic, 'gt3-tail-plate-recess');
+    add([endRect(-1, TAIL.band)], M.gt3Black, 'gt3-tail-band');
+    add([endRect(-1, TAIL.bar)], M.gt3Tail, 'gt3-tail-bar');
+    // The lamp units stand out of the face ≈2 cm, a smoked lens over each with its wall round it.
+    add(both(TAIL.lamp).map(pl => endPatch(-1, pl, 0.02)), M.gt3Smoke, 'gt3-tail-lamps');
+    add(both(TAIL.lamp).map(pl => { const o = intake(-1, pl, -0.02, -0.004); return o.wall; }), M.gt3Black, 'gt3-tail-lamp-walls');
+    add(both(TAIL.reflector).map(pl => endPatch(-1, pl, 0.003)), M.gt3Tail, 'gt3-tail-reflectors');
+  }
   return g;
 }
 
@@ -554,20 +799,26 @@ function onFront(z, y, guess) {
   }
   return { x, t, p: bodyPoint(x, t) };
 }
-/** A patch of the body over a ring of the front elevation, ρ from r0 to r1 of the lamp's radius. */
-function lampPatch(sd, r0, r1, lift, nr = 6, na = 48) {
+/**
+ * A patch of the body over a ring of the front elevation, ρ from r0 to r1 of the lamp's radius,
+ * `lift` out along the body's normal plus `dome(ρ)` (the lens bulging), or sunk `sink(ρ)` back
+ * along the lamp's axis (−x: the bowl inside the opening).
+ */
+function lampPatch(sd, r0, r1, lift, nr = 6, na = 48, { dome = null, sink = null } = {}) {
   const centre = { x: 1.80, t: sd < 0 ? T.hipL - 0.01 : 1 - T.hipL + 0.01 };
   const c0 = onFront(sd * LAMP.z, LAMP.y, centre);
   const rows = [];
   for (let i = 0; i <= nr; i++) {
-    const rho = (r0 + (r1 - r0) * i / nr) * LAMP.r, row = [];
+    const f = r0 + (r1 - r0) * i / nr, rho = f * LAMP.r, row = [];
     let guess = c0;
     for (let j = 0; j <= na; j++) {
       const a = TAU * j / na;
       const q = onFront(sd * (LAMP.z + rho * Math.cos(a)), LAMP.y + rho * Math.sin(a), guess);
       guess = q;
       const n = bodyNormal(q.x, q.t);
-      row.push(q.p.clone().addScaledVector(n, lift));
+      const p = q.p.clone().addScaledVector(n, lift + (dome ? dome(f) : 0));
+      if (sink) p.x -= sink(f);
+      row.push(p);
     }
     rows.push(row);
   }
@@ -590,21 +841,60 @@ function lampPatch(sd, r0, r1, lift, nr = 6, na = 48) {
   g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   return g;
 }
-/** The headlamps: a dark chrome bowl, a clear lens a few millimetres proud, a gloss black bezel over the opening's edge. */
+/**
+ * The headlamps, as in the front and three-quarter photographs (≈ the parts' sizes): the opening in
+ * the fender round in front elevation; inside it a dark chrome bowl sunk 7 cm along the lamp's axis,
+ * with a chrome ring, the central projector in its black housing and the four-point daytime light,
+ * four short bars at 45° round it; over it all a clear lens bulging out of the fender; a gloss
+ * black bezel over the opening's edge.
+ */
 function buildLamps(M) {
   const g = new THREE.Group();
   g.name = 'gt3-lamps';
-  const bowls = [], lenses = [], bezels = [];
+  const bowls = [], lenses = [], bezels = [], rings = [], drl = [], housings = [], glass = [];
   for (const sd of [-1, 1]) {
-    bowls.push({ geometry: lampPatch(sd, 0, 1.0, -0.002, 8) });
-    lenses.push({ geometry: lampPatch(sd, 0, 1.0, 0.008, 8) });
-    bezels.push({ geometry: lampPatch(sd, 0.93, 1.16, 0.003, 2) });
+    bowls.push(lampPatch(sd, 0, 1.0, 0, 10, 64, { sink: (f) => 0.07 * (1 - f * f) ** 0.7 }));
+    lenses.push(lampPatch(sd, 0, 1.0, 0.004, 10, 64, { dome: (f) => 0.022 * (1 - f * f) }));
+    bezels.push(lampPatch(sd, 0.94, 1.12, 0.003, 2, 64));
+    // The module's frame: on the plane of the opening's rim (raked back with the fender), 4 cm
+    // in from it, so all of the module sits inside the bowl.
+    const guess = { x: 1.80, t: sd < 0 ? T.hipL - 0.01 : 1 - T.hipL + 0.01 };
+    const rim = (a) => onFront(sd * (LAMP.z + LAMP.r * Math.cos(a)), LAMP.y + LAMP.r * Math.sin(a), guess).p;
+    const top = rim(Math.PI / 2), bot = rim(-Math.PI / 2), c = top.clone().add(bot).multiplyScalar(0.5);
+    const up = top.clone().sub(bot).normalize(), across = new THREE.Vector3(0, 0, 1), fwd = across.clone().cross(up).normalize();
+    if (fwd.x < 0) fwd.negate();
+    const basis = new THREE.Matrix4().makeBasis(fwd, up, across);
+    const o = c.clone().addScaledVector(fwd, -0.012);
+    const place = (geo, dx = 0, dy = 0, dz = 0) => {
+      geo.applyMatrix4(new THREE.Matrix4().makeTranslation(dx, dy, dz)).applyMatrix4(basis).translate(o.x, o.y, o.z);
+      return geo;
+    };
+    // Chrome ring at ≈0.72 of the radius, facing forward.
+    const ring = new THREE.TorusGeometry(LAMP.r * 0.72, 0.0045, 8, 64); ring.rotateY(Math.PI / 2);
+    rings.push(place(ring, 0.004));
+    // The projector: a black housing and its glass lens.
+    const hs = new THREE.CylinderGeometry(0.042, 0.046, 0.04, 32); hs.rotateZ(Math.PI / 2);
+    housings.push(place(hs, 0.0));
+    const lensG = new THREE.SphereGeometry(0.034, 24, 12, 0, TAU, 0, Math.PI / 2); lensG.rotateZ(-Math.PI / 2);
+    glass.push(place(lensG, 0.02));
+    // The four-point daytime light: bars at 45°, ≈4 cm long, 0.6 of the radius out.
+    for (let k = 0; k < 4; k++) {
+      const a = Math.PI / 4 + k * Math.PI / 2;
+      const bar = new THREE.CapsuleGeometry(0.0065, 0.036, 4, 8);
+      bar.rotateX(-(a - Math.PI / 2));            // its length along the radius in the (y, z) plane
+      drl.push(place(bar, 0.006, Math.sin(a) * LAMP.r * 0.6 / Math.max(0.5, up.y), sd * Math.cos(a) * LAMP.r * 0.6));
+    }
   }
-  g.add(mesh(mergeAll(bowls), M.gt3Bowl, { name: 'gt3-lamp-bowls', castShadow: false }));
-  const lens = mesh(mergeAll(lenses), M.gt3Lens, { name: 'gt3-lamp-lenses', castShadow: false });
+  const add = (list, mat, name) => g.add(mesh(mergeAll(list.map(geometry => ({ geometry }))), mat, { name, castShadow: false }));
+  add(bowls, M.gt3Bowl, 'gt3-lamp-bowls');
+  add(rings, M.chrome ?? M.gt3MirrorGlass, 'gt3-lamp-rings');
+  add(housings, M.gt3Black, 'gt3-lamp-projectors');
+  add(glass, M.gt3Lens, 'gt3-lamp-projector-lenses');
+  add(drl, M.gt3Drl, 'gt3-drl');
+  add(bezels, M.gt3Black, 'gt3-lamp-bezels');
+  const lens = mesh(mergeAll(lenses.map(geometry => ({ geometry }))), M.gt3Lens, { name: 'gt3-lamp-lenses', castShadow: false });
   lens.renderOrder = 2;
   g.add(lens);
-  g.add(mesh(mergeAll(bezels), M.gt3Black, { name: 'gt3-lamp-bezels', castShadow: false }));
   return g;
 }
 /**
@@ -625,31 +915,6 @@ function buildGlassSeals(M) {
     wide.push(at(range(yBot(xb) + 0.01, yTop(xb) - 0.01, 12).map(y => [xb, y])));
   }
   return mesh(mergeAll([...lines.map(l => ({ geometry: lineOnBody(l, 0.016) })), ...wide.map(l => ({ geometry: lineOnBody(l, DLO.bPillar[1] - DLO.bPillar[0]) }))]), M.gt3Black, { name: 'gt3-glass-edge-seals', castShadow: false });
-}
-
-/** A rounded rectangle on one of the end faces, a few millimetres proud (intakes, the tail's panel and lamps). */
-const facePlate = (dir, z0, z1, y0, y1, r, lift = 0.003) => facePatch(dir, rrectLoop(z0, z1, y0, y1, r), lift);
-/**
- * What the faces carry: the bumper's black lower panel with the central honeycomb intake, its
- * two dividers, the large side openings and the black brows over them (TRACED on the front
- * photograph with its fitted camera, ≈ ±1.5 cm); the tail's lamps and black panel (rear
- * photograph), ≈.
- */
-function buildFacePlates(M) {
-  const g = new THREE.Group();
-  g.name = 'gt3-face-plates';
-  const P = (list, mat, name) => g.add(mesh(mergeAll(list.map(geometry => ({ geometry }))), mat, { name, castShadow: false }));
-  const poly = (pts, n = 6) => pts.flatMap(([z0, y0], i) => { const [z1, y1] = pts[(i + 1) % pts.length]; return range(0, 1, n).slice(0, -1).map(f => [z0 + (z1 - z0) * f, y0 + (y1 - y0) * f]); });
-  P([facePlate(1, -0.77, 0.77, 0.13, 0.275, 0.03, 0.002)], M.gt3Plastic, 'gt3-nose-panel');
-  P([facePlate(1, -0.53, 0.53, 0.14, 0.302, 0.03, 0.004),
-    ...[-1, 1].map(sd => facePatch(1, poly([[0.545, 0.14], [0.772, 0.14], [0.700, 0.385], [0.545, 0.385]].map(([z, y]) => [sd * z, y])), 0.004))], M.gt3Mesh, 'gt3-nose-intakes');
-  P([...[-0.16, 0.16].map(z => facePlate(1, z - 0.006, z + 0.006, 0.142, 0.300, 0.004, 0.007)),
-    ...[-1, 1].map(sd => facePatch(1, poly([[0.48, 0.372], [0.725, 0.398], [0.725, 0.414], [0.48, 0.390]].map(([z, y]) => [sd * z, y]), 4), 0.008))], M.gt3Black, 'gt3-nose-bars');
-  // Tail: the black lower panel wrapping into the corners, the lamp units, the light bar between them, the reflectors.
-  P([facePlate(-1, -0.86, 0.86, 0.22, 0.50, 0.06)], M.gt3Plastic, 'gt3-tail-panel');
-  P([facePlate(-1, -0.80, -0.50, 0.665, 0.770, 0.03), facePlate(-1, 0.50, 0.80, 0.665, 0.770, 0.03)], M.gt3Smoke, 'gt3-tail-lamps');
-  P([facePlate(-1, -0.76, 0.76, 0.728, 0.748, 0.006, 0.005), facePlate(-1, -0.80, -0.63, 0.345, 0.372, 0.008, 0.005), facePlate(-1, 0.63, 0.80, 0.345, 0.372, 0.008, 0.005)], M.gt3Tail, 'gt3-tail-lights');
-  return g;
 }
 
 // ---- Parts laid on the surface ----------------------------------------------------------------------
@@ -813,13 +1078,6 @@ function slotLoop(a, b, ra, rb, n = 40) {
   }
   return out;
 }
-/** A rounded rectangle's outline in a view. */
-function rrectLoop(u0, u1, v0, v1, r, nc = 5) {
-  const out = [];
-  const corner = (cu, cv, a0) => { for (let k = 0; k <= nc; k++) { const a = a0 + (Math.PI / 2) * k / nc; out.push([cu + Math.cos(a) * r, cv + Math.sin(a) * r]); } };
-  corner(u1 - r, v0 + r, -Math.PI / 2); corner(u1 - r, v1 - r, 0); corner(u0 + r, v1 - r, Math.PI / 2); corner(u0 + r, v0 + r, Math.PI);
-  return out;
-}
 const along = (view, sd, pts) => pts.map(([u, v]) => onBody(view, sd, u, v));
 
 /**
@@ -855,9 +1113,17 @@ function buildBodyDetails(M) {
       geo.translate(0, 0, sd * 0.918);
       plastic.push(geo);
     }
-    // Behind the rear wheel: the arch's black outlet; at the tail's corner, the black lower panel wrapping round.
-    plastic.push(loopPatch('side', sd, [[-1.80, 0.205], [-1.895, 0.205], [-1.93, 0.30], [-1.93, 0.50], [-1.86, 0.53], [-1.80, 0.50]], { lift: 0.002 }));
-    plastic.push(loopPatch('side', sd, [[-2.05, 0.21], [X_TAIL, 0.21], [X_TAIL, 0.48], [-2.115, 0.48]], { lift: 0.002 }));
+    // Behind the rear wheel (side and rear three-quarter photographs, ≈ ±1.5 cm): the wheel house's
+    // dark outlet, and the tall black blade standing off the body round the arch's rear edge, down
+    // into the black lower bumper, which rises towards the tail and wraps round its corner (buildEnds).
+    {
+      voids.push(loopPatch('side', sd, [[-1.62, 0.19], [-1.84, 0.19], [-1.862, 0.30], [-1.80, 0.585], [-1.64, 0.59], [-1.648, 0.40]], { lift: 0.0015 }));
+      // The blade: a shell following the body ≈2 cm proud of it, its rim closed (≈).
+      const blade = [[-1.596, 0.16], [-1.630, 0.26], [-1.641, 0.36], [-1.632, 0.46], [-1.602, 0.552], [-1.62, 0.584], [-1.76, 0.570], [-1.79, 0.45], [-1.812, 0.30], [-1.822, 0.20], [-1.80, 0.16]];
+      plastic.push(loopPatch('side', sd, blade, { lift: 0.02 }), loopWall('side', sd, blade, 0.02));
+      const top = curve([[X_TAIL, 0.39], [-2.00, 0.33], [-1.90, 0.285], [-1.78, 0.25], [-1.62, 0.21]]);
+      plastic.push(bandPatch('side', sd, -1.62, X_TAIL, (x) => sillEdge(x), top, { lift: 0.0015, nu: 20, nv: 6 }));
+    }
     // Ahead of the front wheel: the bumper's black blade, standing off its corner in front of the tyre.
     {
       const geo = plateXY([[1.595, 0.16], [1.690, 0.16], [1.695, 0.47], [1.670, 0.505], [1.620, 0.50], [1.598, 0.45], [1.592, 0.30]], 0.012);
@@ -869,8 +1135,13 @@ function buildBodyDetails(M) {
       const lo = curve([[0.93, 0.775], [1.05, 0.775], [1.17, 0.765], [1.27, 0.737], [1.36, 0.70]]);
       const hi = curve([[0.93, 0.838], [1.01, 0.846], [1.16, 0.846], [1.29, 0.822], [1.36, 0.772]]);
       voids.push(bandPatch('side', sd, 0.93, 1.36, lo, hi, { lift: 0.0015, nu: 30, nv: 4 }));
-      for (const x of [1.02, 1.10, 1.18, 1.26]) {
-        plastic.push(bodyFin(along('side', sd, range(lo(x) + 0.004, hi(x) - 0.004, 6).map(y => [x, y])), () => 0.026, 0.006, { lean: 0.7 }));
+      // The slats run along the car, stacked up the slope like shingles (the side photograph's
+      // stripes over the wheel, the close-up of the fender): each from end to end of the opening at its height.
+      for (const k of [1, 2, 3, 4]) {
+        const y = 0.775 + (0.846 - 0.775) * k / 5;
+        const xs = range(0.93, 1.36, 60).filter(x => lo(x) + 0.006 < y && y < hi(x) - 0.004);
+        if (xs.length < 4) continue;
+        plastic.push(bodyFin(along('side', sd, xs.map(x => [x, y])), (f) => 0.02 * Math.min(1, 6 * f, 6 * (1 - f)) ** 0.5, 0.005));
       }
       plastic.push(bodyFin(along('side', sd, range(0.93, 1.35, 24).map(x => [x, hi(x)])), (f) => 0.008 + 0.018 * Math.sin(Math.PI * Math.min(1, f * 1.15)), 0.008));
     }
@@ -938,12 +1209,10 @@ function buildBody(M) {
   const glass = mesh(sweep(xs, ts, { keep: (x, t) => reg(x, t) === 'glass', lift: 0.002 }), M.gt3Glass, { name: 'gt3-glass', castShadow: false });
   glass.renderOrder = 2;
   g.add(glass);
-  // The ends: a rounded face each, the nose's carrying the intakes, the tail's the lamps.
-  g.add(mesh(endCap(X_NOSE, 1, CAP.nose), M.gt3Paint, { name: 'gt3-nose-face' }));
-  g.add(mesh(endCap(X_TAIL, -1, CAP.tail), M.gt3Paint, { name: 'gt3-tail-face' }));
+  // The ends: reliefs over the front and rear elevations, with their intakes, lamps and panels.
+  g.add(buildEnds(M));
   g.add(buildLamps(M));
   g.add(buildGlassSeals(M));
-  g.add(buildFacePlates(M));
   // The cabin's lining: the same surface a few centimetres in, facing inwards, so the inside of
   // the body is trimmed, not the back of the paint — open where the glass is, so the driver sees
   // out and the cabin is seen through the windows.
@@ -1000,7 +1269,7 @@ function buildWheel(M, axle, side, name, brakes) {
   // Spokes: ten stems from the hub, each forking into two arms that meet the rim's lip.
   const faces = [];
   const zFace = rw / 2 - 0.006, dish = front ? 0.045 : 0.075;
-  const r0 = 0.078, rs = rr * 0.58, r1 = rr - 0.010;
+  const r0 = 0.078, rs = rr * 0.50, r1 = rr - 0.010;
   const zAt = (r) => zFace - dish * Math.pow(Math.max(0, (r - r0) / (r1 - r0)), 0.8);
   const bar = (a0, a1, ra, rb, wa, wb, da, db) => {
     // A tapered bar from (ra, a0) to (rb, a1) in polar coordinates, da/db deep at its ends, its face on the dish.
@@ -1019,11 +1288,13 @@ function buildWheel(M, axle, side, name, brakes) {
       faces.push({ q, out });
     }
   };
-  const spread = Math.PI / 10 * 0.46;
+  // As photographed: ten broad stems out of a flowered hub, each forking at about half the radius
+  // into two straight arms that meet the rim evenly, twenty ends round it (≈ the widths).
+  const spread = Math.PI / 10 * 0.47;
   for (let k = 0; k < 10; k++) {
     const a = k * TAU / 10;
-    bar(a, a, r0, rs + 0.006, 0.034, 0.028, 0.040, 0.030);
-    for (const sgn of [-1, 1]) bar(a + sgn * spread * 0.08, a + sgn * spread, rs - 0.004, r1, 0.017, 0.015, 0.030, 0.024);
+    bar(a, a, r0 - 0.004, rs + 0.012, 0.050, 0.036, 0.046, 0.034);
+    for (const sgn of [-1, 1]) bar(a + sgn * spread * 0.12, a + sgn * spread, rs - 0.006, r1, 0.026, 0.021, 0.032, 0.026);
   }
   spin.add(mesh(facesGeo(faces), M.gt3Wheel, { name: `${name}-spokes` }));
   // Hub and centre-lock nut with its cap.
@@ -1055,7 +1326,7 @@ function buildWheel(M, axle, side, name, brakes) {
   const ca = new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.007, bevelSegments: 2, curveSegments: 24 });
   ca.translate(0, 0, zDisc - depth / 2);
   ca.scale(1, 1, side);
-  const cal = mesh(ca, M.gt3Calliper, { name: `${name}-calliper` });
+  const cal = mesh(ca, M.gt3CalliperBlack, { name: `${name}-calliper` });
   g.add(cal);
   g.position.set(axle.x, axle.y, side * axle.track / 2);
   g.userData.spin = spin;
@@ -1123,7 +1394,9 @@ function buildWing(M) {
   const g = new THREE.Group();
   g.name = 'gt3-wing';
   const S = WING.span, skin = M.carbon ?? M.gt3Carbon;
-  const element = (e, name) => {
+  // The fixed main plane reads satin silver in the studio and track photographs, the DRS flap black.
+  M.gt3WingMain ??= new THREE.MeshPhysicalMaterial({ name: 'gt3-wing-main', color: 0xb4b9bf, metalness: 0.75, roughness: 0.3, clearcoat: 0.6, clearcoatRoughness: 0.15 });
+  const element = (e, name, mat = skin) => {
     const pts = airfoil(e.chord, 0.12, 0.06);
     const shape = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y)));
     const geo = new THREE.ExtrudeGeometry(shape, { depth: S, bevelEnabled: false, curveSegments: 1 });
@@ -1133,10 +1406,10 @@ function buildWing(M) {
     const grp = new THREE.Group();
     grp.name = name;
     grp.position.set(e.le, e.y, 0);
-    grp.add(mesh(geo, skin, { name: `${name}-skin` }));
+    grp.add(mesh(geo, mat, { name: `${name}-skin` }));
     return grp;
   };
-  g.add(element(WING.main, 'gt3-wing-main'));
+  g.add(element(WING.main, 'gt3-wing-main', M.gt3WingMain));
   const flap = element(WING.flap, 'gt3-wing-flap');
   // DRS: the flap turns about its leading edge to flatten (the drive sets the angle).
   flap.userData.hinge = { axis: [0, 0, 1], range: [0, 14] };
@@ -1200,7 +1473,7 @@ function buildMirrors(M) {
   const { x0, x1, y0, y1, depth } = MIRROR;
   const out = BODY.widthMirrors / 2, hz = depth / 2, hy = (y1 - y0) / 2, yc = (y0 + y1) / 2;
   // Sections along the housing: a rounded square (superellipse) shrinking to the nose.
-  const NS = 18, NA = 40, pe = 3.0;
+  const NS = 18, NA = 40, pe = 2.4;
   const sect = (f) => [hz * Math.pow(Math.max(0, 1 - f ** 2.4), 0.5), hy * Math.pow(Math.max(0, 1 - f ** 2.8), 0.5)];
   for (const sd of [-1, 1]) {
     const tag = sd > 0 ? 'r' : 'l', zc = sd * (out - hz);
@@ -1276,68 +1549,48 @@ function bladeTube(path, a, b, n = 12, na = 14) {
 function buildSplitter(M) {
   const pts = [];
   for (const x of range(1.85, X_NOSE, 16)) pts.push([x, halfW(x) * 0.97]);
-  const outline = [...pts, [L2 + 0.025, 0.55], [L2 + 0.025, -0.55], ...pts.slice().reverse().map(([x, z]) => [x, -z])];
+  const outline = [...pts, [L2 - 0.012, 0.62], [L2 - 0.006, 0.30], [L2 - 0.004, -0.30], [L2 - 0.012, -0.62], ...pts.slice().reverse().map(([x, z]) => [x, -z])];
   const shape = new THREE.Shape(outline.map(([x, z]) => new THREE.Vector2(x, z)));
   const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.018, bevelEnabled: false });
   geo.rotateX(Math.PI / 2);          // the shape's (x, z) onto the ground plane, extruded down
   geo.translate(0, 0.14, 0);
   return mesh(geo, M.gt3Carbon, { name: 'gt3-splitter' });
 }
-/** Each lamp's four-point daytime light and its projector, on the bowl inside the lens (≈ from the front photographs). */
-function buildLampLights(M) {
-  const dots = [], proj = [];
-  for (const sd of [-1, 1]) {
-    const guess = { x: 1.80, t: sd < 0 ? T.hipL - 0.01 : 1 - T.hipL + 0.01 };
-    for (let k = 0; k < 4; k++) {
-      const a = Math.PI / 4 + k * Math.PI / 2;
-      const hit = onFront(sd * (LAMP.z + Math.cos(a) * 0.072), LAMP.y + Math.sin(a) * 0.072, guess);
-      const n = bodyNormal(hit.x, hit.t);
-      const geo = new THREE.CapsuleGeometry(0.008, 0.038, 4, 8);
-      // Each bar along its radius, lying on the bowl.
-      const r = new THREE.Vector3(0, Math.sin(a), sd * Math.cos(a)).normalize();
-      const along = r.clone().addScaledVector(n, -r.dot(n)).normalize();
-      geo.applyMatrix4(new THREE.Matrix4().makeBasis(along.clone().cross(n).normalize(), along, n).setPosition(hit.p.clone().addScaledVector(n, 0.004)));
-      dots.push({ geometry: geo });
-    }
-    const c = onFront(sd * LAMP.z, LAMP.y, guess);
-    const n = bodyNormal(c.x, c.t);
-    const geo = new THREE.CylinderGeometry(0.034, 0.038, 0.016, 24);
-    const e1 = new THREE.Vector3(0, 1, 0).cross(n).normalize(), e3 = n.clone().cross(e1).normalize();
-    geo.applyMatrix4(new THREE.Matrix4().makeBasis(e1, n, e3).setPosition(c.p.clone().addScaledVector(n, 0.004)));
-    proj.push({ geometry: geo });
-  }
-  const g = new THREE.Group();
-  g.name = 'gt3-lamp-lights';
-  g.add(mesh(mergeAll(dots), M.gt3Drl, { name: 'gt3-drl', castShadow: false }));
-  g.add(mesh(mergeAll(proj), M.gt3Bowl, { name: 'gt3-projectors', castShadow: false }));
-  return g;
-}
-/** Twin tailpipes in the middle of the diffuser (rear photograph: ⌀ ≈0.11 m, 0.15 m apart). */
+/** Twin tailpipes in the middle of the tail (rear photograph with its solved camera: centres 0.29 m up, 0.12 m apart, ⌀ ≈0.10 m). */
 function buildExhaust(M) {
   const parts = [];
   for (const sd of [-1, 1]) {
-    const outer = new THREE.CylinderGeometry(0.056, 0.056, 0.10, 28, 1, true);
-    outer.rotateZ(Math.PI / 2); outer.translate(-L2 + 0.03, 0.155, sd * 0.075);
+    const outer = new THREE.CylinderGeometry(0.05, 0.05, 0.14, 28, 1, true);
+    outer.rotateZ(Math.PI / 2); outer.translate(-L2 + 0.05, 0.29, sd * 0.06);
     parts.push({ geometry: outer });
-    const lip = new THREE.TorusGeometry(0.052, 0.005, 6, 28);
-    lip.rotateY(Math.PI / 2); lip.translate(-L2 - 0.02, 0.155, sd * 0.075);
+    const lip = new THREE.TorusGeometry(0.047, 0.0045, 6, 28);
+    lip.rotateY(Math.PI / 2); lip.translate(-L2 - 0.02, 0.29, sd * 0.06);
     parts.push({ geometry: lip });
   }
   const g = new THREE.Group();
   g.name = 'gt3-exhaust';
   g.add(mesh(mergeAll(parts), M.aluminum ?? M.gt3Disc, { name: 'gt3-tailpipes' }));
   for (const sd of [-1, 1]) {
-    const inner = new THREE.CircleGeometry(0.05, 24);
-    inner.rotateY(-Math.PI / 2); inner.translate(-L2 + 0.0, 0.155, sd * 0.075);
+    const inner = new THREE.CircleGeometry(0.045, 24);
+    inner.rotateY(-Math.PI / 2); inner.translate(-L2 + 0.0, 0.29, sd * 0.06);
     g.add(mesh(inner, M.gt3Black, { name: `gt3-tailpipe-bore-${sd > 0 ? 'r' : 'l'}`, castShadow: false }));
   }
   return g;
 }
-/** The diffuser's fins under the tail (rear photograph: six, ≈). */
+/**
+ * The diffuser under the tail (rear photograph with its solved camera): six fins, 0.14 to 0.27 m up,
+ * under the ramp they divide, which rises from the floor to the tail (≈).
+ */
 function buildDiffuser(M) {
   const fins = [];
+  {
+    const shape = new THREE.Shape([new THREE.Vector2(-1.90, 0.150), new THREE.Vector2(-L2 + 0.03, 0.212), new THREE.Vector2(-L2 + 0.03, 0.226), new THREE.Vector2(-1.90, 0.164)]);
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: 1.60, bevelEnabled: false });
+    geo.translate(0, 0, -0.80);
+    fins.push({ geometry: geo });
+  }
   for (const z of [0.20, 0.42, 0.64]) for (const sd of [-1, 1]) {
-    const shape = new THREE.Shape([new THREE.Vector2(-1.98, 0.12), new THREE.Vector2(-L2 + 0.01, 0.10), new THREE.Vector2(-L2 + 0.01, 0.235), new THREE.Vector2(-2.10, 0.235)]);
+    const shape = new THREE.Shape([new THREE.Vector2(-1.98, 0.15), new THREE.Vector2(-L2 + 0.04, 0.14), new THREE.Vector2(-L2 + 0.04, 0.27), new THREE.Vector2(-2.10, 0.27)]);
     const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.008, bevelEnabled: false });
     geo.translate(0, 0, sd * z - 0.004);
     fins.push({ geometry: geo });
@@ -1537,7 +1790,7 @@ export function buildGt3rs(M) {
   // Everything on the springs: body, wing, mirrors, cabin, lamps.
   const sprung = new THREE.Group();
   sprung.name = 'gt3-sprung';
-  sprung.add(buildBody(M), buildWing(M), buildMirrors(M), buildCabin(M), buildSplitter(M), buildLampLights(M), buildExhaust(M), buildDiffuser(M));
+  sprung.add(buildBody(M), buildWing(M), buildMirrors(M), buildCabin(M), buildSplitter(M), buildExhaust(M), buildDiffuser(M));
   root.add(sprung);
   for (const side of [-1, 1]) {
     root.add(buildWheel(M, AXLE_F, side, `gt3-wheel-f${side > 0 ? 'r' : 'l'}`, BRAKES.front));
