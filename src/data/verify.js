@@ -27,8 +27,8 @@ const MEASURE = {
   // The span is the wing's (the tip launchers stand outside it); the height the fin's tip above
   // the ground the airplane stands on; the length the airplane's whole.
   f16: { fromHull: true, footprintHull: ['f16-wing-box-l', 'f16-wing-box-r'] },
-  // The height is the rear wing's upper edge; the length the painted shell's (the wing stands
-  // ≈7 cm past the tail, as on the photographs).
+  // The height is the rear wing's upper edge, which is its end plates' and swan necks' top (the
+  // side photograph: the elements sit lower, between them); the length the painted shell's.
   gt3rs: { fromHull: true, footprintHull: ['gt3-body-paint', 'gt3-nose-face', 'gt3-tail-face'] },
 };
 
@@ -115,7 +115,7 @@ function measure(model, hullNames, footprintNames) {
 
 const HULLS = {
   f16: ['f16-fin-skin', 'f16-rudder-skin'],
-  gt3rs: ['gt3-body-paint', 'gt3-nose-face', 'gt3-tail-face', 'gt3-wing-main-skin', 'gt3-wing-flap-skin'],
+  gt3rs: ['gt3-body-paint', 'gt3-nose-face', 'gt3-tail-face', 'gt3-wing-main-skin', 'gt3-wing-flap-skin', 'gt3-wing-endplate-l', 'gt3-wing-endplate-r', 'gt3-wing-neck-l', 'gt3-wing-neck-r'],
   falcon1: ['falcon1-stage1', 'falcon1-stage2', 'falcon1-fairing'],
   starship: ['skirt', 'tanks', 'hull'],
   falcon9: ['stage1', 'interstage', 'stage2', 'fairing'],

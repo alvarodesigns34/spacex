@@ -761,6 +761,29 @@ Los hallazgos P1 de la auditoría externa sobre el Porsche, cada uno con su prue
   - En el mar, el agua lo frena en ≈5 m, el motor se ahoga y el panel lo dice.
 - La frenada de 100 a 0 km/h baja de 29,7 a 27,7 m (≈, no publicada). La prueba de interfaz que arranca con W da ahora 3 s en vez de 2,2 para ver el paso a 2.ª: sin Launch Control, el coche llega a ella hacia los 2,5 s.
 
+### Porsche 911 GT3 RS, mejora 6: alerón, llantas, frontal, zaga y faros contra las fotos (2 de octubre de 2026)
+
+Revisión pieza a pieza contra las fotos de estudio, con sus cámaras ajustadas y una regla en metros sobre cada foto; las fotos de Porsche se usan solo como referencia y no están en el repositorio. Fallos encontrados y corregidos:
+
+- **El alerón se veía raro, y lo era:**
+  - Las placas laterales medían 0,79 m de largo; en la foto miden 0,47 m. Ahora son un paralelogramo redondeado, con el borde inferior que sube hacia atrás y el delantero inclinado, medidas en su propia profundidad (±0,87 m).
+  - Cada cuello de cisne tenía una pata vertical detrás que el coche real no tiene. Ahora es una sola pala que sale de la tapa del motor inclinada hacia atrás, con su ventana triangular entre las dos patas. Delante del borde de ataque se convierte en un brazo que pasa por encima de los dos planos y se engancha a la aleta, con una pestaña atornillada al plano principal; el cilindro rojo del DRS va por dentro, del brazo a la palanca de la aleta (fotos AKOS5335 y AKOS5487).
+  - Los dos planos son plateados satinados, como en las fotos; antes la aleta era negra.
+  - La foto lateral pone el canto superior a 1,275 m y la trasera a ≈1,34 m: el alerón queda a la altura publicada, 1,322 m, entre las dos.
+- **Las llantas eran convexas:** el buje sobresalía y los radios se hundían hacia la llanta. En la real es al revés: el centro va hundido. Además, las horquillas de los diez radios no se abrían lo bastante para tocar las del radio vecino. Ahora las puntas se juntan en diez uves contra la llanta, como en la foto, el buje es más pequeño y la tuerca central es negra.
+- **El frontal tenía dos tomas laterales separadas** que el coche no tiene. La parte baja es una sola superficie negra en forma de U, que sube hasta los intermitentes por los lados y hasta justo debajo de la matrícula en el centro.
+  - La toma central de panal es más ancha (±0,46 m, de 0,21 a 0,34 m de altura).
+  - Las cortinas de aire de las esquinas llegan a 0,58 m.
+  - Se añaden los intermitentes bajo las cejas.
+  - El splitter, que sobresalía por las esquinas, sigue ahora el contorno del morro a su altura y es negro.
+- **Los faros** tenían un proyector en forma de disco que salía del cuenco y un aro cromado aplastado. Ahora llevan el proyector ancho y casi plano dentro del cuenco, los cuatro DRL como palas anchas a 45° y la banda de pequeñas luces de la matriz abajo (foto frontal ampliada). El aro y el proyector son redondos vistos de frente, como la abertura.
+- **La zaga:**
+  - La barra de luz estaba 2 cm baja; ahora va a 0,81–0,823 m, dentro de una banda negra de 0,77 a 0,84 m.
+  - Los pilotos estaban 13 cm demasiado hacia fuera; ahora ocupan de 0,46 a 0,80 m y son más planos, con las dos láminas rojas por dentro.
+  - Los catadióptricos suben 3 cm.
+  - Las seis aletas del difusor van donde la foto: ±0,155, ±0,306 y ±0,474 m, de 0,19 a 0,32 m de altura; antes colgaban por debajo del coche.
+- **Retrovisores:** la carcasa medía 0,13 m de ancho vista de frente; en la foto, ≈0,17 m.
+
 ### Flight 14: una sola misión del corte a la entrada (2 de octubre de 2026)
 
 Hallazgos P1 de la auditoría sobre Flight 14 (H28, H30, H32 y H33, en parte). Las pruebas nuevas están en `tools/mission-check.mjs`.

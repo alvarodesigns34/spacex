@@ -218,6 +218,13 @@ Lo hecho en 1 y 2 (detalle en el README, sección del 2 de octubre):
    - Pendientes: H17 (supersónico con datos) y H19 (FLCS en módulo propio).
 6. Más mejoras propias dentro de las reglas.
 
+### Orden del usuario del 02-10-2026 (segunda): todo el F-16 y el Porsche a fondo, físicas del mapa y la Ninja H2R
+
+«Mejora al máximo todo lo del F-16 y el Porsche… arregla la similitud con el modelo real, el alerón se ve raro. Luego físicas reales del mapa: agua que se comporte como agua, desnivel, no atravesar vallas, vehículos ni estructuras, la nave cayendo al agua, choques realistas. Después, mejoras propias que impresionen. El nuevo vehículo será la Kawasaki Ninja H2R.»
+- **Decisión del usuario:** H2R (no la H2 SX de la primera foto), en Mirror Coated Spark Black con chasis verde, **con sus rótulos de fábrica**. Es una excepción a la regla de logotipos, solo para esta moto.
+- Plan: (1) Porsche contra fotos, **hecho en parte** (mejora 6 del README: alerón, llantas cóncavas, frontal en U, faros, zaga); (2) F-16; (3) físicas del mapa y choques; (4) mejoras propias; (5) la H2R.
+- Banco de pruebas: `match/match.mjs` (en la app) da render y normales alineados con las fotos; `bench/shoot.mjs` vale para vistas libres, pero sus cámaras de foto con punto principal descentrado (frontal y trasera) no cuadran: para comparar, usa `match.mjs` + `overlay.py`.
+
 ### Al retomar
 
 1. `git fetch --all` y comprueba:
