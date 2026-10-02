@@ -89,6 +89,15 @@ export const FIGURES = {
     length: { value: 15.038, grade: 'A', ref: 'nasa_tp3355', note: '39.47 in at 1/15, probe to fin tip' },
     readme: ['length', 'footprint', 'height'],
   },
+  gt3rs: {
+    // Porsche's technical data (08/2022): the height is to the rear wing's upper edge, which the
+    // press kit says stands above the roof (the roof itself is ≈1.29 m on the side photograph).
+    height: { value: 1.322, grade: 'A', ref: 'porsche_techdata', note: 'to the rear wing\'s upper edge' },
+    footprint: { value: 4.572, grade: 'A', ref: 'porsche_techdata', note: 'overall length' },
+    breadth: { value: 1.900, grade: 'A', ref: 'porsche_techdata', note: 'body width without mirrors' },
+    mirrors: { value: 2.027, grade: 'A', ref: 'porsche_techdata', note: 'overall width including mirrors' },
+    readme: ['footprint', 'breadth', 'height'],
+  },
   engines: {
     height: { value: 4.4, grade: 'A', ref: 'spacex_starship', note: 'Raptor Vacuum' },
     footprint: { value: 2.3, grade: 'A', ref: 'spacex_starship', note: 'Raptor Vacuum nozzle exit' },

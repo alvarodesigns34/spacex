@@ -133,7 +133,7 @@ function buildTrack(M) {
     const t = 0.62 * k;
     return [t, t * 0.99, t * 0.98];
   };
-  return mesh(ribbon(rows, { colour }), M.asphalt, { name: 'circuit-asphalt', castShadow: false });
+  return mesh(ribbon(rows, { colour }), M.trackAsphalt ?? M.asphalt, { name: 'circuit-asphalt', castShadow: false });
 }
 
 function buildKerbs(M) {
@@ -256,9 +256,9 @@ function buildSkidpad(M) {
   const P = SKIDPAD, L = P.lane;
   const g = new THREE.Group();
   g.name = 'circuit-skidpad';
-  g.add(mesh(slab(P.u0, P.u1, P.v0, P.v1, 10), M.asphalt, { name: 'circuit-skidpad-slab', castShadow: false }));
+  g.add(mesh(slab(P.u0, P.u1, P.v0, P.v1, 10), M.trackAsphalt ?? M.asphalt, { name: 'circuit-skidpad-slab', castShadow: false }));
   // The lane, from the pad to the verge of the main straight.
-  g.add(mesh(slab(L.u - L.width / 2, L.u + L.width / 2, P.v1, -SH, 5), M.asphalt, { name: 'circuit-skidpad-lane', castShadow: false }));
+  g.add(mesh(slab(L.u - L.width / 2, L.u + L.width / 2, P.v1, -SH, 5), M.trackAsphalt ?? M.asphalt, { name: 'circuit-skidpad-lane', castShadow: false }));
   return g;
 }
 

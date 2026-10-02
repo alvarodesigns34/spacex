@@ -7,7 +7,7 @@ import { SOURCES, SOURCE_LABEL } from '../data/specs.js';
 const fmtHeight = (h) => `${h >= 10 ? Math.round(h) : h} m`;
 const THREE_DEG20 = Math.PI / 9;
 
-export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWalk, onSun, onReset, onLaunch, onReentry, onFly, onLaunchAbort, onLaunchSpeed, onLaunchSound, onLaunchPause, onLaunchSeek, onLaunchRestart, onLaunchCamera, onTour, onHelp }) {
+export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWalk, onSun, onReset, onLaunch, onReentry, onFly, onDrive, onLaunchAbort, onLaunchSpeed, onLaunchSound, onLaunchPause, onLaunchSeek, onLaunchRestart, onLaunchCamera, onTour, onHelp }) {
   const root = document.getElementById('hud');
   root.innerHTML = `
     <header class="hud-header">
@@ -47,6 +47,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
       <button class="tool tool-btn tool-launch" id="launch-btn" title="Starship launch sequence from Pad 2 (G)">Starship · Launch <kbd>G</kbd></button>
       <button class="tool tool-btn" id="reentry-btn" title="Starship's re-entry and splashdown, on flight 14's timeline (X)">Reentry <kbd>X</kbd></button>
       <button class="tool tool-btn" id="fly-btn" title="Fly the F-16 from runway 28: take off, fly anywhere, land (J)">F-16 · Fly <kbd>J</kbd></button>
+      <button class="tool tool-btn" id="drive-btn" title="Drive the Porsche 911 GT3 RS from its skid pad, on its circuit or anywhere (B)">Porsche · Drive <kbd>B</kbd></button>
       <button class="tool tool-btn" id="tour-btn" title="Guided tour of the centre (P)">Tour <kbd>P</kbd></button>
       <button class="tool tool-btn" id="mode-btn" title="Switch camera mode (F)">Orbit <kbd>F</kbd></button>
       <button class="tool tool-btn" id="walk-btn" type="button" aria-pressed="false" title="Walk the apron at eye height, 1.7 m (V)">Walk <kbd>V</kbd></button>
@@ -132,7 +133,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
           <button class="btn" id="help-close">Close <kbd>Esc</kbd></button>
         </div>
         <ol class="guide-start" aria-label="First steps">
-          <li><b>Pick a vehicle</b> in the list on the left, or press <kbd>1</kbd>–<kbd>${vehicles.length}</kbd>.</li>
+          <li><b>Pick a vehicle</b> in the list on the left, or press <kbd>1</kbd>–<kbd>${Math.min(9, vehicles.length)}</kbd>.</li>
           <li><b>Choose a view</b> in the bar at the bottom: engines, heat shield, tower…</li>
           <li><b>Press <kbd>G</kbd></b> to launch Starship, <kbd>X</kbd> for its re-entry, <kbd>J</kbd> to fly the F-16, or <kbd>P</kbd> for a guided tour.</li>
         </ol>
@@ -178,15 +179,24 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
             <h3>Fly the F-16 <kbd>J</kbd> <span class="guide-here">you are here</span></h3>
             <dl>
               <dt><kbd>W</kbd></dt><dd>take off from the runway; in the air, nose down</dd>
-              <dt><kbd>S</kbd></dt><dd>nose up · let go and it flies level</dd>
-              <dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>turn (and steer on the ground)</dd>
+              <dt><kbd>S</kbd></dt><dd>nose up · let go and it keeps its path</dd>
+              <dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>bank into a turn, which holds when let go (on the ground, steer)</dd>
               <dt><kbd>G</kbd> · <kbd>C</kbd> · <kbd>Esc</kbd></dt><dd>gear, to land · camera · end</dd>
+            </dl>
+          </section>
+          <section class="guide-sec" data-mode="gt3">
+            <h3>Drive the Porsche <kbd>B</kbd> <span class="guide-here">you are here</span></h3>
+            <dl>
+              <dt><kbd>W</kbd> · <kbd>S</kbd></dt><dd>throttle · brake (held when stopped: reverse)</dd>
+              <dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>steer · with the throttle on, the tail slides</dd>
+              <dt><kbd>Space</kbd> · <kbd>T</kbd></dt><dd>parking brake · traction control</dd>
+              <dt><kbd>C</kbd> · <kbd>Enter</kbd> · <kbd>Esc</kbd></dt><dd>camera · back to the pad · end</dd>
             </dl>
           </section>
           <section class="guide-sec">
             <h3>Exhibits</h3>
             <dl>
-              <dt><kbd>1</kbd>–<kbd>${vehicles.length}</kbd> · <kbd>0</kbd></dt><dd>go to a vehicle · the whole centre</dd>
+              <dt><kbd>1</kbd>–<kbd>${Math.min(9, vehicles.length)}</kbd> · <kbd>0</kbd></dt><dd>go to a vehicle · the whole centre</dd>
               <dt><kbd>P</kbd></dt><dd>guided tour; any drag or click ends it</dd>
               <dt><kbd>T</kbd></dt><dd>data sheet, with every source</dd>
             </dl>
@@ -396,6 +406,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
   const reentryBtn = el('#reentry-btn');
   reentryBtn.addEventListener('click', () => onReentry?.());
   el('#fly-btn').addEventListener('click', () => onFly?.());
+  el('#drive-btn').addEventListener('click', () => onDrive?.());
   el('#mission-abort').addEventListener('click', () => onLaunchAbort?.());
   el('#mission-restart').addEventListener('click', () => onLaunchRestart?.());
   const camBtn = el('#mission-cam');

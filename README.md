@@ -1,6 +1,6 @@
 # SpaceX Vehicle Center
 
-Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones técnicas de ocho expositores de SpaceX y un caza, el F-16A, con su propia pista:
+Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones técnicas de ocho expositores de SpaceX, un caza, el F-16A, con su propia pista, y un deportivo, el Porsche 911 GT3 RS, con su circuito:
 
 | Vehículo | Configuración modelada | Altura / envergadura |
 |---|---|---|
@@ -13,6 +13,7 @@ Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones
 | Tesla Roadster | 1.ª generación (modelo 2010, carrocería anterior al 2.5) con Starman, carga útil del vuelo inaugural del Falcon Heavy | 3,946 m · 1,851 m de ancho con espejos · 1,127 m de alto |
 | Engine Row | Raptor 3, Raptor Vacuum y Merlin 1D sobre cunas, a 1:1 | 4,4 m (RVac) |
 | F-16A | Block 15 con motor F100-PW-200, sobre su tren en la cabecera de su pista; geometría de los informes NASA TP-1538 y TP-3355 | 15,038 m de largo · 9,144 m de envergadura · 5,01 m de alto |
+| Porsche 911 GT3 RS | 992 de 2023 en Arctic Grey, conducible, en la explanada junto a su circuito; cotas de la ficha técnica de Porsche | 4,572 m de largo · 1,900 m de ancho · 1,322 m de alto (al ala) |
 
 **Starship** encabeza la lista, porque es el expositor principal y el del lanzamiento (tecla **1**). Le sigue el **Falcon 1** (tecla **2**), que abre la línea histórica: Falcon 1 → Falcon 9 → Falcon Heavy.
 
@@ -55,7 +56,7 @@ y abrir la URL que indique. `npm run serve` es un servidor en Node (`tools/serve
   - Andando con el teclado no se atraviesan las mesas, peanas, la mesa de lanzamiento, la base de la torre, **la valla** ni **el borde de la zanja** (una caída de 4,2 m sin salida). Un escalón de más de 0,6 m (los muros de 2,5 m del pad) es una pared. En vez de pararse en seco, el visitante se desliza a lo largo del obstáculo.
 - La vista **In orbit** del Roadster cambia la peana por el adaptador de carga y el suelo por la Tierra, y deja el coche solo: la explanada, sus matorrales, los camiones de servicio y los otros siete expositores se ocultan al entrar y vuelven al salir (antes seguían ahí, y el coche aparecía aparcado sobre hormigón a 30 km de altura).
 - El **plano del recinto** (arriba a la derecha) muestra la franja de exposición, los viales y el complejo de lanzamiento, con cada expositor como una parada numerada —un clic la visita— y la cámara como una cuña que apunta hacia donde mira. Se aparta cuando se despliega la ficha técnica y se oculta en pantallas estrechas, durante el vuelo y en la vista orbital del Roadster.
-- **1–9** selecciona expositor (Starship primero, luego del Falcon 1 al Engine Row y el F-16A), **0** vista general, **L** etiquetas, **R** regla de altura, **T** pliega la ficha, **H** o **?** (o el botón *Guide*) abre la **guía rápida**: tres primeros pasos numerados y una tarjeta por cada forma de moverse (mirar, pasear, volar, lanzamiento) más expositores y pantalla, con la tarjeta del modo en uso marcada como *You are here*. La tercera línea de la primera visita lo recuerda.
+- **1–9** selecciona los nueve primeros expositores (Starship primero, luego del Falcon 1 al Engine Row y el F-16A; el Porsche se elige en la lista), **0** vista general, **L** etiquetas, **R** regla de altura, **T** pliega la ficha, **H** o **?** (o el botón *Guide*) abre la **guía rápida**: tres primeros pasos numerados y una tarjeta por cada forma de moverse (mirar, pasear, volar, lanzamiento) más expositores y pantalla, con la tarjeta del modo en uso marcada como *You are here*. La tercera línea de la primera visita lo recuerda.
 - **P** (o el botón *Tour*) recorre el centro parada por parada; cualquier arrastre, rueda o clic lo termina y devuelve la cámara. Cada parada lleva un **texto breve con su fuente**: una cifra o un hecho de lo que hay en pantalla, con el enlace a la fuente de la ficha. `tools/provenance-check.mjs` comprueba que toda cifra con unidad de esos textos está en la ficha del expositor, que una cifra estimada o reconstruida lleva ≈ o la salvedad, y que la fuente existe, con tres controles negativos.
 - **Primera visita:** tres líneas arriba en el centro explican cómo moverse, cómo llegar a los expositores y cómo lanzar. Desaparecen con la primera interacción (arrastrar, rueda, tecla o cualquier pulsación fuera de ellas) o a los 20 s, y no vuelven a salir (se guarda en `localStorage`; en una ventana privada se muestran una vez por visita). Por debajo de 1100 px de ancho no hay un hueco que no toque la ficha o las herramientas, así que no se muestran.
 - **Encuadre en la parte libre de la pantalla:** en escritorio, la lista de vehículos ocupa los primeros ~256 px, y una vista centrada en toda la ventana dejaba su cuarto izquierdo debajo de ella (en la vista general, el Falcon 1 y el Falcon 9 quedaban enteros bajo la lista). Ahora el centro de proyección se desplaza hacia la zona libre con `setViewOffset`, sin mover la cámara, así que la selección con el ratón, las etiquetas y la profundidad siguen cuadrando. En el modo de escena limpia y en la vista orbital no hay desplazamiento.
@@ -66,6 +67,7 @@ y abrir la URL que indique. `npm run serve` es un servidor en Node (`tools/serve
   - **A/D** viran directamente: la inclinación crece 90° por segundo mientras se pulsan (hasta 80°) y se queda donde se suelta, con el tirón que pide el viraje; la tecla contraria la devuelve. No hay nivelación automática. En tierra giran la rueda delantera.
   - **G** baja el tren para aterrizar (el motor pasa a 145 kt y saca los aerofrenos si va rápido); tras tocar tierra, ralentí y frenos.
   - **C** cámara (persecución, cabina con HUD, torre, tu órbita) y **Esc** termina y devuelve el avión a su sitio.
+- **B** (o el botón *Porsche · Drive*) **conduce el Porsche 911 GT3 RS** desde su explanada: **W** gas, **S** freno (parado, marcha atrás), **A/D** volante, **Espacio** freno de mano, **T** control de tracción, **C** cámara, **Enter** vuelve a la explanada, **Esc** termina. Con el control de tracción apagado, que es como arranca, la zaga sale con el gas y los neumáticos dejan marcas.
   - El botón *Simple* de la barra quita la ayuda y da todos los mandos del avión: `R`/`F` gases, `Q`/`E` pedales, `Espacio` frenos, `B` aerofrenos, `Shift` palanca a fondo.
 - **Vista general en una ventana alta** (un monitor en vertical): la cámara retrocede por su propia línea de visión hasta que los extremos de la fila caben en el campo horizontal. En una ventana apaisada no cambia nada.
 - **`?perf`** en la URL muestra un medidor pequeño: fotogramas por segundo, tiempo medio y percentil 95 de los dos últimos segundos, llamadas de dibujo y triángulos de todo el fotograma (todas las pasadas del compositor), el nivel de calidad y la GPU que declara el navegador. Es la forma de tener cifras de una GPU real: la puerta de CI corre sobre un rasterizador por software.
@@ -534,6 +536,48 @@ El siguiente vehículo es un **Porsche 911 GT3 RS (992, 2023, 525 CV) en Arctic 
 - **Explanada**: un cuadrado de asfalto liso de 160 × 100 m, sin marcas, junto a la recta principal y unido a ella por un carril de 10 m. Está hacia el recinto, a unos **450 m** del extremo oeste de la fila.
 - **Ubicación**: la buscó un script, como la pista. Es el sitio más cercano a la fila que queda dentro del disco de terreno, a 320 m o más de la costa y sin pisar el recinto, el pad, las charcas ni la pista. La recta principal va de norte a sur por x = −675 m y la vuelta queda al oeste.
 - **Terreno**: `circuitMask` aplana el suelo y quita matorral y canales bajo el circuito y la explanada, igual que en la pista. `circuitSurface(x, z)` dice qué pisa cada rueda (asfalto, arcén, piano, grava o explanada) y a qué altura.
+
+### Porsche 911 GT3 RS, fase 2: el coche y la conducción (2 de octubre de 2026)
+
+El GT3 RS ya está en el centro, en Arctic Grey: aparcado en la explanada del circuito, mirando al sur a lo largo de ella. Se conduce con **B** o con el botón *Porsche · Drive*.
+
+- **Modelo** (`src/vehicles/gt3rs.js`), a 1:1:
+  - **Superficie:** la carrocería es una sola superficie maestra. Son secciones de 13 puntos (umbral, entrante, anchura máxima, flanco, hombro, borde superior y eje) a lo largo de tablas trazadas sobre las fotos de estudio de Porsche, que solo sirven de referencia y no están en el repositorio. La escala sale de la batalla y la altura publicadas, y al superponer el perfil a la foto lateral, los extremos caen a 4,575 m frente a los 4,572 publicados.
+  - **Altura:** los 1.322 mm publicados son la altura al **borde superior del ala**, que según Porsche sobresale del techo. El techo queda en ≈1,29 m.
+  - **Regiones:** cristales, juntas, tomas y faldones negros, salidas del radiador en el capó, rejillas de las aletas, tomas detrás de las ruedas delanteras, toma lateral trasera, salidas de los pasos traseros, franja de luces, grupos ópticos, panel negro y difusor son regiones de esa misma superficie, así que no pueden despegarse de ella.
+  - **Faros:** son redondos, proyectados sobre la aleta con un método de Newton, con fondo cromado oscuro, lente, bisel y los cuatro puntos LED.
+  - **Otros elementos:** las juntas de puertas y capós, el splitter, las salidas de escape dobles centrales y las aletas del difusor.
+  - **Ala de cuello de cisne:** con el flap del DRS en su bisagra, sus derivas laterales y los dos cuellos.
+  - **Retrovisores:** con su cara exterior en los 2.027 mm publicados.
+  - **Ruedas:** de cierre central, con 10 radios, discos de 408 y 380 mm y pinzas rojas. Los tamaños son los publicados.
+  - **Habitáculo visible:** asientos baquet, jaula antivuelco, salpicadero y volante de 360 mm.
+  - **Sin logotipos:** ni emblemas ni rótulos «GT3 RS».
+- **Dinámica** (`src/sim/gt3Car.js`): cuatro neumáticos, cada uno con su carga y su deslizamiento combinado (una «fórmula mágica» sobre el deslizamiento normalizado), así que un neumático que patina o se bloquea pierde agarre lateral. Por eso el coche derrapa.
+  - Usa la curva de par con sus dos puntos publicados, las siete relaciones del PDK y el grupo, cambios automáticos de 0,1 s (≈), un autoblocante (≈), ABS y eje trasero direccional (≈).
+  - La aerodinámica sale de la carga publicada y de un área de resistencia de 0,89 m², derivada de los 296 km/h. El DRS se abre en recta a fondo.
+  - Las ruedas se integran de forma implícita, porque la fuerza longitudinal del neumático es demasiado rígida para un paso explícito de 1/240 s.
+- **Comprobado contra Porsche** (`tools/gt3rs-check.mjs`, dentro de `npm run check`): 0–100 en 3,25 s (publicado 3,2), 0–160 en 6,96 s (6,9), 0–200 en 10,66 s (10,6) y 296,4 km/h (296). La prueba también comprueba:
+  - una frenada de 100 a 0 km/h de unos 27 m (no publicada);
+  - 1,29 g en curva;
+  - sobreviraje con gas, trompo y marcha atrás;
+  - que la grava frena el coche;
+  - un minuto de mandos al azar sin valores no finitos.
+- **Conducción** (`src/sim/gt3Drive.js`, instrumentos en `src/ui/gt3Hud.js`):
+  - **Mandos:**
+    - **W** gas;
+    - **S** freno, y marcha atrás si se mantiene parado;
+    - **A/D** volante: menos giro cuanto más rápido, salvo con la zaga fuera, que da todo el giro para el contravolante;
+    - **Espacio** freno de mano;
+    - **T** control de tracción, apagado por defecto;
+    - **C** cámara: persecución, conductor, capó, pista y órbita propia;
+    - **Enter** vuelve a la explanada y **Esc** termina.
+  - **Instrumentos:** cuentarrevoluciones hasta 9.000 rpm con luz de cambio, marcha, km/h, DRS, ABS, control de tracción, ángulo de derrape, g y tiempos de vuelta, que se miden al cruzar la línea de salida.
+  - **Marcas de neumático:** las deja cualquier neumático que deslice más allá de su pico de agarre sobre una superficie dura. Son tiras oscuras de su anchura, más oscuras cuanto más desliza, y se guardan hasta 12.000 segmentos.
+  - **Superficies:** cada rueda sabe qué pisa. En asfalto, explanada y pista de aterrizaje agarra del todo; en el arcén un poco menos, y en el piano, el 90 %. La grava agarra la mitad y frena; la hierba agarra un 55 % y frena algo.
+- **Arreglos de paso:**
+  - El asfalto del circuito y de la explanada es liso, sin los parches ni las grietas selladas de la carretera vieja (`makeAsphalt({ cracks: false, patches: 0 })`).
+  - Con diez expositores, el atajo numérico comparaba cadenas (`'5' <= '10'` es falso) y habría desactivado las teclas 2 a 9. Ahora las teclas 1–9 eligen los nueve primeros.
+  - Los techos del presupuesto suben con el coche: 3,2 M de triángulos, 1.600 mallas, 240 materiales y 140 texturas.
 
 ### Historial
 

@@ -158,6 +158,8 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
     ['solar', () => TX.makeSolar()],
     ['concrete', () => TX.makeConcrete()],
     ['asphalt', () => TX.makeAsphalt()],
+    // The circuit's and the skid pad's: the same mix, laid and kept smooth (no patches, no cracks).
+    ['trackAsphalt', () => TX.makeAsphalt({ cracks: false, patches: 0, seed: 7716 })],
     ['roadPaint', () => TX.makeRoadPaint()],
     ['terrain', () => TX.makeGroundTerrain()],
     ['trenchArmor', () => TX.makeTrenchArmor()],
@@ -626,6 +628,10 @@ float vcNoise(vec2 p) {
     // Warm tint: aged binder is brown-grey, and a neutral grey went navy under the skylight.
     color: 0xfff1e2, vertexColors: true, map: T.asphalt.map, roughnessMap: T.asphalt.roughnessMap, normalMap: T.asphalt.normalMap,
     normalScale: new THREE.Vector2(0.7, 0.7), roughness: 1.0, metalness: 0, envMapIntensity: 0.5,
+  });
+  M.trackAsphalt = new THREE.MeshStandardMaterial({
+    name: 'track-asphalt', color: 0xfff1e2, vertexColors: true, map: T.trackAsphalt.map, roughnessMap: T.trackAsphalt.roughnessMap, normalMap: T.trackAsphalt.normalMap,
+    normalScale: new THREE.Vector2(0.6, 0.6), roughness: 1.0, metalness: 0, envMapIntensity: 0.5,
   });
   M.gravel = new THREE.MeshStandardMaterial({ color: 0x8d8474, roughness: 0.96, metalness: 0 });
   M.swale = new THREE.MeshStandardMaterial({ color: 0x3a332c, roughness: 0.98, metalness: 0 });

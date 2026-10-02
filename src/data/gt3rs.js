@@ -38,7 +38,7 @@ export const GEARBOX = {
   src: 'Porsche technical data 08/2022', tag: 'PUBLISHED',
   ratios: [3.75, 2.38, 1.72, 1.34, 1.11, 0.96, 0.84], reverse: 3.42, final: 4.27,
   shiftTime: 0.1,                         // ESTIMATE: a dual-clutch shift's torque gap, s
-  efficiency: 0.92,                       // ESTIMATE: gearbox and final drive
+  efficiency: 0.88,                       // ESTIMATE: gearbox and final drive
   upshiftRpm: 8800,                       // ESTIMATE: the automatic mode shifts just short of the 9,000 cut
   downshiftRpm: 4200,                     // ESTIMATE
 };
@@ -101,7 +101,7 @@ export const AERO = {
   downforce: [[124 * MPH, 901 * LB], [177 * MPH, 1896 * LB]],   // PUBLISHED, kg
   clA: (clA(901, 124) + clA(1896, 177)) / 2,                    // DERIVED ≈ 2.15 m²
   frontShareDownforce: 0.40,              // ESTIMATE ≈
-  cdA: 0.98,                              // DERIVED from 296 km/h, wings flat (see tools/gt3rs-check.mjs)
+  cdA: 0.89,                              // DERIVED from 296 km/h, wings flat (see tools/gt3rs-check.mjs)
   cdAHigh: 1.10,                          // ESTIMATE ≈: wings at the high-downforce setting
   drsClFactor: 0.45,                      // ESTIMATE ≈: downforce left with the wings flat
   rho: RHO,
@@ -114,7 +114,7 @@ export const AERO = {
  */
 export const TYRES = {
   tag: 'ESTIMATE',
-  mu: 1.35, muLoadSens: 0.08,             // peak μ at the static load, and its fall per extra static load
+  mu: 1.48, muLoadSens: 0.08,             // peak μ at the static load, and its fall per extra static load
   B: 11, C: 1.5, E: 0.4,                  // lateral magic-formula shape (slip angle, rad)
   Bx: 14, Cx: 1.6, Ex: 0.4,               // longitudinal (slip ratio)
   relaxation: 0.35,                       // relaxation length, m
@@ -122,4 +122,4 @@ export const TYRES = {
 };
 
 /** The paint: Arctic Grey, a solid (non-metallic) Porsche colour — the colour chosen for this car. */
-export const PAINT = { name: 'Arctic Grey', tag: 'ESTIMATE', srgb: 0xa7aaa8 };
+export const PAINT = { name: 'Arctic Grey', tag: 'ESTIMATE', srgb: 0x8f9395 };

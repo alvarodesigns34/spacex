@@ -173,6 +173,10 @@ body.is-flying .guide-sec[data-mode="launch"] .guide-here { display: inline-bloc
 #hud.is-f16 .guide-sec[data-mode] .guide-here { display: none; }
 #hud.is-f16 .guide-sec[data-mode="f16"] { border-color: color-mix(in srgb, var(--accent) 60%, transparent); background: var(--accent-quiet); }
 #hud.is-f16 .guide-sec[data-mode="f16"] .guide-here { display: inline-block; }
+#hud.is-gt3 .guide-sec[data-mode] { border-color: var(--surface-line); background: transparent; }
+#hud.is-gt3 .guide-sec[data-mode] .guide-here { display: none; }
+#hud.is-gt3 .guide-sec[data-mode="gt3"] { border-color: color-mix(in srgb, var(--accent) 60%, transparent); background: var(--accent-quiet); }
+#hud.is-gt3 .guide-sec[data-mode="gt3"] .guide-here { display: inline-block; }
 @media (max-width: 1100px) { .guide-grid { grid-template-columns: repeat(2, 1fr); } }
 .btn { padding: 8px 18px; border: 1px solid var(--surface-line); border-radius: 999px; background: transparent; cursor: pointer; }
 .btn:hover { border-color: var(--ink-muted); }
@@ -405,6 +409,8 @@ body.is-touring .coach { display: none; }
 /* F-16 flight: the HUD over the scene and the flight's bar (ui/f16Hud.js). While the airplane
    flies, the museum's panels step aside; the guide and the notices stay. */
 #hud.is-f16 > *:not(.f16-bar):not(.help):not(.callout) { display: none !important; }
+/* The Porsche's drive (ui/gt3Hud.js) takes the same treatment: its bar reuses the flight's styles. */
+#hud.is-gt3 > *:not(.f16-bar):not(.help):not(.callout) { display: none !important; }
 .f16-hud { position: fixed; inset: 0; pointer-events: none; z-index: 4; }
 .f16-hud.hidden { display: none; }
 .f16-bar {

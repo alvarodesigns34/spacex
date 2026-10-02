@@ -28,10 +28,14 @@ import { buildStarlink } from './vehicles/starlink.js';
 import { buildRoadster } from './vehicles/roadster.js';
 import { buildEngineHall } from './vehicles/enginehall.js';
 import { buildF16 } from './vehicles/f16.js';
+import { buildGt3rs } from './vehicles/gt3rs.js';
 import { buildRunway, runwaySurface } from './core/runway.js';
-import { buildCircuit } from './core/circuit.js';
+import { buildCircuit, circuitSurface } from './core/circuit.js';
+import { SKIDPAD, toWorld as circuitToWorld } from './core/circuitPlan.js';
 import { createF16Fly } from './sim/f16Fly.js';
 import { createF16Hud } from './ui/f16Hud.js';
+import { createGt3Drive } from './sim/gt3Drive.js';
+import { createGt3Hud } from './ui/gt3Hud.js';
 import { groundSample } from './core/environment.js';
 import { curvatureDrop } from './core/outerGround.js';
 import { RUNWAY, fromRunway, toRunway } from './core/terrain.js';
@@ -120,6 +124,13 @@ const LAYOUT = {
     const person = (dx, dz, ry) => [dx, runwaySurface(...toRunway(x + dx, z + dz)), dz, ry];
     return { x, z, mount: runwaySurface(a, 0), yaw: 180 - RUNWAY.angleDeg, remote: true, people: [person(3.5, 6.5, 0.6), person(-8.0, -6.0, -2.2)] };
   })(),
+  // The Porsche waits on its skid pad (core/circuitPlan.js), beside the circuit's main straight:
+  // at the pad's north end, nose to the south along its 160 m, with the lane to the circuit on
+  // its right. Not in the row either.
+  gt3rs: (() => {
+    const [x, z] = circuitToWorld(SKIDPAD.u0 + 18, (SKIDPAD.v0 + SKIDPAD.v1) / 2);
+    return { x, z, mount: circuitSurface(x, z)?.y ?? 0.06, yaw: -90, remote: true, people: [[-6.0, 0.06, -3.4, 0.9], [5.5, 0.06, -5.0, -2.0]] };
+  })(),
 };
 // Recomposed when the Roadster became the sixth exhibit: the old frame was centred on x = -14
 // and the car sat at the right-hand edge, so the first thing a visitor saw did not contain it.
@@ -166,6 +177,8 @@ const OCCLUDER = {
   // side, the fin. Also the walking visitor's obstacles.
   f16: [[5.8, 0, 0.6, 2.2], [3.2, 0, 0.9, 3.0], [0.6, 0, 1.0, 2.2], [-2.2, 0, 1.0, 2.4], [-5.0, 0, 1.0, 2.6], [-6.5, 0, 0.9, 5.0],
     [-1.6, 2.6, 1.6, 2.0], [-1.6, -2.6, 1.6, 2.0], [-6.2, 1.9, 0.9, 2.0], [-6.2, -1.9, 0.9, 2.0]],
+  // The car along its own X: three cylinders from the nose to the wing.
+  gt3rs: [[1.4, 0, 0.95, 1.0], [0, 0, 0.95, 1.3], [-1.5, 0, 0.95, 1.33]],
 };
 
 const nextFrame = () => new Promise(r => requestAnimationFrame(r));
@@ -246,6 +259,7 @@ async function main() {
     onLaunch: () => toggleLaunch(),
     onReentry: () => toggleReentry(),
     onFly: () => toggleFly(),
+    onDrive: () => toggleDrive(),
     // The panel drives whichever sequence is playing: the launch, or the re-entry chapter.
     onLaunchAbort: () => seq()?.reset(),
     onLaunchSpeed: (k) => seq()?.setSpeed(k),
@@ -339,6 +353,7 @@ async function main() {
     roadster: [buildRoadster, 'Tesla Roadster and Starman…'],
     engines: [buildEngineHall, 'Raptor 3, Raptor Vacuum and Merlin 1D…'],
     f16: [buildF16, 'F-16A Fighting Falcon…'],
+    gt3rs: [buildGt3rs, 'Porsche 911 GT3 RS…'],
   };
   let step = 0;
   let complex = null;
@@ -389,8 +404,8 @@ async function main() {
       group.add(ped);
       model.position.y = lay.mount + 0.6;
       env.addStation(lay.x, lay.z, 5);
-    } else if (v.id === 'f16') {
-      // On its gear on the runway, no plinth and no apron ring: the runway is its ground.
+    } else if (v.id === 'f16' || v.id === 'gt3rs') {
+      // On its wheels on its own pavement, no plinth and no apron ring.
       model.position.y = lay.mount;
     } else if (v.id === 'engines') {
       // No plinth: the engines stand on the apron on their own cradles, which is what makes
@@ -581,7 +596,7 @@ async function main() {
   // reset, called with nothing launched, used to clear it under a running re-entry and bring the
   // pad's callouts back over the Pacific (found in the October 2026 review).
   const sequences = {};   // the re-entry, once it is made below
-  const anyFlying = (flying) => flying || !!launch.running || !!sequences.reentry?.running || !!sequences.f16?.running;
+  const anyFlying = (flying) => flying || !!launch.running || !!sequences.reentry?.running || !!sequences.f16?.running || !!sequences.gt3?.running;
   launch.setVisibilityHook((flying) => view.setFlying(anyFlying(flying)));
   // Opt-in engine sound. Assigned here, after the HUD that toggles it, hence `let` above.
   sound = createLaunchSound({ launch, camera });
@@ -665,7 +680,56 @@ async function main() {
   sequences.f16 = f16fly;
   function toggleFly() {
     if (f16fly.running) { f16fly.reset(); return; }
+    if (sequences.gt3?.running) sequences.gt3.reset(false);
     f16fly.start();
+  }
+
+  // ---- The Porsche on the road ----
+  // The exhibit's car leaves its skid pad and drives on its vehicle model (sim/gt3Car.js), in
+  // this same scene; the instruments and the drive's bar are ui/gt3Hud.js. What each tyre
+  // stands on: the circuit's surfaces (core/circuit.js), the runway's pavement, else the
+  // plain's ground, grass and sand, with the sea as a hard stop of a kind.
+  const gt3Ground = (x, z) => {
+    const c = circuitSurface(x, z);
+    if (c) {
+      const grip = { track: 1, pad: 1, verge: 0.97, kerb: 0.9, gravel: 0.45 }[c.kind] ?? 1;
+      return { h: c.y, mu: grip, roll: c.kind === 'gravel' ? 0.22 : 0, kind: c.kind };
+    }
+    const [a, rc] = toRunway(x, z);
+    const pave = runwaySurface(a, rc);
+    if (pave > 0.01) return { h: pave, mu: 0.95, roll: 0, kind: 'runway' };
+    const h = groundSample(x, -z).h;
+    if (h < -0.9) return { h: -0.9, mu: 0.3, roll: 0.5, kind: 'water' };
+    // The plain: dry grass and silt (≈ μ 0.55, a soft surface's drag).
+    return { h: Math.max(h, -0.85), mu: 0.55, roll: 0.06, kind: 'grass' };
+  };
+  const gt3Hud = createGt3Hud({
+    root: hudRoot,
+    onEnd: () => gt3drive.reset(),
+    onCamera: () => gt3drive.cycleCamera(),
+    onRestart: () => gt3drive.restart(),
+    onPause: () => gt3drive.setPaused(!gt3drive.state.paused),
+    onTraction: () => gt3drive.setTraction(!gt3drive.sim.state.tc),
+  });
+  const gt3drive = createGt3Drive({
+    scene, exhibit: exhibits.gt3rs, env, rig, camera, ground: gt3Ground, hud: gt3Hud,
+    // Where it waits: its own spot on the skid pad, nose to the east.
+    home: () => ({ x: exhibits.gt3rs.lay.x, z: exhibits.gt3rs.lay.z, psi: THREE.MathUtils.degToRad(exhibits.gt3rs.lay.yaw ?? 0) }),
+    onStart: () => {
+      if (launch.running) launch.reset(false);
+      if (reentry.running) reentry.reset(false);
+      if (f16fly.running) f16fly.reset(false);
+      if (view.exhibit !== 'gt3rs') { enforce(view.select('gt3rs', 'launch')); syncHud(); }
+      enforce(view.claim('launch'));
+      hudRoot.classList.add('is-gt3');
+    },
+    onFinish: () => { hudRoot.classList.remove('is-gt3'); goPreset('gt3rs', 'overview'); },
+    visibilityHook: (driving) => { view.setFlying(anyFlying(driving)); if (!driving) hudRoot.classList.remove('is-gt3'); },
+  });
+  sequences.gt3 = gt3drive;
+  function toggleDrive() {
+    if (gt3drive.running) { gt3drive.reset(); return; }
+    gt3drive.start();
   }
   function seq() { return reentry?.running ? reentry : launch; }
 
@@ -958,6 +1022,7 @@ async function main() {
     if (stop?.launch && reentry?.running) reentry.reset(false);
     // The F-16's flight holds the camera under the same owner, and stops the same way.
     if (stop?.launch && sequences.f16?.running) sequences.f16.reset(false);
+    if (stop?.launch && sequences.gt3?.running) sequences.gt3.reset(false);
   }
 
   /** Brings the HUD into line with the state, after the scene has been. */
@@ -1120,11 +1185,14 @@ async function main() {
     // and both used to flip the labels or the ruler on the way.
     if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.toLowerCase();
-    if (k >= '1' && k <= String(VEHICLES.length)) select(VEHICLES[Number(k) - 1].id);
+    // The digits 1–9 pick the first nine exhibits. As strings, '5' <= '10' is false, so with ten
+    // exhibits a string comparison would have switched off every key from 2 to 9.
+    if (/^[1-9]$/.test(k) && Number(k) <= VEHICLES.length) select(VEHICLES[Number(k) - 1].id);
     else if (k === '0') select(null);
     else if (k === 'c' && (launch.running || reentry.running) && rig.mode === 'orbit') cycleLaunchCamera();
     else if (k === 'x') toggleReentry();
     else if (k === 'j') toggleFly();
+    else if (k === 'b') toggleDrive();
     else if (k === 'f') toggleMode();
     else if (k === 'v') toggleWalk();
     else if (k === 'g') toggleLaunch();
@@ -1442,6 +1510,7 @@ async function main() {
     // Wall time, like the launch: on the view's clamped step the flight ran in slow motion
     // under 20 fps (at 10 fps, at half speed).
     f16fly.update(steps.mission);
+    gt3drive.update(steps.mission);
     sound?.update();
     // Water keeps moving whatever the camera or the launch is doing.
     WAVE_TIME.value += dt;
@@ -1565,7 +1634,7 @@ async function main() {
   }
 
   window.__vc = {
-    M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, select, goPreset, jump, renderer, env,
+    M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, select, goPreset, jump, renderer, env,
     setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour,
     claimUserControl, tourRunToEnd, toggleMode, toggleWalk,
     walkRouteFor: (hit) => { const r = walkRoute(hit); rig.travelTo(r.route, r.look); return r; },

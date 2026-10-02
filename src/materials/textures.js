@@ -963,11 +963,15 @@ export function makeWater({ size = 512, tile = 420 } = {}) {
 //  and the coarse aggregate stands proud of it. Crack sealing runs as glossy black
 //  squiggles, and the odd rectangular patch sits a shade darker. Tiles every 6 m.
 // =====================================================================================
-export function makeAsphalt({ size = 1024, tile = 6.0 } = {}) {
+/**
+ * Asphalt. The road's (the default) is aged: patched and crack-sealed. A circuit's is laid and
+ * kept smooth: `cracks: false, patches: 0` give a dense, even surface of the same aggregate.
+ */
+export function makeAsphalt({ size = 1024, tile = 6.0, cracks: withCracks = true, patches: nPatches = 3, seed = 4417 } = {}) {
   const map = canvas(size, size), rough = canvas(size, size), height = canvas(size, size);
-  const r = seeded(4417);
+  const r = seeded(seed);
   // Patches: axis-aligned, slightly darker and smoother, in tile units (wrap-safe inside).
-  const patches = Array.from({ length: 3 }, () => {
+  const patches = Array.from({ length: nPatches }, () => {
     const w = 0.08 + r() * 0.16, h = 0.06 + r() * 0.12;
     const x = 0.05 + r() * (0.9 - w), y = 0.05 + r() * (0.9 - h);
     return [x, y, x + w, y + h, (r() - 0.5) * 0.04];
@@ -1011,7 +1015,7 @@ export function makeAsphalt({ size = 1024, tile = 6.0 } = {}) {
   // Crack sealing: meandering transverse and longitudinal runs, drawn over the three maps
   // (black and glossy on the colour and roughness, slightly proud on the height).
   const cracks = [];
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < (withCracks ? 7 : 0); i++) {
     const transverse = i < 4;
     let x = r() * size, y = r() * size;
     const pts = [[x, y]];

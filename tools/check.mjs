@@ -864,9 +864,10 @@ try {
     // Materials went from 160 to 200 the same way, at 161 (September 2026: four fire layers and
     // the liftoff glare, each a shader with uniforms of its own that cannot be shared).
     // And from 200 to 240 at 201 (October 2026): the Porsche's circuit (its gravel) and the car
-    // itself, the centre's ninth exhibit, bring their own paint, glass, rubber, carbon, brake and
-    // lamp materials.
-    const LIMITS = { tris: 2_800_000, meshes: 1400, materials: 240, textures: 120 };
+    // itself, the centre's tenth exhibit, bring their own paint, glass, rubber, carbon, brake and
+    // lamp materials. With the car (≈195 k triangles in ≈80 meshes) and the circuit's smooth
+    // asphalt (three maps), triangles go to 3.2 M, meshes to 1,600 and textures to 140.
+    const LIMITS = { tris: 3_200_000, meshes: 1600, materials: 240, textures: 140 };
     const over = Object.entries(LIMITS).filter(([k, max]) => budget[k] > max);
     report(over.length === 0, 'presupuesto de escena',
       `${budget.tris.toLocaleString('es-ES')} triángulos construidos, ${budget.drawnTris.toLocaleString('es-ES')} dibujados `

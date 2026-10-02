@@ -698,6 +698,60 @@ try {
     report(!back.running && same && back.children === base.children && !back.cls && back.fov === base.fov && !back.external,
       'Esc puts the F-16 back on its spot and gives the camera back', { base, back });
   }
+  // ---- The Porsche's drive: from its skid pad, in this same scene, and back to the exhibit ----
+  {
+    await page.evaluate(() => { window.__vc.jump('gt3rs', 'overview'); });
+    await page.waitForTimeout(1500);
+    const base = await page.evaluate(() => {
+      const v = window.__vc, car = v.scene.getObjectByName('gt3rs'), p = new v.camera.position.constructor();
+      car.getWorldPosition(p);
+      return { pos: p.toArray().map(x => +x.toFixed(3)), children: v.scene.children.length, fov: v.camera.fov };
+    });
+    await page.keyboard.press('b');
+    await page.waitForTimeout(600);
+    const started = await page.evaluate(() => {
+      const v = window.__vc, D = v.gt3drive, s = D.sim.state;
+      return {
+        running: D.running, cls: document.getElementById('hud').classList.contains('is-gt3'),
+        hud: !document.querySelector('.gt3-hud').classList.contains('hidden'),
+        onPad: D.sim.state.surface.every(k => k === 'pad'), speed: s.u, children: v.scene.children.length,
+      };
+    });
+    report(started.running && started.cls && started.hud && started.onPad && Math.abs(started.speed) < 0.1,
+      'B starts the Porsche on its skid pad, at rest, with its instruments, in the same scene', started);
+    // W pulls away, the gearbox shifts by itself, A with the throttle on slides the tail and the
+    // tyres lay marks on the pad; S stops it.
+    const drive = await page.evaluate(() => {
+      const D = window.__vc.gt3drive, s = D.sim.state;
+      const key = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code, key: code.slice(-1).toLowerCase(), bubbles: true }));
+      const run = (codes, sec) => { for (const c of codes) key('keydown', c); for (let k = 0; k < sec * 30; k++) D.update(1 / 30); for (const c of codes) key('keyup', c); };
+      run(['KeyW'], 2.2);
+      const fast = { kmh: s.u * 3.6, gear: s.gear };
+      run(['KeyW', 'KeyA'], 1.2);
+      const slid = { slide: Math.abs(D.state.readout.slide), marks: D.marks.count };
+      // S brakes it to a stop (held on, it would then go into reverse, as it should).
+      let stopped = false;
+      key('keydown', 'KeyS');
+      for (let k = 0; k < 4 * 30 && !stopped; k++) { D.update(1 / 30); stopped = Math.hypot(s.u, s.v) < 1; }
+      key('keyup', 'KeyS');
+      return { ...fast, ...slid, stopped, finite: [s.x, s.z, s.psi].every(Number.isFinite) };
+    });
+    report(drive.kmh > 50 && drive.gear >= 2 && drive.marks > 20 && drive.stopped && drive.finite,
+      'W pulls away and shifts, W with A slides the tail and leaves tyre marks, S stops it', drive);
+    await page.keyboard.press('c');
+    await page.waitForTimeout(200);
+    report(await page.evaluate(() => window.__vc.gt3drive.state.camera === 'driver'), 'C goes to the driver\'s seat');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(2500);
+    const back = await page.evaluate(() => {
+      const v = window.__vc, car = v.scene.getObjectByName('gt3rs'), p = new v.camera.position.constructor();
+      car.getWorldPosition(p);
+      return { running: v.gt3drive.running, pos: p.toArray().map(x => +x.toFixed(3)), children: v.scene.children.length, cls: document.getElementById('hud').classList.contains('is-gt3'), fov: v.camera.fov, external: v.rig.external };
+    });
+    const same = back.pos.every((x, i) => Math.abs(x - base.pos[i]) < 0.01);
+    report(!back.running && same && back.children === base.children && !back.cls && back.fov === base.fov && !back.external,
+      'Esc puts the Porsche back on its spot and gives the camera back', { base, back });
+  }
   const lumaAfterRestore = (sabotage) => page.evaluate(async (sabotage) => {
     const v = window.__vc; const c = v.renderer.domElement;
     v.jump('falcon9', 'overview');

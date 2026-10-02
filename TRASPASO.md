@@ -80,10 +80,30 @@ Fases, un commit cada una:
    - `src/core/circuitPlan.js` define el trazado (rectas y arcos), `trackCoords`, `skidpadDistance` y `circuitMask`.
    - `src/core/circuit.js` construye las mallas y exporta `circuitSurface` y `CORNERS`.
    - Marcos: el local (u, v), con u a lo largo de la recta principal y v hacia la derecha, y el mundo, con x = −675 − v y z = −375 + u. La vuelta va a +v.
-2. Modelo 3D exterior en Arctic Grey: el expositor, aparcado en la explanada.
-3. Dinámica del coche: motor, PDK, neumáticos con Pacejka y aerodinámica. `tools/gt3rs-check.mjs` comprueba el 0–100, el 0–200 y la velocidad máxima.
-4. Modo de conducción: WASD, cámaras, HUD y marcas de derrape.
-5. Revisión.
+2. **El coche y la conducción: hecha.**
+   - **Modelo:** `src/vehicles/gt3rs.js`.
+     - Superficie maestra `bodyPoint(x, t)` con el marco X adelante, Y arriba y Z a la derecha, centrado en la batalla.
+     - `region(x, t)` decide qué material va en cada sitio; `endCap` cierra el morro y la cola.
+     - Faros con `onFront` (método de Newton), juntas con `lineOnBody` y la carrocería en el grupo `gt3-sprung`.
+     - Ruedas `gt3-wheel-fl/fr/rl/rr`, con su grupo de giro en `userData.spin`; el flap del DRS es `gt3-wing-flap`.
+   - **Dinámica:** `src/sim/gt3Car.js`.
+     - `createGt3Car({ ground })` devuelve `{ state, input, reset, advance, step, worldOf, WP }`.
+     - `ground(x, z)` → `{ h, mu, roll, kind }`.
+     - Ajustes estimados: μ 1,48, rendimiento 0,88 y CdA 0,89. Con ellos se clavan las cifras de Porsche (ver `tools/gt3rs-check.mjs`).
+   - **Conducción:** `src/sim/gt3Drive.js` (marcas en un búfer circular de 12.000 quads) y `src/ui/gt3Hud.js`. En `main.js`: `gt3Ground`, `toggleDrive` (tecla B), `sequences.gt3` y la clase `is-gt3` del `#hud`.
+   - **Lecciones:**
+     - Las ruedas se integran de forma implícita, porque la fuerza longitudinal es demasiado rígida para un paso explícito.
+     - La resistencia a la rodadura va a la carrocería y no a la rueda, porque si no la hace girar.
+     - El cambio necesita histéresis.
+     - `setIndex` no acepta arrays tipados.
+     - Los bordes inclinados necesitan filas densas en su banda.
+   - **Pendiente de pulir en el modelo:**
+     - bordes escalonados en las tomas del paragolpes;
+     - la forma de los retrovisores;
+     - detalles del habitáculo;
+     - marcas de los pianos;
+     - humo de los neumáticos (no hecho).
+3. Revisión.
 
 ### Al retomar
 
