@@ -6,12 +6,22 @@
  *  - Aerodynamics: Morelli's global polynomials of NASA TP-1538's wind-tunnel database
  *    (data/f16Aero.js), valid for Mach < 0.6, α −10…45°, β ±30°. Outside that the inputs are held
  *    at the edge of the fit (≈).
- *  - Mass and inertias: TP-1538 table I (20,500 lb). Constant: no fuel burn (≈).
+ *  - Mass and inertias: TP-1538 table I (20,500 lb), taken as the weight at engine start; the
+ *    fuel then burns at the engine's specific consumption (CONFIG, ≈), the mass falling with it
+ *    (the inertias held at table I's, ≈). The configuration flown is recorded (CONFIG): clean,
+ *    no stores, the centre of gravity at 0.35 c̄.
  *  - Thrust: TP-1538 table VI, idle, military and maximum, 0–15,240 m, Mach 0.2–1.0.
  *  - Control system: TP-1538 appendix A for its structure and its published numbers (limits,
  *    actuators, the leading-edge flap's schedule, the α limiter, 308°/s roll-rate command, the
  *    rudder fade and the ARI's slope). The gains are tuned here, not published (≈).
- *  - Atmosphere: the 1976 US Standard Atmosphere to 20 km.
+ *  - Atmosphere: the 1976 US Standard Atmosphere to 86 km.
+ *  - The Earth: the scene's ground is flat to the edge of its disc and falls away beyond it with
+ *    the curvature (core/outerGround.js). The airplane's altitude is its height over the sea's
+ *    surface beneath it, along that surface's normal, and gravity points down that normal and
+ *    falls with height (geodesy(), H15): far out over the curved ground, flying level is flying
+ *    level over the sea, not along the pad's plane.
+ *  - Where the data stop: outside Morelli's fit (α, β) and above Mach 0.6 the model is
+ *    extrapolated, and the state says so (s.domain, H16): the HUD shows it.
  *
  * APPROXIMATIONS (≈), all of them here and nowhere else:
  *  - Compressibility above Mach 0.6: the lift slope scaled by a DATCOM-type planform formula
@@ -29,11 +39,13 @@
  *    feedback standing in for its lateral-acceleration loop.
  *  - The gear fails above ≈8 times a strut's static load (≈5 m/s of sink); the nozzle's lip
  *    strikes the ground at ≈14.5° of pitch on the static gear.
- *  - No ground effect, no wind, no fuel burn.
+ *  - No ground effect, no wind; the Earth does not rotate.
  */
 import * as THREE from 'three';
 import { morelli, MORELLI, MORELLI_RANGE, THRUST, FCS } from '../data/f16Aero.js';
 import { WING, MASS, GEAR, MODEL, OVERALL } from '../data/f16.js';
+import { curvatureDrop } from '../core/outerGround.js';
+import { SEA_LEVEL } from '../core/f16Ground.js';
 
 const KBETA = -12;
 /** The pitch law's gains (≈, tuned against tools/f16-check.mjs), per unit of the q̄ schedule. */
@@ -94,6 +106,36 @@ function tableAt(tab, h, M) {
   return row(i) + (row(i + 1) - row(i)) * th;
 }
 const RHO_TOP = atmosphere(THRUST.alt[THRUST.alt.length - 1]).rho;
+const R_EARTH = 6371000;
+/**
+ * Where the airplane is over the round Earth (H15): its altitude over the sea's surface beneath it
+ * (along that surface's normal), and gravity there, pointing down the normal and falling with
+ * height (g0·(R/(R+h))²). Inside the flat disc the normal is straight up.
+ */
+export function geodesy(x, y, z, out = { h: 0, g: 0, nx: 0, ny: 1, nz: 0 }) {
+  const r = Math.hypot(x, z);
+  const slope = r > 1 ? (curvatureDrop(r + 1) - curvatureDrop(r - 1)) / 2 : 0;
+  const k = 1 / Math.sqrt(1 + slope * slope);
+  out.h = (y - SEA_LEVEL + curvatureDrop(r)) * k;
+  out.g = G0 * (R_EARTH / (R_EARTH + Math.max(out.h, -1000))) ** 2;
+  out.nx = r > 1 ? slope * x / r * k : 0; out.ny = k; out.nz = r > 1 ? slope * z / r * k : 0;
+  return out;
+}
+/**
+ * The configuration flown (H20): clean (no stores, no tanks), the weight at engine start TP-1538's
+ * 20,500 lb, of it ≈3,100 kg of internal fuel (≈: TP-1538 gives the weight, not its split), and
+ * the engine's specific consumption at military power and in full afterburner (≈ for an F100
+ * class turbofan; not published for this airplane here), so the mass falls as it flies.
+ */
+export const CONFIG = {
+  tag: 'ESTIMATE', stores: 'clean', cg: MASS.cgRef, startMass: MASS.weight, fuel: 3100,
+  tsfc: { idle: 0.9, mil: 0.73, max: 2.05 },   // kg per kgf·h (= lb per lbf·h)
+};
+/** Fuel flow, kg/s, at a power level and a thrust: the specific consumption blended across the range. */
+export function fuelFlow(power, T) {
+  const c = CONFIG.tsfc, k = power <= 50 ? c.idle + (c.mil - c.idle) * power / 50 : c.mil + (c.max - c.mil) * (power - 50) / 50;
+  return k * (T / G0) / 3600;
+}
 /** Thrust, newtons, for an engine power level 0…100 (0 idle, 50 military, 100 full afterburner). */
 export function thrust(power, h, M) {
   const idle = tableAt(THRUST.idle, h, M), mil = tableAt(THRUST.mil, h, M), max = tableAt(THRUST.max, h, M);
@@ -127,8 +169,8 @@ export function compressibility(M) {
 // probe's tip at x = 0, the ground at y = 0 on the static gear). The centre of gravity is the
 // 0.35 c̄ moment reference, on the wing's waterline (≈: TP-1538 gives it along the chord only).
 export const CG = new THREE.Vector3(-MODEL.mrc, -OVERALL.groundWL, 0);
-const S = WING.area, BSPAN = WING.span, CBAR = WING.mac, MASSKG = MASS.weight;
-const W = MASSKG * G0;
+const S = WING.area, BSPAN = WING.span, CBAR = WING.mac;
+const W = MASS.weight * G0;   // TP-1538 table I: the reference the load factor and the struts are given against
 // Body axes (x forward, y right, z down) from the model's (x forward, y up, z right).
 const I = { x: MASS.ixx, y: MASS.iyy, z: MASS.izz, xz: MASS.ixz };
 const DET = I.x * I.z - I.xz * I.xz;
@@ -173,6 +215,10 @@ export function createF16Flight({ ground }) {
     power: 0, powerCmd: 0, gear: 1, gearCmd: 1, sb: 0, sbCmd: 0,
     crashed: null, wow: true, t: 0,
     alpha: 0, beta: 0, mach: 0, tas: 0, nz: 1, load: 1, qbar: 0, alt: 0, agl: 0, thrust: 0,
+    mass: CONFIG.startMass, fuel: CONFIG.fuel, flameout: false,
+    // Where the model is outside its data (H16): α or β outside Morelli's fit, Mach above TP-1538's 0.6.
+    domain: { alpha: false, beta: false, mach: false, out: false, tOut: 0 },
+    g: G0,
     surfaces: { de: 0, da: 0, dr: 0, lef: 0, flap: 0, diff: 0 },
     wheels: WHEELS.map(() => ({ comp: 0, load: 0, anchor: null })),
   };
@@ -181,6 +227,7 @@ export function createF16Flight({ ground }) {
     lef: actuator({ limit: FCS.lef.limit, rate: FCS.lef.rate, tau: FCS.lef.tau }, 0),
   };
   const ctl = { pitchI: 0, lefX: 0, ydX: 0, qLow: 0, nzF: 1 };
+  const GEO = { h: 0, g: G0, nx: 0, ny: 1, nz: 0 };   // this airplane's own (never shared)
   // Scratch for the step, one set per airplane (no allocation in the 240 Hz loop; never shared
   // between two instances, so two airplanes cannot alias each other's temporaries).
   const X = {
@@ -204,6 +251,8 @@ export function createF16Flight({ ground }) {
     s.vel.set(0, 0, 0); s.w.set(0, 0, 0);
     s.power = s.powerCmd = 0; s.gear = s.gearCmd = 1; s.sb = s.sbCmd = 0;
     s.crashed = null; s.t = 0; Object.assign(ctl, { pitchI: 0, lefX: 0, ydX: 0, qLow: 0, nzF: 1 });
+    s.mass = CONFIG.startMass; s.fuel = CONFIG.fuel; s.flameout = false;
+    Object.assign(s.domain, { alpha: false, beta: false, mach: false, out: false, tOut: 0 });
     for (const k of Object.keys(act)) act[k].x = 0;
     Object.assign(input, { pitch: 0, roll: 0, yaw: 0, throttle: 0, brake: 1, speedBrake: 0, gearDown: true });
     // Everything the last flight left in the telemetry and on the wheels goes too: before, a
@@ -213,7 +262,7 @@ export function createF16Flight({ ground }) {
     for (const w of s.wheels) Object.assign(w, { comp: 0, load: 0, anchor: null });
     s.wow = true; s.nz = 1; s.load = 1; s.thrust = thrust(0, s.pos.y, 0);
     s.alpha = 0; s.beta = 0; s.mach = 0; s.tas = 0; s.qbar = 0;
-    s.alt = s.pos.y; s.agl = s.pos.y - g - CG.y;
+    geodesy(s.pos.x, s.pos.y, s.pos.z, GEO); s.alt = GEO.h; s.g = GEO.g; s.agl = s.pos.y - g - CG.y;
     for (let i = 0; i < WHEELS.length; i++) s.wheels[i].load = WHEELS[i].load;
   }
 
@@ -222,7 +271,7 @@ export function createF16Flight({ ground }) {
     tmpV.copy(s.vel); toModel(tmpV);
     const [u, v, w] = bodyFromModel(tmpV);
     const V = Math.max(1e-3, Math.hypot(u, v, w));
-    const atm = atmosphere(s.pos.y);
+    const atm = atmosphere(geodesy(s.pos.x, s.pos.y, s.pos.z, GEO).h);
     return { u, v, w, V, atm, alpha: Math.atan2(w, u), beta: Math.asin(clamp(v / V, -1, 1)), mach: V / atm.a, qbar: 0.5 * atm.rho * V * V };
   }
 
@@ -297,7 +346,10 @@ export function createF16Flight({ ground }) {
     const tau = s.power < 50 || s.powerCmd < 50 ? (up ? 1.0 : 0.7) : 0.45;
     s.power += clamp((s.powerCmd - s.power) * dt / tau, -60 * dt, (s.power < 50 ? 25 : 60) * dt);
     if (Math.abs(s.powerCmd - s.power) < 0.01) s.power = s.powerCmd;
-    s.thrust = thrust(s.power, s.pos.y, air.mach);
+    // Out of fuel, the engine stops.
+    if (s.fuel <= 0) { s.fuel = 0; s.flameout = true; s.power = 0; }
+    s.thrust = s.flameout ? 0 : thrust(s.power, GEO.h, air.mach);
+    if (!s.flameout) { const dm = fuelFlow(s.power, s.thrust) * dt; s.fuel -= dm; s.mass -= dm; }
     // Gear (≈ 6 s each way) and speed brakes (≈ 2 s).
     s.gearCmd = input.gearDown || s.wow ? 1 : 0;
     s.gear += clamp(s.gearCmd - s.gear, -dt / 6, dt / 6);
@@ -312,6 +364,14 @@ export function createF16Flight({ ground }) {
 
     // Aerodynamic forces and moments, body axes.
     const Fb = [0, 0, 0], Mb = [0, 0, 0];
+    {
+      const R = MORELLI_RANGE, d = s.domain;
+      d.alpha = air.V > 20 && (air.alpha < R.alpha[0] || air.alpha > R.alpha[1]);
+      d.beta = air.V > 20 && (air.beta < R.beta[0] || air.beta > R.beta[1]);
+      d.mach = air.mach > 0.6;
+      d.out = d.alpha || d.beta || d.mach;
+      d.tOut = d.out ? d.tOut + dt : 0;
+    }
     if (air.V > 1) {
       const R = MORELLI_RANGE;
       const al = clamp(air.alpha, R.alpha[0], R.alpha[1]), be = clamp(air.beta, R.beta[0], R.beta[1]);
@@ -407,7 +467,9 @@ export function createF16Flight({ ground }) {
     // The load factor the pilot feels: every force but gravity, along the airframe's up.
     s.load = Fw.dot(tmpV.set(0, 1, 0).applyQuaternion(s.q)) / W;
     // Translation.
-    const acc = Fw.multiplyScalar(1 / MASSKG); acc.y -= G0;
+    // Gravity down the normal of the sea beneath, falling with height (geodesy()).
+    const acc = Fw.multiplyScalar(1 / s.mass);
+    acc.x -= GEO.g * GEO.nx; acc.y -= GEO.g * GEO.ny; acc.z -= GEO.g * GEO.nz;
     s.vel.addScaledVector(acc, dt);
     s.pos.addScaledVector(s.vel, dt);
 
@@ -427,7 +489,7 @@ export function createF16Flight({ ground }) {
     // Telemetry.
     const a2 = airData();
     s.alpha = a2.alpha * R2D; s.beta = a2.beta * R2D; s.mach = a2.mach; s.tas = a2.V; s.qbar = a2.qbar;
-    s.alt = s.pos.y; s.agl = s.pos.y - ground(s.pos.x, s.pos.z).h - (CG.y);
+    geodesy(s.pos.x, s.pos.y, s.pos.z, GEO); s.alt = GEO.h; s.g = GEO.g; s.agl = s.pos.y - ground(s.pos.x, s.pos.z).h - (CG.y);
   }
 
   return {

@@ -329,5 +329,45 @@ function assisted({ setup, plan, T }) {
   report(one.s.pos.distanceTo(solo.s.pos) === 0 && one.s.q.equals(solo.s.q), 'dos aviones a la vez no se mezclan sus temporales', `${one.s.pos.distanceTo(solo.s.pos)} m`);
 }
 
+// ---- The audit's P1 for the airplane (H15, H16, H20) -------------------------------------------
+{
+  // H15: far out over the curved ground, the altitude is the height over the sea beneath, along
+  // its normal, and gravity points down that normal and falls with height.
+  const F = await import('../src/sim/f16Flight.js');
+  const R = 6371000, far = F.geodesy(300e3, 5000, 0), near = F.geodesy(0, 5000, 0), high = F.geodesy(0, 10000, 0);
+  const tilt = Math.asin(far.nx);
+  report(Math.abs(tilt - 300e3 / R) < 0.003 && far.h > 5000 + 6000 && Math.abs(near.nx) < 1e-12 && Math.abs(high.g / 9.80665 - (R / (R + high.h)) ** 2) < 1e-9,
+    'marco geodésico: a 300 km la gravedad se inclina con la curvatura y la altura se mide sobre el mar de debajo; g cae con la altura',
+    `inclinación ${(tilt * 180 / Math.PI).toFixed(2)}° (r/R ${(300e3 / R * 180 / Math.PI).toFixed(2)}°) · altura ${(far.h / 1e3).toFixed(1)} km sobre el mar a y = 5 km · g a 10 km ${high.g.toFixed(3)} m/s²`);
+}
+{
+  // H16: outside Morelli's fit (α 60°) and above TP-1538's Mach 0.6 the state says so.
+  const { f, s } = make();
+  f.reset({ x: 0, z: 0 }); s.gear = 0; s.gearCmd = 0; s.wow = false;
+  s.pos.set(0, 3000, 0); s.vel.set(100 * Math.cos(60 * D2R), -100 * Math.sin(60 * D2R), 0);
+  f.input.gearDown = false; f.advance(1 / 240);
+  const hiA = { ...s.domain };
+  const g = make(); g.f.reset({ x: 0, z: 0 }); g.s.gear = 0; g.f.input.gearDown = false; g.s.pos.set(0, 3000, 0); g.s.vel.set(300, 0, 0); g.f.advance(1 / 240);
+  const fast = { ...g.s.domain };
+  const h = make(); h.f.reset({ x: 0, z: 0 }); h.s.gear = 0; h.f.input.gearDown = false; h.s.pos.set(0, 3000, 0); h.s.vel.set(150, 0, 0); h.f.advance(1 / 240);
+  report(hiA.alpha && hiA.out && fast.mach && !fast.alpha && !h.s.domain.out, 'dominio de los datos: α de 60° y Mach 0,9 quedan marcados fuera; a Mach 0,45 y α pequeño, dentro',
+    `α 60°: ${hiA.alpha} · Mach ${g.s.mach.toFixed(2)}: ${fast.mach} · Mach ${h.s.mach.toFixed(2)}: ${h.s.domain.out ? 'fuera' : 'dentro'}`);
+}
+{
+  // H20: the fuel burns at the engine's consumption and the mass falls with it; out of fuel the engine stops.
+  const F = await import('../src/sim/f16Flight.js');
+  const { f, s, i } = make();
+  f.reset({ x: 0, z: 0 }); i.brake = 1; i.throttle = 1;
+  const m0 = s.mass, q0 = s.fuel;
+  for (let k = 0; k < 240 * 10; k++) f.advance(1 / 240);
+  const burned = q0 - s.fuel, same = Math.abs((m0 - s.mass) - burned) < 1e-6;
+  const exp = F.fuelFlow(100, s.thrust) * 1;   // ≈ the last second's flow at full afterburner
+  s.fuel = 0.5;
+  for (let k = 0; k < 240; k++) f.advance(1 / 240);
+  report(burned > 20 && same && s.flameout && s.thrust === 0 && exp > 3,
+    'configuración y combustible: el motor gasta según su consumo, la masa baja lo mismo y sin combustible se apaga',
+    `${burned.toFixed(0)} kg en 10 s a fondo (${exp.toFixed(1)} kg/s en postcombustión) · apagado ${s.flameout} · ${F.CONFIG.stores}, c.g. ${F.CONFIG.cg} c̄`);
+}
+
 console.log(failed ? `\n${failed} comprobación(es) del F-16 fallida(s)` : '\nModelo de vuelo del F-16: todo correcto');
 process.exit(failed ? 1 : 0);

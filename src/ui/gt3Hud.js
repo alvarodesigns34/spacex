@@ -2,8 +2,12 @@
  * The Porsche's instruments while it drives, and the drive's controls. In the manner of the
  * 992's own cluster (≈, not a copy of it): a rev counter to 9,000 rpm with its shift light,
  * the gear in the middle, the speed in km/h; and the drive's own readouts — DRS, ABS,
- * PSM, the slide angle, the lateral g, the lap time.
+ * PSM, the slide angle, the lateral g, the lap time. Beside them, live telemetry: the last
+ * twenty seconds of speed, throttle and brake as traces, and the friction circle (the g the
+ * tyres are giving, longitudinal against lateral, with its trail); and the same readings as text
+ * for a screen reader (telemetryList.js).
  */
+import { createTelemetryList } from './telemetryList.js';
 const fmt = (x, d = 0) => (Number.isFinite(x) ? x.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
 const lapTime = (t) => (t === null || t === undefined ? '—' : `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`);
 
@@ -29,6 +33,12 @@ export function createGt3Hud({ root, onEnd, onCamera, onRestart, onPause, onTrac
     <ul class="f16-msgs" id="gt3-msgs" aria-live="polite"></ul>
   `;
   root.appendChild(bar);
+  const telemetry = createTelemetryList(bar, 'Porsche telemetry', [
+    ['speed', 'Speed'], ['gear', 'Gear'], ['rpm', 'Engine'], ['g', 'Acceleration'], ['slide', 'Slide angle'], ['aids', 'Aids'], ['lap', 'Lap'], ['best', 'Best lap'],
+  ]);
+  // The traces: one sample every 50 ms over the last 20 s, in a ring.
+  const N = 400, hist = { kmh: new Float32Array(N), thr: new Float32Array(N), brk: new Float32Array(N), gx: new Float32Array(N), gy: new Float32Array(N) };
+  let head = 0, count = 0, lastSample = -Infinity;
   const $ = (id) => bar.querySelector(id);
   $('#gt3-end').addEventListener('click', () => onEnd?.());
   $('#gt3-cam').addEventListener('click', () => onCamera?.());
@@ -49,6 +59,19 @@ export function createGt3Hud({ root, onEnd, onCamera, onRestart, onPause, onTrac
   let lastMsgs = '';
   function update(r) {
     if (!r) return;
+    // Sampled on the simulation's clock, so a slow frame does not stretch the traces.
+    if (r.t < lastSample) { count = 0; lastSample = -Infinity; }   // a reset: start the traces again
+    if (r.t - lastSample >= 0.05) {
+      lastSample = r.t;
+      hist.kmh[head] = Math.abs(r.kmh); hist.thr[head] = r.throttle; hist.brk[head] = r.brake;
+      hist.gx[head] = r.gLong ?? 0; hist.gy[head] = r.gLat ?? 0;
+      head = (head + 1) % N; count = Math.min(N, count + 1);
+    }
+    telemetry.update({
+      speed: `${fmt(Math.abs(r.kmh))} km/h`, gear: String(r.gear), rpm: `${fmt(r.rpm)} rpm`, g: `${fmt(r.g, 2)} g`,
+      slide: `${fmt(Math.abs(r.slide))} degrees`, aids: [r.tc ? 'PSM on' : 'PSM off', r.abs && 'ABS working', r.drs && 'DRS open'].filter(Boolean).join(', '),
+      lap: lapTime(r.lap), best: lapTime(r.best),
+    });
     $('#gt3-cam').firstChild.textContent = `${r.camera[0].toUpperCase()}${r.camera.slice(1)} `;
     $('#gt3-tc').setAttribute('aria-pressed', String(!!r.tc));
     $('#gt3-pause').setAttribute('aria-pressed', String(!!r.paused));
@@ -109,6 +132,47 @@ export function createGt3Hud({ root, onEnd, onCamera, onRestart, onPause, onTrac
     g.fillText(`${fmt(r.g, 2)} g`, lx, cy - 12);
     g.fillText(`lap ${lapTime(r.lap)}`, lx, cy + 8);
     g.fillText(`best ${lapTime(r.best)}`, lx, cy + 26);
+    g.restore();
+    if (W >= 900 && count > 2) drawTelemetry(24, Math.min(H * 0.52, barTop - 180));
+  }
+  /** The traces (speed, throttle, brake) and the friction circle, at (x0, y0). */
+  function drawTelemetry(x0, y0) {
+    const w = 250, h = 120, gg = 120;
+    g.save();
+    g.fillStyle = 'rgba(10, 12, 14, 0.5)';
+    g.fillRect(x0, y0, w + gg + 30, h + 24);
+    g.font = '600 10px system-ui, sans-serif'; g.textAlign = 'left'; g.textBaseline = 'top';
+    // The legend in the traces' own colours.
+    let lx = x0 + 8;
+    for (const [t, c] of [['LAST 20 s · ', 'rgba(255,255,255,0.6)'], ['SPEED', '#fff'], [' · ', 'rgba(255,255,255,0.6)'], ['THROTTLE', '#4ad07a'], [' · ', 'rgba(255,255,255,0.6)'], ['BRAKE', '#ff4a3c']]) {
+      g.fillStyle = c; g.fillText(t, lx, y0 + 6); lx += g.measureText(t).width;
+    }
+    const px = (k) => x0 + 8 + (w - 16) * k / (N - 1), top = y0 + 20, bot = y0 + h + 14;
+    const trace = (arr, max, color, width) => {
+      g.strokeStyle = color; g.lineWidth = width; g.beginPath();
+      for (let k = 0; k < count; k++) {
+        const i = (head - count + k + N) % N, x = px(N - count + k), y = bot - (bot - top) * Math.min(1, arr[i] / max);
+        if (k) g.lineTo(x, y); else g.moveTo(x, y);
+      }
+      g.stroke();
+    };
+    trace(hist.thr, 1, 'rgba(74, 208, 122, 0.85)', 1.5);
+    trace(hist.brk, 1, 'rgba(255, 74, 60, 0.85)', 1.5);
+    trace(hist.kmh, Math.max(100, ...Array.from(hist.kmh)) * 1.05, 'rgba(255, 255, 255, 0.95)', 2);
+    // The friction circle: ±1.5 g, braking at the top as on a race engineer's plot.
+    const cx = x0 + w + 15 + gg / 2, cy = y0 + 14 + h / 2, R = gg / 2 - 4, G = 1.5;
+    g.strokeStyle = 'rgba(255,255,255,0.25)'; g.lineWidth = 1;
+    for (const f of [1 / 1.5, 1]) { g.beginPath(); g.arc(cx, cy, R * f, 0, Math.PI * 2); g.stroke(); }
+    g.beginPath(); g.moveTo(cx - R, cy); g.lineTo(cx + R, cy); g.moveTo(cx, cy - R); g.lineTo(cx, cy + R); g.stroke();
+    g.fillStyle = 'rgba(255,255,255,0.6)'; g.fillText('g-g', cx - R, y0 + 6);
+    const at = (i) => [cx - R * Math.max(-1, Math.min(1, hist.gy[i] / G)), cy + R * Math.max(-1, Math.min(1, hist.gx[i] / G))];
+    for (let k = Math.max(0, count - 60); k < count; k++) {
+      const i = (head - count + k + N) % N, [x, y] = at(i);
+      g.fillStyle = `rgba(255, 210, 60, ${0.15 + 0.6 * (k - count + 60) / 60})`;
+      g.fillRect(x - 1.5, y - 1.5, 3, 3);
+    }
+    const [x, y] = at((head - 1 + N) % N);
+    g.fillStyle = '#ffd23c'; g.beginPath(); g.arc(x, y, 4, 0, Math.PI * 2); g.fill();
     g.restore();
   }
 

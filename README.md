@@ -787,6 +787,30 @@ Hallazgos P1 de la auditoría sobre Flight 14 (H28, H30, H32 y H33, en parte). L
   - el retorno del propulsor con masa y combustible por encendido (H31);
   - la actitud dinámica del volteo (H33).
 
+### F-16: Tierra redonda, combustible y límites del modelo; telemetría en vivo (2 de octubre de 2026)
+
+Hallazgos P1 de la auditoría sobre el F-16 (H15, H16, en parte H17, y H20) y la telemetría accesible (H25). Las pruebas nuevas están en `tools/f16-check.mjs` y `tools/ux-check.mjs`.
+
+- **H15: la altitud y la gravedad, sobre la Tierra redonda.** Más allá del disco plano, el suelo lejano baja con la curvatura (`core/outerGround.js`), pero el avión medía su altura sobre el plano de la escena y caía siempre en vertical. Ahora `geodesy()` (en `src/sim/f16Flight.js`) da la altura sobre el mar que tiene debajo, a lo largo de la normal de esa superficie, y la gravedad apunta según esa normal y disminuye con la altura (g₀·(R/(R+h))²). La atmósfera, el empuje, la velocidad calibrada y el altímetro del HUD usan esa altura.
+  - Comprobación: a 300 km del centro la gravedad se inclina 2,70°, que es el ángulo r/R; un punto a 5 km sobre el plano está allí a 12,1 km sobre el mar; y a 10 km de altura g vale 9,776 m/s².
+- **H16: el modelo dice cuándo sale de sus datos.** El ajuste de Morelli cubre α de −10° a 45° y β de ±30°, y el de este modelo está tomado a Mach 0,6. Fuera de eso el modelo extrapola: el estado lo marca (`s.domain`) y el HUD lo muestra con discreción («EXTRAPOLATED α», «M>0.6»).
+  - La prueba comprueba que α de 60° y Mach 0,91 quedan marcados y que Mach 0,46 con α pequeño queda dentro.
+  - **H17 sigue pendiente:** el régimen supersónico sigue siendo la corrección ≈ de la pendiente de sustentación y la resistencia de onda. Ahora queda declarado, pero no se ha sustituido por datos.
+- **H20: la configuración del avión, declarada, y el combustible, que se gasta.** El avión vuela limpio, sin cargas ni depósitos. Pesa 20.500 lb al arrancar, la cifra del TP-1538, y de esa masa ≈3.100 kg son combustible interno (≈: el informe da el peso, no el reparto).
+  - El motor consume según su consumo específico: ≈0,73 kg por kgf·h a potencia militar y ≈2,05 en postcombustión plena (≈, valores típicos de un turbofán de la clase F100; no publicados para este avión).
+  - La masa baja con lo que se quema, y sin combustible el motor se apaga.
+  - El HUD muestra el combustible y avisa con FUEL por debajo de 300 kg y con FLAMEOUT.
+  - Comprobación: 10 s a fondo gastan 43 kg, unos 5,5 kg/s en postcombustión.
+- **Sigue pendiente:** la separación de las leyes del FLCS en un módulo propio (H19).
+- **H25: telemetría accesible.** Los instrumentos del coche y del avión se dibujan en un lienzo que un lector de pantalla no ve. Ahora las lecturas principales están también como texto (`src/ui/telemetryList.js`): una lista de definiciones fuera de la vista, pero no oculta al lector.
+  - Para el coche: velocidad, marcha, régimen, aceleración, derrape, ayudas y vueltas. Para el avión: velocidad, Mach, altitud, velocidad vertical, rumbo, g, α, motor, combustible, tren y si el modelo extrapola.
+  - Se refresca como mucho dos veces por segundo. No es una región viva, porque un valor que cambia sesenta veces por segundo no dejaría de hablar: el lector la consulta cuando el visitante quiere, y los eventos siguen anunciándose en la lista de mensajes.
+  - La prueba de `ux-check` comprueba que la lista existe, que está fuera de la vista pero no oculta, que no es una región viva y que sus valores están al día.
+- **Telemetría en vivo del Porsche** (mejora propia). A la izquierda del cuadro, en pantallas de 900 px de ancho o más, aparecen:
+  - las trazas de los últimos 20 s de velocidad, acelerador y freno, con la leyenda en sus colores;
+  - el círculo de adherencia (g-g): las g longitudinales frente a las laterales, con su estela, la frenada arriba y anillos de 1 y 1,5 g.
+  - Se muestrea con el reloj de la simulación, cada 50 ms, así que un frame lento no estira las trazas. En pausa no avanza y se reinicia con el coche.
+
 ### Auditoría técnica externa del 2 de octubre de 2026 (ChatGPT): lo corregido
 
 Auditoría de la revisión `8e595b8`, con 60 hallazgos (1 crítico, 24 altos, 32 medios y 3 bajos). En esta ronda se han corregido los de prioridad P0 y algunos P1 acotados, cada uno con una prueba que falla con el fallo y pasa con la corrección. Los identificadores (H01…H60) son los de la auditoría.
@@ -833,12 +857,10 @@ Auditoría de la revisión `8e595b8`, con 60 hallazgos (1 crítico, 24 altos, 32
 **Pendiente (P1 y siguientes, sin hacer en esta ronda):**
 
 - **Porsche:** H02, H06, H07, H08, H09 y H10, hechos en la *mejora 5*; queda H05 (un modelo de neumático más completo: temperatura y presión).
-- **F-16:**
-  - marco geodésico para la altitud y la gravedad (H15);
-  - dominio de Morelli, régimen supersónico y configuración del avión declarados (H16, H17, H19, H20).
+- **F-16:** H15, H16 y H20 se resuelven en *F-16: Tierra redonda, combustible y límites del modelo*; quedan el régimen supersónico con datos (H17) y la separación del FLCS (H19).
 - **Flight 14:** H28, H30, H32 y H33 (en parte) se resuelven en *Flight 14: una sola misión*. Quedan H29 y H31, la dinámica del volteo y el índice térmico dimensional (H34).
 - **Datos:** procedencia por campos y conjuntos de validación independientes (H38, H39, H41, H50).
-- **Rendimiento y estructura:** arranque progresivo (H42, H44–H46), módulos grandes (H49), telemetría accesible (H25).
+- **Rendimiento y estructura:** arranque progresivo (H42, H44–H46), módulos grandes (H49). La telemetría accesible (H25) ya está hecha.
 - **Repositorio y CI:** orientación del pad (H37), tercera ventana del Dragon (H40, NO VERIFICADO), compatibilidad entre navegadores y ramas (H53, H54), Three.js vendorizado (H58) y permisos del flujo de trabajo (H59).
 
 ### Historial
@@ -1081,7 +1103,9 @@ src/data/figures.js        cifras comprobadas, una sola vez, con grado (A/B/C/D)
 src/data/specs.js          ficha técnica con procedencia de cada dato
 src/data/verify.js         comprobación de coherencia entre lo declarado y lo construido
 src/sim/missionClock.js    reloj de misión independiente de los fotogramas
+src/sim/mission.js         Flight 14 como una sola misión: corte, órbita, salida de órbita, entrada
 src/ui/hud.js              interfaz
+src/ui/telemetryList.js    lecturas de conducción y vuelo como texto, para lectores de pantalla
 eslint.config.js           análisis estático (primer paso de npm run check)
 docs/historial.md          rondas anteriores, rotuladas como históricas
 ```

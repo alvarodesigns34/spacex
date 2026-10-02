@@ -126,7 +126,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
   function toggleGear() {
     if (pilot.gearDown && s.wow) { note('Gear handle locked: weight on the wheels'); return; }
     // Faster than the gear's limit the handle stays up: before, it came down at Mach 1.5.
-    if (!pilot.gearDown && calibrated(s.mach, atmosphere(s.pos.y).P) / KT > GEAR_LIMIT_KCAS) {
+    if (!pilot.gearDown && calibrated(s.mach, atmosphere(s.alt).P) / KT > GEAR_LIMIT_KCAS) {
       note(`Too fast for the gear: below ${GEAR_LIMIT_KCAS} kt (≈)`); return;
     }
     pilot.gearDown = !pilot.gearDown;
@@ -419,15 +419,19 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
     // clockwise seen from above (towards +Z).
     _v.set(1, 0, 0).applyQuaternion(s.q);
     const hdg = (100.8 + Math.atan2(_v.z, _v.x) * R2D + 360) % 360;
-    const cas = calibrated(s.mach, atmosphere(s.pos.y).P);
+    const cas = calibrated(s.mach, atmosphere(s.alt).P);
     const [a, c] = toRunway(s.pos.x, s.pos.z);
     state.readout = {
-      kcas: cas / KT, ktas: s.tas / KT, mach: s.mach, altFt: (s.pos.y - CG.y) / FT, aglFt: s.agl / FT,
+      // The altitude over the sea beneath (the round Earth's, f16Flight geodesy), not over the pad's plane.
+      kcas: cas / KT, ktas: s.tas / KT, mach: s.mach, altFt: (s.alt - CG.y) / FT, aglFt: s.agl / FT,
       vsFpm: s.vel.y / FT * 60, alpha: s.alpha, beta: s.beta, nz: s.load, heading: hdg,
       // The same attitude the simple controls fly by (bank over the full circle, ±180°).
       pitch: attitude(s).pitch, roll: attitude(s).bank,
       throttle: pilot.throttle, power: s.power, ab: s.power > 50, thrust: s.thrust,
       gear: s.gear, gearDown: pilot.gearDown, brake: pilot.brake > 0, speedBrake: s.sb, wow: s.wow,
+      fuel: s.fuel, flameout: s.flameout,
+      // Where the model runs beyond its data (H16): α or β outside Morelli's fit, Mach above 0.6.
+      outside: s.domain.out ? [s.domain.alpha && 'α', s.domain.beta && 'β', s.domain.mach && 'M>0.6'].filter(Boolean) : null,
       runway: { along: L2 - a, across: c, heading: RW_HEADING, name: RW_NAME },
       camera: state.camera, paused: state.paused, assist: state.assist, outcome: state.outcome, touchdown: state.touchdown,
       messages: state.messages.filter(m => performance.now() - m.t < 5000).map(m => m.text),

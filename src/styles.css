@@ -439,3 +439,6 @@ body.is-touring .coach { display: none; }
 .f16-bar .f16-full { display: none; }
 .f16-bar:not(.is-assist) .f16-easy { display: none; }
 .f16-bar:not(.is-assist) .f16-full { display: block; }
+
+/* Text for a screen reader only: the drive's and the flight's telemetry (audit H25). */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }

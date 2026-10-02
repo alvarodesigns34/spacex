@@ -9,6 +9,7 @@
  * box in the top right corner, with the ladder drawn round the box's centre. Green, as the HUD's own phosphor is.
  */
 import * as THREE from 'three';
+import { createTelemetryList } from './telemetryList.js';
 
 const GREEN = 'rgba(80, 255, 140, 0.95)', DIM = 'rgba(80, 255, 140, 0.55)';
 const fmt = (x, d = 0) => (Number.isFinite(x) ? x.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
@@ -36,6 +37,11 @@ export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause, onAssi
     <div class="f16-result hidden" id="f16-result" role="status"></div>
   `;
   root.appendChild(bar);
+  // The same numbers as text, for a screen reader (H25): the HUD is a canvas it cannot see.
+  const telemetry = createTelemetryList(bar, 'F-16 telemetry', [
+    ['cas', 'Calibrated airspeed'], ['mach', 'Mach'], ['alt', 'Altitude'], ['vs', 'Vertical speed'], ['hdg', 'Heading'],
+    ['g', 'Load factor'], ['aoa', 'Angle of attack'], ['power', 'Engine'], ['fuel', 'Fuel'], ['gear', 'Gear'], ['data', 'Model'],
+  ]);
   const $ = (id) => bar.querySelector(id);
   $('#f16-end').addEventListener('click', () => onEnd?.());
   $('#f16-cam').addEventListener('click', () => onCamera?.());
@@ -62,6 +68,12 @@ export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause, onAssi
 
   let lastMsgs = '';
   function update(r, camera) {
+    if (r) telemetry.update({
+      cas: `${fmt(r.kcas)} knots`, mach: fmt(r.mach, 2), alt: `${fmt(r.altFt)} feet`, vs: `${fmt(r.vsFpm)} feet per minute`,
+      hdg: `${fmt(Math.round(r.heading) % 360)} degrees`, g: `${fmt(r.nz, 1)} g`, aoa: `${fmt(r.alpha, 1)} degrees`,
+      power: `${fmt(r.power)} percent${r.ab ? ', afterburner' : ''}${r.flameout ? ', flamed out' : ''}`, fuel: `${fmt(r.fuel)} kg`,
+      gear: r.gear > 0.98 ? 'down' : r.gear < 0.02 ? 'up' : 'moving', data: r.outside ? `extrapolated beyond the wind-tunnel data (${r.outside.join(', ')})` : 'within the wind-tunnel data',
+    });
     const W = window.innerWidth, H = window.innerHeight;
     g.clearRect(0, 0, W, H);
     if (!r) return;
@@ -175,6 +187,9 @@ export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause, onAssi
     if (r.speedBrake > 0.05) cfg.push('SPD BRK');
     if (r.brake && r.wow) cfg.push('BRAKES');
     if (r.paused) cfg.push('PAUSED');
+    if (Number.isFinite(r.fuel)) cfg.push(`FUEL ${fmt(r.fuel)} KG`);
+    // Beyond the wind-tunnel data the model is extrapolated (H16): say so, quietly.
+    if (r.outside) cfg.push(`EXTRAPOLATED ${r.outside.join(' ')}`);
     // On the ground at idle, the one thing to do next, in the middle of the view.
     if (r.wow && r.throttle < 0.05 && !r.outcome) {
       g.font = '700 18px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
@@ -188,6 +203,7 @@ export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause, onAssi
     if (!r.wow && r.gear < 0.98 && r.aglFt < 500 && r.vsFpm < -200) warn.push('GEAR');
     if (r.alpha > 22 && !r.wow) warn.push('AOA');
     if (!r.wow && r.aglFt < 200 && r.vsFpm < -2500) warn.push('PULL UP');
+    if (r.flameout) warn.push('FLAMEOUT'); else if (r.fuel < 300) warn.push('FUEL');
     if (warn.length) {
       g.font = '800 20px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
       g.fillStyle = 'rgba(255, 210, 60, 0.95)';

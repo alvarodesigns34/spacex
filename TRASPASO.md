@@ -195,10 +195,10 @@ Lo hecho en 1 y 2 (detalle en el README, sección del 2 de octubre):
 - **No verificado:** el Raptor Vacuum apagado en el ascenso que cita la auditoría. La página de SpaceX no se pudo leer (se genera con JavaScript), así que no está en el panel.
 - **Pendiente (P1+, cambios grandes; pedir prioridad al usuario):**
   - Porsche: suspensión y contactos por rueda (H02); ayudas separadas de la física (H07); neumáticos, transmisión, dirección y aerodinámica activa (H05, H06, H08, H09); colisiones y agua (H10).
-  - F-16: marco geodésico (H15); dominio de Morelli, supersónico y configuración (H16, H17, H19, H20).
-  - Flight 14: misión continua de masa puntual (H28–H33).
+  - F-16: H15, H16 y H20 hechos (plan, punto 5); quedan H17 y H19.
+  - Flight 14: H28, H30, H32 y H33 en parte hechos (plan, punto 4); quedan H29, H31 y H34.
   - Datos: procedencia por campos y validación independiente (H38, H39, H41, H50).
-  - Rendimiento y estructura: arranque progresivo (H42, H44–H46), módulos grandes (H49), telemetría accesible (H25).
+  - Rendimiento y estructura: arranque progresivo (H42, H44–H46), módulos grandes (H49); la telemetría accesible (H25) está hecha.
   - Repositorio y CI: pad (H37), ventana del Dragon (H40), CI entre navegadores y ramas (H53, H54), Three.js (H58), permisos del flujo de trabajo (H59).
 
 ### Porsche: copia visual del coche real (orden del usuario del 02-10-2026)
@@ -210,8 +210,13 @@ Lo hecho en 1 y 2 (detalle en el README, sección del 2 de octubre):
 2. **Habitáculo: hecho** (commit «Porsche: the new cabin with live instruments»). Está en `src/vehicles/gt3Cabin.js`: `buildCabin(M)`, `EYE` (el ojo del conductor, que usa `gt3Drive.js`) y `userData.instruments.update({ rpm, gear, kmh, steer })` en el grupo `gt3-cabin`. `gt3Drive.js` la llama en cada frame y al terminar. El banco de pruebas tiene `cab.html` y las vistas `drv`, `clu`, `seats` y `door`.
 3. **Dinámica P1: hecha** (commit «Porsche: P1 dynamics»). `gt3Car.js` lleva `groundPlane()` (el suelo en las cuatro huellas), la suspensión (`hz`, `bp`, `br` y `travel`), el embrague (`clutchLocked`, `launch`), `steerW`, `aero`, `contacts()` con `obstacles(x, z)` y el agua (`wet`). Las ayudas están en `gt3Assists.js`. `main.js` pasa `gt3Obstacles` (los oclusores de los expositores).
 4. **Flight 14: hecho en parte** (commit «Flight 14: one mission state from cutoff to entry»). `src/sim/mission.js` (`missionChain()`, `MU` común) da a `reentryFlight.js` su estado de entrada. El ascenso termina en la órbita circular de 200 km (`SHIP_ASSUMED.holdAltitude`/`perigee`). La reentrada se resuelve por Levenberg–Marquardt con semilla convergida y lleva `crossRangeBound`. Desfase medido: 22 min. Pendientes: H29, H31 y la dinámica del volteo.
-5. F-16: marco geodésico, dominio y configuración (H15, H16, H19, H20).
-6. Mejoras propias: telemetría en vivo y accesible (H25) y otras dentro de las reglas.
+5. **F-16 y telemetría: hechos** (commit «F-16: round-Earth frame, fuel and data domain; live telemetry»).
+   - `f16Flight.js`: `geodesy(x, y, z)` da la altura sobre el mar y la normal; `s.alt`, `s.g` y `GEO` son por avión. `CONFIG` (configuración limpia, 3.100 kg ≈ de combustible, TSFC ≈) y `fuelFlow()`. `s.mass`, `s.fuel`, `s.flameout` y `s.domain` (fuera de los datos de Morelli o por encima de Mach 0,6).
+   - `f16Fly.js`: la velocidad calibrada y la altitud usan `s.alt`. El HUD muestra FUEL, EXTRAPOLATED y FLAMEOUT.
+   - `src/ui/telemetryList.js` (`createTelemetryList`), en `gt3Hud.js` y `f16Hud.js`, con la clase `.sr-only` de `styles.css`.
+   - `gt3Hud.js`: `drawTelemetry` (trazas de 20 s y círculo g-g), muestreado con `r.t`, el reloj de la simulación.
+   - Pendientes: H17 (supersónico con datos) y H19 (FLCS en módulo propio).
+6. Más mejoras propias dentro de las reglas.
 
 ### Al retomar
 

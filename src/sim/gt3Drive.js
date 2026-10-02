@@ -430,6 +430,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
       kmh: Math.hypot(s.u, s.v) * 3.6, rpm: Math.min(s.rpm, 9100), gear: s.reverse ? 'R' : s.gear, drs: s.drs, abs: s.abs, tc: s.tc,
       esc: s.tc && Math.abs(s.esc) > 800, drift: s.drift > 0,
       slide: Math.atan2(s.v, Math.max(1, Math.abs(s.u))) * R2D, g: Math.hypot(s.ax, s.ay) / 9.81,
+      gLong: s.ax / 9.81, gLat: s.ay / 9.81, t: s.t,
       throttle: driver.throttle, brake: driver.brake, handbrake: driver.handbrake > 0, surface: s.surface[2],
       lap: state.lap !== null ? s.t - state.lap : null, best: state.best, laps: state.laps,
       camera: state.camera, paused: state.paused, marks: marks.count, sound: sound.enabled,

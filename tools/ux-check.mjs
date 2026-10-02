@@ -792,6 +792,27 @@ try {
     });
     report(drive.kmh > 50 && drive.gear >= 2 && drive.grip < 8 && drive.slide > 15 && drive.marks > 20 && drive.stopped && drive.finite,
       'W pulls away and shifts, W with A turns without sliding, Space with A drifts and leaves tyre marks, S stops it', drive);
+    // The drive's readings as text for a screen reader (audit of 2 Oct 2026, H25): a list that is
+    // there, hidden from sight but not from the reader, not a live region, and up to date within
+    // its half-second throttle.
+    {
+      await page.waitForTimeout(600);
+      const tel = await page.evaluate(() => {
+        const D = window.__vc.gt3drive;
+        D.update(1 / 30);
+        const dl = document.querySelector('.gt3-bar dl.telemetry-list');
+        if (!dl) return { found: false };
+        const cell = (name) => [...dl.querySelectorAll('dt')].find(dt => dt.textContent === name)?.nextElementSibling?.textContent;
+        const r = dl.getBoundingClientRect(), cs = getComputedStyle(dl);
+        return {
+          found: true, label: dl.getAttribute('aria-label'), live: dl.closest('[aria-live]') !== null, hidden: dl.closest('[aria-hidden="true"]') !== null,
+          tiny: r.width <= 1 && r.height <= 1, display: cs.display, speed: cell('Speed'), gear: cell('Gear'),
+          want: `${Math.round(Math.abs(D.state.readout.kmh))} km/h`, wantGear: String(D.state.readout.gear),
+        };
+      });
+      report(tel.found && tel.label && !tel.live && !tel.hidden && tel.tiny && tel.display !== 'none' && tel.speed === tel.want && tel.gear === tel.wantGear,
+        'The drive\'s telemetry is there as text for a screen reader, out of sight, not a live region, and current', tel);
+    }
     // The guide opened over the drive owns the keyboard (audit of 2 Oct 2026, H24): Shift+Tab
     // stays inside it, Escape closes the guide and leaves the drive running, and a key held
     // when it opened does not stay held.
