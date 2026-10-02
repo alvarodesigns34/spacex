@@ -253,6 +253,13 @@ export function reentryPitchAt(t) {
     const e = 1 - Math.pow(1 - u, 3);
     p = p + (Math.PI / 2 - p) * e + 0.12 * Math.sin(Math.PI * u) * (1 - u);
   }
+  // In the water a ≈50 m ship cannot stand on its engines: as on the filmed splashdowns it
+  // stays upright a moment and then topples, falling faster as it goes, to lie on the sea
+  // (≈ the timing).
+  if (t > RE.splash + 1.5) {
+    const u = Math.min(1, (t - RE.splash - 1.5) / 5);
+    p = Math.PI / 2 - (Math.PI / 2 - 0.06) * u * u;
+  }
   return p;
 }
 

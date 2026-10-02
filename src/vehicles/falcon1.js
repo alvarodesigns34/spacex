@@ -214,11 +214,13 @@ export function buildFalcon1(M) {
   // visibly installed in an airframe rather than reading as an exploded diagram.
   // The retained half is real skin, not a glass tube. The cut face is open so the
   // tanks, feeds and frames read as hardware installed in the airframe.
+  // Seen through the cut, the skin is seen from inside: both faces drawn.
+  const skin = A.upper.clone(); skin.side = THREE.DoubleSide;
   interior.add(mesh(lathe([{ r: R - .018, y: S1_TOP + .08 }, { r: R - .018, y: S2_BASE }],
-    { segments: 64, phiStart: Math.PI * .75, phiLength: Math.PI }), A.upper,
+    { segments: 64, phiStart: Math.PI * .75, phiLength: Math.PI }), skin,
   { name: 'falcon1-cutaway-interstage-shell' }));
   interior.add(mesh(lathe([{ r: R - .02, y: S2_BASE }, { r: R - .02, y: FAIRING_BASE - .30 }],
-    { segments: 64, phiStart: Math.PI * .75, phiLength: Math.PI }), A.upper,
+    { segments: 64, phiStart: Math.PI * .75, phiLength: Math.PI }), skin,
   { name: 'falcon1-cutaway-rear-shell' }));
   for (const y of [S1_TOP + .10, S2_BASE, S2_BASE + .9]) {
     const frame = mesh(new THREE.TorusGeometry(R - .045, .018, 6, 48, Math.PI), A.metal,

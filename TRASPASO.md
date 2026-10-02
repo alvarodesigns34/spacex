@@ -142,6 +142,14 @@ Lo hecho en 1 y 2 (detalle en el README, sección del 2 de octubre):
   - En `f16Flight.js`, la amortiguación de cabeceo en tierra baja de 3,0 a 1,2.
   - Pruebas «mandos simples» en `f16-check.mjs`, y en `ux-check`.
 
+- **3, pasada vehículo a vehículo:** hecha. Correcciones en el README («Pasada vehículo a vehículo»):
+  - nube de suelo (`CLOUD_FRAG` en `plume.js`);
+  - `hideSite` de `reentry.js`, que ahora oculta también `runway-complex` y `circuit`;
+  - vuelco tras el amerizaje (`reentryPitchAt` y la posición en `reentry.js`);
+  - vista del corte del Falcon 1;
+  - texturas `makeRoadPaint` y las grietas de `makeAsphalt`.
+  - Los guiones de captura se hacen fuera del repositorio con `frames.mjs`.
+
 ### Al retomar
 
 1. `git fetch --all` y comprueba:

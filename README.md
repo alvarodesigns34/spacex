@@ -673,6 +673,21 @@ Ahora:
   - en la senda de 3° sin tocar nada, toma a 145 kt con 1,2 m/s de descenso y se para.
 - El modo completo (botón *Simple*) no cambia: todos los mandos del avión.
 
+### Pasada vehículo a vehículo (2 de octubre de 2026)
+
+He revisado cada expositor en todas sus vistas, el lanzamiento de Starship hito a hito (de T−20 a la captura del propulsor), la reentrada y el amerizaje, el vuelo del F-16 y la conducción del Porsche. Corregido:
+
+- **Nube del despegue de Starship.** Las bocanadas iluminadas por las llamas se teñían de naranja por igual y perdían su sombreado: parecían bolas de algodón salmón. Ahora el brillo conserva el modelado de cada torreta y es más fuerte en su cara inferior, la que mira al fuego.
+- **Reentrada y amerizaje:**
+  - en mitad del Pacífico asomaba la plataforma de la pista del F-16, que no se ocultaba con el recinto; ahora se ocultan también la pista y el circuito;
+  - la nave seguía de pie sobre el agua tras amerizar; ahora, como en los amerizajes filmados, se mantiene vertical un momento y vuelca sobre su base hasta quedar tumbada (≈ los tiempos).
+- **Falcon 1, vista del corte.** La cámara miraba el corte de canto y la media carcasa tapaba el interior; ahora lo mira de frente. La carcasa se ve también por dentro, que es como se ve a través del corte.
+- **Pista del F-16:**
+  - el desgaste de las marcas blancas salía en manchas cuadradas pixeladas; ahora es suave y discreto;
+  - el sellado de las grietas, demasiado brillante, reflejaba el sol bajo y dibujaba líneas blancas; ahora es satinado y oscuro, como el betún.
+
+Sin errores de consola en ninguna vista. Lo demás, revisado sin hallazgos: Starship y la torre, Falcon 9, Falcon Heavy, Dragon, Starlink, el Roadster, los motores, el F-16 y el Porsche.
+
 ### Historial
 
 Las rondas anteriores —entorno, vehículos contra las fotos, nube y sonido del lanzamiento, revisión corriendo la simulación y las auditorías externas de Grok y ChatGPT— están en [docs/historial.md](docs/historial.md), rotuladas como históricas. Este README describe el estado actual.

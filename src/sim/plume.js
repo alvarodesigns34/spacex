@@ -973,10 +973,14 @@ const CLOUD_FRAG = /* glsl */`
     vec3 base = mix(steam, dust, vDust);
 
     // Lit by the plume in HDR, graded so the cloud goes from orange low down to its own
-    // sunlit colour above, as in photographs, instead of one saturated wall.
-    vec3 fireGlow = uFireColor * (1.25 + 0.4 * wrap);
-    vec3 col = mix(base, fireGlow, clamp(vFire * vFire * 1.2, 0.0, 1.0));
-    col += uFireColor * (vFire * vFire * vFire * 0.9);
+    // sunlit colour above, as in photographs, instead of one saturated wall. The glow keeps the
+    // puff's own modelling (its turrets and shadowed folds) and is strongest on its underside,
+    // which faces the fire: a flat tint replacing the shading drew uniform salmon balls.
+    float below = 1.0 - smoothstep(0.15, 0.85, vLocal.y);
+    vec3 fireGlow = uFireColor * (0.55 + 0.75 * wrap) * vShade * under * 1.35;
+    float fireMix = clamp(vFire * vFire * 1.1, 0.0, 0.8) * mix(0.55, 1.0, below);
+    vec3 col = mix(base, fireGlow, fireMix);
+    col += uFireColor * (vFire * vFire * vFire * 0.6) * mix(0.35, 1.0, below) * vShade;
 
     gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
   }`;

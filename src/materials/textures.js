@@ -1037,8 +1037,9 @@ export function makeAsphalt({ size = 1024, tile = 6.0, cracks: withCracks = true
       ctx.stroke();
     }
   };
+  // Satin, not glossy: a glossy sealant caught the low sun and drew every crack as a white line.
   draw(map, 'rgba(22,22,24,0.9)');
-  draw(rough, 'rgb(120,120,120)');
+  draw(rough, 'rgb(178,178,178)');
   draw(height, 'rgb(150,150,150)', 0.8);
   return {
     map: toTexture(map, { srgb: true, tileSize: tile, anisotropy: 8 }),
@@ -1052,10 +1053,12 @@ export function makeAsphalt({ size = 1024, tile = 6.0, cracks: withCracks = true
 // centre line; the aggregate shows through in dark specks where the paint has abraded.
 export function makeRoadPaint({ size = 256, tile = 1.0 } = {}) {
   const map = canvas(size, size);
+  // Paint in service: clean, a little rubber and grime soft-edged in it, a fine grain. Hard
+  // thresholds on the noise read as blocky square blotches at a metre a tile.
   shade(map, (x, y, u, v) => {
-    const wear = smoothstep(0.58, 0.72, fbm(u * 6 + 7, v * 6 + 3, 4));
-    const speck = smoothstep(0.7, 0.8, noise2(x * 0.9, y * 0.9));
-    const c = 0.93 - wear * 0.45 - speck * 0.35 + (noise2(x * 0.3, y * 0.3) - 0.5) * 0.05;
+    const wear = smoothstep(0.60, 0.86, fbm(u * 5 + 7, v * 5 + 3, 4));
+    const speck = smoothstep(0.62, 0.95, fbm(u * 24 + 1, v * 24 + 9, 3));
+    const c = 0.93 - wear * 0.22 - speck * 0.12 + (noise2(x * 0.3, y * 0.3) - 0.5) * 0.04;
     return [clamp(c * 255), clamp(c * 255), clamp(c * 0.98 * 255)];
   });
   return { map: toTexture(map, { srgb: true, tileSize: tile }), tileSize: tile };

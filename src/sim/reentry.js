@@ -225,7 +225,8 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
 
   function hideSite(on) {
     if (on) {
-      const names = new Set(['campus', 'markings']);
+      // The site, the F-16's runway and the Porsche's circuit: none of it is in the Pacific.
+      const names = new Set(['campus', 'markings', 'runway-complex', 'circuit']);
       hidden = scene.children.filter(o => o !== root && o.visible && (names.has(o.name) || o.name.startsWith('exhibit-') || o === complex || o === env.ground));
     }
     for (const o of hidden) o.visible = !on;
@@ -257,7 +258,8 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
     holder.quaternion.setFromRotationMatrix(_m);
     // Standing on its engines at the end, the ship's base, not its centre, is at the height.
     const up = Math.max(0, Math.sin(pitch));
-    holder.position.set(0, s.h + COM * up + (t >= RE.splash ? -0.6 * Math.min(1, (t - RE.splash) / 3) : 0), 0);
+    // Toppling in the water it turns about its base, which stays where it splashed.
+    holder.position.set(t > RE.splash ? COM * Math.cos(pitch) : 0, s.h + COM * up + (t >= RE.splash ? -0.6 * Math.min(1, (t - RE.splash) / 3) : 0), 0);
     // Where the splash point is, relative to the ship.
     const ahead = toSplashAt(t);
     ocean.position.set(ahead, 0, 0);
