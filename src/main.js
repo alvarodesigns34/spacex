@@ -29,6 +29,7 @@ import { buildRoadster } from './vehicles/roadster.js';
 import { buildEngineHall } from './vehicles/enginehall.js';
 import { buildF16 } from './vehicles/f16.js';
 import { buildRunway, runwaySurface } from './core/runway.js';
+import { buildCircuit } from './core/circuit.js';
 import { createF16Fly } from './sim/f16Fly.js';
 import { createF16Hud } from './ui/f16Hud.js';
 import { groundSample } from './core/environment.js';
@@ -274,6 +275,7 @@ async function main() {
   const env = createEnvironment(renderer, scene, M, quality);
   dressCampus(scene, M, { stops: Object.values(LAYOUT).filter(l => !l.pad && !l.remote).map(l => l.x), quality: quality.name });
   scene.add(buildRunway(M));
+  scene.add(buildCircuit(M));
 
   // ---- Post-processing (MSAA render target + subtle bloom) ----
   // No stencil. It was added for the scale figures' shadow and made every frame resolve a

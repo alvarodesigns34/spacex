@@ -16,6 +16,7 @@
  */
 import { noise2 } from '../materials/textures.js';
 import { LAUNCH_SITE } from '../data/gulf.js';
+import { circuitMask } from './circuitPlan.js';
 
 const smooth = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
 
@@ -112,7 +113,8 @@ export function runwayMask(x, z) {
 
 /**
  * Where the land must stay flat and bare: 0 on the built site (the exhibit row and its roads,
- * the pad and its berm, the access road) and round the tidal pools, 1 in open country, with a
+ * the pad and its berm, the access road), round the tidal pools, on the runway and on the
+ * Porsche's circuit and skid pad (circuitPlan.js), 1 in open country, with a
  * soft edge.
  */
 export function siteMask(x, z) {
@@ -122,7 +124,7 @@ export function siteMask(x, z) {
   // Pad 2, its berm, tank farm and the access road to it.
   m = Math.min(m, smooth(250, 330, Math.hypot(x, z + 185)));
   for (const [px, pz, pr] of POOLS) m = Math.min(m, smooth(pr * 1.05, pr * 1.6, Math.hypot(x - px, z - pz)));
-  return Math.min(m, runwayMask(x, z));
+  return Math.min(m, runwayMask(x, z), circuitMask(x, z));
 }
 
 /** 0 on the beach and the foredune, 1 from ~260 m inland of the waterline. */
@@ -175,7 +177,7 @@ export function marsh(x, z) {
   let m = smooth(0, 30, Math.hypot(dx, dz));
   m = Math.min(m, smooth(150, 200, Math.hypot(x, z + 185)));   // berm 82 m, tank farm to ~120 m
   for (const [px, pz, pr] of POOLS) m = Math.min(m, smooth(pr * 1.05, pr * 1.5, Math.hypot(x - px, z - pz)));
-  m = Math.min(m, runwayMask(x, z));
+  m = Math.min(m, runwayMask(x, z), circuitMask(x, z));
   m *= inland(x, z);
   if (m <= 0) return 0;
   return m * (1 - smooth(0.02, 0.25, loma(x, z).k));

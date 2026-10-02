@@ -512,6 +512,29 @@ El usuario no quería la estabilización automática y le costaba virar. Además
   Los neumáticos tienen perfil real de talón a talón, con llanta, pestañas, buje y pernos. El freno queda hacia el avión. Las compuertas siguen la pata. Tamaños de rueda publicados; todo lo demás, ≈.
 - **Detalles.** Sondas de ángulo de ataque a cada lado del morro y antenas de pala en el lomo y bajo la toma (posiciones ≈).
 
+### Porsche 911 GT3 RS, fase 1: el circuito y la explanada (2 de octubre de 2026)
+
+El siguiente vehículo es un **Porsche 911 GT3 RS (992, 2023, 525 CV) en Arctic Grey**, conducible, con un circuito y una explanada de asfalto. Esta primera fase prepara los datos y el terreno; el coche llega en las siguientes.
+
+- **Datos** (`src/data/gt3rs.js`), cada cifra con su etiqueta:
+  - de la ficha técnica oficial de Porsche (MY P 08/2022, modelo UE):
+    - motor de 3.996 cm³, 386 kW (525 CV) a 8.500 rpm y 465 Nm a 6.300 rpm, corte a 9.000 rpm;
+    - las siete relaciones del PDK y el grupo de 4,27;
+    - discos de 408 y 380 mm, neumáticos 275/35 ZR 20 y 335/30 ZR 21;
+    - 4.572 × 1.900 × 1.322 mm, 2.457 mm de batalla, vías de 1.630 y 1.582 mm y 1.450 kg (DIN);
+    - prestaciones: 0–100 en 3,2 s, 0–160 en 6,9 s, 0–200 en 10,6 s y 296 km/h.
+  - del dossier de prensa: la carga aerodinámica, 901 lb a 124 mph y 1.896 lb a 177 mph (409 kg a 200 km/h y 860 kg a 285 km/h).
+  - Derivados: el diámetro de cada rueda a partir de su medida y la superficie de sustentación a partir de la carga publicada. Porsche no publica el Cd, así que el área de resistencia sale de la velocidad máxima.
+  - Estimados (≈): el reparto de pesos (39/61), la altura del centro de gravedad, la curva de par entre los dos puntos publicados, los neumáticos y el tiempo de cambio.
+- **Circuito** (`src/core/circuitPlan.js` y `src/core/circuit.js`):
+  - Es un trazado propio, no la copia de uno real. Mide **2.505 m por vuelta** en sentido horario y tiene 13 curvas: la recta principal de ≈463 m, una frenada fuerte a la primera (radio 30 m), eses, una curva rápida a izquierdas, la recta de atrás con una chicane, una horquilla de 22 m y una curva larga a izquierdas.
+  - Está hecho de rectas y arcos de radio constante, así que el radio de cada curva se conoce exactamente. Dos rectas se calculan para que la vuelta cierre.
+  - Sección (≈, la práctica habitual de los circuitos europeos): asfalto de **12 m**, la anchura mínima de la FIA que se suele citar para circuitos nuevos; arcenes asfaltados de 3 m; pianos rojos y blancos de 1,5 m en las curvas; grava por fuera de las curvas cerradas; líneas de borde blancas; línea de salida y una parrilla escalonada de 10 puestos.
+  - No lleva barreras, edificios, gradas, banderas ni carteles.
+- **Explanada**: un cuadrado de asfalto liso de 160 × 100 m, sin marcas, junto a la recta principal y unido a ella por un carril de 10 m. Está hacia el recinto, a unos **450 m** del extremo oeste de la fila.
+- **Ubicación**: la buscó un script, como la pista. Es el sitio más cercano a la fila que queda dentro del disco de terreno, a 320 m o más de la costa y sin pisar el recinto, el pad, las charcas ni la pista. La recta principal va de norte a sur por x = −675 m y la vuelta queda al oeste.
+- **Terreno**: `circuitMask` aplana el suelo y quita matorral y canales bajo el circuito y la explanada, igual que en la pista. `circuitSurface(x, z)` dice qué pisa cada rueda (asfalto, arcén, piano, grava o explanada) y a qué altura.
+
 ### Historial
 
 Las rondas anteriores —entorno, vehículos contra las fotos, nube y sonido del lanzamiento, revisión corriendo la simulación y las auditorías externas de Grok y ChatGPT— están en [docs/historial.md](docs/historial.md), rotuladas como históricas. Este README describe el estado actual.
@@ -726,6 +749,9 @@ src/core/quality.js        nivel de calidad del dispositivo (píxeles, sombras, 
 src/core/environment.js    cielo físico, sol, sombras dinámicas, mapa de entorno PMREM, suelo, playa y mar
 src/core/terrain.js        relieve (lomas y microrrelieve), cobertura, costa y lagunas: una sola
                            función que comparten el suelo, su color y la hierba
+src/core/circuitPlan.js    trazado del circuito del Porsche y su explanada, sin Three.js: lo leen el
+                           terreno, las mallas y los neumáticos
+src/core/circuit.js        asfalto, arcenes, pianos, grava, líneas y parrilla del circuito, y la explanada
 src/core/ao.js             oclusión ambiental GTAO (nivel alto) con radio ligado a la distancia
 src/core/backdrop.js       fondo orbital (Tierra ilustrativa + estrellas) de la vista del Roadster
 src/core/cameraRig.js      órbita + vuelo libre + transiciones + límite polar sobre el suelo
@@ -738,6 +764,7 @@ src/vehicles/pad.js        complejo de lanzamiento (Pad 2 de Starbase) a escala
 src/sim/launch.js          secuencia de lanzamiento: perfil integrado, planos y hardware
 src/sim/plume.js           penacho gobernado por la presión ambiente y nube de tierra
 src/sim/sound.js           sonido opcional del lanzamiento, retardado a la velocidad del sonido
+src/data/gt3rs.js          Porsche 911 GT3 RS (992): cada cifra con su fuente y su etiqueta
 src/data/figures.js        cifras comprobadas, una sola vez, con grado (A/B/C/D), fuente y tolerancia
 src/data/specs.js          ficha técnica con procedencia de cada dato
 src/data/verify.js         comprobación de coherencia entre lo declarado y lo construido

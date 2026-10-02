@@ -70,6 +70,21 @@ Fuentes descargadas para consulta, fuera del repositorio (en la carpeta temporal
 - **Hueco:** no hay datos públicos del F-16 en la zona transónica (Mach 0,6–1,6), ni de empuje por encima de Mach 1. Habrá que interpolar y marcarlo como ≈.
 
 
+### Proyecto en curso: Porsche 911 GT3 RS (desde el 02-10-2026)
+
+Orden del usuario: el siguiente vehículo es un Porsche 911 GT3 RS real (992, 2023, 525 CV) en Arctic Grey, con la misma estructura que los demás (hiperrealismo, información y fuentes). Debe ser conducible con la aceleración, los frenos y la velocidad reales, tener un circuito realista y una explanada pequeña de asfalto, y dejar marcas de neumático al derrapar.
+
+Fases, un commit cada una:
+1. **Datos, circuito y explanada: hecha.**
+   - `src/data/gt3rs.js` reúne las cifras de la ficha técnica oficial de Porsche (MY P 08/2022) y del dossier de prensa, descargados a la carpeta temporal.
+   - `src/core/circuitPlan.js` define el trazado (rectas y arcos), `trackCoords`, `skidpadDistance` y `circuitMask`.
+   - `src/core/circuit.js` construye las mallas y exporta `circuitSurface` y `CORNERS`.
+   - Marcos: el local (u, v), con u a lo largo de la recta principal y v hacia la derecha, y el mundo, con x = −675 − v y z = −375 + u. La vuelta va a +v.
+2. Modelo 3D exterior en Arctic Grey: el expositor, aparcado en la explanada.
+3. Dinámica del coche: motor, PDK, neumáticos con Pacejka y aerodinámica. `tools/gt3rs-check.mjs` comprueba el 0–100, el 0–200 y la velocidad máxima.
+4. Modo de conducción: WASD, cámaras, HUD y marcas de derrape.
+5. Revisión.
+
 ### Al retomar
 
 1. `git fetch --all` y comprueba:
