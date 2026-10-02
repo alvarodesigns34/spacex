@@ -113,9 +113,12 @@ Fases, un commit cada una:
       - Morro y cola: caras redondeadas (`endCap` con perfil `bulge·(1 − f^m)^½`, tangente a los costados); las placas se pegan encima con `facePatch` y `faceX`.
       - Piezas sobre la superficie con `bandPatch`, `loopPatch`, `loopWall` y `bodyFin` (vistas `side` en (x, y) y `plan` en (x, |z|), invertidas con `tAtY` y `tAtZ`). Contornos densificados: si no, el parche se hunde bajo la pintura.
       - Puerta (borde delantero 0,66, trasero −0,58, abajo 0,27), tiradores, retrovisores (`MIRROR`), tomas traseras, lamas de las aletas, salidas del capó con rejilla (`M.honeycomb`, `makeHoneycomb`), láminas negras delante y detrás de la rueda delantera, intermitente ámbar, salida tras la rueda trasera, aletas del techo, limpiaparabrisas, tapón del depósito (aleta delantera derecha) y pasos de rueda negros.
-   2. Ruedas, frenos y ala: pendiente.
-   3. Habitáculo completo: pendiente.
-   4. Sonido del motor y parada en la visita guiada: pendiente.
+   2. **Ruedas, frenos, ala, habitáculo, sonido y visita: hecha** (un solo commit).
+      - `buildWheel` (radios en Y con `facesGeo`, `tyreGeo` con ranuras, `drilledDisc`, pinza extruida); `M.gt3WheelDS` para el barril, visto por los dos lados.
+      - `buildWing` con `WING.plate` (derivas) y la silueta de los cuellos; el borde superior de todo el conjunto se ajusta a 1,322 m.
+      - `buildCabin`: salpicadero extruido, cuadro con textura de lienzo (`clusterTexture`, solo en el navegador), volante en su marco local inclinado 22°, baquets, cinturones, consola y jaula. El revestimiento interior se recorta en los cristales y lleva molduras interiores (`lineOnBody` con lift negativo) a lo largo del contorno.
+      - `src/sim/gt3Sound.js`: `createGt3Sound()` → `{ enabled, setEnabled, update(state, input, surface), stop }`. Tecla M en `gt3Drive.js`, botón `#gt3-sound` en `gt3Hud.js`.
+      - Cuatro paradas `gt3rs` al final de `TOUR` en `main.js` (overview, side, rear y wheel), validadas por `provenance-check`.
 
 ### Al retomar
 

@@ -710,6 +710,7 @@ async function main() {
     onRestart: () => gt3drive.restart(),
     onPause: () => gt3drive.setPaused(!gt3drive.state.paused),
     onTraction: () => gt3drive.setTraction(!gt3drive.sim.state.tc),
+    onSound: () => gt3drive.setSound(!gt3drive.sound.enabled),
   });
   const gt3drive = createGt3Drive({
     scene, exhibit: exhibits.gt3rs, env, rig, camera, ground: gt3Ground, hud: gt3Hud,
@@ -1092,6 +1093,10 @@ async function main() {
     ['engines', 'rvac', 5, 'Raptor Vacuum: a 2.3 m exit, 4.4 m tall, 275 tf. Its extension is cooled by radiating heat away.', 'spacex_starship'],
     ['falcon1', 'overview', 6, 'Falcon 1, 2008 configuration: 21.98 m from nozzle exit to tip and 1.681 m across, from the dimensioned drawing in its 2008 user\'s guide.', 'spacex_falcon1_2008'],
     ['falcon1', 'cutaway', 6, 'An educational cutaway of the second stage, with its pressure-fed Kestrel engine inside the interstage.', 'spacex_falcon1_2008'],
+    ['gt3rs', 'overview', 6, 'Porsche 911 GT3 RS (992), 2023: 4.572 m long, 1.900 m wide and 1.322 m tall to the rear wing\'s upper edge, which stands above the roof.', 'porsche_techdata'],
+    ['gt3rs', 'side', 5, 'Behind the rear axle, a naturally aspirated flat six of 3,996 cm³: 386 kW (525 PS) at 8,500 rpm, 9,000 rpm maximum. Press B to drive it.', 'porsche_techdata'],
+    ['gt3rs', 'rear', 5, 'The swan-neck wing, with the first DRS on a production Porsche: 409 kg of downforce at 200 km/h and 860 kg at 285 km/h.', 'porsche_presskit'],
+    ['gt3rs', 'wheel', 5, 'Centre-lock wheels on 275/35 ZR 20 tyres in front and 335/30 ZR 21 behind; 408 × 36 mm cast iron discs with six-piston callipers.', 'porsche_techdata'],
   ];
   let tourAt = -1, tourTimer = 0;
 

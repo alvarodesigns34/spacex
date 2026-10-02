@@ -7,7 +7,7 @@
 const fmt = (x, d = 0) => (Number.isFinite(x) ? x.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
 const lapTime = (t) => (t === null || t === undefined ? '—' : `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`);
 
-export function createGt3Hud({ root, onEnd, onCamera, onRestart, onPause, onTraction }) {
+export function createGt3Hud({ root, onEnd, onCamera, onRestart, onPause, onTraction, onSound }) {
   const canvas = document.createElement('canvas');
   canvas.className = 'f16-hud gt3-hud hidden';
   canvas.setAttribute('aria-hidden', 'true');
@@ -22,9 +22,10 @@ export function createGt3Hud({ root, onEnd, onCamera, onRestart, onPause, onTrac
     <button type="button" class="f16-btn" id="gt3-cam" title="Camera: chase, driver, bonnet, trackside, your own orbit (C)">Chase <kbd>C</kbd></button>
     <button type="button" class="f16-btn" id="gt3-tc" aria-pressed="false" title="Traction control (T): off, the tail slides out under power">TC <kbd>T</kbd></button>
     <button type="button" class="f16-btn" id="gt3-pause" aria-pressed="false" title="Pause (K)">Pause <kbd>K</kbd></button>
+    <button type="button" class="f16-btn" id="gt3-sound" aria-pressed="false" title="Sound (M): the flat six, the tyres and the wind, synthesised; off until you turn it on">Sound <kbd>M</kbd></button>
     <button type="button" class="f16-btn" id="gt3-restart" title="Back to the skid pad (Enter)">Pad <kbd>Enter</kbd></button>
     <button type="button" class="f16-btn f16-end" id="gt3-end" title="Back to the exhibit (Esc)">End <kbd>Esc</kbd></button>
-    <p class="f16-keys"><kbd>W</kbd> throttle · <kbd>S</kbd> brake, held when stopped: reverse · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> parking brake · <kbd>C</kbd> camera — the gearbox shifts by itself</p>
+    <p class="f16-keys"><kbd>W</kbd> throttle · <kbd>S</kbd> brake, held when stopped: reverse · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> parking brake · <kbd>C</kbd> camera · <kbd>M</kbd> sound — the gearbox shifts by itself</p>
     <ul class="f16-msgs" id="gt3-msgs" aria-live="polite"></ul>
   `;
   root.appendChild(bar);
@@ -34,6 +35,7 @@ export function createGt3Hud({ root, onEnd, onCamera, onRestart, onPause, onTrac
   $('#gt3-restart').addEventListener('click', () => onRestart?.());
   $('#gt3-pause').addEventListener('click', () => onPause?.());
   $('#gt3-tc').addEventListener('click', () => onTraction?.());
+  $('#gt3-sound').addEventListener('click', () => onSound?.());
 
   function resize() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -50,6 +52,7 @@ export function createGt3Hud({ root, onEnd, onCamera, onRestart, onPause, onTrac
     $('#gt3-cam').firstChild.textContent = `${r.camera[0].toUpperCase()}${r.camera.slice(1)} `;
     $('#gt3-tc').setAttribute('aria-pressed', String(!!r.tc));
     $('#gt3-pause').setAttribute('aria-pressed', String(!!r.paused));
+    $('#gt3-sound').setAttribute('aria-pressed', String(!!r.sound));
     const m = r.messages.join('|');
     if (m !== lastMsgs) { lastMsgs = m; $('#gt3-msgs').innerHTML = r.messages.map(t => `<li>${t}</li>`).join(''); }
     draw(r);

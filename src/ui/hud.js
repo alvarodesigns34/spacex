@@ -190,7 +190,8 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
               <dt><kbd>W</kbd> · <kbd>S</kbd></dt><dd>throttle · brake (held when stopped: reverse)</dd>
               <dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>steer · with the throttle on, the tail slides</dd>
               <dt><kbd>Space</kbd> · <kbd>T</kbd></dt><dd>parking brake · traction control</dd>
-              <dt><kbd>C</kbd> · <kbd>Enter</kbd> · <kbd>Esc</kbd></dt><dd>camera · back to the pad · end</dd>
+              <dt><kbd>C</kbd> · <kbd>M</kbd></dt><dd>camera · sound (off until you turn it on)</dd>
+              <dt><kbd>Enter</kbd> · <kbd>Esc</kbd></dt><dd>back to the pad · end</dd>
             </dl>
           </section>
           <section class="guide-sec">

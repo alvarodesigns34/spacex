@@ -67,7 +67,7 @@ y abrir la URL que indique. `npm run serve` es un servidor en Node (`tools/serve
   - **A/D** viran directamente: la inclinación crece 90° por segundo mientras se pulsan (hasta 80°) y se queda donde se suelta, con el tirón que pide el viraje; la tecla contraria la devuelve. No hay nivelación automática. En tierra giran la rueda delantera.
   - **G** baja el tren para aterrizar (el motor pasa a 145 kt y saca los aerofrenos si va rápido); tras tocar tierra, ralentí y frenos.
   - **C** cámara (persecución, cabina con HUD, torre, tu órbita) y **Esc** termina y devuelve el avión a su sitio.
-- **B** (o el botón *Porsche · Drive*) **conduce el Porsche 911 GT3 RS** desde su explanada: **W** gas, **S** freno (parado, marcha atrás), **A/D** volante, **Espacio** freno de mano, **T** control de tracción, **C** cámara, **Enter** vuelve a la explanada, **Esc** termina. Con el control de tracción apagado, que es como arranca, la zaga sale con el gas y los neumáticos dejan marcas.
+- **B** (o el botón *Porsche · Drive*) **conduce el Porsche 911 GT3 RS** desde su explanada: **W** gas, **S** freno (parado, marcha atrás), **A/D** volante, **Espacio** freno de mano, **T** control de tracción, **C** cámara, **M** sonido (apagado hasta que se enciende), **Enter** vuelve a la explanada, **Esc** termina. Con el control de tracción apagado, que es como arranca, la zaga sale con el gas y los neumáticos dejan marcas.
   - El botón *Simple* de la barra quita la ayuda y da todos los mandos del avión: `R`/`F` gases, `Q`/`E` pedales, `Espacio` frenos, `B` aerofrenos, `Shift` palanca a fondo.
 - **Vista general en una ventana alta** (un monitor en vertical): la cámara retrocede por su propia línea de visión hasta que los extremos de la fila caben en el campo horizontal. En una ventana apaisada no cambia nada.
 - **`?perf`** en la URL muestra un medidor pequeño: fotogramas por segundo, tiempo medio y percentil 95 de los dos últimos segundos, llamadas de dibujo y triángulos de todo el fotograma (todas las pasadas del compositor), el nivel de calidad y la GPU que declara el navegador. Es la forma de tener cifras de una GPU real: la puerta de CI corre sobre un rasterizador por software.
@@ -610,6 +610,30 @@ El coche se ha vuelto a medir sobre las fotos de prensa de Porsche (solo como re
 - **Retrovisores.** Carcasa perfilada de color carrocería con la parte inferior negra, espejo y brazo negro desde la esquina de la puerta. Su posición sale de la foto; la anchura sobre los espejos sigue en los 2,027 m publicados.
 - **Más detalles:** las aletas del techo, los limpiaparabrisas y los pasos de rueda negros (antes se veía el hueco).
 - **Envergadura del ala.** Porsche no la publica. La cámara frontal da ≈1,63 m entre las caras interiores de las derivas y la trasera ≈1,80 sobre las exteriores; el modelo usa 1,74 m (≈ ±5 cm).
+
+### Porsche 911 GT3 RS, mejora 2: ruedas, ala, habitáculo, sonido y visita (2 de octubre de 2026)
+
+- **Ruedas.** Llanta forjada de cierre central con diez radios que se abren en Y antes de la llanta, cóncava hacia fuera (más en las traseras), con su barril y sus pestañas. La tuerca central lleva su tapa. Neumático con hombros redondeados, flancos abombados y tres ranuras, sin rótulos. Las medidas son las publicadas.
+- **Frenos.** Discos de 408 × 36 y 380 × 30 mm (publicados) con tres filas de taladros (≈) sobre su campana de aluminio. Pinzas monobloque de seis y cuatro pistones abrazando el borde de salida del disco (tamaño ≈).
+- **Ala.** Trazada con la cámara de cada foto:
+  - plano fijo y flap del DRS, de carbono;
+  - derivas negras grandes;
+  - cuellos de cisne con su pata delantera inclinada y la trasera vertical, desde la tapa del motor;
+  - el cilindro hidráulico rojo del DRS dentro de cada cuello.
+  - El borde superior sigue en los 1,322 m publicados.
+- **Habitáculo** (posiciones ≈ por las fotos del interior):
+  - salpicadero con el capó del cuadro y sus cinco esferas, con el cuentavueltas analógico en el centro, hasta 10.000 rpm y en rojo desde 9.000;
+  - pantalla central, aireadores y el cronómetro sobre el salpicadero;
+  - volante GT de 360 mm (publicado) en Alcantara, con la marca amarilla a las doce, tres radios, el centro y las levas;
+  - consola con el selector y dos pedales (PDK);
+  - baquets de carbono con sus huecos, el centro rojo oscuro y cinturones rojos;
+  - tiradores rojos de las puertas y la jaula atornillada del paquete Clubsport con su cruz.
+  - El revestimiento interior se abre en los cristales: desde el asiento se ve fuera, y desde fuera se ve el interior.
+- **Sonido** (tecla **M** o botón *Sound*, apagado por defecto). Sintetizado, no es una grabación:
+  - el seis bóxer suena con su orden 3 (tres explosiones por vuelta: 450 Hz al corte de 9.000 rpm), los medios órdenes de las dos bancadas y el orden 6;
+  - el gas abre la admisión y la aspereza del escape, y al soltar a altas vueltas hay petardeos;
+  - los neumáticos chirrían al pasar del agarre máximo, la grava retumba y el viento crece con el cuadrado de la velocidad.
+- **Visita guiada.** Cuatro paradas del Porsche: las cotas, el motor, el ala con su carga aerodinámica y las ruedas con los frenos. Todas las cifras son de la ficha.
 
 ### Historial
 

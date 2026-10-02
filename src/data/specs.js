@@ -535,6 +535,8 @@ export const VEHICLES = [
       'Reconstructed (≈): the cross-sections between the traced lines, the rounding of the bumpers\' faces, the depth and height of the raised trim (outlet walls, louvre slats, roof fins, blades), the mirrors\' sections, the rear wing\'s sections and swan necks, the wheels\' spokes, the callipers and the cabin.',
       'The rear wing\'s span is not published: the front photograph reads ≈1.63 m between its end plates, the rear one ≈1.80 m over them; the model uses 1.74 m (≈ ±5 cm).',
       'The wheels\' satin dark finish is a choice for this car; the red callipers are the cast-iron brakes\' colour (ceramic brakes carry yellow ones).',
+      'Reconstructed (≈) from the interior photographs: the cabin\'s layout — dashboard, cluster, centre screen, steering wheel (its 360 mm diameter published), console, seats, belts, roll cage; the cluster\'s faces are drawn, not copied.',
+      'The engine sound is synthesised (≈, by ear): the flat six\'s firing order 3 and its half and double orders, induction and exhaust under load, overrun crackle, the tyres and the wind. It is not a recording.',
       'No badges, script, crests or number plates.',
     ],
     sources: ['porsche_techdata', 'porsche_presskit', 'porsche_photos'],

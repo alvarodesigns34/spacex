@@ -5,7 +5,8 @@
  *
  * Controls: W throttle, S brake (held at a standstill, reverse), A/D steer, Space the parking
  * brake (pulled while moving it locks the rears, as a drifter uses it), T the traction control
- * (off by default), C the camera, Enter back to the pad, Esc to end. The keyboard's steering
+ * (off by default), C the camera, M the engine's sound (off until turned on), Enter back to
+ * the pad, Esc to end. The keyboard's steering
  * ramps in and centres itself, and gives less lock the faster the car goes, except when the
  * tail is out, where it gives full lock for the counter-steer (≈ this simulation's).
  *
@@ -18,6 +19,7 @@ import { createGt3Car, CAR } from './gt3Car.js';
 import { AXLE_F, AXLE_R } from '../vehicles/gt3rs.js';
 import { WHEELS } from '../data/gt3rs.js';
 import { trackCoords, toLocal, LAP, START } from '../core/circuitPlan.js';
+import { createGt3Sound } from './gt3Sound.js';
 
 const R2D = 180 / Math.PI;
 const CAMERAS = ['chase', 'driver', 'bonnet', 'trackside', 'orbit'];
@@ -132,6 +134,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
   scene.add(holder);
   const marks = createSkidMarks(scene);
   const smoke = createTyreSmoke(scene);
+  const sound = createGt3Sound();
 
   const sim = createGt3Car({ ground });
   const s = sim.state;
@@ -142,7 +145,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
   const keys = new Set();
   const driver = { throttle: 0, brake: 0, steer: 0, handbrake: 0 };
   const typing = (t) => t.tagName === 'TEXTAREA' || t.isContentEditable || (t.tagName === 'INPUT' && t.type !== 'range');
-  const CODES = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyC', 'KeyT', 'KeyK', 'Escape', 'Enter']);
+  const CODES = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyC', 'KeyT', 'KeyK', 'KeyM', 'Escape', 'Enter']);
   function onKeyDown(e) {
     if (!state.running || typing(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.code === 'KeyH' || e.key === '?') return;
@@ -155,6 +158,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
       case 'KeyC': cycleCamera(); break;
       case 'KeyT': setTraction(!s.tc); break;
       case 'KeyK': setPaused(!state.paused); break;
+      case 'KeyM': setSound(!sound.enabled); break;
       case 'Enter': restart(); break;
       case 'Escape': reset(); break;
       default: break;
@@ -164,6 +168,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
   function onBlur() { keys.clear(); }
   function note(text) { state.messages.push({ text, t: performance.now() }); if (state.messages.length > 4) state.messages.shift(); }
   function setTraction(on) { s.tc = !!on; note(s.tc ? 'Traction control on' : 'Traction control off: the tail is yours'); }
+  function setSound(on) { sound.setEnabled(on); note(sound.enabled ? 'Sound on: the flat six, the tyres, the wind (synthesised)' : 'Sound off'); }
 
   function readControls(dt) {
     if (state.manual) { toSim(); return; }
@@ -371,6 +376,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
     camera.near = saved.near; camera.far = saved.far; camera.fov = saved.fov;
     camera.updateProjectionMatrix();
     rig.releaseExternal?.();
+    sound.stop();
     visibilityHook?.(false);
     hud?.show(false);
     if (returnCamera) onFinish();
@@ -388,6 +394,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
     pose(Math.min(dt, 0.25));
     placeCamera(Math.max(dt, 1 / 120));
     if (rig.external) rig.target.copy(holder.position);
+    if (state.paused) sound.stop(); else sound.update(s, sim.input, s.surface[2]);
     publish();
   }
 
@@ -397,7 +404,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
       slide: Math.atan2(s.v, Math.max(1, Math.abs(s.u))) * R2D, g: Math.hypot(s.ax, s.ay) / 9.81,
       throttle: driver.throttle, brake: driver.brake, handbrake: driver.handbrake > 0, surface: s.surface[2],
       lap: state.lap !== null ? s.t - state.lap : null, best: state.best, laps: state.laps,
-      camera: state.camera, paused: state.paused, marks: marks.count,
+      camera: state.camera, paused: state.paused, marks: marks.count, sound: sound.enabled,
       messages: state.messages.filter(m => performance.now() - m.t < 5000).map(m => m.text),
     };
     hud?.update(state.readout);
@@ -407,7 +414,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
     get state() { return state; },
     get running() { return state.running; },
     get position() { return holder.position; },
-    sim, marks, smoke, driver, start, reset, restart, setPaused, setCamera, cycleCamera, setTraction, fmtTime,
+    sim, marks, smoke, sound, driver, start, reset, restart, setPaused, setCamera, cycleCamera, setTraction, setSound, fmtTime,
     update(dt) { if (state.running) apply(dt); },
     AXLE_F, AXLE_R, CAR,
   };
