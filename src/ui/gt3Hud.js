@@ -64,7 +64,11 @@ export function createGt3Hud({ root, onEnd, onCamera, onRestart, onPause, onTrac
     // The cluster: bottom centre, a rev arc round the gear and the speed.
     // Above the drive's bar, which sits at the bottom centre too.
     const barTop = bar.classList.contains('hidden') ? H : bar.getBoundingClientRect().top;
-    const R = Math.min(96, W * 0.11), cx = W / 2, cy = Math.min(H - R - 34, barTop - R - 30);
+    // From the driver's seat the car's own cluster shows the revs, the gear and the speed: this
+    // one moves to the bottom right corner, smaller, out of the windscreen's way.
+    const cab = r.camera === 'driver';
+    const R = cab ? Math.min(54, W * 0.07) : Math.min(96, W * 0.11);
+    const cx = cab ? W - R - 130 : W / 2, cy = Math.min(H - R - 34, barTop - R - 30);
     g.save();
     g.fillStyle = 'rgba(10, 12, 14, 0.55)';
     g.beginPath(); g.arc(cx, cy, R + 14, 0, Math.PI * 2); g.fill();

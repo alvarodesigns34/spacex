@@ -207,7 +207,7 @@ Lo hecho en 1 y 2 (detalle en el README, sección del 2 de octubre):
 1. **Exterior: hecha** (commit «Porsche: new body against the four studio photographs»). Detalle en el README, *mejora 3*.
    - Banco de pruebas fuera del repositorio (carpeta temporal `bench/`): construye solo el Porsche y lo renderiza con las cámaras de las fotos (`match/cams.json`; q34 resuelta por PnP). `match/overlay.py` superpone los bordes. Las fotos de Porsche están solo en la carpeta temporal.
    - Extremos: `relief(spec)` con `NOSE`/`TAIL`; `endPatch`, `endBand` e `intake` sobre `ENDS[dir]`. `endNormal` estaba mal para la cola (componentes laterales invertidas): corregido.
-2. Habitáculo nuevo (asientos baquet de carbono, jaula, salpicadero con cinco relojes, volante GT con marca amarilla, palanca PDK, puertas con tirador de cinta).
+2. **Habitáculo: hecho** (commit «Porsche: the new cabin with live instruments»). Está en `src/vehicles/gt3Cabin.js`: `buildCabin(M)`, `EYE` (el ojo del conductor, que usa `gt3Drive.js`) y `userData.instruments.update({ rpm, gear, kmh, steer })` en el grupo `gt3-cabin`. `gt3Drive.js` la llama en cada frame y al terminar. El banco de pruebas tiene `cab.html` y las vistas `drv`, `clu`, `seats` y `door`.
 3. Dinámica P1 del Porsche (H02, H06–H10).
 4. Flight 14: misión continua de masa puntual (H28–H33).
 5. F-16: marco geodésico, dominio y configuración (H15, H16, H19, H20).

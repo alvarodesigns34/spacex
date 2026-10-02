@@ -25,12 +25,14 @@
  * upper edge on each side of the centre line, and the crown), swept along X through key tables. The glass,
  * its frames, the lamps' openings and the skirts are regions of that one surface; the parts with
  * curved or slanted outlines are patches laid on it (bandPatch, loopPatch, endPatch), so neither can drift
- * apart from it; the nose and the tail are reliefs over the last sections (relief). The body, wing, mirrors and cabin hang in group gt3-sprung, which the
+ * apart from it; the nose and the tail are reliefs over the last sections (relief). The cabin is
+ * its own module (gt3Cabin.js). The body, wing, mirrors and cabin hang in group gt3-sprung, which the
  * drive pitches and rolls on the springs; the four wheels are outside it.
  */
 import * as THREE from 'three';
 import { mesh, mergeAll, curve } from '../geometry/utils.js';
 import { BODY, WHEELS, BRAKES, PAINT } from '../data/gt3rs.js';
+import { buildCabin } from './gt3Cabin.js';
 
 const L2 = BODY.length / 2, AX = BODY.wheelbase / 2, D2R = Math.PI / 180, TAU = Math.PI * 2;
 const RF = WHEELS.front.dia / 2, RR = WHEELS.rear.dia / 2;
@@ -364,16 +366,6 @@ function gt3Materials(M) {
   M.gt3Drl = new THREE.MeshStandardMaterial({ name: 'gt3-drl', color: 0xffffff, emissive: 0xf4f8ff, emissiveIntensity: 1.6, roughness: 0.4 });
   M.gt3Tail = new THREE.MeshStandardMaterial({ name: 'gt3-tail', color: 0x7a0a0c, emissive: 0xd0161a, emissiveIntensity: 0.9, roughness: 0.35 });
   M.gt3Smoke = new THREE.MeshStandardMaterial({ name: 'gt3-tail-smoke', color: 0x1a0d0e, metalness: 0.2, roughness: 0.15 });
-  // The cabin: Alcantara, smooth leather, the seats' dark red centres, the red belts, the wheel's yellow mark.
-  M.gt3Alcantara = new THREE.MeshStandardMaterial({ name: 'gt3-alcantara', color: 0x18191b, metalness: 0, roughness: 0.98 });
-  M.gt3Leather = new THREE.MeshStandardMaterial({ name: 'gt3-leather', color: 0x111214, metalness: 0, roughness: 0.55 });
-  M.gt3SeatRed = new THREE.MeshStandardMaterial({ name: 'gt3-seat-red', color: 0x4a1015, metalness: 0, roughness: 0.85 });
-  M.gt3Belt = new THREE.MeshStandardMaterial({ name: 'gt3-belt', color: 0xb3161e, metalness: 0, roughness: 0.7 });
-  M.gt3Yellow = new THREE.MeshStandardMaterial({ name: 'gt3-yellow', color: 0xd6bd22, metalness: 0, roughness: 0.8 });
-  {
-    const map = clusterTexture();
-    M.gt3Cluster = new THREE.MeshStandardMaterial({ name: 'gt3-cluster', color: 0x000000, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: map ? 0.9 : 0, roughness: 0.3 });
-  }
   // Openings into the body (intakes, outlets, wheel wells): near black, matt.
   M.gt3Void = new THREE.MeshStandardMaterial({ name: 'gt3-void', color: 0x060607, metalness: 0, roughness: 0.95 });
   M.gt3Liner = new THREE.MeshStandardMaterial({ name: 'gt3-arch-liner', color: 0x0c0c0d, metalness: 0, roughness: 0.92, side: THREE.DoubleSide });
@@ -1599,190 +1591,6 @@ function buildDiffuser(M) {
 }
 
 // ---- The cabin -------------------------------------------------------------------------------------
-/** A box w × h × d with rounded edges of radius r, centred at the origin. */
-function roundBox(w, h, d, r) {
-  const sh = new THREE.Shape(), x = w / 2 - r, y = h / 2 - r;
-  sh.moveTo(-x, -h / 2); sh.lineTo(x, -h / 2); sh.absarc(x, -y, r, -Math.PI / 2, 0, false);
-  sh.lineTo(w / 2, y); sh.absarc(x, y, r, 0, Math.PI / 2, false);
-  sh.lineTo(-x, h / 2); sh.absarc(-x, y, r, Math.PI / 2, Math.PI, false);
-  sh.lineTo(-w / 2, -y); sh.absarc(-x, -y, r, Math.PI, Math.PI * 1.5, false);
-  const geo = new THREE.ExtrudeGeometry(sh, { depth: Math.max(0.001, d - 2 * r), bevelEnabled: true, bevelThickness: r, bevelSize: r * 0.98, bevelSegments: 3, curveSegments: 4 });
-  geo.translate(0, 0, -(d - 2 * r) / 2);
-  return geo;
-}
-const at = (geo, x, y, z, rx = 0, ry = 0, rz = 0) => {
-  geo.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(rx, ry, rz, 'YXZ')).setPosition(x, y, z));
-  return geo;
-};
-/**
- * The instrument cluster's faces: the analogue tachometer in the middle (to 10,000 /min, the
- * red line at 9,000) between four round screens, drawn once on a canvas (browser only; ≈ the
- * layout of the photographs, no logos).
- */
-function clusterTexture() {
-  if (typeof document === 'undefined') return null;
-  try {
-    const c = document.createElement('canvas');
-    c.width = 1024; c.height = 256;
-    const x = c.getContext('2d');
-    x.fillStyle = '#050607'; x.fillRect(0, 0, 1024, 256);
-    const dial = (cx, r, analogue) => {
-      x.beginPath(); x.arc(cx, 128, r, 0, TAU); x.fillStyle = analogue ? '#0c0d0f' : '#07090b'; x.fill();
-      x.lineWidth = 3; x.strokeStyle = '#5b6066'; x.stroke();
-      if (!analogue) {
-        x.strokeStyle = '#2f8fd8'; x.lineWidth = 5; x.beginPath(); x.arc(cx, 128, r * 0.72, Math.PI * 0.8, Math.PI * 1.9); x.stroke();
-        x.fillStyle = '#d8dde2'; x.font = 'bold 26px sans-serif'; x.textAlign = 'center'; x.fillText(cx < 512 ? '90 °C' : '24 °C', cx, 138);
-        return;
-      }
-      // Tachometer: 0–10 (× 1,000 /min) over 270°, red from 9.
-      for (let k = 0; k <= 50; k++) {
-        const a = Math.PI * 0.75 + (k / 50) * Math.PI * 1.5, big = k % 5 === 0;
-        x.strokeStyle = k >= 45 ? '#d6222a' : '#e8ecef'; x.lineWidth = big ? 4 : 2;
-        x.beginPath(); x.moveTo(cx + Math.cos(a) * r * (big ? 0.78 : 0.84), 128 + Math.sin(a) * r * (big ? 0.78 : 0.84)); x.lineTo(cx + Math.cos(a) * r * 0.92, 128 + Math.sin(a) * r * 0.92); x.stroke();
-        if (big) { x.fillStyle = '#e8ecef'; x.font = 'bold 22px sans-serif'; x.textAlign = 'center'; x.fillText(String(k / 5), cx + Math.cos(a) * r * 0.62, 136 + Math.sin(a) * r * 0.62); }
-      }
-      // The needle at idle, the gear and the speed in the middle.
-      const a = Math.PI * 0.75 + 0.09 * Math.PI * 1.5;
-      x.strokeStyle = '#f2c230'; x.lineWidth = 5; x.beginPath(); x.moveTo(cx, 128); x.lineTo(cx + Math.cos(a) * r * 0.8, 128 + Math.sin(a) * r * 0.8); x.stroke();
-      x.fillStyle = '#e8ecef'; x.font = 'bold 30px sans-serif'; x.textAlign = 'center'; x.fillText('N', cx, 196);
-    };
-    dial(110, 82, false); dial(300, 96, false); dial(512, 118, true); dial(724, 96, false); dial(914, 82, false);
-    const t = new THREE.CanvasTexture(c);
-    t.colorSpace = THREE.SRGBColorSpace;
-    return t;
-  } catch { return null; }
-}
-/**
- * What the glass shows, and the driver's view: the dashboard with the cluster's hood, its five
- * round instruments (an analogue tachometer in the middle) and the centre screen; the stopwatch
- * on the dash's top; the 360 mm (published) GT steering wheel in Alcantara with its yellow
- * twelve-o'clock marker, three spokes, hub and paddles; the centre console with the gear
- * selector; two carbon full bucket seats with cut-outs, a dark red centre and red belts; the
- * doors' red pull straps; the Clubsport package's bolted roll cage with its cross behind the
- * seats; the pedals, the floor and the tunnel. Left-hand drive. Positions and sizes ≈ from the
- * interior photographs, the published wheel diameter aside.
- */
-function buildCabin(M) {
-  const g = new THREE.Group();
-  g.name = 'gt3-cabin';
-  const parts = { trim: [], leather: [], red: [], belt: [], black: [], carbon: [], alu: [], yellow: [], screen: [], glass: [] };
-  const P = (k, geo) => parts[k].push({ geometry: geo });
-  const DZ = -0.37;                       // the driver's centre line (left-hand drive)
-  // Dashboard: one profile across the car, the cowl to the knees.
-  {
-    const prof = [[0.78, 0.835], [0.58, 0.885], [0.46, 0.884], [0.405, 0.862], [0.395, 0.80], [0.42, 0.70], [0.47, 0.60], [0.78, 0.56]];
-    const sh = new THREE.Shape(prof.map(([x, y]) => new THREE.Vector2(x, y)));
-    const dash = new THREE.ExtrudeGeometry(sh, { depth: 1.40, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.012, bevelSegments: 2 });
-    dash.translate(0, 0, -0.70);
-    P('leather', dash);
-  }
-  // The cluster's hood over the driver's instruments, and their face.
-  {
-    const hood = new THREE.CylinderGeometry(0.205, 0.205, 0.13, 32, 1, true, -Math.PI / 2, Math.PI);
-    P('leather', at(hood, 0.445, 0.87, DZ, 0, 0, Math.PI / 2 - 0.12));
-    const face = new THREE.PlaneGeometry(0.40, 0.10);
-    P('screen', at(face, 0.41, 0.895, DZ, 0, -Math.PI / 2, 0.22));
-    // The centre screen and the vents under it; the stopwatch on top of the dash.
-    P('glass', at(new THREE.PlaneGeometry(0.26, 0.10), 0.398, 0.79, 0.08, 0, -Math.PI / 2, 0.18));
-    for (const z of [-0.06, 0.20]) P('black', at(roundBox(0.02, 0.035, 0.16, 0.006), 0.40, 0.70, z));
-    const clock = new THREE.CylinderGeometry(0.038, 0.042, 0.035, 28);
-    P('black', at(clock, 0.60, 0.895, 0, 0, 0, 0.5));
-    P('alu', at(new THREE.TorusGeometry(0.038, 0.004, 6, 28), 0.585, 0.905, 0, 0, Math.PI / 2, -0.5));
-  }
-  // Steering wheel: ⌀ 360 mm, its top leaning forward ≈22°, the column down into the dash. Built
-  // facing the driver (its axis along X), then tilted and placed.
-  {
-    const local = [];
-    const rim = new THREE.TorusGeometry(0.163, 0.0175, 12, 48);
-    rim.rotateY(Math.PI / 2);
-    local.push(['trim', rim]);
-    const mark = new THREE.TorusGeometry(0.163, 0.0182, 12, 6, 0.10);
-    mark.rotateZ(Math.PI / 2 - 0.05); mark.rotateY(Math.PI / 2);
-    local.push(['yellow', mark]);
-    for (const s of [-1, 1]) local.push(['leather', at(roundBox(0.022, 0.032, 0.105, 0.008), 0, -0.01, s * 0.112)]);
-    local.push(['leather', at(roundBox(0.022, 0.10, 0.036, 0.008), 0, -0.11, 0)]);
-    const hub = new THREE.CylinderGeometry(0.068, 0.072, 0.045, 32);
-    hub.rotateZ(Math.PI / 2);
-    local.push(['leather', hub]);
-    for (const s of [-1, 1]) local.push(['carbon', at(roundBox(0.012, 0.10, 0.05, 0.005), 0.04, 0.02, s * 0.12)]);
-    const col = new THREE.CylinderGeometry(0.032, 0.045, 0.30, 16);
-    col.rotateZ(Math.PI / 2); col.translate(0.17, 0, 0);
-    local.push(['black', col]);
-    const m = new THREE.Matrix4().makeRotationZ(-0.38).setPosition(0.255, 0.815, DZ);
-    for (const [k, geo] of local) P(k, geo.applyMatrix4(m));
-  }
-  // Centre console and tunnel, the gear selector on it.
-  {
-    const con = new THREE.Shape([[0.43, 0.62], [0.40, 0.66], [0.22, 0.60], [-0.30, 0.47], [-0.30, 0.22], [0.43, 0.22]].map(([x, y]) => new THREE.Vector2(x, y)));
-    const geo = new THREE.ExtrudeGeometry(con, { depth: 0.22, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.01, bevelSegments: 2 });
-    geo.translate(0, 0, -0.11);
-    P('carbon', geo);
-    const stick = new THREE.CylinderGeometry(0.009, 0.012, 0.11, 10);
-    P('alu', at(stick, 0.17, 0.66, 0, 0, 0, 0.25));
-    P('black', at(new THREE.SphereGeometry(0.03, 16, 12), 0.157, 0.715, 0));
-    P('leather', at(roundBox(0.12, 0.03, 0.10, 0.01), 0.18, 0.605, 0, 0, 0, 0.25));
-  }
-  // Floor, pedals (two: the PDK has no clutch) and the footwell's sides.
-  P('trim', at(roundBox(1.55, 0.03, 1.46, 0.01), -0.12, 0.215, 0));
-  for (const [z, w] of [[DZ + 0.06, 0.07], [DZ - 0.08, 0.05]]) P('alu', at(roundBox(0.012, 0.09, w, 0.004), 0.72, 0.33, z, 0, 0, -0.35));
-  // Seats: carbon full buckets, the backrest's cut-outs at the shoulders, a dark red centre, red belts.
-  for (const sd of [-1, 1]) {
-    const zc = sd * 0.37;
-    const shell = new THREE.Shape();
-    const W = 0.27;
-    shell.moveTo(-W, 0); shell.lineTo(W, 0); shell.lineTo(W * 1.02, 0.42); shell.quadraticCurveTo(W * 0.98, 0.62, W * 0.62, 0.70);
-    shell.lineTo(W * 0.42, 0.80); shell.quadraticCurveTo(0, 0.86, -W * 0.42, 0.80); shell.lineTo(-W * 0.62, 0.70);
-    shell.quadraticCurveTo(-W * 0.98, 0.62, -W * 1.02, 0.42); shell.closePath();
-    for (const [hx, hw] of [[-0.12, 0.065], [0, 0.05], [0.12, 0.065]]) {
-      const h = new THREE.Path();
-      h.absellipse(hx, 0.575, hw, 0.035, 0, TAU, true);
-      shell.holes.push(h);
-    }
-    const back = new THREE.ExtrudeGeometry(shell, { depth: 0.035, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 2, curveSegments: 8 });
-    // The shape's (z, y) across the car and up; its depth along the car; leaning back.
-    back.rotateY(Math.PI / 2);
-    P('carbon', at(back, -0.50, 0.30, zc, 0, 0, 0.30));
-    // Bolsters and cushion, leather, with the dark red centre panels.
-    for (const s of [-1, 1]) P('leather', at(roundBox(0.12, 0.42, 0.075, 0.03), -0.47, 0.55, zc + s * 0.22, 0, 0, 0.30));
-    P('leather', at(roundBox(0.06, 0.45, 0.36, 0.025), -0.46, 0.55, zc, 0, 0, 0.30));
-    P('red', at(roundBox(0.012, 0.36, 0.22, 0.004), -0.425, 0.56, zc, 0, 0, 0.30));
-    P('leather', at(roundBox(0.48, 0.09, 0.40, 0.03), -0.22, 0.305, zc, 0, 0, -0.08));
-    for (const s of [-1, 1]) P('leather', at(roundBox(0.46, 0.13, 0.07, 0.03), -0.22, 0.34, zc + s * 0.22, 0, 0, -0.08));
-    P('red', at(roundBox(0.34, 0.012, 0.22, 0.004), -0.20, 0.352, zc, 0, 0, -0.08));
-    // The belt: from the shoulder, across the backrest to the buckle by the tunnel, and the lap belt.
-    const inner = -sd;
-    const belt = (a, b, wid) => {
-      const d = new THREE.Vector3(...b).sub(new THREE.Vector3(...a)), len = d.length();
-      const geo = new THREE.BoxGeometry(0.004, len, wid);
-      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
-      geo.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(...a).add(new THREE.Vector3(...b)).multiplyScalar(0.5), q, new THREE.Vector3(1, 1, 1)));
-      return geo;
-    };
-    P('belt', belt([-0.52, 0.95, zc - inner * 0.17], [-0.36, 0.42, zc + inner * 0.16], 0.048));
-    P('belt', belt([-0.30, 0.38, zc - inner * 0.20], [-0.34, 0.38, zc + inner * 0.18], 0.048));
-    P('alu', at(roundBox(0.05, 0.03, 0.02, 0.005), -0.33, 0.40, zc + inner * 0.20));
-    // The door's red pull strap.
-    P('belt', at(roundBox(0.11, 0.022, 0.012, 0.004), 0.26, 0.70, sd * 0.79));
-  }
-  // Roll cage (Clubsport package): the main hoop behind the seats with its cross, the stays aft, a harness bar.
-  {
-    const tubes = [];
-    const tube = (pts, r = 0.02) => tubes.push({ geometry: new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(...p))), 20, r, 10) });
-    tube([[-0.82, 0.24, -0.60], [-0.82, 0.95, -0.58], [-0.80, 1.16, -0.42], [-0.80, 1.19, 0], [-0.80, 1.16, 0.42], [-0.82, 0.95, 0.58], [-0.82, 0.24, 0.60]]);
-    tube([[-0.82, 0.30, -0.56], [-0.81, 1.13, 0.40]], 0.018);
-    tube([[-0.82, 0.30, 0.56], [-0.81, 1.13, -0.40]], 0.018);
-    tube([[-0.82, 0.70, -0.59], [-0.82, 0.70, 0.59]], 0.017);
-    for (const sd of [-1, 1]) tube([[-0.80, 1.15, sd * 0.44], [-1.10, 1.03, sd * 0.50], [-1.40, 0.92, sd * 0.55]], 0.018);
-    g.add(mesh(mergeAll(tubes), M.gt3Black, { name: 'gt3-roll-cage' }));
-  }
-  const MAT = {
-    trim: M.gt3Alcantara, leather: M.gt3Leather, red: M.gt3SeatRed, belt: M.gt3Belt, black: M.gt3Black,
-    carbon: M.carbon ?? M.gt3Carbon, alu: M.aluminum ?? M.gt3Disc, yellow: M.gt3Yellow, screen: M.gt3Cluster, glass: M.gt3Black,
-  };
-  for (const [k, list] of Object.entries(parts)) if (list.length) g.add(mesh(mergeAll(list), MAT[k], { name: `gt3-cabin-${k}`, castShadow: k !== 'screen' && k !== 'glass' }));
-  return g;
-}
-
 export function buildGt3rs(M) {
   gt3Materials(M);
   const root = new THREE.Group();

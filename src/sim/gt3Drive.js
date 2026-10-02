@@ -18,6 +18,7 @@
 import * as THREE from 'three';
 import { createGt3Car, CAR, steerReach } from './gt3Car.js';
 import { AXLE_F, AXLE_R } from '../vehicles/gt3rs.js';
+import { EYE } from '../vehicles/gt3Cabin.js';
 import { WHEELS } from '../data/gt3rs.js';
 import { trackCoords, toLocal, LAP, START } from '../core/circuitPlan.js';
 import { createGt3Sound } from './gt3Sound.js';
@@ -129,6 +130,8 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
   const wheels = ['fl', 'fr', 'rl', 'rr'].map(t => car.getObjectByName(`gt3-wheel-${t[0]}${t[1]}`));
   const flap = car.getObjectByName('gt3-wing-flap');
   const flapBase = flap?.quaternion.clone();
+  // The cabin's live instruments: the tachometer's needle, the gear and the speed, the steering wheel.
+  const instruments = car.getObjectByName('gt3-cabin')?.userData.instruments;
   const holder = new THREE.Group();
   holder.name = 'gt3-drive';
   holder.visible = false;
@@ -230,8 +233,8 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
     }
     _f.set(Math.cos(s.psi), 0, -Math.sin(s.psi));
     if (state.camera === 'driver' || state.camera === 'bonnet') {
-      // The driver's eye in the left-hand seat (≈), or low on the bonnet.
-      const eye = state.camera === 'driver' ? [-0.12, 1.06, -0.37] : [1.05, 0.98, 0];
+      // The driver's eye in the left-hand seat (≈, gt3Cabin.js), or low on the bonnet.
+      const eye = state.camera === 'driver' ? EYE : [1.05, 0.98, 0];
       _cam.set(...eye);
       sprung.localToWorld(_cam);
       _look.set(eye[0] + 30, eye[1] - 0.8, eye[2]);
@@ -290,6 +293,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
       w.rotation.y = i < 2 ? s.steer : 0;
     }
     if (flap && flapBase) flap.quaternion.copy(flapBase).multiply(_q.setFromAxisAngle(new THREE.Vector3(0, 0, 1), (s.drs ? 13 : 0) / R2D));
+    instruments?.update({ rpm: s.rpm, gear: s.reverse ? 'R' : s.gear, kmh: Math.hypot(s.u, s.v) * 3.6, steer: s.steer });
     void _e;
   }
   const _c = new THREE.Vector3(), _side = new THREE.Vector3();
@@ -375,6 +379,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
     if (sprung) sprung.rotation.set(0, 0, 0);
     for (const w of wheels) if (w) { w.rotation.y = 0; if (w.userData.spin) w.userData.spin.rotation.z = 0; }
     if (flap && flapBase) flap.quaternion.copy(flapBase);
+    instruments?.update({ rpm: 0, gear: 'N', kmh: 0, steer: 0 });
     saved.parent.add(car);
     car.position.copy(saved.position); car.quaternion.copy(saved.quaternion);
     holder.visible = false;

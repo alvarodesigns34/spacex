@@ -708,6 +708,34 @@ Orden del usuario: que el Porsche sea una copia visual del coche real, por fuera
 - **Retrovisores** algo más redondeados.
 - **Corregido de paso:** la normal de la cara trasera tenía invertidas sus componentes laterales. Los parches de la cola se hundían hacia dentro cerca del borde y la cara los tapaba.
 
+### Porsche 911 GT3 RS, mejora 4: el habitáculo nuevo, con instrumentos vivos (2 de octubre de 2026)
+
+El habitáculo se ha rehecho desde cero en su propio módulo (`src/vehicles/gt3Cabin.js`) sobre las fotos de interior de Porsche: la vista del conductor, los asientos desde la puerta del acompañante, el cuadro, el selector y la puerta. Como siempre, las fotos se usan solo como referencia y no están en el repositorio. Las posiciones y tamaños son ≈; el volante de 360 mm y la desmultiplicación de 14,1:1 son los publicados. No lleva logotipos, rótulos ni escudos.
+
+- **Cuadro de instrumentos** bajo su visera, curvado alrededor del ojo del conductor. En el centro va el cuentarrevoluciones analógico (hasta 10.000 rpm, rojo desde 9.000). A cada lado, una pantalla con dos indicadores redondos: la compresión y el rebote de los amortiguadores, como en la foto.
+- **Instrumentos vivos.** Mientras se conduce, la aguja sigue las revoluciones del motor simulado, el pie del reloj muestra la marcha y la velocidad, y el volante gira con las ruedas delanteras a 14,1:1. En la vista del conductor, el reloj del HUD se aparta a la esquina inferior derecha, más pequeño, para no tapar el cuadro real.
+- **Salpicadero:** la parte superior de cuero bajo el parabrisas, con las ranuras del desempañador y el cronómetro encima; la cara de Alcantara con la tira de carbono en el lado del acompañante; las salidas de aire laterales.
+- **Consola central:**
+  - la pantalla táctil (una página de tiempos por vuelta, sin marcas);
+  - la tira de carbono y los cinco interruptores;
+  - dos salidas de aire;
+  - la consola que baja hasta el túnel, con el selector corto en su fuelle de Alcantara;
+  - la bandeja, los laterales de carbono y el reposabrazos.
+- **Volante GT** de Alcantara:
+  - aro ovalado y banda amarilla a las doce;
+  - tres radios con sus botoneras y los cuatro mandos giratorios;
+  - levas de cambio, columna y palancas.
+- **Asientos baquet de carbono**, construidos a lo largo de su eje: la carcasa, los laterales negros, los centros rojo oscuro perforados, los huecos bajo el reposacabezas y los cinturones rojos de tres puntos apoyados sobre el asiento.
+- **Puertas:** remate de cuero, panel de Alcantara, inserto perforado con el rojo detrás, reposabrazos, tirador de cinta roja e interruptores de las ventanillas.
+- **Más:**
+  - el suelo con alfombrillas, el reposapiés, los pedales (acelerador articulado en el suelo, freno colgado) y los umbrales;
+  - la jaula del paquete Clubsport, atornillada tras los asientos;
+  - el compartimento trasero cerrado por el mamparo del motor (el RS no lleva asientos traseros);
+  - el retrovisor interior.
+- **Ojo del conductor:** la cámara interior se ha retrasado de x = −0,12 a −0,30 m, con la cabeza justo delante del reposacabezas (≈). Antes la cabeza quedaba 20 cm por delante del asiento.
+- **Luz:** el interior ve solo una parte del cielo que supone el mapa de entorno, así que sus reflejos se han bajado (≈, como término de oclusión). Antes el Alcantara negro se veía gris claro.
+- El habitáculo tiene ≈53.000 triángulos. El coche entero, con la carrocería nueva, se queda en ≈452.000 (antes ≈527.000) y la escena, dentro de su presupuesto.
+
 ### Auditoría técnica externa del 2 de octubre de 2026 (ChatGPT): lo corregido
 
 Auditoría de la revisión `8e595b8`, con 60 hallazgos (1 crítico, 24 altos, 32 medios y 3 bajos). En esta ronda se han corregido los de prioridad P0 y algunos P1 acotados, cada uno con una prueba que falla con el fallo y pasa con la corrección. Los identificadores (H01…H60) son los de la auditoría.
