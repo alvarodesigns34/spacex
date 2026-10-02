@@ -18,7 +18,7 @@ registerHooks({
     if (mutant && url.endsWith('/src/sim/reentryFlight.js')) {
       let source = String(result.source).replace(/\r\n/g, '\n');
       // The defect found in the 30-09 audit: all the lift kept vertical, and the glide skipped.
-      if (mutant === 'skip') source = source.replace('const cap = -vh / 30;', 'const cap = Infinity;');
+      if (mutant === 'skip') { if (!source.includes('const cap = -vh / 60;')) throw new Error('skip mutation not applied'); source = source.replace('const cap = -vh / 60;', 'const cap = Infinity;'); }
       return { ...result, source };
     }
     if (!mutant || !url.endsWith('/src/sim/launch.js')) return result;
@@ -105,8 +105,9 @@ for (const [name, before, after] of [['altitude', altitudeAt, boosterAltAt], ['d
   }
   const h = altitudeAt(EVENTS.shipCutoff), v = speedAt(EVENTS.shipCutoff + 0.5);
   const orbital = Math.sqrt(3.986004418e14 / (6371e3 + h));
-  assert.ok(Math.abs(h - SHIP_ASSUMED.holdAltitude) < 200 && Math.abs(v - SHIP_STEERING.cutoffSpeed) < 2 && v < orbital,
-    `ship cuts off at the arc's top, suborbital: ${(h / 1e3).toFixed(1)} km, ${v.toFixed(0)} of ${orbital.toFixed(0)} m/s`);
+  // Flight 14 was orbital: the burn ends level in the circular orbit the re-entry starts from (mission.js).
+  assert.ok(Math.abs(h - SHIP_ASSUMED.holdAltitude) < 200 && Math.abs(v - SHIP_STEERING.cutoffSpeed) < 2 && Math.abs(v - orbital) < 15,
+    `ship cuts off level in its orbit: ${(h / 1e3).toFixed(1)} km, ${v.toFixed(0)} m/s (circular ${orbital.toFixed(0)})`);
   // Full thrust to the cutoff on a 1 614 tf ship is ≈6 g at the end; that is the consequence of
   // the published thrust, propellant and cutoff time, not a limit anyone publishes. The bound
   // catches a runaway (a mass that stops falling or drops to nothing), not a number.

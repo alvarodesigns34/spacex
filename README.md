@@ -268,7 +268,7 @@ Un capítulo nuevo (**X**) con la vuelta de la nave del vuelo 14, **el primero o
   - de 3 a 2 motores, T+9:50:21;
   - de 2 a 1 motor, T+9:50:28;
   - amerizaje en el objetivo del Pacífico norte, T+9:50:30.
-- **Derivado:** el estado en la interfaz de entrada (120 km). La órbita y la masa no se publican y se suponen (≈): 200 km y ≈190 t. Con 11 s de un Raptor de 250 tf se pierden ≈142 m/s, y vis-viva da **≈7,74 km/s a −1,6°**.
+- **Derivado:** el estado en la interfaz de entrada (120 km). La órbita y la masa no se publican y se suponen (≈): 200 km y ≈190 t. Con 11 s de un Raptor de 250 tf se pierden ≈142 m/s, y vis-viva da **≈7,74 km/s a −1,6°**. (Desde el 2 de octubre sale de la misión encadenada: véase *Flight 14: una sola misión*.)
 - **Resuelto por Newton** (`reentryFlight.js`): el arrastre y la relación sustentación/arrastre del planeo con el vientre por delante, y el arrastre de la caída en panza. Con ellos el modelo cruza **Mach 1 en la llamada de transónico**, **Mach 0,8 en la de subsónico** (qué Mach significa cada llamada es una lectura, ≈) y llega al encendido de aterrizaje a la altura desde la que un encendido suave de 19 s lo para sobre el agua.
 - **Resultados, no telemetría:**
   - pico de calentamiento hacia 71 km y 7,4 km/s;
@@ -761,6 +761,32 @@ Los hallazgos P1 de la auditoría externa sobre el Porsche, cada uno con su prue
   - En el mar, el agua lo frena en ≈5 m, el motor se ahoga y el panel lo dice.
 - La frenada de 100 a 0 km/h baja de 29,7 a 27,7 m (≈, no publicada). La prueba de interfaz que arranca con W da ahora 3 s en vez de 2,2 para ver el paso a 2.ª: sin Launch Control, el coche llega a ella hacia los 2,5 s.
 
+### Flight 14: una sola misión del corte a la entrada (2 de octubre de 2026)
+
+Hallazgos P1 de la auditoría sobre Flight 14 (H28, H30, H32 y H33, en parte). Las pruebas nuevas están en `tools/mission-check.mjs`.
+
+- **H28: el ascenso y la reentrada no eran una misión.** El barco terminaba su encendido en el arco **suborbital** del vuelo 12 (apogeo 195 km, perigeo −7 km). Desde ahí habría reentrado hacia T+8:59, media hora antes de la entrada citada. El vuelo 14, en cambio, es el primero orbital. La reentrada, por su parte, partía de una órbita circular de 200 km y una masa de 190 t supuestas por separado, sin relación con el ascenso.
+  - Ahora el encendido termina a T+8:11 **en órbita**: la circular de 200 km de la que parte la reentrada. Es una sola suposición para las dos fases (≈: la órbita real no se publica). El ascenso resuelve de nuevo su masa no propelente: ≈209 t, antes ≈215.
+  - El nuevo `src/sim/mission.js` encadena:
+    - el estado del barco al corte (altura, velocidad, ángulo y masa de las tablas del ascenso);
+    - su órbita (vis-viva y momento angular);
+    - el vuelo libre hasta el encendido de salida citado, con la ecuación de Kepler;
+    - ese encendido de 11 s con un Raptor: 7,9 t de propelente y ≈101 m/s por la ecuación del cohete;
+    - y la nueva órbita hasta la interfaz de 120 km.
+  - Con eso, la reentrada parte de **7,78 km/s a −1,3° y ≈262 t**, que son la masa y la energía que trae del ascenso. Toda la misión usa una sola gravedad, la del ascenso.
+  - **Discrepancia medida, no ocultada:** esa cadena llega a la interfaz hacia **T+9:07**, 22 min antes de la entrada citada (T+9:28:56). Con el encendido citado, ninguna órbita circular razonable cuadra (haría falta ≈450 km). La órbita o la masa reales no son las supuestas, y los datos publicados no permiten saber cuál es. El capítulo conserva la hora citada, y el panel y la ficha dan el desfase.
+- **H30:** la masa no propelente resuelta se describe como lo que es: estructura, carga y reservas juntas, que este ajuste no puede separar.
+- **H32: el alcance lateral.** La parte de la sustentación que se inclina fuera del plano ya no se descarta. Se integra como **cota**: sin invertir nunca el alabeo, llevaría la nave ≈600 km de lado en 5.700 km de recorrido. La guía real invierte el alabeo para quedarse en su pasillo, y SpaceX no publica el perfil.
+- **H33: el aterrizaje, comprobado contra empuje y propelente.** El encendido final pide como mucho 1,7 g, de los 2,9 g que dan tres Raptor a esa masa, y ≈20 t de propelente de las ≈53 t que quedan. Sigue siendo una trayectoria guiada (una quíntica), ahora con su factibilidad verificada.
+- **La reentrada se ha reajustado** con su estado de entrada nuevo:
+  - El resolvedor de Newton se atascaba en el primer paso y se ha cambiado por uno de Levenberg–Marquardt.
+  - La retirada del picado pasa de 30 a 60 s. Con 30 s, tras la entrada más tendida, la nave volaba a nivel a 73 km durante minutos y el calentamiento volvía a subir al caer de esa meseta.
+  - Resultados (no telemetría): pico de calentamiento a ≈73 km, caída en panza a ≈90 m/s, encendido desde ≈850 m y ≈5.700 km de recorrido.
+- **Sigue pendiente:**
+  - un ascenso de la pila dirigido por fuerzas con el Max-Q como hito reservado (H29);
+  - el retorno del propulsor con masa y combustible por encendido (H31);
+  - la actitud dinámica del volteo (H33).
+
 ### Auditoría técnica externa del 2 de octubre de 2026 (ChatGPT): lo corregido
 
 Auditoría de la revisión `8e595b8`, con 60 hallazgos (1 crítico, 24 altos, 32 medios y 3 bajos). En esta ronda se han corregido los de prioridad P0 y algunos P1 acotados, cada uno con una prueba que falla con el fallo y pasa con la corrección. Los identificadores (H01…H60) son los de la auditoría.
@@ -810,7 +836,7 @@ Auditoría de la revisión `8e595b8`, con 60 hallazgos (1 crítico, 24 altos, 32
 - **F-16:**
   - marco geodésico para la altitud y la gravedad (H15);
   - dominio de Morelli, régimen supersónico y configuración del avión declarados (H16, H17, H19, H20).
-- **Flight 14:** misión continua de masa puntual del ascenso a la reentrada (H28–H33); índice térmico dimensional (H34).
+- **Flight 14:** H28, H30, H32 y H33 (en parte) se resuelven en *Flight 14: una sola misión*. Quedan H29 y H31, la dinámica del volteo y el índice térmico dimensional (H34).
 - **Datos:** procedencia por campos y conjuntos de validación independientes (H38, H39, H41, H50).
 - **Rendimiento y estructura:** arranque progresivo (H42, H44–H46), módulos grandes (H49), telemetría accesible (H25).
 - **Repositorio y CI:** orientación del pad (H37), tercera ventana del Dragon (H40, NO VERIFICADO), compatibilidad entre navegadores y ramas (H53, H54), Three.js vendorizado (H58) y permisos del flujo de trabajo (H59).

@@ -122,13 +122,14 @@ export const SHIP_ASSUMED = {
   ispSL: 350,                    // s, ≈ assumed: Raptor 3 sea-level engines in vacuum
   ispVac: 380,                   // s, ≈ assumed: Raptor Vacuum
   slShare: 750 / 1575,           // thrust share of the three sea-level engines (3 × 250 of 3 × 250 + 3 × 275 tf)
-  // m, ≈: the ship's burn is steered to end level at flight 12's published apogee (195 km,
-  // Wikipedia, Starship flight test 12); no V3 flight publishes its altitude at engine cutoff.
-  holdAltitude: 195e3,
-  // m, from the same flight 12 figures: apogee 195 km and perigee −7 km (Wikipedia) fix the
-  // trajectory, and a ship at the top of that arc moves at √(μ(2/r_a − 1/a)) ≈ 7,73 km/s
-  // (inertial; Earth's rotation is not modelled). The burn is solved to end there.
-  perigee: -7e3,
+  // m, ≈: flight 14 is the first orbital flight, and its ship stayed up until the deorbit burn
+  // ≈8 h 40 min later (the cited timeline), so its burn is steered to end level in the orbit
+  // the re-entry starts from (mission.js): circular at 200 km, the re-entry's assumption — one
+  // assumption for both chapters, not two. The orbit itself is not published. (The burn used to
+  // end on flight 12's suborbital arc, apogee 195 km and perigee −7 km, from which the ship
+  // would have come down half an hour before the cited entry.)
+  holdAltitude: 200e3,
+  perigee: 200e3,
 };
 /** Linear-tangent constants, solved at load (see buildProfile). */
 export const SHIP_STEERING = { e0: 0, c: 0, cutoffSpeed: 0 };

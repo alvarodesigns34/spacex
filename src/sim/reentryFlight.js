@@ -9,11 +9,12 @@
  * T+9:50:30, on target in the northern Pacific, the landing burn relighting all three
  * sea-level Raptors.
  *
- * DERIVED — the state at entry. The orbit's altitude and the ship's mass are not published,
- * so they are assumed (ENTRY_ASSUMED, ≈): a 200 km circular orbit and ≈190 t after the
- * payload deploy; the 11 s burn on one 250 tf Raptor lowers the velocity by F·t/m ≈ 142 m/s
- * and vis-viva gives the speed and the flight-path angle at the 120 km entry interface
- * (≈7,74 km/s, ≈−1,6°).
+ * DERIVED — the state at entry, from the mission state (mission.js): the ship's mass and
+ * orbit where the ascent's burn leaves them at cutoff, the coast to the cited deorbit burn, the
+ * burn's propellant and Δv by the rocket equation, and the new orbit down to the 120 km entry
+ * interface: its speed and flight-path angle, and the mass that reaches it. One chain, so the
+ * mass and the orbital energy carry over from the ascent. The time it reaches the interface is
+ * the chain's PREDICTION; the chapter keeps the cited entry time and the panel shows the gap.
  *
  * SOLVED — by Newton iteration, three coefficients that make the model meet the cited times:
  * the drag area per unit mass in the hypersonic, belly-first attitude, its lift-to-drag
@@ -34,6 +35,7 @@
  * and ending at rest on the water with no acceleration left.
  */
 import { soundSpeedAt } from './launch.js';
+import { missionChain, MU, R_EARTH, MISSION } from './mission.js';
 
 const hms = (h, m, s) => h * 3600 + m * 60 + s;
 export const RE = {
@@ -45,8 +47,9 @@ export const RE = {
 /** The chapter the visitor watches: from half a minute before entry to after the splash. */
 export const CHAPTER = { start: RE.entry - 30, end: RE.splash + 25 };
 
-export const ENTRY_ASSUMED = { orbitAltitude: 200e3, mass: 190e3, deorbitThrust: 2.4517e6, interface: 120e3 };
-const MU = 3.986004418e14, RE_M = 6371e3;
+const RE_M = R_EARTH;
+/** The mission chain from the ship's cutoff to the entry interface (mission.js). */
+export const CHAIN = missionChain();
 
 /** Air density, kg/m³: 8,5 km scale height to 25 km, 6,8 km above (≈, a two-piece fit). */
 export function densityAt(h) {
@@ -54,16 +57,10 @@ export function densityAt(h) {
   return 1.225 * Math.exp(-25000 / 8500) * Math.exp(-(h - 25000) / 6800);
 }
 
-/** Speed and flight-path angle at the entry interface, from the orbit and the deorbit burn. */
+/** Speed and flight-path angle at the entry interface, and the mass there: the mission chain's. */
 export function entryState() {
-  const { orbitAltitude, mass, deorbitThrust, interface: hI } = ENTRY_ASSUMED;
-  const r0 = RE_M + orbitAltitude, v0 = Math.sqrt(MU / r0);
-  const dv = deorbitThrust / mass * (RE.deorbitEnd - RE.deorbitStart);
-  const va = v0 - dv;                              // at apoapsis after the burn
-  const a = 1 / (2 / r0 - va * va / MU);
-  const r = RE_M + hI, v = Math.sqrt(MU * (2 / r - 1 / a));
-  const gamma = -Math.acos(Math.min(1, (r0 * va) / (r * v)));
-  return { h: hI, v, gamma, dv };
+  const e = CHAIN.entry;
+  return { h: MISSION.interface, v: e.v, gamma: e.gamma, dv: CHAIN.burn.dv, m: e.m, predicted: e.t };
 }
 
 const ST = entryState();
@@ -76,6 +73,7 @@ const ST = entryState();
 function fly(q, rec) {
   const [k1, ld, k2] = q;
   let t = RE.entry, s = 0, h = ST.h, vx = ST.v * Math.cos(ST.gamma), vh = ST.v * Math.sin(ST.gamma);
+  let vc = 0, cross = 0;               // cross-range speed and distance, with the bank never reversed
   let m1 = null, m08 = null, prevM = Infinity;
   const DT = 0.05;
   // The record starts with the state at entry itself: it began one step in, so the table held
@@ -95,12 +93,15 @@ function fly(q, rec) {
     // kept vertical, a constant L/D skipped: 117 → 76 → 81 km, the heating falling and rising.
     // The rolled-out component goes to cross-range, which a 2-D model does not follow.
     const noLift = -D * vh / v - MU / (r * r) + vx * vx / r, up = L * D * vx / v;
-    // Allowed: pulling out of the dive (vh towards 0 over ≈30 s, ≈); never climbing.
-    const cap = -vh / 30;
+    // Allowed: pulling out of the dive (vh towards 0 over ≈60 s, ≈); never climbing. (Over
+    // 30 s, after the shallower entry the mission chain gives, the ship held level at 73 km for
+    // minutes and the heating rose again when it fell off that shelf.)
+    const cap = -vh / 60;
     const c = up > 1e-9 && noLift + up > cap ? Math.max(-1, Math.min(1, (cap - noLift) / up)) : 1;
     const ax = -D * vx / v - c * L * D * vh / v - vx * vh / r;
     const ah = noLift + c * up;
-    return [vx * RE_M / r, vh, ax, ah];
+    // The rolled-out part of the lift, sideways: what it would carry the ship off the plane (H32).
+    return [vx * RE_M / r, vh, ax, ah, Math.sqrt(Math.max(0, 1 - c * c)) * L * D];
   };
   while (t < RE.landingBurn - 1e-9) {
     const dt = Math.min(DT, RE.landingBurn - t);
@@ -112,6 +113,8 @@ function fly(q, rec) {
     h += dt / 6 * (k1_[1] + 2 * k2_[1] + 2 * k3_[1] + k4_[1]);
     vx += dt / 6 * (k1_[2] + 2 * k2_[2] + 2 * k3_[2] + k4_[2]);
     vh += dt / 6 * (k1_[3] + 2 * k2_[3] + 2 * k3_[3] + k4_[3]);
+    cross += (vc + dt / 6 * (k1_[4] + 2 * k2_[4] + 2 * k3_[4] + k4_[4]) / 2) * dt;
+    vc += dt / 6 * (k1_[4] + 2 * k2_[4] + 2 * k3_[4] + k4_[4]);
     t += dt;
     const M = Math.hypot(vx, vh) / soundSpeedAt(h);
     if (m1 === null && prevM > 1 && M <= 1) m1 = t - dt * (1 - prevM) / (M - prevM);
@@ -120,7 +123,7 @@ function fly(q, rec) {
     if (rec) rec.push([t, s, h, vx, vh]);
     if (h < -50) break;
   }
-  return { m1, m08, s, h, vx, vh };
+  return { m1, m08, s, h, vx, vh, cross, vc };
 }
 
 const BURN_T = RE.splash - RE.landingBurn;
@@ -146,23 +149,24 @@ function solve3(A, b) {
 
 export const SOLVE = { iterations: 0, residual: null };
 const Q = (() => {
-  // Seeded with the converged solution; the loop then only confirms it.
-  let q = [0.0037322123456632827, 0.7171587516330207, 0.002357370799899564];
-  const scale = [1e-4, 0.01, 1e-4];
+  // Levenberg–Marquardt (Newton damped towards gradient steps when a full step does not help),
+  // seeded with the converged solution, so the loop at load only confirms it. A plain Newton
+  // stalled at its first step when the entry state came from the mission chain.
+  let q = [0.00427325767689446, 0.623891499210633, 0.00232149235723273];
+  const scale = [1e-4, 0.005, 1e-4];
+  let lam = 1e-2;
   for (let it = 0; it < 40; it++) {
     SOLVE.iterations = it;
     const r0 = residual(q), n0 = Math.hypot(...r0);
     SOLVE.residual = n0;
-    if (n0 < 1e-3) break;
+    if (n0 < 5e-3) break;
     const J = q.map((_, j) => { const qq = q.slice(); qq[j] += scale[j]; return residual(qq).map((v, i) => (v - r0[i]) / scale[j]); });
-    const d = solve3(r0.map((_, i) => J.map(col => col[i])), r0.map(v => -v));
-    let lam = 1, moved = false;
-    while (lam > 1e-4) {
-      const qn = q.map((v, j) => Math.max(v * 0.2, v + lam * d[j]));
-      if (Math.hypot(...residual(qn)) < n0) { q = qn; moved = true; break; }
-      lam /= 2;
-    }
-    if (!moved) break;
+    const A = [0, 1, 2].map(a => [0, 1, 2].map(b => J[a].reduce((sum, _, i) => sum + J[a][i] * J[b][i], 0) * (a === b ? 1 + lam : 1)));
+    const g = [0, 1, 2].map(a => -J[a].reduce((sum, _, i) => sum + J[a][i] * r0[i], 0));
+    const d = solve3(A, g);
+    const qn = q.map((v, j) => Math.max(v * 0.3, v + d[j]));
+    if (Math.hypot(...residual(qn)) < n0) { q = qn; lam = Math.max(1e-6, lam / 3); } else lam *= 4;
+    if (lam > 1e8) break;
   }
   return q;
 })();
@@ -293,5 +297,9 @@ export function reentrySummary() {
     peakHeating: { t: peak.t, altitude: reentryAltAt(peak.t), speed: reentrySpeedAt(peak.t) },
     burnStart: { altitude: reentryAltAt(RE.landingBurn), speed: Math.hypot(flop.vx, flop.vh) },
     range: SPLASH_S,
+    // The cross-range the banked lift would build if the bank were never reversed: an upper bound
+    // the 2-D table does not fly (guidance reverses the bank to stay in its corridor; SpaceX
+    // publishes no bank profile). (≈)
+    crossRangeBound: END.cross,
   };
 }
