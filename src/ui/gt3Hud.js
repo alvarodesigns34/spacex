@@ -2,7 +2,7 @@
  * The Porsche's instruments while it drives, and the drive's controls. In the manner of the
  * 992's own cluster (≈, not a copy of it): a rev counter to 9,000 rpm with its shift light,
  * the gear in the middle, the speed in km/h; and the drive's own readouts — DRS, ABS,
- * traction control, the slide angle, the lateral g, the lap time.
+ * PSM, the slide angle, the lateral g, the lap time.
  */
 const fmt = (x, d = 0) => (Number.isFinite(x) ? x.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
 const lapTime = (t) => (t === null || t === undefined ? '—' : `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`);
@@ -20,12 +20,12 @@ export function createGt3Hud({ root, onEnd, onCamera, onRestart, onPause, onTrac
   bar.innerHTML = `
     <span class="eyebrow">Porsche 911 GT3 RS · 386 kW, seven-speed PDK, Porsche's published figures</span>
     <button type="button" class="f16-btn" id="gt3-cam" title="Camera: chase, driver, bonnet, trackside, your own orbit (C)">Chase <kbd>C</kbd></button>
-    <button type="button" class="f16-btn" id="gt3-tc" aria-pressed="false" title="Traction control (T): off, the tail slides out under power">TC <kbd>T</kbd></button>
+    <button type="button" class="f16-btn" id="gt3-tc" aria-pressed="true" title="PSM (T): traction and stability control, on as on the road; off, the car is all yours">PSM <kbd>T</kbd></button>
     <button type="button" class="f16-btn" id="gt3-pause" aria-pressed="false" title="Pause (K)">Pause <kbd>K</kbd></button>
     <button type="button" class="f16-btn" id="gt3-sound" aria-pressed="false" title="Sound (M): the flat six, the tyres and the wind, synthesised; off until you turn it on">Sound <kbd>M</kbd></button>
     <button type="button" class="f16-btn" id="gt3-restart" title="Back to the skid pad (Enter)">Pad <kbd>Enter</kbd></button>
     <button type="button" class="f16-btn f16-end" id="gt3-end" title="Back to the exhibit (Esc)">End <kbd>Esc</kbd></button>
-    <p class="f16-keys"><kbd>W</kbd> throttle · <kbd>S</kbd> brake, held when stopped: reverse · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> parking brake · <kbd>C</kbd> camera · <kbd>M</kbd> sound — the gearbox shifts by itself</p>
+    <p class="f16-keys"><kbd>W</kbd> throttle · <kbd>S</kbd> brake, held when stopped: reverse · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> parking brake: tap it into a corner to drift, then throttle and counter-steer · <kbd>C</kbd> camera · <kbd>M</kbd> sound — the gearbox shifts by itself</p>
     <ul class="f16-msgs" id="gt3-msgs" aria-live="polite"></ul>
   `;
   root.appendChild(bar);
@@ -88,7 +88,8 @@ export function createGt3Hud({ root, onEnd, onCamera, onRestart, onPause, onTrac
     g.font = '500 11px system-ui, sans-serif'; g.fillStyle = 'rgba(255,255,255,0.7)';
     g.fillText(`${fmt(r.rpm)} rpm`, cx, cy + R * 0.62);
     // The lamps: DRS, ABS, TC, parking brake.
-    const lamps = [['DRS', r.drs, '#4ad07a'], ['ABS', r.abs, '#ffb340'], ['TC', r.tc, '#4aa8ff'], ['P', r.handbrake, '#ff4a3c']];
+    // PSM: lit while on; amber while it is working (braking a wheel), dimmed while it stands back for a drift.
+    const lamps = [['DRS', r.drs, '#4ad07a'], ['ABS', r.abs, '#ffb340'], ['PSM', r.tc, r.esc ? '#ffb340' : r.drift ? '#7fbfff' : '#4aa8ff'], ['P', r.handbrake, '#ff4a3c']];
     lamps.forEach(([t, on, c], i) => {
       const x = cx - R - 70 + (i % 2) * 34, y = cy - 18 + Math.floor(i / 2) * 26;
       g.fillStyle = on ? c : 'rgba(255,255,255,0.18)';

@@ -4,18 +4,19 @@
  * of scene: the car, the circuit, the site and the runway are the ones the visitor walks round.
  *
  * Controls: W throttle, S brake (held at a standstill, reverse), A/D steer, Space the parking
- * brake (pulled while moving it locks the rears, as a drifter uses it), T the traction control
- * (off by default), C the camera, M the engine's sound (off until turned on), Enter back to
- * the pad, Esc to end. The keyboard's steering
- * ramps in and centres itself, and gives less lock the faster the car goes, except when the
- * tail is out, where it gives full lock for the counter-steer (≈ this simulation's).
+ * brake (tapped into a corner it locks the rears and starts a drift, which the throttle and the
+ * counter-steer then hold), T the PSM (traction and stability control, on by default), C the
+ * camera, M the engine's sound (off until turned on), Enter back to the pad, Esc to end. The
+ * keyboard's steering ramps in and centres itself, and asks for as much lock as the grip can
+ * use at the speed and under the braking of the moment (steerReach), more the way a slide is
+ * caught, for the counter-steer (≈ this simulation's aid).
  *
  * Tyre marks: where a tyre slides (combined slip past its peak) on a hard surface it lays a
  * dark strip of its own width, darker the harder it slides; the strips stay until the pool of
  * 12,000 segments wraps.
  */
 import * as THREE from 'three';
-import { createGt3Car, CAR } from './gt3Car.js';
+import { createGt3Car, CAR, steerReach } from './gt3Car.js';
 import { AXLE_F, AXLE_R } from '../vehicles/gt3rs.js';
 import { WHEELS } from '../data/gt3rs.js';
 import { trackCoords, toLocal, LAP, START } from '../core/circuitPlan.js';
@@ -167,7 +168,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
   function onKeyUp(e) { keys.delete(e.code); }
   function onBlur() { keys.clear(); }
   function note(text) { state.messages.push({ text, t: performance.now() }); if (state.messages.length > 4) state.messages.shift(); }
-  function setTraction(on) { s.tc = !!on; note(s.tc ? 'Traction control on' : 'Traction control off: the tail is yours'); }
+  function setTraction(on) { s.tc = !!on; note(s.tc ? 'PSM on: traction and stability control' : 'PSM off: the tail is yours'); }
   function setSound(on) { sound.setEnabled(on); note(sound.enabled ? 'Sound on: the flat six, the tyres, the wind (synthesised)' : 'Sound off'); }
 
   function readControls(dt) {
@@ -182,12 +183,10 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
     // Reverse: S held at a standstill.
     sim.input.reverse = brake && !gas && Math.abs(s.u) < 0.5 ? true : (s.reverse && !gas);
     driver.handbrake = k('Space');
-    // Steering: less lock at speed, unless the tail is out (the counter-steer needs it all).
-    const v = Math.max(0, s.u);
-    const slideDeg = Math.abs(Math.atan2(s.v, Math.max(1, Math.abs(s.u))) * R2D);
-    const reach = THREE.MathUtils.clamp(1 / (1 + (v / 22) ** 1.6) + slideDeg / 25, 0.12, 1);
-    const want = (left - right) * reach;
-    driver.steer = ramp(driver.steer, want, want ? 2.4 : 3.5);
+    // Steering: as much lock as the grip can use at this speed, more when the tail is out (the
+    // counter-steer needs it); it turns in at a hand's pace and centres itself.
+    const want = (left - right) * steerReach(s, left - right);
+    driver.steer = ramp(driver.steer, want, want ? 1.8 : 3.0);
     const pads = typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
     for (const g of pads) {
       if (!g || !g.connected) continue;
@@ -356,7 +355,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
     window.addEventListener('blur', onBlur);
     visibilityHook?.(true);
     hud?.show(true);
-    note('W go · S brake · A D steer · Space parking brake · the circuit is through the lane');
+    note('W go · S brake · A D steer · Space into a corner to drift · the circuit is through the lane');
     apply(0);
   }
   function restart() { if (state.running) { placeHome(); note('Back on the skid pad'); } }
@@ -401,6 +400,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
   function publish() {
     state.readout = {
       kmh: s.u * 3.6, rpm: Math.min(s.rpm, 9100), gear: s.reverse ? 'R' : s.gear, drs: s.drs, abs: s.abs, tc: s.tc,
+      esc: s.tc && Math.abs(s.esc) > 800, drift: s.drift > 0,
       slide: Math.atan2(s.v, Math.max(1, Math.abs(s.u))) * R2D, g: Math.hypot(s.ax, s.ay) / 9.81,
       throttle: driver.throttle, brake: driver.brake, handbrake: driver.handbrake > 0, surface: s.surface[2],
       lap: state.lap !== null ? s.t - state.lap : null, best: state.best, laps: state.laps,

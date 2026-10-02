@@ -2,7 +2,9 @@
 // The F-16's flight model, flown headless (no browser): the published numbers it is built on, and
 // what it does with them — at rest on the gear, a take-off, level flight, a full roll, the α
 // limiter, supersonic flight, a landing and a landing too hard for the gear. Each case is flown by
-// a small autopilot working the same inputs a player has (stick, throttle, rudder, brakes).
+// a small autopilot working the same inputs a player has (stick, throttle, rudder, brakes). Then
+// the simple controls (f16Assist.js) flown with the keys a visitor presses: W held from the
+// threshold, a dive at the ground, a hard turn, and an approach with the hands off to a stop.
 import { registerHooks } from 'node:module';
 
 registerHooks({ resolve(specifier, context, next) {
@@ -13,6 +15,7 @@ registerHooks({ resolve(specifier, context, next) {
 
 const THREE = await import('three');
 const { createF16Flight, thrust, atmosphere, CG } = await import('../src/sim/f16Flight.js');
+const { createF16Assist, calibrated, attitude } = await import('../src/sim/f16Assist.js');
 const { morelli, MORELLI, THRUST } = await import('../src/data/f16Aero.js');
 const { MASS } = await import('../src/data/f16.js');
 
@@ -207,6 +210,58 @@ function land({ sinkTarget = null } = {}) {
     'aterrizaje: senda de 3°, recogida, toma y frenada', r.td ? `toma a los ${r.td.t.toFixed(0)} s a ${r.td.kt.toFixed(0)} kt con ${r.td.sink.toFixed(2)} m/s de descenso y ${r.td.pitch.toFixed(1)}° de cabeceo, ${r.td.x.toFixed(0)} m del punto; para en ${r.stop?.x.toFixed(0)} m${r.crashed ? ` — ${JSON.stringify(r.crashed)}` : ''}` : `sin tomar tierra ${JSON.stringify(r.crashed)}`);
   const hard = land({ sinkTarget: -7 });
   report(!!hard.crashed, 'una toma a 7 m/s rompe el tren o el avión', hard.crashed ? `${hard.crashed.what}, ${hard.crashed.sink.toFixed(1)} m/s` : 'no se detectó');
+}
+
+// ---- The simple controls, flown with the visitor's keys ----------------------------------------
+function assisted({ setup, plan, T }) {
+  const { f, s } = make();
+  f.reset({ x: 0, z: 0 });
+  const pilot = { pitch: 0, roll: 0, yaw: 0, throttle: 0, brake: 1, parking: true, speedBrake: false, gearDown: true };
+  const notes = [], A = createF16Assist({ sim: f, pilot, note: (t) => notes.push(t) });
+  setup?.(f, s, pilot, A);
+  const r = { lift: null, td: null, maxAgl: 0, minAgl: Infinity, airborne: false, stopped: false, notes };
+  for (let k = 0; k < T * 30 && !s.crashed; k++) {
+    const t = k / 30, kc = calibrated(s.mach, atmosphere(s.pos.y).P) / KT;
+    A.step(plan(t, s, kc), 1 / 30, { touchdown: !!r.td });
+    Object.assign(f.input, { pitch: pilot.pitch, roll: pilot.roll, yaw: pilot.yaw, throttle: pilot.throttle, brake: pilot.brake, speedBrake: pilot.speedBrake ? 1 : 0, gearDown: pilot.gearDown });
+    const vy = s.vel.y;
+    f.advance(1 / 30);
+    if (!s.wow && s.agl > 2 && !r.lift) r.lift = kc;
+    if (!s.wow && s.agl > 5) r.airborne = true;
+    if (r.airborne && s.wow && !r.td) r.td = { sink: -vy, kt: kc };
+    if (r.airborne && !s.wow) { r.maxAgl = Math.max(r.maxAgl, s.agl); if (t > 25) r.minAgl = Math.min(r.minAgl, s.agl); }
+    if (r.td && s.tas < 0.5) { r.stopped = true; break; }
+  }
+  r.crashed = s.crashed; r.s = s; return r;
+}
+{
+  const r = assisted({ plan: () => ({ gas: 1 }), T: 40 });
+  report(!r.crashed && r.lift > 140 && r.lift < 195 && r.maxAgl > 300 && r.s.gear < 0.1,
+    'mandos simples: W mantenida desde la cabecera despega sola (rota, se va al aire, sube y recoge el tren), sin estrellarse',
+    `despega a ${r.lift?.toFixed(0)} kt, sube a ${(r.maxAgl / 0.3048).toFixed(0)} ft, tren ${r.s.gear.toFixed(2)}${r.crashed ? ', ' + r.crashed.what : ''}`);
+}
+{
+  const r = assisted({ plan: (t) => (t < 25 ? { gas: 1 } : t < 45 ? { down: 1 } : {}), T: 70 });
+  report(!r.crashed && r.notes.includes('Auto-GCAS: pull up') && r.minAgl > 60, 'mandos simples: picando hacia el suelo, el Auto-GCAS nivela y tira antes del impacto, con margen',
+    `altura mínima ${(r.minAgl / 0.3048).toFixed(0)} ft${r.crashed ? ', ' + r.crashed.what : ''}`);
+}
+{
+  const r = assisted({ plan: (t) => (t < 25 ? { gas: 1 } : t < 45 ? { turn: -1 } : t < 55 ? { turn: 1, shift: 1 } : {}), T: 70 });
+  const a = attitude(r.s);
+  report(!r.crashed && Math.abs(a.bank) < 10, 'mandos simples: viraje a 60° y a 80°, y al soltar las alas se nivelan', `alabeo final ${a.bank.toFixed(1)}°${r.crashed ? ', ' + r.crashed.what : ''}`);
+}
+{
+  const setup = (f, s, pilot, A) => {
+    const V = 150 * KT, g = 3 * D2R;
+    s.pos.set(-2200, CG.y + 2200 * Math.tan(g), 0); s.vel.set(V * Math.cos(g), -V * Math.sin(g), 0);
+    s.q.setFromAxisAngle(new THREE.Vector3(0, 0, 1), 5 * D2R); s.wow = false; s.gear = 1; s.agl = 115;
+    s.power = 35; pilot.throttle = 0.55; pilot.parking = false; pilot.brake = 0;
+    A.state.gearAuto = true; A.state.gammaCmd = -3;
+  };
+  const r = assisted({ setup, plan: () => ({}), T: 120 });
+  report(!r.crashed && r.td && r.td.sink < 2.5 && r.td.kt > 125 && r.td.kt < 165 && r.stopped,
+    'mandos simples: en la senda de 3° con el tren abajo y sin tocar nada, mantiene 150 kt, recoge, toma y se para',
+    r.td ? `toma a ${r.td.kt.toFixed(0)} kt con ${r.td.sink.toFixed(2)} m/s de descenso${r.stopped ? ', parado' : ''}` : (r.crashed?.what ?? 'sin toma'));
 }
 
 console.log(failed ? `\n${failed} comprobación(es) del F-16 fallida(s)` : '\nModelo de vuelo del F-16: todo correcto');

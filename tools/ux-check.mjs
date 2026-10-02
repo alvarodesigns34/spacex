@@ -650,24 +650,24 @@ try {
     });
     const ok = clock.frames.length >= 2 && clock.frames.every(f => Math.abs(f.dt - Math.min(f.gap, 0.5)) < 0.05 + 0.1 * f.gap);
     report(ok && Math.abs(clock.step - 0.3) < 1e-6, 'The flight keeps wall time: each frame hands it its real interval', clock);
-    // The simple controls: one press of W on the runway and it takes off, climbs and raises the
-    // gear by itself; D banks directly and the bank holds when it is let go (no wing levelling), A
-    // brings it back.
+    // The simple controls: W held from the threshold (as in the car) opens the throttle and it
+    // takes off, climbs and raises the gear by itself, never nosing into the runway; D banks and
+    // let go the wings come level; ↓ held towards the ground and Auto-GCAS pulls it out.
     const easy = await page.evaluate(() => {
       const F = window.__vc.f16fly, s = F.sim.state;
       const key = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code, key: code.slice(-1).toLowerCase(), bubbles: true }));
-      const fly = (sec) => { for (let k = 0; k < sec * 30; k++) F.update(1 / 30); };
-      key('keydown', 'KeyW'); fly(0.3); key('keyup', 'KeyW'); fly(40);
+      const fly = (sec) => { for (let k = 0; k < sec * 30 && !s.crashed; k++) F.update(1 / 30); };
+      key('keydown', 'KeyW'); fly(40); key('keyup', 'KeyW');
       const up = { alt: s.agl, gear: F.pilot.gearDown, crashed: s.crashed?.what ?? null };
-      key('keydown', 'KeyD'); fly(0.8); key('keyup', 'KeyD'); fly(1); const banked = F.state.readout.roll;
-      fly(4); const held = F.state.readout.roll;
-      key('keydown', 'KeyA'); fly(0.8); key('keyup', 'KeyA'); fly(3);
-      const level = F.state.readout.roll;
+      key('keydown', 'KeyD'); fly(1.2); const banked = F.state.readout.roll;
+      key('keyup', 'KeyD'); fly(4); const level = F.state.readout.roll;
+      key('keydown', 'ArrowDown'); fly(30); key('keyup', 'ArrowDown'); fly(10);
+      const dive = { crashed: s.crashed?.what ?? null, gcas: F.state.messages.some(m => m.text.includes('GCAS')) || F.state.readout.messages.some(m => m.includes('GCAS')) };
       F.restart();
-      return { ...up, banked: +banked.toFixed(1), held: +held.toFixed(1), level: +level.toFixed(1), assist: F.state.assist };
+      return { ...up, banked: +banked.toFixed(1), level: +level.toFixed(1), dive, assist: F.state.assist };
     });
-    report(easy.assist && easy.alt > 150 && !easy.gear && !easy.crashed && easy.banked > 50 && Math.abs(easy.held - easy.banked) < 10 && Math.abs(easy.level) < 12,
-      'Simple controls: W takes off by itself, D banks and the bank holds, A brings it back', easy);
+    report(easy.assist && easy.alt > 150 && !easy.gear && !easy.crashed && Math.abs(easy.banked) > 40 && Math.abs(easy.level) < 10 && !easy.dive.crashed,
+      'Simple controls: W held takes off and climbs out, D banks and the wings level when let go, a dive at the ground is pulled out', easy);
     // A take-off on the flight model, flown in real time steps by a scripted pilot.
     const flown = await page.evaluate(async () => {
       const v = window.__vc, F = v.f16fly, s = F.sim.state, P = F.pilot;
@@ -719,16 +719,25 @@ try {
     });
     report(started.running && started.cls && started.hud && started.onPad && Math.abs(started.speed) < 0.1,
       'B starts the Porsche on its skid pad, at rest, with its instruments, in the same scene', started);
-    // W pulls away, the gearbox shifts by itself, A with the throttle on slides the tail and the
-    // tyres lay marks on the pad; S stops it.
+    // W pulls away, the gearbox shifts by itself; A with the throttle on turns it without the
+    // tail coming round (PSM on); Space tapped with A starts a drift that the throttle holds and
+    // the tyres lay marks on the pad; S stops it.
     const drive = await page.evaluate(() => {
       const D = window.__vc.gt3drive, s = D.sim.state;
       const key = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code, key: code.slice(-1).toLowerCase(), bubbles: true }));
       const run = (codes, sec) => { for (const c of codes) key('keydown', c); for (let k = 0; k < sec * 30; k++) D.update(1 / 30); for (const c of codes) key('keyup', c); };
       run(['KeyW'], 2.2);
       const fast = { kmh: s.u * 3.6, gear: s.gear };
-      run(['KeyW', 'KeyA'], 1.2);
-      const slid = { slide: Math.abs(D.state.readout.slide), marks: D.marks.count };
+      let grip = 0;
+      for (const c of ['KeyW', 'KeyA']) key('keydown', c);
+      for (let k = 0; k < 1.2 * 30; k++) { D.update(1 / 30); grip = Math.max(grip, Math.abs(D.state.readout.slide)); }
+      key('keyup', 'KeyW');
+      run(['Space'], 0.35);
+      let slide = 0;
+      key('keydown', 'KeyW');
+      for (let k = 0; k < 1.2 * 30; k++) { D.update(1 / 30); slide = Math.max(slide, Math.abs(D.state.readout.slide)); }
+      for (const c of ['KeyW', 'KeyA']) key('keyup', c);
+      const slid = { grip, slide, marks: D.marks.count };
       // S brakes it to a stop (held on, it would then go into reverse, as it should).
       let stopped = false;
       key('keydown', 'KeyS');
@@ -736,8 +745,8 @@ try {
       key('keyup', 'KeyS');
       return { ...fast, ...slid, stopped, finite: [s.x, s.z, s.psi].every(Number.isFinite) };
     });
-    report(drive.kmh > 50 && drive.gear >= 2 && drive.marks > 20 && drive.stopped && drive.finite,
-      'W pulls away and shifts, W with A slides the tail and leaves tyre marks, S stops it', drive);
+    report(drive.kmh > 50 && drive.gear >= 2 && drive.grip < 8 && drive.slide > 15 && drive.marks > 20 && drive.stopped && drive.finite,
+      'W pulls away and shifts, W with A turns without sliding, Space with A drifts and leaves tyre marks, S stops it', drive);
     await page.keyboard.press('c');
     await page.waitForTimeout(200);
     report(await page.evaluate(() => window.__vc.gt3drive.state.camera === 'driver'), 'C goes to the driver\'s seat');

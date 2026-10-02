@@ -13,6 +13,9 @@
  */
 import * as THREE from 'three';
 import { createF16Flight, CG, atmosphere } from './f16Flight.js';
+import { createF16Assist, calibrated } from './f16Assist.js';
+
+export { calibrated };
 import { RUNWAY, fromRunway, toRunway } from '../core/terrain.js';
 import { COCKPIT } from '../vehicles/f16.js';
 import { OVERALL, LINES } from '../data/f16.js';
@@ -23,27 +26,6 @@ const D2R = Math.PI / 180, R2D = 180 / Math.PI, FT = 0.3048, KT = 0.514444;
 const RW_NAME = RUNWAY.idents[1], RW_HEADING = (100.8 + RUNWAY.angleDeg + 180) % 360;
 const L2 = RUNWAY.length / 2;
 const CAMERAS = ['chase', 'cockpit', 'tower', 'orbit'];
-
-/**
- * Calibrated airspeed, m/s, as the airspeed indicator reads it: from the pitot's impact pressure,
- * isentropic below Mach 1 and behind the normal shock (Rayleigh's pitot formula) above, converted
- * at sea-level standard conditions.
- */
-export function calibrated(M, P) {
-  const P0 = 101325, a0 = 340.294;
-  const qc = M <= 1 ? P * (Math.pow(1 + 0.2 * M * M, 3.5) - 1)
-    : P * (166.921 * Math.pow(M, 7) / Math.pow(7 * M * M - 1, 2.5) - 1);
-  // The inverse at sea level, subsonic or supersonic (by iteration on the Rayleigh form).
-  const r = qc / P0;
-  let V = a0 * Math.sqrt(5 * (Math.pow(r + 1, 2 / 7) - 1));
-  if (V > a0) {
-    for (let i = 0; i < 20; i++) {
-      const m = V / a0;
-      V = a0 * 0.881285 * Math.sqrt((r + 1) * Math.pow(1 - 1 / (7 * m * m), 2.5));
-    }
-  }
-  return V;
-}
 
 export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, onStart = () => {}, onFinish = () => {}, visibilityHook = null }) {
   const airframe = exhibit.model.getObjectByName('f16-airframe');
@@ -140,7 +122,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
     pilot.gearDown = !pilot.gearDown;
     note(pilot.gearDown ? 'Gear down' : 'Gear up');
   }
-  function setAssist(on) { state.assist = !!on; note(state.assist ? 'Simple controls: W S A D and G' : 'Full controls: every control is yours'); }
+  function setAssist(on) { state.assist = !!on; note(state.assist ? 'Simple controls: W S power, ↑ ↓ climb, A D turn, G gear' : 'Full controls: every control is yours'); }
   function note(text) { state.messages.push({ text, t: performance.now() }); if (state.messages.length > 4) state.messages.shift(); }
 
   const padPrev = new Map();
@@ -188,70 +170,15 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
     toSim();
   }
 
-  /**
-   * The simple controls (on by default; the bar's Assist button gives every control back). The
-   * airplane and its control laws are the same; only the controls a beginner finds hard are
-   * worked for them, as a second pilot would:
-   *  - W on the runway starts the take-off: full afterburner, brakes off. It rotates by itself
-   *    at 140 kt to 10° of pitch (never past 11°: the nozzle strikes at ≈14.5°), holds that in the
-   *    climb-out and raises the gear.
-   *  - In the air: S nose up, W nose down; A/D roll into a turn (≈90°/s, up to 80° of bank) and
-   *    the airplane pulls the g the turn needs by itself. Let go of anything and it stays as it is:
-   *    no wings-levelling, no height hold. The throttle holds 350 kt, or 145 kt with the gear down.
-   *  - After a touchdown: idle and the brakes. A/D steer the nose wheel on the ground.
-   */
-  const _a = new THREE.Vector3();
-  let assistClimb = false, rolling = false, atI = 0, gearAuto = false, bankCmd = 0;
+  /** The simple controls (on by default; the bar's Assist button gives every control back): f16Assist.js. */
+  const assist = createF16Assist({ sim, pilot, note });
   function easyControls(dt) {
     const k = (...c) => (c.some(x => keys.has(x)) ? 1 : 0);
-    const ramp = (cur, target, rate) => cur + THREE.MathUtils.clamp(target - cur, -rate * dt, rate * dt);
-    const up = k('KeyS', 'ArrowDown'), down = k('KeyW', 'ArrowUp');
-    const tr = k('KeyD', 'ArrowRight') - k('KeyA', 'ArrowLeft');
-    const pitchDeg = Math.asin(THREE.MathUtils.clamp(_a.set(1, 0, 0).applyQuaternion(s.q).y, -1, 1)) * R2D;
-    const bank = Math.asin(THREE.MathUtils.clamp(-_a.set(0, 0, 1).applyQuaternion(s.q).y, -1, 1)) * R2D;
-    if (s.wow) {
-      pilot.roll = ramp(pilot.roll, tr, tr ? 2.5 : 5);
-      if (down && s.tas < 5) {
-        if (!rolling) note('Take-off: full afterburner');
-        rolling = true; state.touchdown = null; if (state.outcome?.kind === 'stopped') state.outcome = null;
-        pilot.parking = false;
-      }
-      if (state.touchdown) rolling = false;
-      pilot.throttle = rolling ? 1 : 0;
-      pilot.brake = rolling ? 0 : 1;
-      pilot.yaw = pilot.roll;
-      pilot.pitch = rolling && s.tas > 140 * KT ? THREE.MathUtils.clamp(0.08 * (10 - pitchDeg), -0.2, 0.8) : 0;
-      if (pitchDeg > 11) pilot.pitch = Math.min(pilot.pitch, 0);
-      assistClimb = rolling; atI = 0; bankCmd = 0;
-      return;
-    }
-    rolling = false;
-    pilot.yaw = 0;
-    pilot.brake = 0;
-    // A/D roll the airplane into a turn, about 90°/s, up to 80° of bank; let go and it stays at
-    // the bank it has. Banked, it pulls by itself the load factor a level turn needs (1/cos φ),
-    // so the nose comes round to that side at once.
-    bankCmd = THREE.MathUtils.clamp(bankCmd + tr * 90 * dt, -80, 80);
-    if (!tr && Math.abs(bankCmd - bank) > 25) bankCmd = bank;   // after W/S or a big upset, keep what it has
-    pilot.roll = THREE.MathUtils.clamp(0.035 * (bankCmd - bank) - 0.004 * s.w.x * R2D, -0.8, 0.8);
-    // W/S move the nose; let go and the stick comes back to the turn's own pull: the airplane
-    // goes on along the path it has, climbing, level or diving.
-    const want = up * 0.55 - down * 0.7;
-    const turnG = Math.abs(bank) < 85 ? (1 / Math.max(0.3, Math.cos(bank * D2R)) - 1) / 8 : 0;
-    if (want) assistClimb = false;
-    if (assistClimb && s.agl < 150) pilot.pitch = THREE.MathUtils.clamp(0.03 * (10 - pitchDeg) - 0.01 * s.w.y * R2D, -0.15, 0.3);
-    else { assistClimb = false; pilot.pitch = ramp(pilot.pitch, want + turnG, want ? 1.2 : 3); }
-    // The gear comes up by itself once, climbing away from the take-off.
-    if (pilot.gearDown && !gearAuto && s.agl > 60 && s.vel.y > 2) { pilot.gearDown = false; gearAuto = true; note('Gear up · G lowers it to land'); }
-    // Autothrottle on calibrated airspeed: 350 kt, or 145 kt with the gear down.
-    // Full power through the climb-out, until the gear is up.
-    if (!gearAuto) { pilot.throttle = 1; return; }
-    const target = (pilot.gearDown ? 145 : 350) * KT, cas = calibrated(s.mach, atmosphere(s.pos.y).P);
-    const err = target - cas;
-    atI = THREE.MathUtils.clamp(atI + err * 0.004 * dt, -0.6, 0.6);
-    pilot.throttle = THREE.MathUtils.clamp(0.45 + atI + err * 0.02, 0, 1);
-    // Too fast with the gear down: the speed brakes come out.
-    pilot.speedBrake = pilot.gearDown && err < -15 * KT;
+    assist.step({
+      gas: k('KeyW'), cut: k('KeyS'), up: k('ArrowUp'), down: k('ArrowDown'),
+      turn: k('KeyD', 'ArrowRight') - k('KeyA', 'ArrowLeft'), shift: k('ShiftLeft', 'ShiftRight'),
+    }, dt, { touchdown: !!state.touchdown });
+    if (k('KeyW') && s.wow) { state.touchdown = null; if (state.outcome?.kind === 'stopped') state.outcome = null; }
   }
   function toSim() {
     Object.assign(sim.input, {
@@ -380,7 +307,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
     sim.reset({ x: nx, z: nz, yaw: (180 - RUNWAY.angleDeg) * D2R });
     Object.assign(pilot, { pitch: 0, roll: 0, yaw: 0, throttle: 0, brake: 1, parking: true, speedBrake: false, gearDown: true });
     Object.assign(state, { outcome: null, touchdown: null, flown: false, paused: false });
-    rolling = false; assistClimb = false; atI = 0; gearAuto = false; bankCmd = 0;
+    assist.reset();
   }
   function start() {
     if (state.running) return;
@@ -404,7 +331,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
     window.addEventListener('blur', onBlur);
     visibilityHook?.(true);
     hud?.show(true);
-    note(state.assist ? 'W to take off · S up, W down, A/D turn · G gear to land' : 'Hold R for throttle (afterburner past 77 %) · at 135 kt hold S to rotate');
+    note(state.assist ? 'Hold W for power · it rotates by itself · ↑ ↓ climb and descend · A D turn · G gear to land' : 'Hold R for throttle (afterburner past 77 %) · at 135 kt hold S to rotate');
     apply(0);
   }
   function restart() {

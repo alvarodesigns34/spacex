@@ -2,8 +2,11 @@
 // The Porsche 911 GT3 RS's vehicle model, driven headless (no browser), against Porsche's own
 // figures: 0–100, 0–160 and 0–200 km/h and the top speed (technical data, 08/2022), the drag
 // area derived from that top speed, the downforce of the press kit; and what a driver does with
-// it — a stop from 100 km/h, a steady corner, power oversteer with the traction control off, a
-// spin on the spot, reverse, the gravel's drag, and the kerbs and verges of the circuit.
+// it — a stop from 100 km/h, a steady corner, power oversteer with PSM off, a spin on the spot,
+// reverse, the gravel's drag, and the kerbs and verges of the circuit; and driven as the
+// keyboard drives it (steerReach, the pedals' ramps): stable with PSM on where a road car is —
+// flat out round a corner, braking hard into one — and a drift started with the parking brake
+// that the throttle and the counter-steer hold without a spin.
 import { registerHooks } from 'node:module';
 
 registerHooks({ resolve(specifier, context, next) {
@@ -12,7 +15,7 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 
-const { createGt3Car, CAR, fullTorque } = await import('../src/sim/gt3Car.js');
+const { createGt3Car, CAR, fullTorque, steerReach } = await import('../src/sim/gt3Car.js');
 const { ENGINE, GEARBOX, PERFORMANCE, AERO, BODY } = await import('../src/data/gt3rs.js');
 const { circuitSurface } = await import('../src/core/circuit.js');
 const { toWorld, LAP, CENTRE } = await import('../src/core/circuitPlan.js');
@@ -87,7 +90,8 @@ const rolling = (s, v, g) => { s.u = v; s.gear = g; s.w = s.w.map((_, k) => v / 
 // ---- Drifting: power oversteer with the TC off, a spin, reverse ---------------------------------------
 {
   const { c, s, i } = make();
-  rolling(s, 60 * KMH, 2);
+  s.tc = false;
+  rolling(s, 30 * KMH, 1);
   i.throttle = 1; i.steer = 0.5;
   let maxSlide = 0, marks = 0;
   for (let t = 0; t < 2; t += DT) {
@@ -95,11 +99,12 @@ const rolling = (s, v, g) => { s.u = v; s.gear = g; s.w = s.w.map((_, k) => v / 
     maxSlide = Math.max(maxSlide, Math.abs(Math.atan2(s.v, Math.max(1, s.u))) * 180 / Math.PI);
     if (s.slip[2] > 1.15 || s.slip[3] > 1.15) marks++;
   }
-  report(maxSlide > 10, 'sobreviraje con gas (control de tracción fuera): la zaga desliza más de 10°', `${maxSlide.toFixed(0)}°`);
+  report(maxSlide > 10, 'sobreviraje con gas en 1.ª a 30 km/h (PSM fuera): la zaga desliza más de 10°', `${maxSlide.toFixed(0)}°`);
   report(marks > 100, 'los traseros pasan del pico de agarre (lo que deja marcas)', `${marks} pasos`);
 }
 {
   const { c, s, i } = make();
+  s.tc = false;
   i.throttle = 1; i.steer = -1;
   const psi0 = s.psi;
   for (let t = 0; t < 4; t += DT) c.step(DT);
@@ -127,6 +132,44 @@ const rolling = (s, v, g) => { s.u = v; s.gear = g; s.w = s.w.map((_, k) => v / 
   }
   const ok = [s.x, s.z, s.u, s.v, s.r, s.rpm, ...s.w].every(Number.isFinite);
   report(ok, 'un minuto de mandos al azar: todo finito', `x ${s.x.toFixed(0)} z ${s.z.toFixed(0)} · ${(s.u * 3.6).toFixed(0)} km/h`);
+}
+
+// ---- Driven as the keyboard drives it --------------------------------------------------------------
+/** Keys over time → the drive's pedals and steering (its ramps and steerReach), on flat asphalt. */
+function drive({ v0 = 0, gear = 1, psm = true, keys, T = 5 }) {
+  const { c, s, i } = make();
+  s.tc = psm; rolling(s, v0, gear);
+  const d = { throttle: 0, brake: 0, steer: 0 }, F = 1 / 60;
+  const ramp = (cur, t, r) => cur + Math.max(-r * F, Math.min(r * F, t - cur));
+  let maxBeta = 0, sideways = 0;
+  const psi0 = s.psi;
+  for (let t = 0; t < T; t += F) {
+    const k = keys(t, s);
+    d.throttle = ramp(d.throttle, k.w ? 1 : 0, 7); d.brake = ramp(d.brake, k.s ? 1 : 0, 8);
+    const dir = (k.a ? 1 : 0) - (k.d ? 1 : 0);
+    d.steer = ramp(d.steer, dir * steerReach(s, dir), dir ? 1.8 : 3.0);
+    Object.assign(i, { throttle: d.throttle, brake: d.brake, steer: d.steer, handbrake: k.space ? 1 : 0 });
+    c.advance(F);
+    const b = Math.abs(Math.atan2(s.v, Math.max(1, Math.abs(s.u)))) * 180 / Math.PI;
+    maxBeta = Math.max(maxBeta, b);
+    if (b > 15 && s.u > 4) sideways += F;
+  }
+  return { s, maxBeta, sideways, turned: Math.abs(s.psi - psi0) * 180 / Math.PI };
+}
+{
+  const r = drive({ v0: 80 * KMH, gear: 3, keys: () => ({ w: true, a: true }) });
+  report(r.maxBeta < 5, 'PSM: a fondo y con todo el volante a 80 km/h, el coche gira sin cruzarse (< 5°)', `${r.maxBeta.toFixed(1)}°`);
+}
+{
+  const on = drive({ v0: 150 * KMH, gear: 5, keys: (t) => ({ s: true, a: t > 0.3 }), T: 4 });
+  const off = drive({ v0: 150 * KMH, gear: 5, psm: false, keys: (t) => ({ s: true, a: t > 0.3 }), T: 4 });
+  report(on.maxBeta < 8 && off.maxBeta < 15, 'frenando a fondo desde 150 km/h y girando: ABS, EBD y PSM lo mantienen recto de cola (< 8°; sin PSM < 15°)', `${on.maxBeta.toFixed(1)}° · sin PSM ${off.maxBeta.toFixed(1)}°`);
+}
+{
+  // A drifter: Space tapped with A into the corner, then the throttle and counter-steer on the slide angle.
+  const drifter = (t, s) => { const b = Math.atan2(s.v, Math.max(1, Math.abs(s.u))); return t < 0.35 ? { space: true, a: true } : { w: true, d: b < -0.35, a: b > -0.12 }; };
+  const r = drive({ v0: 60 * KMH, gear: 2, keys: drifter, T: 6 });
+  report(r.sideways > 2 && r.maxBeta < 75 && r.s.u > 5, 'derrape con el freno de mano: un toque de Espacio lo inicia y el gas y el contravolante lo sostienen sin trompo', `${r.sideways.toFixed(1)} s cruzado más de 15°, máx. ${r.maxBeta.toFixed(0)}°, sale a ${(r.s.u * 3.6).toFixed(0)} km/h`);
 }
 
 // ---- The circuit's surfaces ----------------------------------------------------------------------

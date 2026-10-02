@@ -120,6 +120,28 @@ Fases, un commit cada una:
       - `src/sim/gt3Sound.js`: `createGt3Sound()` → `{ enabled, setEnabled, update(state, input, surface), stop }`. Tecla M en `gt3Drive.js`, botón `#gt3-sound` en `gt3Hud.js`.
       - Cuatro paradas `gt3rs` al final de `TOUR` en `main.js` (overview, side, rear y wheel), validadas por `provenance-check`.
 
+### Conducción del Porsche y vuelo del F-16, revisados (02-10-2026, orden del usuario)
+
+El usuario pidió:
+1. corregir la conducción del Porsche: derrapes exagerados, derrapes al frenar, y derrapar con la barra espaciadora;
+2. corregir el vuelo del F-16, «realista pero sencillo y divertido»: era imposible despegar y se chocaba con la pista;
+3. una pasada exhaustiva a cada vehículo, uno a uno, despegues de Starship incluidos.
+
+Lo hecho en 1 y 2 (detalle en el README, sección del 2 de octubre):
+- **Porsche** (`gt3Car.js`):
+  - `s.tc` es ahora el PSM, encendido por defecto, con control de estabilidad (`s.esc`, `escBrake`, `escKeep`);
+  - ABS continuo (`s.absK`), EBD y control de frenada en curva;
+  - `AXLE_MU` y `AXLE_ALPHA` por eje;
+  - derrape con freno de mano (`s.drift`, con ayuda antitrompo solo con PSM);
+  - `steerReach(s, dir)` para el teclado (círculo de fricción, contravolante solo hacia el derrape).
+  - Pruebas en `gt3rs-check.mjs` («Driven as the keyboard drives it») y en `ux-check`.
+- **F-16:** mandos sencillos en `src/sim/f16Assist.js` (`createF16Assist`, `calibrated`, `attitude`), que `f16Fly.js` usa.
+  - Teclas: W/S potencia, ↑/↓ trayectoria, A/D alabeo con nivelación.
+  - Ayudas: Auto-GCAS, autoacelerador a 150 kt con el tren abajo, recogida.
+  - Bucle exterior en términos de C*.
+  - En `f16Flight.js`, la amortiguación de cabeceo en tierra baja de 3,0 a 1,2.
+  - Pruebas «mandos simples» en `f16-check.mjs`, y en `ux-check`.
+
 ### Al retomar
 
 1. `git fetch --all` y comprueba:

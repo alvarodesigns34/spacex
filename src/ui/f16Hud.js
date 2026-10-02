@@ -26,11 +26,11 @@ export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause, onAssi
   bar.innerHTML = `
     <span class="eyebrow">F-16A Block 15 · flight model from NASA wind-tunnel data</span>
     <button type="button" class="f16-btn" id="f16-cam" title="Camera: chase, cockpit, tower, your own orbit (C)">Chase <kbd>C</kbd></button>
-    <button type="button" class="f16-btn" id="f16-assist" aria-pressed="true" title="Simple controls (W S A D and G); off gives every control of the airplane">Simple</button>
+    <button type="button" class="f16-btn" id="f16-assist" aria-pressed="true" title="Simple controls (W S power, ↑ ↓ climb, A D turn, G gear); off gives every control of the airplane">Simple</button>
     <button type="button" class="f16-btn" id="f16-pause" aria-pressed="false" title="Pause (K)">Pause <kbd>K</kbd></button>
     <button type="button" class="f16-btn" id="f16-restart" title="Back to the runway's threshold (Enter)">Runway <kbd>Enter</kbd></button>
     <button type="button" class="f16-btn f16-end" id="f16-end" title="Back to the exhibit (Esc)">End <kbd>Esc</kbd></button>
-    <p class="f16-keys f16-easy"><kbd>W</kbd> take off, then nose down · <kbd>S</kbd> nose up · <kbd>A</kbd><kbd>D</kbd> turn · <kbd>G</kbd> gear · <kbd>C</kbd> camera — engine and brakes look after themselves</p>
+    <p class="f16-keys f16-easy"><kbd>W</kbd><kbd>S</kbd> power (hold W to take off) · <kbd>↑</kbd><kbd>↓</kbd> climb, descend · <kbd>A</kbd><kbd>D</kbd> turn (<kbd>Shift</kbd> harder) · <kbd>G</kbd> gear: it holds 150 kt and flares for you · <kbd>C</kbd> camera</p>
     <p class="f16-keys f16-full"><kbd>W</kbd><kbd>S</kbd> stick fore/aft (<kbd>Shift</kbd> full) · <kbd>A</kbd><kbd>D</kbd> roll · <kbd>Q</kbd><kbd>E</kbd> rudder and nose wheel · <kbd>R</kbd><kbd>F</kbd> throttle · <kbd>Space</kbd> brakes · <kbd>B</kbd> speed brakes · <kbd>G</kbd> gear</p>
     <ul class="f16-msgs" id="f16-msgs" aria-live="polite"></ul>
     <div class="f16-result hidden" id="f16-result" role="status"></div>

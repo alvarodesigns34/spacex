@@ -210,7 +210,7 @@ export function createF16Flight({ ground }) {
       // The stick moves the stabilators directly, damped by pitch rate, so the nose comes up
       // at the speed the pilot rotates at, not when a g command is met.
       ctl.pitchI = 0;
-      de = -FCS.stab.limit * st + 3.0 * q * R2D;
+      de = -FCS.stab.limit * st + 1.2 * q * R2D;
     } else {
       // TP-1538: "washed-out pitch rate and filtered normal acceleration were fed back", with
       // a forward-loop integrator so the steady response matches the command. The washout

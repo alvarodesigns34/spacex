@@ -63,11 +63,15 @@ y abrir la URL que indique. `npm run serve` es un servidor en Node (`tools/serve
 - **G** (o el botón *Starship · Launch*) arranca la secuencia de Starship. Durante la cuenta atrás y el ascenso la cámara sigue un plan de planos, pero **arrastrar o girar la rueda devuelve el control al instante** sin detener la secuencia, y **la cámara sigue montada en el cohete**: el centro de la órbita se mueve con el vehículo y la cámara con él, así que se puede girar alrededor, pausar, reanudar o saltar a otro instante sin perderlo. Antes, al tomar el control la cámara se quedaba quieta donde la había dejado el plan de planos y el cohete salía de cuadro en segundos, con pausa o sin ella. El botón **Camera** (o **C**) elige entre los **planos de realización** y **tu órbita montada en el propulsor** o **en la nave** (tras la separación van cada uno por su lado); el cielo, los planos de recorte y las sombras siguen al vehículo en el que vas. El panel de misión lleva reloj, fase y el siguiente hito con su hora; **las dos etapas lado a lado, como en la retransmisión** (Super Heavy y Starship, cada una con su velocidad, su altitud y un **esquema de motores** que enciende un círculo por motor en el orden real: los 33 a la vez en el arranque del propulsor V3, 5 en la separación en caliente, y los 6 de la nave); un rótulo que aparece sobre la imagen al cruzar cada hito; un botón **Sound** (apagado por defecto, se recuerda) un botón **Pause** (o **K**, o la barra espaciadora fuera del vuelo libre) que congela el reloj de misión dejando la cámara libre para rodear la escena parada, un selector de velocidad **×¼** (cámara lenta) / ×1 / ×2 / ×5 / ×10 que multiplica el reloj (no salta hitos; el reloj de misión sigue al tiempo real aunque la imagen vaya a pocos fotogramas, y se detiene con la pestaña oculta) un botón **Restart** que vuelve a T−40 y un botón para terminar. Debajo de las cifras hay un **perfil de vuelo**: la altitud de la nave y la del propulsor en toda la misión, en escala de raíz cuadrada para que los 150 m de la captura y los ≈106 km del apogeo del propulsor quepan en la misma gráfica. Lleva una marca por hito y un cursor en el instante actual. Las curvas se muestrean de la misma trayectoria integrada que mueve los vehículos, así que no pueden contradecirse. El perfil es también la **línea de tiempo**: un clic o un arrastre sobre él salta a ese instante, y **←** / **→** van al hito anterior o siguiente. `seek(t)` es determinista (la nube se vuelve a simular desde la ignición), así que un salto cae en el mismo fotograma que se alcanzaría reproduciendo. En pantallas de menos de 560 px de alto se oculta.
 - **X** (o el botón *Reentry*) reproduce la **reentrada de la nave del vuelo 14** y su amerizaje en el Pacífico norte, con los tiempos publicados por SpaceX (ver *Reentrada de Starship*). Usa el mismo panel de misión: reloj en horas (T+09:28:56…), fase, siguiente hito, velocidad y altitud de la nave, esquema de motores (3 → 2 → 1 en el encendido de aterrizaje) y perfil de altitud que sirve de línea de tiempo (sin la columna ni la leyenda del propulsor, y con el botón *Reentry* encendido en lugar de *Launch*). Arranca a ×10, porque son 22 minutos. **C** alterna entre realización, cámara a bordo y persecución. **Arrastrar o girar la rueda toma la cámara** como en el lanzamiento: la órbita queda montada en la nave y la sigue en su caída (el botón dice *riding the ship*), y **C** devuelve la cámara a la realización. **K** pausa, **←**/**→** saltan entre hitos y **X** o *End* terminan; también la terminan **G**, elegir un vehículo o la visita guiada. Si se pulsa X paseando, la cámara vuelve al modo órbita.
 - **J** (o el botón *F-16 · Fly*) **pilota el F-16** desde donde está, en la cabecera de la pista 28, junto al recinto. Despega, vuela por el mismo mundo de la simulación, sin cambiar de escena, y aterriza. Los mandos son simples:
-  - **W** en la pista despega (motor a fondo, rota solo a 140 kt y sube el tren). En el aire, **W** baja el morro y **S** lo sube; al soltarlos, el avión sigue la trayectoria que lleva.
-  - **A/D** viran directamente: la inclinación crece 90° por segundo mientras se pulsan (hasta 80°) y se queda donde se suelta, con el tirón que pide el viraje; la tecla contraria la devuelve. No hay nivelación automática. En tierra giran la rueda delantera.
-  - **G** baja el tren para aterrizar (el motor pasa a 145 kt y saca los aerofrenos si va rápido); tras tocar tierra, ralentí y frenos.
+  - **W/S** son la potencia, como en el coche. Manteniendo **W** en la pista, el motor llega a postcombustión, el avión rota solo hacia los 120 kt, despega y sube el tren. Con el gas al mínimo, **S** frena en tierra y saca los aerofrenos en el aire.
+  - **↑/↓** suben y bajan: fijan la trayectoria que el avión mantiene (hasta ±40°). Al soltarlas, sigue subiendo, nivelado o bajando.
+  - **A/D** (o **←/→**) inclinan hasta 60° (80° con **Shift**) y el avión tira solo los g del viraje; al soltar, las alas se nivelan. En tierra giran la rueda delantera.
+  - **G** baja el tren para aterrizar. Si no se tocan W ni S, el motor y los aerofrenos mantienen 150 kt; cerca del suelo recoge solo, y tras tocar tierra corta gas y frena.
+  - **Protecciones** (las de un segundo piloto, y el Auto-GCAS que llevan los F-16 desde 2014):
+    - por debajo de 180 kt con el tren arriba, potencia máxima;
+    - si va hacia el suelo, nivela las alas y tira hasta subir.
   - **C** cámara (persecución, cabina con HUD, torre, tu órbita) y **Esc** termina y devuelve el avión a su sitio.
-- **B** (o el botón *Porsche · Drive*) **conduce el Porsche 911 GT3 RS** desde su explanada: **W** gas, **S** freno (parado, marcha atrás), **A/D** volante, **Espacio** freno de mano, **T** control de tracción, **C** cámara, **M** sonido (apagado hasta que se enciende), **Enter** vuelve a la explanada, **Esc** termina. Con el control de tracción apagado, que es como arranca, la zaga sale con el gas y los neumáticos dejan marcas.
+- **B** (o el botón *Porsche · Drive*) **conduce el Porsche 911 GT3 RS** desde su explanada: **W** gas, **S** freno (parado, marcha atrás), **A/D** volante, **Espacio** freno de mano, **T** PSM (control de tracción y de estabilidad, encendido de serie), **C** cámara, **M** sonido (apagado hasta que se enciende), **Enter** vuelve a la explanada, **Esc** termina. Con el PSM el coche va por donde se le dirige y frena recto. Para derrapar, un toque de **Espacio** al entrar en la curva cruza la zaga, y el gas y el contravolante la sostienen; el PSM se aparta mientras el coche va de lado y vuelve al enderezarlo. Los neumáticos dejan marcas.
   - El botón *Simple* de la barra quita la ayuda y da todos los mandos del avión: `R`/`F` gases, `Q`/`E` pedales, `Espacio` frenos, `B` aerofrenos, `Shift` palanca a fondo.
 - **Vista general en una ventana alta** (un monitor en vertical): la cámara retrocede por su propia línea de visión hasta que los extremos de la fila caben en el campo horizontal. En una ventana apaisada no cambia nada.
 - **`?perf`** en la URL muestra un medidor pequeño: fotogramas por segundo, tiempo medio y percentil 95 de los dos últimos segundos, llamadas de dibujo y triángulos de todo el fotograma (todas las pasadas del compositor), el nivel de calidad y la GPU que declara el navegador. Es la forma de tener cifras de una GPU real: la puerta de CI corre sobre un rasterizador por software.
@@ -484,7 +488,7 @@ También es más claro cómo se da gas:
 ### F-16: mandos simples (1 de octubre de 2026)
 
 El usuario encontró el avión demasiado complejo de pilotar, así que ahora se vuela con **W A S D y G** (más C para la cámara y Esc para salir). El avión, su modelo de vuelo y sus leyes de mando no cambian. Lo que cambia es que una ayuda hace, como un segundo piloto, lo que cuesta a quien empieza:
-- **El despegue entero con W:** motor a fondo, frenos fuera, rotación a 140 kt hasta 10° de cabeceo (nunca más de 11°, para no tocar con la tobera), ese ángulo en el ascenso y el tren arriba a 60 m.
+- **El despegue entero con W** (histórico, rehecho el 2 de octubre: ver *Conducción del Porsche y vuelo del F-16, revisados*): motor a fondo, frenos fuera, rotación a 140 kt hasta 10° de cabeceo (nunca más de 11°, para no tocar con la tobera), ese ángulo en el ascenso y el tren arriba a 60 m.
 - **A/D ordenan una inclinación**, hasta 60°, en vez de una velocidad de alabeo. Con la ley del avión, 1 s de tecla eran más de 180° de giro. Al soltar, las alas vuelven a nivel.
 - **Al soltar W/S, vuelo nivelado**, con el tirón que pide el viraje.
 - **El motor solo:** mantiene 350 kt, o 145 kt con el tren bajado, y saca los aerofrenos si con el tren abajo va rápido. Tras tocar tierra pasa a ralentí y frena.
@@ -568,10 +572,10 @@ El GT3 RS ya está en el centro, en Arctic Grey: aparcado en la explanada del ci
     - **S** freno, y marcha atrás si se mantiene parado;
     - **A/D** volante: menos giro cuanto más rápido, salvo con la zaga fuera, que da todo el giro para el contravolante;
     - **Espacio** freno de mano;
-    - **T** control de tracción, apagado por defecto;
+    - **T** PSM (control de tracción y de estabilidad), encendido por defecto;
     - **C** cámara: persecución, conductor, capó, pista y órbita propia;
     - **Enter** vuelve a la explanada y **Esc** termina.
-  - **Instrumentos:** cuentarrevoluciones hasta 9.000 rpm con luz de cambio, marcha, km/h, DRS, ABS, control de tracción, ángulo de derrape, g y tiempos de vuelta, que se miden al cruzar la línea de salida.
+  - **Instrumentos:** cuentarrevoluciones hasta 9.000 rpm con luz de cambio, marcha, km/h, DRS, ABS, PSM (ámbar mientras actúa), ángulo de derrape, g y tiempos de vuelta, que se miden al cruzar la línea de salida.
   - **Marcas de neumático:** las deja cualquier neumático que deslice más allá de su pico de agarre sobre una superficie dura. Son tiras oscuras de su anchura, más oscuras cuanto más desliza, y se guardan hasta 12.000 segmentos.
   - **Superficies:** cada rueda sabe qué pisa. En asfalto, explanada y pista de aterrizaje agarra del todo; en el arcén un poco menos, y en el piano, el 90 %. La grava agarra la mitad y frena; la hierba agarra un 55 % y frena algo.
 - **Arreglos de paso:**
@@ -634,6 +638,40 @@ El coche se ha vuelto a medir sobre las fotos de prensa de Porsche (solo como re
   - el gas abre la admisión y la aspereza del escape, y al soltar a altas vueltas hay petardeos;
   - los neumáticos chirrían al pasar del agarre máximo, la grava retumba y el viento crece con el cuadrado de la velocidad.
 - **Visita guiada.** Cuatro paradas del Porsche: las cotas, el motor, el ala con su carga aerodinámica y las ruedas con los frenos. Todas las cifras son de la ficha.
+
+### Conducción del Porsche y vuelo del F-16, revisados (2 de octubre de 2026)
+
+**Porsche: derrapes solo cuando se buscan.** El coche se cruzaba donde un GT3 RS no lo haría. Había tres causas:
+- el control de tracción arrancaba apagado y no había control de estabilidad;
+- el ABS actuaba a golpes y el reparto fijo de frenada bloqueaba las traseras cuando el peso pasaba delante, así que la zaga se iba al frenar en curva;
+- el volante del teclado pedía demasiado giro a velocidad (15° en las ruedas a 80 km/h).
+
+Ahora:
+- **PSM encendido de serie**, como en el coche real (≈ la lógica):
+  - control de tracción;
+  - control de estabilidad: compara el giro que pide el volante con el que hace el coche, frena una rueda y quita gas;
+  - ante un sobreviraje en frenada, suelta además los frenos del lado interior.
+- **Frenos:** ABS continuo, que tiene cada rueda en su pico de agarre; reparto electrónico (EBD) según la carga de cada eje, y menos presión atrás en curva.
+- **Neumáticos:** los traseros, más anchos (335 frente a 275 mm), agarran algo más y son más rígidos (≈).
+- **Dirección con teclado:** pide el giro que el agarre aprovecha a cada velocidad, descontando lo que ya se lleva la frenada. Da más giro solo en el sentido del contravolante.
+- **Derrape con Espacio:** un toque al entrar en la curva bloquea las traseras y cruza la zaga; con gas y contravolante se sostiene. Mientras dura, el PSM se aparta y una ayuda evita el trompo más allá de unos 40°. Con PSM apagado (**T**) no hay ayuda.
+- **Comprobado** en `tools/gt3rs-check.mjs`, conduciendo como el teclado:
+  - a fondo y con todo el volante a 80 km/h, se cruza menos de 5°;
+  - frenando a fondo desde 150 km/h y girando, 4,8° (7,6° sin PSM);
+  - un toque de Espacio da más de 4 s de derrape sostenido sin trompo.
+  - Las cifras de Porsche (0–100, 0–160, 0–200 y 296 km/h) siguen clavadas.
+
+**F-16: despegar ya no es imposible.** En el modo sencillo, W despegaba, pero en el aire bajaba el morro. Quien la mantenía pulsada, como en el coche, volvía a la pista de cabeza a los 13 s. Mantener S hacía un looping hasta la pérdida. Los mandos sencillos se han rehecho (`src/sim/f16Assist.js`, sin navegador, de modo que las pruebas lo vuelan):
+- W/S potencia, ↑/↓ subir y bajar, A/D virar con nivelación al soltar;
+- rotación automática y la amortiguación de cabeceo en tierra rebajada, para que rote a tiempo;
+- protección de baja velocidad, Auto-GCAS, y un autoacelerador a 150 kt con el tren abajo, con recogida.
+- El bucle de trayectoria pide a la ley de mando del avión la combinación C* que espera, así que sirve igual a 150 que a 600 kt; la variación de la trayectoria lo amortigua.
+- **Comprobado** en `tools/f16-check.mjs` con las teclas del visitante:
+  - con W mantenida, despega a 176 kt y sube sin estrellarse;
+  - picando contra el suelo, el Auto-GCAS lo saca con más de 500 ft de margen;
+  - tras virajes a 60° y 80°, las alas se nivelan al soltar;
+  - en la senda de 3° sin tocar nada, toma a 145 kt con 1,2 m/s de descenso y se para.
+- El modo completo (botón *Simple*) no cambia: todos los mandos del avión.
 
 ### Historial
 
