@@ -4,7 +4,7 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ---
 
-## ⭐ Empieza aquí (estado real al 02-10-2026: F-16 volable con mandos sencillos; Porsche 911 GT3 RS conducible con PSM y derrape con Espacio; pasada vehículo a vehículo hecha; galería regenerada el 02-10)
+## ⭐ Empieza aquí (estado real al 02-10-2026: F-16 volable con mandos sencillos; Porsche 911 GT3 RS conducible con PSM y derrape con Espacio; galería regenerada el 02-10; auditoría de ChatGPT del 02-10: P0 corregidos, P1 mayores pendientes)
 
 ### Proyecto en curso: F-16A Block 15 volable (desde el 01-10-2026)
 
@@ -157,6 +157,49 @@ Lo hecho en 1 y 2 (detalle en el README, sección del 2 de octubre):
 - `tools/hud-shots.json`: el dock de vehículos solo aparece ya en el modo de escena limpia, así que se quitaron los clics a `#dock-vehicles`, la escena limpia se activa con `#clean-btn` y se eliminaron las capturas `*-views` y `*-tools` de tableta y móvil (sus vistas ya no existen). Las de tableta y móvil enseñan paneles solapados: es lo esperado desde que la web es solo para ordenador (28-09), no una regresión.
 - Corregido de paso: el cuadro del Porsche se dibujaba encima de la barra de botones; ahora se coloca por encima de ella.
 - La regla sigue: no regenerar sin aprobación expresa cada vez.
+
+### Auditoría técnica de ChatGPT (02-10-2026, sobre `8e595b8`; detalle en el README, sección *Auditoría técnica externa del 2 de octubre de 2026*)
+
+- 60 hallazgos H01–H60.
+- **Hechos**, cada uno con su prueba:
+  - Porsche:
+    - H01 reloj con acumulador;
+    - H03 reset completo;
+    - H04 cargas que conservan el total;
+    - H11 arrastre vectorial y velocidad sobre el suelo;
+    - H12 entradas no finitas;
+    - H47 humo por segundo;
+    - H48 sonido con la pestaña oculta.
+  - F-16:
+    - H13 alabeo ±180° con `atan2`;
+    - H14 tierra/mar antes de la curvatura (`src/core/f16Ground.js`);
+    - H18 atmósfera de 1976 hasta 86 km;
+    - H21 tren limitado a ≈300 kt;
+    - H22 reset completo;
+    - H23 mando de juego en los mandos sencillos;
+    - H36 curvatura finita;
+    - H60 vectores de trabajo por instancia.
+  - H24: con la guía abierta, el teclado es de la guía.
+  - Flight 14:
+    - H35 salto de 380 m en la entrada;
+    - H27 captura «hypothetical» con `src: 'scenario'`;
+    - H26 recuentos planificados frente a los del vuelo 14 en `BOOSTER_COUNTS` y en el panel.
+  - Herramientas, servidor y licencias:
+    - H43 perfilador con un solo reinicio por frame;
+    - H52 CRLF en los controles negativos;
+    - H55 servidor local confinado (`tools/static-check.mjs`);
+    - H56 licencia OFL de IBM Plex;
+    - H51 diagnóstico del clic intermitente, con causa NO VERIFICADA;
+    - H57 descripción de `package.json`.
+- **Baterías nuevas en `npm run check:static`:** `tools/mission-check.mjs` y `tools/static-check.mjs`.
+- **No verificado:** el Raptor Vacuum apagado en el ascenso que cita la auditoría. La página de SpaceX no se pudo leer (se genera con JavaScript), así que no está en el panel.
+- **Pendiente (P1+, cambios grandes; pedir prioridad al usuario):**
+  - Porsche: suspensión y contactos por rueda (H02); ayudas separadas de la física (H07); neumáticos, transmisión, dirección y aerodinámica activa (H05, H06, H08, H09); colisiones y agua (H10).
+  - F-16: marco geodésico (H15); dominio de Morelli, supersónico y configuración (H16, H17, H19, H20).
+  - Flight 14: misión continua de masa puntual (H28–H33).
+  - Datos: procedencia por campos y validación independiente (H38, H39, H41, H50).
+  - Rendimiento y estructura: arranque progresivo (H42, H44–H46), módulos grandes (H49), telemetría accesible (H25).
+  - Repositorio y CI: pad (H37), ventana del Dragon (H40), CI entre navegadores y ramas (H53, H54), Three.js (H58), permisos del flujo de trabajo (H59).
 
 ### Al retomar
 

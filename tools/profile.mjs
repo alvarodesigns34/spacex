@@ -56,23 +56,31 @@ await bootAtQuality(page, `http://127.0.0.1:${PORT}/`, TIER);
 const wallMs = Date.now() - t0;
 
 // EffectComposer renders several scenes per frame. With the default autoReset, the last
-// fullscreen pass overwrites the scene's cost with one triangle and one draw call. Reset
-// BEFORE the main renderer.render invocation (thus before shadows), then accumulate all
-// shadow, main-scene and postprocessing passes. Environment-map setup runs before this
-// boundary and is deliberately excluded. No application rendering behavior is changed.
+// fullscreen pass overwrites the scene's cost with one triangle and one draw call. The counters
+// are reset ONCE per animation frame, before its first render, and every render of that frame
+// (shadows, the main scene, GTAO's G-buffer pass of the same scene, postprocessing) adds to
+// them. Resetting whenever the scene was the main one, as before, reset again at GTAO's own
+// render of that scene and dropped the main pass from high quality's counts (audit of
+// 2 Oct 2026: 1,099 of 2,213 draw calls reported for the overview). No application rendering
+// behavior is changed; an environment-map rebuild in the same frame would be counted with it.
 const rendererDetails = await page.evaluate(() => {
   const v = window.__vc, renderer = v.renderer;
   renderer.info.autoReset = false;
   const originalRender = renderer.render;
+  let frameStart = true, passes = 0;
+  const raf = window.requestAnimationFrame.bind(window);
+  window.requestAnimationFrame = (cb) => raf((t) => { frameStart = true; cb(t); });
   renderer.render = function (scene, camera) {
-    if (scene === v.scene) this.info.reset();
+    if (frameStart) { this.info.reset(); frameStart = false; passes = 0; }
+    passes++;
+    window.__profilePasses = passes;
     return originalRender.call(this, scene, camera);
   };
   const gl = renderer.getContext();
   const debug = gl.getExtension('WEBGL_debug_renderer_info');
   return {
     name: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER),
-    counterScope: 'Per frame: shadow maps + main scene + postprocessing; excludes environment-map generation',
+    counterScope: 'Per animation frame, reset once before its first render: shadow maps + main scene + GTAO G-buffer + postprocessing',
     timingNote: 'Software SwiftShader rasterization; frame timings do not establish hardware GPU performance.',
   };
 });
@@ -150,14 +158,18 @@ situations.push(await situation('low-sun-overview', () => { window.__vc.env.setS
 await page.evaluate(() => window.__vc.env.setSun(42, 34));
 }
 
-/** Garbage produced per frame, as a proxy for per-frame allocation in the hot path. */
+/**
+ * JS heap growth per frame between two readings: what the heap grew by, net of any garbage
+ * collection in between, NOT the bytes allocated per frame (a collection can make it small or
+ * negative). Null where performance.memory does not exist (it is Chromium's).
+ */
 const gc = await page.evaluate((frames) => new Promise((resolve) => {
   if (!performance.memory) { resolve(null); return; }
   const a = performance.memory.usedJSHeapSize;
   let n = frames;
   const tick = () => {
     if (--n <= 0) {
-      resolve({ frames, heapDeltaKBPerFrame: +(((performance.memory.usedJSHeapSize - a) / 1024) / frames).toFixed(2) });
+      resolve({ frames, heapGrowthKBPerFrame: +(((performance.memory.usedJSHeapSize - a) / 1024) / frames).toFixed(2), note: 'net heap growth, not allocation' });
       return;
     }
     requestAnimationFrame(tick);

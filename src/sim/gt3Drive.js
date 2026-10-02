@@ -147,8 +147,12 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
   const driver = { throttle: 0, brake: 0, steer: 0, handbrake: 0 };
   const typing = (t) => t.tagName === 'TEXTAREA' || t.isContentEditable || (t.tagName === 'INPUT' && t.type !== 'range');
   const CODES = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyC', 'KeyT', 'KeyK', 'KeyM', 'Escape', 'Enter']);
+  // An open modal dialog (the guide) owns the keyboard: Tab and Shift+Tab stay inside it and
+  // Escape closes it, not the drive; and the keys held when it opened are let go.
+  const modalOpen = () => typeof document !== 'undefined' && !!document.querySelector('[role="dialog"][aria-modal="true"]:not(.hidden)');
   function onKeyDown(e) {
     if (!state.running || typing(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (modalOpen()) { keys.clear(); return; }
     if (e.code === 'KeyH' || e.key === '?') return;
     e.stopImmediatePropagation();
     if (!CODES.has(e.code)) return;
@@ -173,6 +177,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
 
   function readControls(dt) {
     if (state.manual) { toSim(); return; }
+    if (keys.size && modalOpen()) keys.clear();
     const k = (...c) => (c.some(x => keys.has(x)) ? 1 : 0);
     const ramp = (cur, target, rate) => cur + THREE.MathUtils.clamp(target - cur, -rate * dt, rate * dt);
     const gas = k('KeyW', 'ArrowUp'), brake = k('KeyS', 'ArrowDown');
@@ -288,7 +293,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
     void _e;
   }
   const _c = new THREE.Vector3(), _side = new THREE.Vector3();
-  function layMarks() {
+  function layMarks(dt) {
     for (let i = 0; i < 4; i++) {
       const [px, py] = sim.WP[i];
       const [x, z] = sim.worldOf(px, py);
@@ -300,7 +305,8 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
       _side.set(Math.sin(s.psi), 0, Math.cos(s.psi));
       marks.lay(i, _c, _side, (i < 2 ? WHEELS.front.width : WHEELS.rear.width) * 0.45, a);
       // Smoke where it slides hardest: a puff or two a frame from a spinning or sideways tyre.
-      if (slide > 1.8 && Math.random() < Math.min(0.9, (slide - 1.8) * 0.5)) {
+      // (A rate per second, not per frame: the same slide smokes the same at any frame rate.)
+      if (slide > 1.8 && Math.random() < 1 - Math.pow(1 - Math.min(0.9, (slide - 1.8) * 0.5), dt * 60)) {
         const c = Math.cos(s.psi), sn = Math.sin(s.psi);
         smoke.emit(x, _c.y, z, s.u * c - s.v * sn, -s.u * sn - s.v * c, Math.min(1, (slide - 1.8) / 3));
       }
@@ -386,7 +392,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
     readControls(dt);
     if (!state.paused && dt > 0) {
       sim.advance(Math.min(dt, 0.25));
-      layMarks();
+      layMarks(Math.min(dt, 0.25));
       smoke.update(Math.min(dt, 0.25));
       timeLaps();
     }
@@ -399,7 +405,8 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
 
   function publish() {
     state.readout = {
-      kmh: s.u * 3.6, rpm: Math.min(s.rpm, 9100), gear: s.reverse ? 'R' : s.gear, drs: s.drs, abs: s.abs, tc: s.tc,
+      // Speed over the ground, sideways included (a drift is not slower than it moves).
+      kmh: Math.hypot(s.u, s.v) * 3.6, rpm: Math.min(s.rpm, 9100), gear: s.reverse ? 'R' : s.gear, drs: s.drs, abs: s.abs, tc: s.tc,
       esc: s.tc && Math.abs(s.esc) > 800, drift: s.drift > 0,
       slide: Math.atan2(s.v, Math.max(1, Math.abs(s.u))) * R2D, g: Math.hypot(s.ax, s.ay) / 9.81,
       throttle: driver.throttle, brake: driver.brake, handbrake: driver.handbrake > 0, surface: s.surface[2],

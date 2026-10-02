@@ -275,6 +275,18 @@ export const BURN_THREE = EVENTS.catch - 17;
 // which adds that on the day 31 of the 33 and 11 of the 13 relit: the planned counts are shown).
 // The ORDER is cited; how long each portion lasts is not published, so these two are ≈.
 export const BOOSTBACK_33 = 10;    // ≈ s of the boostback on all 33 before the inner 13 carry on
+/**
+ * The booster's engine counts, the planned V3 sequence the animation shows against what flight 14
+ * itself did, per spacex.com's flight 14 page (read 30 Sep 2026): 31 of the planned 33 relit for
+ * the boostback (oxygen availability) and 11 of the planned 13 for the landing burn's start, then
+ * five and three. Which engines did not relight is not published, so the animation, which ends in
+ * a hypothetical catch, keeps the plan rather than invent which ones went dark.
+ */
+export const BOOSTER_COUNTS = {
+  planned: { ascent: 33, hotStaging: 5, boostback: 33, boostbackInner: 13, landing: [13, 5, 3] },
+  flight14: { ascent: 33, boostback: 31, landing: [11, 5, 3], src: 'https://www.spacex.com/launches/starship-flight-14' },
+  shown: 'planned',
+};
 export const BURN_FIVE = BURN_THREE - 3;   // ≈ 13 → 5 engines, 3 s before the centre three
 // The flip to boostback attitude, overlapping the throttle-up: V3 starts its boostback five
 // seconds after staging (flight 14: 2:22 → 2:27), so the flip has to be done by then.
@@ -693,8 +705,10 @@ const DERIVED = (() => {
 export const derivedEvents = () => ({ ...DERIVED });
 
 /**
- * Every milestone the panel calls out, in order. `src` says where the time comes from: SpaceX's
- * published flight 14 timeline ('f14') or this model ('model').
+ * Every milestone the panel calls out, in order. `src` says where the event comes from: SpaceX's
+ * published flight 14 timeline ('f14'), this model ('model', its time shown ≈), or this
+ * demonstration's own scenario ('scenario': an event flight 14 did not have, at a time taken from
+ * one it did, `timeFrom`).
  */
 export const MILESTONES = [
   { t: EVENTS.goForLaunch, label: 'GO for launch', src: 'f14' },
@@ -714,8 +728,10 @@ export const MILESTONES = [
   // V3 timeline calls it. `tunedTo` keeps that apart from where the time comes from.
   ...(DERIVED.transonic ? [{ t: DERIVED.transonic, label: 'Booster transonic', src: 'model', tunedTo: 'f7' }] : []),
   { t: EVENTS.landingBurn, label: 'Landing burn', src: 'f14' },
-  // Flight 14's landing burn shutdown; the catch is this demonstration's, not flight 14's.
-  { t: EVENTS.catch, label: 'Booster caught', src: 'f14' },
+  // Flight 14's landing burn shutdown, T+7:01; the catch at that moment is this demonstration's
+  // hypothesis, not flight 14's (its booster came down in the Gulf): the action is the scenario's,
+  // only its time is flight 14's.
+  { t: EVENTS.catch, label: 'Booster caught (hypothetical)', src: 'scenario', timeFrom: 'f14' },
   { t: EVENTS.shipCutoff, label: 'Starship engine cutoff', src: 'f14' },
 ].sort((a, b) => a.t - b.t);
 

@@ -37,7 +37,7 @@ import { createF16Hud } from './ui/f16Hud.js';
 import { createGt3Drive } from './sim/gt3Drive.js';
 import { createGt3Hud } from './ui/gt3Hud.js';
 import { groundSample } from './core/environment.js';
-import { curvatureDrop } from './core/outerGround.js';
+import { f16Ground } from './core/f16Ground.js';
 import { RUNWAY, fromRunway, toRunway } from './core/terrain.js';
 import { buildOrbitalBackdrop } from './core/backdrop.js';
 import { buildLaunchMount, buildPedestal, buildHumanCrowd } from './vehicles/common.js';
@@ -649,14 +649,6 @@ async function main() {
   // The ground under it is the one drawn: the runway's pavement, the terrain's height
   // function with the beach and the sea, and past the disc the curvature's drop.
   const hudRoot = document.getElementById('hud');
-  const f16Ground = (x, z) => {
-    const [a, c] = toRunway(x, z);
-    const pave = runwaySurface(a, c);
-    if (pave > 0.01) return { h: pave, hard: true, water: false };
-    const r = Math.hypot(x, z);
-    const h = groundSample(x, -z).h - curvatureDrop(r);
-    return h < -0.9 ? { h: -0.9 - curvatureDrop(r), hard: false, water: true } : { h, hard: false, water: false };
-  };
   const f16Hud = createF16Hud({
     root: hudRoot,
     onEnd: () => f16fly.reset(),

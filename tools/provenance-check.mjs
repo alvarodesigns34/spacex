@@ -22,7 +22,11 @@
  *
  * Mutations of the inputs must fail, so the gate cannot pass by checking nothing.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync as readRaw } from 'node:fs';
+// Line endings normalised at the boundary: on a Windows checkout (CRLF) the mutations below,
+// written with \n, did not apply and two controls reported a detector failure that was the
+// injector's (audit of 2 Oct 2026, H52).
+const readFileSync = (f, enc) => readRaw(f, enc).replace(/\r\n?/g, '\n');
 import { fileURLToPath } from 'node:url';
 
 const { FIGURES, PAD_FIGURES, COUNTS, GRADES } = await import('../src/data/figures.js');
@@ -275,8 +279,11 @@ const mutants = [
   ['parada de la visita con una fuente inexistente', { ...base, tour: TOUR.map((t, i) => i === 0 ? { ...t, src: 'no_such_source' } : t) }],
   ['README con el Starlink un 8 % corto en las discrepancias', { ...base, readme: README.replace('### Discrepancias entre fuentes\n', '### Discrepancias entre fuentes\n\n- El modelo queda un 8 % por debajo en superficie.\n') }],
 ];
+const asText = (x) => JSON.stringify(x, (k, v) => (typeof v === 'function' ? String(v) : v));
 for (const [name, input] of mutants) {
-  const p = audit(input);
-  report(p.length > 0, `Control negativo: ${name}`, p.length ? `(${p[0]})` : '(no detectado)');
+  // A control proves something only if its mutation actually went in.
+  const applied = Object.keys(input).some(k => asText(input[k]) !== asText(base[k]));
+  const p = applied ? audit(input) : [];
+  report(applied && p.length > 0, `Control negativo: ${name}`, !applied ? '(la mutación no se aplicó: el control no prueba nada)' : p.length ? `(${p[0]})` : '(no detectado)');
 }
 if (failed) process.exit(1);

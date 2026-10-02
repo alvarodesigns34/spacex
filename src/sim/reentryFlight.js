@@ -78,6 +78,9 @@ function fly(q, rec) {
   let t = RE.entry, s = 0, h = ST.h, vx = ST.v * Math.cos(ST.gamma), vh = ST.v * Math.sin(ST.gamma);
   let m1 = null, m08 = null, prevM = Infinity;
   const DT = 0.05;
+  // The record starts with the state at entry itself: it began one step in, so the table held
+  // that first row back to the entry time and the ship jumped ≈380 m along and 10.6 m down there.
+  if (rec) rec.push([t, s, h, vx, vh]);
   const deriv = (t, h, vx, vh) => {
     const r = RE_M + h, v = Math.hypot(vx, vh) || 1e-6;
     const rho = densityAt(h);

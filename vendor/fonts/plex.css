@@ -1,6 +1,8 @@
 /* IBM Plex, self-hosted. Three.js is vendored; the typeface should be too — a CDN stall
  * left the Falcon wordmarks baked into a fallback face forever, and the check ignores
- * font errors so CI never saw it. Latin subsets only. */
+ * font errors so CI never saw it. Latin subsets only.
+ * Copyright © 2017 IBM Corp., Reserved Font Name "Plex"; SIL Open Font License 1.1, whose
+ * full text travels with the fonts in OFL-IBM-Plex.txt (copied from github.com/IBM/plex). */
 @font-face {
   font-family: 'IBM Plex Mono';
   font-style: normal;

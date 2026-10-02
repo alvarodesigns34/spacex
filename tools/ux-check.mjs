@@ -684,6 +684,48 @@ try {
     });
     report(!!flown.lift && !flown.crashed && flown.alt > 300 && flown.outer && flown.far >= 60000,
       'The F-16 takes off in afterburner and climbs out over the same world', flown);
+    // The guide opened over the flight owns the keyboard (audit of 2 Oct 2026, H24): Shift+Tab
+    // stays inside it, Escape closes the guide and leaves the flight running, and a key held
+    // when it opened does not stay held.
+    {
+      // On the threshold, idle and parked: W held would open the throttle and roll it.
+      await page.evaluate(() => window.__vc.f16fly.restart());
+      await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', key: 'w', bubbles: true })));
+      await page.keyboard.press('h');
+      await page.waitForTimeout(400);
+      const open = await page.evaluate(() => !document.getElementById('help').classList.contains('hidden'));
+      await page.keyboard.down('Shift');
+      for (let k = 0; k < 3; k++) await page.keyboard.press('Tab');
+      await page.keyboard.up('Shift');
+      const inHelp = await page.evaluate(() => document.getElementById('help').contains(document.activeElement));
+      const held = await page.evaluate(() => { for (let k = 0; k < 30; k++) window.__vc.f16fly.update(1 / 30); return window.__vc.f16fly.pilot.throttle; });
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(400);
+      const after = await page.evaluate(() => ({ helpOpen: !document.getElementById('help').classList.contains('hidden'), running: window.__vc.f16fly.running }));
+      await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW', key: 'w', bubbles: true })));
+      report(open && inHelp && !after.helpOpen && after.running && held < 0.5,
+        'With the guide open over the flight, Shift+Tab stays in it, Esc closes the guide and not the flight, and W held is let go', { open, inHelp, held, ...after });
+    }
+    // A gamepad flies the simple controls too (H23): before, they never read it. The right
+    // trigger is the throttle, as W: from the threshold the airplane rolls.
+    {
+      const pad = await page.evaluate(() => {
+        const F = window.__vc.f16fly, s = F.sim.state;
+        F.restart();
+        const g = { connected: true, index: 0, axes: [0, 0, 0, 0], buttons: Array.from({ length: 16 }, (_, i) => ({ pressed: i === 7, value: i === 7 ? 1 : 0 })) };
+        Object.defineProperty(navigator, 'getGamepads', { value: () => [g], configurable: true });
+        for (let k = 0; k < 4 * 30; k++) F.update(1 / 30);
+        const r = { assist: F.state.assist, throttle: +F.pilot.throttle.toFixed(2), parking: F.pilot.parking, kt: +(s.tas / 0.514444).toFixed(1) };
+        g.axes[0] = 0.8;
+        for (let k = 0; k < 15; k++) F.update(1 / 30);
+        r.steer = +F.pilot.roll.toFixed(2);
+        delete navigator.getGamepads;
+        F.restart();
+        return r;
+      });
+      report(pad.assist && pad.throttle > 0.5 && !pad.parking && pad.kt > 5 && pad.steer > 0.3,
+        'A gamepad drives the simple controls: RT opens the throttle and it rolls, the stick steers on the ground', pad);
+    }
     await page.keyboard.press('c');
     await page.waitForTimeout(200);
     report(await page.evaluate(() => window.__vc.f16fly.state.camera === 'cockpit'), 'C goes to the cockpit');
@@ -747,6 +789,26 @@ try {
     });
     report(drive.kmh > 50 && drive.gear >= 2 && drive.grip < 8 && drive.slide > 15 && drive.marks > 20 && drive.stopped && drive.finite,
       'W pulls away and shifts, W with A turns without sliding, Space with A drifts and leaves tyre marks, S stops it', drive);
+    // The guide opened over the drive owns the keyboard (audit of 2 Oct 2026, H24): Shift+Tab
+    // stays inside it, Escape closes the guide and leaves the drive running, and a key held
+    // when it opened does not stay held.
+    {
+      await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', key: 'w', bubbles: true })));
+      await page.keyboard.press('h');
+      await page.waitForTimeout(400);
+      const open = await page.evaluate(() => !document.getElementById('help').classList.contains('hidden'));
+      await page.keyboard.down('Shift');
+      for (let k = 0; k < 3; k++) await page.keyboard.press('Tab');
+      await page.keyboard.up('Shift');
+      const inHelp = await page.evaluate(() => document.getElementById('help').contains(document.activeElement));
+      const held = await page.evaluate(() => { for (let k = 0; k < 30; k++) window.__vc.gt3drive.update(1 / 30); return window.__vc.gt3drive.driver.throttle; });
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(400);
+      const after = await page.evaluate(() => ({ helpOpen: !document.getElementById('help').classList.contains('hidden'), running: window.__vc.gt3drive.running }));
+      await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW', key: 'w', bubbles: true })));
+      report(open && inHelp && !after.helpOpen && after.running && held < 0.5,
+        'With the guide open over the drive, Shift+Tab stays in it, Esc closes the guide and not the drive, and W held is let go', { open, inHelp, held, ...after });
+    }
     await page.keyboard.press('c');
     await page.waitForTimeout(200);
     report(await page.evaluate(() => window.__vc.gt3drive.state.camera === 'driver'), 'C goes to the driver\'s seat');

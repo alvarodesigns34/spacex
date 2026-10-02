@@ -24,8 +24,15 @@ import * as THREE from 'three';
 export const OUTER = { r0: 2500, r1: 450000, segments: 256 };
 const R_EARTH = 6371000;
 const drop = (r) => (r * r) / (R_EARTH + Math.sqrt(R_EARTH * R_EARTH - r * r));
-/** Height of the round Earth's surface below the pad's plane at ρ from it, beyond the disc. */
-export function curvatureDrop(r) { return r <= OUTER.r0 ? 0 : drop(r) - drop(OUTER.r0); }
+/**
+ * Height of the round Earth's surface below the pad's plane at ρ from it, beyond the disc. The
+ * scene's ground ends at OUTER.r1 (450 km); past it the drop keeps growing to the sphere's edge,
+ * ρ = R, and is held there: a number, never NaN, for whatever asks that far out.
+ */
+export function curvatureDrop(r) {
+  if (!(r > OUTER.r0)) return 0;
+  return drop(Math.min(r, R_EARTH)) - drop(OUTER.r0);
+}
 
 /** Ring radii, from the disc's edge out, each cell as long radially as it is wide. */
 function radii() {

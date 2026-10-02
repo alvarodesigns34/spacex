@@ -294,10 +294,33 @@ try {
   }
 
   // Both entry points for free flight must interrupt the guided tour.
+  // Two CI runs of one commit timed out (30 s) clicking #mode-btn right after startTour while
+  // three passed and local runs take ≈1 s (audit of 2 Oct 2026, H51). The cause is NOT
+  // VERIFIED: the likeliest is the shared runner's software frames (Playwright waits for two
+  // frames with the button still before it clicks, and one click elsewhere in this suite took
+  // 29.6 s in a passing run), which is why the click gets the 120 s the shots and the UX check
+  // already give theirs. If it ever fails, the report says why: the button's box, whether
+  // something covers it, who owns the view, and how long the frames are taking.
+  const diagnoseClick = (sel) => page.evaluate(async (q) => {
+    const el = document.querySelector(q), v = window.__vc;
+    const r = el?.getBoundingClientRect();
+    const hit = r ? document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) : null;
+    const frames = [];
+    let last = performance.now();
+    await new Promise(res => { let n = 3; const t = () => { const now = performance.now(); frames.push(Math.round(now - last)); last = now; if (--n) requestAnimationFrame(t); else res(); }; requestAnimationFrame(t); });
+    return {
+      exists: !!el, rect: r && [r.x, r.y, r.width, r.height].map(Math.round), display: el && getComputedStyle(el).display,
+      visibility: el && getComputedStyle(el).visibility, disabled: !!el?.disabled,
+      covered: hit && el && hit !== el && !el.contains(hit) ? (hit.id || hit.className || hit.tagName) : null,
+      mode: v?.rig?.mode, tour: v?.tourAt, frameMs: frames,
+    };
+  }, sel);
   for (const via of ['button', 'keyboard']) {
     await page.evaluate(() => window.__vc.startTour());
-    if (via === 'button') await page.click('#mode-btn');
-    else await page.keyboard.press('f');
+    if (via === 'button') {
+      try { await page.click('#mode-btn', { timeout: 120000 }); }
+      catch (e) { report(false, 'clic en #mode-btn durante la visita', `${e.name}: ${JSON.stringify(await diagnoseClick('#mode-btn'))}`); }
+    } else await page.keyboard.press('f');
     const result = await page.evaluate(() => ({ mode: window.__vc.rig.mode, tour: window.__vc.tourAt }));
     report(result.mode === 'fly' && result.tour === -1, `vuelo libre detiene la visita (${via})`);
     await page.evaluate(() => { window.__vc.stopTour(); window.__vc.jump(null); });

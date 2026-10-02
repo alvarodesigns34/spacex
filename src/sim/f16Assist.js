@@ -47,14 +47,21 @@ export function calibrated(M, P) {
   return V;
 }
 
-/** Attitude and flight path of the airframe, degrees. */
+/**
+ * Attitude and flight path of the airframe, degrees. The bank is the full circle, −180…180°
+ * (right wing down positive), from the right wing's and the canopy's heights together: the
+ * right wing's alone (an arcsine) read 120° of bank as 60° and never saw the airplane inverted.
+ * Straight up or down the bank is undefined and reads 0.
+ */
+const _a = new THREE.Vector3(), _y = new THREE.Vector3(), _z = new THREE.Vector3();
 export function attitude(s) {
-  const a = new THREE.Vector3(1, 0, 0).applyQuaternion(s.q);
-  const z = new THREE.Vector3(0, 0, 1).applyQuaternion(s.q);
+  const a = _a.set(1, 0, 0).applyQuaternion(s.q);
+  const y = _y.set(0, 1, 0).applyQuaternion(s.q);
+  const z = _z.set(0, 0, 1).applyQuaternion(s.q);
   const V = Math.max(1, s.vel.length());
   return {
     pitch: Math.asin(clamp(a.y, -1, 1)) * R2D,
-    bank: Math.asin(clamp(-z.y, -1, 1)) * R2D,
+    bank: Math.abs(z.y) < 1e-9 && Math.abs(y.y) < 1e-9 ? 0 : Math.atan2(-z.y, y.y) * R2D,
     gamma: Math.asin(clamp(s.vel.y / V, -1, 1)) * R2D,
     V,
   };

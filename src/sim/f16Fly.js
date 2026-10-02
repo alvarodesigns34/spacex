@@ -13,7 +13,7 @@
  */
 import * as THREE from 'three';
 import { createF16Flight, CG, atmosphere } from './f16Flight.js';
-import { createF16Assist, calibrated } from './f16Assist.js';
+import { createF16Assist, calibrated, attitude } from './f16Assist.js';
 
 export { calibrated };
 import { RUNWAY, fromRunway, toRunway } from '../core/terrain.js';
@@ -95,8 +95,12 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
   const typing = (t) => t.tagName === 'TEXTAREA' || t.isContentEditable || (t.tagName === 'INPUT' && t.type !== 'range');
   const CODES = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
     'KeyR', 'KeyF', 'PageUp', 'PageDown', 'Space', 'KeyB', 'KeyG', 'KeyC', 'KeyK', 'Escape', 'Enter', 'ShiftLeft', 'ShiftRight']);
+  // An open modal dialog (the guide) owns the keyboard: Tab and Shift+Tab stay inside it and
+  // Escape closes it, not the flight; and the keys held when it opened are let go.
+  const modalOpen = () => typeof document !== 'undefined' && !!document.querySelector('[role="dialog"][aria-modal="true"]:not(.hidden)');
   function onKeyDown(e) {
     if (!state.running || typing(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (modalOpen()) { keys.clear(); return; }
     // The flight owns the keyboard while it runs: the centre's own shortcuts (the vehicle
     // numbers, G, X, V, L…) would end it from under the pilot. Only the guide (H, ?) gets through.
     if (e.code === 'KeyH' || e.key === '?') return;
@@ -117,8 +121,14 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
   }
   function onKeyUp(e) { keys.delete(e.code); }
   function onBlur() { keys.clear(); }
+  /** The gear's limit speed, KCAS (≈: the figure usually quoted for the F-16, 300 kt; not from a flight manual here). */
+  const GEAR_LIMIT_KCAS = 300;
   function toggleGear() {
     if (pilot.gearDown && s.wow) { note('Gear handle locked: weight on the wheels'); return; }
+    // Faster than the gear's limit the handle stays up: before, it came down at Mach 1.5.
+    if (!pilot.gearDown && calibrated(s.mach, atmosphere(s.pos.y).P) / KT > GEAR_LIMIT_KCAS) {
+      note(`Too fast for the gear: below ${GEAR_LIMIT_KCAS} kt (≈)`); return;
+    }
     pilot.gearDown = !pilot.gearDown;
     note(pilot.gearDown ? 'Gear down' : 'Gear up');
   }
@@ -130,6 +140,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
   /** Keyboard and gamepad to stick, pedals, throttle and brakes. dt in real seconds. */
   function readControls(dt) {
     if (state.manual) { toSim(); return; }
+    if (keys.size && modalOpen()) keys.clear();
     if (state.assist) { easyControls(dt); toSim(); return; }
     const k = (...c) => (c.some(x => keys.has(x)) ? 1 : 0);
     const ramp = (cur, target, rate) => cur + THREE.MathUtils.clamp(target - cur, -rate * dt, rate * dt);
@@ -151,34 +162,56 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
     // at idle the F100 pushes harder than the tyres roll, and it crept off on its own.
     if (pilot.parking && pilot.throttle > 0.05) { pilot.parking = false; note('Parking brake off'); }
     pilot.brake = k('Space') || pilot.parking ? 1 : 0;
+    const pad = readPad();
+    if (pad) {
+      // The pad's sticks take over only when moved, so the keyboard still works with one plugged in.
+      if (pad.roll || pad.pitch) { pilot.roll = pad.roll; pilot.pitch = pad.pitch; }
+      if (pad.yaw) pilot.yaw = pad.yaw;
+      pilot.throttle = THREE.MathUtils.clamp(pilot.throttle + (pad.gas - pad.cut) * 0.4 * dt, 0, 1);
+      if (pad.brake) pilot.brake = 1;
+    }
+    toSim();
+  }
+
+  /**
+   * The first connected gamepad, read the same way for both control modes: the sticks (dead zone
+   * 0.08; left stick roll and pitch, pull is nose up), the triggers (RT power, LT back), A the
+   * brakes, and the buttons' presses (B gear, X speed brakes, Y camera, Start pause). Before, the
+   * simple controls (the default) returned before reading the pad at all, so it did nothing there.
+   */
+  function readPad() {
     const pads = typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
     for (const g of pads) {
       if (!g || !g.connected) continue;
-      // The pad's sticks take over only when moved, so the keyboard still works with one plugged in.
-      const dz = (v) => (Math.abs(v) < 0.08 ? 0 : v);
-      if (g.axes.length >= 2 && (dz(g.axes[0]) || dz(g.axes[1]))) { pilot.roll = dz(g.axes[0]); pilot.pitch = dz(g.axes[1]); }
-      if (g.axes.length >= 3 && dz(g.axes[2])) pilot.yaw = dz(g.axes[2]);
-      const b = (i) => g.buttons[i]?.value ?? 0;
-      pilot.throttle = THREE.MathUtils.clamp(pilot.throttle + (b(7) - b(6)) * 0.4 * dt, 0, 1);
-      if (b(0) > 0.5) pilot.brake = 1;
+      const dz = (v) => (Number.isFinite(v) && Math.abs(v) >= 0.08 ? v : 0);
+      const b = (i) => { const v = g.buttons[i]?.value ?? 0; return Number.isFinite(v) ? v : 0; };
       padEdge(g, 1, toggleGear);
       padEdge(g, 2, () => { pilot.speedBrake = !pilot.speedBrake; });
       padEdge(g, 3, cycleCamera);
       padEdge(g, 9, () => setPaused(!state.paused));
-      break;
+      return {
+        roll: dz(g.axes[0] ?? 0), pitch: dz(g.axes[1] ?? 0), yaw: g.axes.length >= 3 ? dz(g.axes[2]) : 0,
+        gas: b(7), cut: b(6), brake: b(0) > 0.5,
+      };
     }
-    toSim();
+    return null;
   }
 
   /** The simple controls (on by default; the bar's Assist button gives every control back): f16Assist.js. */
   const assist = createF16Assist({ sim, pilot, note });
   function easyControls(dt) {
     const k = (...c) => (c.some(x => keys.has(x)) ? 1 : 0);
+    // The keyboard and the pad as one intent: RT/LT are W/S, the left stick's pull and push are
+    // ↑/↓ (past a third of its travel), its sideways travel banks as far as it is pushed.
+    const pad = readPad();
+    const turnKeys = k('KeyD', 'ArrowRight') - k('KeyA', 'ArrowLeft');
+    const gas = k('KeyW') || (pad?.gas ?? 0) > 0.1 ? 1 : 0;
     assist.step({
-      gas: k('KeyW'), cut: k('KeyS'), up: k('ArrowUp'), down: k('ArrowDown'),
-      turn: k('KeyD', 'ArrowRight') - k('KeyA', 'ArrowLeft'), shift: k('ShiftLeft', 'ShiftRight'),
+      gas, cut: k('KeyS') || (pad?.cut ?? 0) > 0.1 ? 1 : 0,
+      up: k('ArrowUp') || (pad?.pitch ?? 0) > 0.33 ? 1 : 0, down: k('ArrowDown') || (pad?.pitch ?? 0) < -0.33 ? 1 : 0,
+      turn: turnKeys || (pad?.roll ?? 0), shift: k('ShiftLeft', 'ShiftRight'),
     }, dt, { touchdown: !!state.touchdown });
-    if (k('KeyW') && s.wow) { state.touchdown = null; if (state.outcome?.kind === 'stopped') state.outcome = null; }
+    if (gas && s.wow) { state.touchdown = null; if (state.outcome?.kind === 'stopped') state.outcome = null; }
   }
   function toSim() {
     Object.assign(sim.input, {
@@ -391,7 +424,8 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
     state.readout = {
       kcas: cas / KT, ktas: s.tas / KT, mach: s.mach, altFt: (s.pos.y - CG.y) / FT, aglFt: s.agl / FT,
       vsFpm: s.vel.y / FT * 60, alpha: s.alpha, beta: s.beta, nz: s.load, heading: hdg,
-      pitch: Math.asin(THREE.MathUtils.clamp(_v.y, -1, 1)) * R2D, roll: Math.asin(THREE.MathUtils.clamp(-_u.set(0, 0, 1).applyQuaternion(s.q).y, -1, 1)) * R2D,
+      // The same attitude the simple controls fly by (bank over the full circle, ±180°).
+      pitch: attitude(s).pitch, roll: attitude(s).bank,
       throttle: pilot.throttle, power: s.power, ab: s.power > 50, thrust: s.thrust,
       gear: s.gear, gearDown: pilot.gearDown, brake: pilot.brake > 0, speedBrake: s.sb, wow: s.wow,
       runway: { along: L2 - a, across: c, heading: RW_HEADING, name: RW_NAME },

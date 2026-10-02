@@ -187,6 +187,84 @@ function drive({ v0 = 0, gear = 1, psm = true, keys, T = 5 }) {
   report(['kerb', 'verge', 'gravel'].every(k => kinds.has(k)), 'pianos, arcenes y grava junto a la pista', [...kinds].join(', '));
 }
 
+// ---- Audit of 2 Oct 2026: the clock, the reset, the loads, the inputs, the drag ----------------
+{
+  // The same 10 s of full throttle at any frame rate, with and without a jittery frame time:
+  // the car's clock keeps the wall clock's to within one step (H01).
+  const res = [];
+  for (const fps of [30, 60, 75, 90, 120, 144, 165, 240, 360, 500, 1000]) {
+    for (const jitter of [0, 0.35]) {
+      const { c, s, i } = make();
+      i.throttle = 1;
+      let wall = 0, k = 0;
+      while (wall < 10 - 1e-9) {
+        const dt = Math.min(10 - wall, (1 / fps) * (1 + jitter * Math.sin(k++ * 2.3)));
+        c.advance(dt); wall += dt;
+      }
+      res.push({ fps, jitter, t: s.t, kmh: s.u * 3.6 });
+    }
+  }
+  const ref = res.find(r => r.fps === 240 && !r.jitter);
+  const worstT = Math.max(...res.map(r => Math.abs(r.t - 10)));
+  const worstV = Math.max(...res.map(r => Math.abs(r.kmh - ref.kmh)));
+  report(worstT <= DT + 1e-9 && worstV < 0.3, 'reloj: 10 s reales son 10 s del coche a 30–1.000 FPS, con y sin tirones (± un paso)',
+    `peor desfase ${(worstT * 1000).toFixed(2)} ms · velocidad ${ref.kmh.toFixed(2)} km/h ± ${worstV.toFixed(3)}`);
+  const { c, s } = make();
+  const n0 = c.advance(0) + c.advance(-1) + c.advance(NaN) + c.advance(Infinity);
+  report(n0 === 0 && s.t === 0, 'reloj: un dt nulo, negativo o no finito no avanza nada', `${n0} pasos`);
+  c.advance(5);
+  report(Math.abs(s.t - 0.25) < 1e-9, 'reloj: un frame de 5 s (pestaña parada) se recorta a 0,25 s en vez de ejecutarse de golpe', `${s.t.toFixed(3)} s`);
+}
+{
+  // A reset car is a new car (H03): contaminate everything, reset, and compare state and output.
+  const run = (c, i) => { i.throttle = 1; for (let k = 0; k < 240; k++) c.step(DT); return c.state; };
+  const a = make();
+  rolling(a.s, 30, 3); a.i.throttle = 1; a.i.handbrake = 1; a.i.steer = 0.6;
+  for (let k = 0; k < 300; k++) a.c.step(DT);
+  a.s.tcCut = 0.2; a.s.kap = [0.5, 0.5, 0.5, 0.5]; a.s.abs = true; a.s.load = [1, 2, 3, 4]; a.s.surface = ['water', 'water', 'water', 'water'];
+  a.c.reset();
+  const b = make();
+  const keysA = JSON.stringify(a.s), keysB = JSON.stringify(b.s);
+  const inputClean = Object.values(a.i).every(v => !v);
+  report(keysA === keysB && inputClean, 'reset: el estado y las entradas quedan idénticos a los de un coche nuevo', keysA === keysB ? 'iguales' : 'distintos');
+  const ua = run(a.c, a.i).u, ub = run(b.c, b.i).u;
+  report(ua === ub, 'reset: 1 s de gas a fondo da lo mismo que en un coche nuevo', `${ua.toFixed(6)} y ${ub.toFixed(6)} m/s`);
+  const p = make(); p.s.tc = false; p.c.reset();
+  report(p.s.tc === false, 'reset: el PSM, que es una preferencia del visitante, se conserva', `tc ${p.s.tc}`);
+}
+{
+  // The loads add up to the weight and the downforce, whatever the transfer asks (H04).
+  let worst = 0, neg = false;
+  for (const u of [0, 20, 40, 80]) for (const ax of [-40, -15, 0, 15, 40]) for (const ay of [-45, -20, 0, 20, 45]) {
+    const { c, s } = make();
+    rolling(s, u, 4); s.ax = ax; s.ay = ay;
+    c.step(DT);
+    const down = 0.5 * AERO.rho * u * u * AERO.clA * (s.drs ? AERO.drsClFactor : 1);
+    const sum = s.load.reduce((x, y) => x + y, 0), want = CAR.m * 9.80665 + down;
+    worst = Math.max(worst, Math.abs(sum - want) / want);
+    if (s.load.some(l => l < 0)) neg = true;
+  }
+  report(worst < 1e-9 && !neg, 'cargas: nunca negativas y siempre suman peso + carga aerodinámica (barrido hasta 45 m/s²)', `error máx. ${(worst * 100).toExponential(1)} %`);
+}
+{
+  // Inputs that are not numbers are zeroed at the boundary (H12).
+  const { c, s, i } = make();
+  rolling(s, 20, 3);
+  Object.assign(i, { throttle: NaN, brake: Infinity, steer: -Infinity, handbrake: undefined });
+  for (let k = 0; k < 240; k++) c.step(DT);
+  const ok = ['x', 'z', 'u', 'v', 'r', 'rpm'].every(k => Number.isFinite(s[k])) && s.w.every(Number.isFinite);
+  report(ok && i.brake === 0 && i.throttle === 0 && i.steer === 0, 'entradas no finitas (NaN, ±Infinity, undefined): se anulan y el estado sigue finito', `u ${s.u.toFixed(2)} m/s`);
+}
+{
+  // A car sliding sideways meets the air too (H11): sideways speed bleeds off even with the
+  // tyres taken out of it (zero grip), where before only the longitudinal speed felt drag.
+  const { c, s } = make(flat(0));
+  s.v = 30;
+  for (let k = 0; k < 240; k++) c.step(DT);
+  // ½ρ·CdA·v²/m ≈ 0.31 m/s² at 30 m/s: ≈ 29.7 m/s after a second (before, it stayed at 30).
+  report(s.v < 29.8 && s.v > 29.5, 'arrastre: también se opone a la velocidad lateral en un derrape (sin agarre, 1 s a 30 m/s ≈ 29,7)', `${s.v.toFixed(2)} m/s`);
+}
+
 void GEARBOX; void BODY;
 console.log(failed ? `\n${failed} fallo(s) en el modelo del GT3 RS` : '\nModelo del GT3 RS: todo correcto');
 process.exit(failed ? 1 : 0);

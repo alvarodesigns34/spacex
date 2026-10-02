@@ -264,5 +264,70 @@ function assisted({ setup, plan, T }) {
     r.td ? `toma a ${r.td.kt.toFixed(0)} kt con ${r.td.sink.toFixed(2)} m/s de descenso${r.stopped ? ', parado' : ''}` : (r.crashed?.what ?? 'sin toma'));
 }
 
+// ---- Audit of 2 Oct 2026: bank, ground, atmosphere, reset ------------------------------------
+{
+  // Bank over the whole circle (H13): set it, read it back, at several pitches.
+  const { s } = make();
+  let worst = 0;
+  for (const pitch of [-60, -20, 0, 20, 60]) for (const bank of [0, 60, -60, 90, -90, 120, -120, 150, -150, 179, -179]) {
+    s.q.setFromAxisAngle(new THREE.Vector3(0, 0, 1), pitch * D2R).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), bank * D2R));
+    const got = attitude(s).bank, err = Math.abs(((got - bank + 540) % 360) - 180);
+    worst = Math.max(worst, err);
+  }
+  report(worst < 1e-6, 'actitud: el alabeo se lee entero, −180…180° (120° ya no se lee como 60°), con cabeceo de −60 a 60°', `error máx. ${worst.toExponential(1)}°`);
+}
+{
+  // Land and sea do not depend on the curvature (H14): the same answer as the flat terrain, near
+  // and far, and a finite height anywhere.
+  const { f16Ground, SEA_LEVEL } = await import('../src/core/f16Ground.js');
+  const { groundSample } = await import('../src/core/environment.js');
+  const { curvatureDrop } = await import('../src/core/outerGround.js');
+  let wrong = 0, land = 0, far = 0;
+  for (const r of [0, 4000, 10000, 100000, 450000]) for (let k = 0; k < 24; k++) {
+    const a = k / 24 * Math.PI * 2, x = r * Math.cos(a), z = r * Math.sin(a);
+    const g = f16Ground(x, z);
+    if (g.hard) continue;
+    const sea = groundSample(x, -z).h < SEA_LEVEL;
+    if (g.water !== sea) wrong++;
+    if (!g.water && r >= 10000) { land++; if (Math.abs(g.h - (groundSample(x, -z).h - curvatureDrop(r))) < 1e-9) far++; }
+  }
+  const ext = [6371001, 1e8, Infinity].map(curvatureDrop);
+  report(wrong === 0 && land > 0 && far === land, 'suelo: tierra o mar se decide antes de la curvatura (a 10–450 km la llanura ya no es mar)', `${wrong} discrepancias · ${land} puntos de tierra lejos`);
+  report(ext.every(Number.isFinite), 'curvatura: finita más allá del radio terrestre (antes NaN)', ext.map(v => (v / 1000).toFixed(0) + ' km').join(' · '));
+}
+{
+  // The standard atmosphere above 20 km (H18): 1976 USSA values at geopotential heights.
+  const ref = [[20000, 216.65, 5474.89], [30000, 226.65, 1171.87], [32000, 228.65, 868.02], [47000, 270.65, 110.91], [50000, 270.65, 75.94], [71000, 214.65, 3.956]];
+  let worst = 0;
+  for (const [h, T, P] of ref) { const a = atmosphere(h); worst = Math.max(worst, Math.abs(a.T - T) / T, Math.abs(a.P - P) / P); }
+  const mono = [0, 5e3, 11e3, 2e4, 3e4, 5e4, 8e4, 1e5].map(h => atmosphere(h).rho).every((r, i, arr) => i === 0 || r < arr[i - 1]);
+  report(worst < 0.002 && mono, 'atmósfera: capas de la estándar de 1976 hasta 86 km (antes, todo por encima de 20 km era 20 km)',
+    `error máx. ${(worst * 100).toFixed(3)} % · 30 km ${atmosphere(30000).P.toFixed(0)} Pa`);
+}
+{
+  // A reset airplane is a new airplane (H22): fly, brake to an anchor, reset, compare.
+  const fresh = make(); fresh.f.reset({ x: 0, z: 0 });
+  const used = make();
+  airborne(used.f, used.s, { h: 3000, V: 200, a: 2, power: 60 });
+  for (let k = 0; k < 480; k++) used.f.advance(1 / 240);
+  used.s.wheels[1].anchor = new THREE.Vector3(5, 0, 5);
+  used.f.reset({ x: 0, z: 0 });
+  const pick = (s) => JSON.stringify({ ...s, q: s.q.toArray(), pos: s.pos.toArray(), vel: s.vel.toArray(), w: s.w.toArray(), wheels: s.wheels.map(w => ({ ...w, anchor: w.anchor && w.anchor.toArray() })) });
+  report(pick(used.s) === pick(fresh.s), 'reset: la telemetría, las ruedas y sus anclajes quedan como en un avión nuevo (antes Mach 0,6 y 40 kN parado)',
+    `Mach ${used.s.mach} · empuje ${(used.s.thrust / 1000).toFixed(1)} kN · wow ${used.s.wow}`);
+  const a = []; for (let k = 0; k < 240; k++) { used.f.advance(1 / 240); fresh.f.advance(1 / 240); }
+  a.push(used.s.pos.distanceTo(fresh.s.pos));
+  report(a[0] === 0, 'reset: un segundo después, los dos aviones siguen exactamente en el mismo sitio', `${a[0].toExponential(1)} m`);
+}
+{
+  // Two airplanes stepped side by side give the same answer as each alone: the step's scratch is
+  // per airplane (H60).
+  const one = make(), two = make(), solo = make();
+  for (const m of [one, two, solo]) airborne(m.f, m.s, { h: 2000, V: 180, a: 3, power: 55 });
+  two.i.roll = 0.5;
+  for (let k = 0; k < 480; k++) { one.f.advance(1 / 240); two.f.advance(1 / 240); solo.f.advance(1 / 240); }
+  report(one.s.pos.distanceTo(solo.s.pos) === 0 && one.s.q.equals(solo.s.q), 'dos aviones a la vez no se mezclan sus temporales', `${one.s.pos.distanceTo(solo.s.pos)} m`);
+}
+
 console.log(failed ? `\n${failed} comprobación(es) del F-16 fallida(s)` : '\nModelo de vuelo del F-16: todo correcto');
 process.exit(failed ? 1 : 0);

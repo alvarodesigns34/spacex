@@ -88,7 +88,9 @@ export function steerReach(s, dir = 0) {
 }
 
 export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'track' }) } = {}) {
-  const s = {
+  // Every integrated or filtered quantity starts from here, at creation and at each reset, so a
+  // reset car is the same car as a new one (only PSM, the visitor's choice, survives a reset).
+  const fresh = () => ({
     x: 0, z: 0, psi: 0, y: 0,
     u: 0, v: 0, r: 0,                 // body velocity: forward, left; yaw rate (rad/s, +left turn)
     ax: 0, ay: 0,                     // filtered body accelerations (load transfer and the look)
@@ -99,20 +101,24 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     rpm: ENGINE.idle, gear: 1, shift: 0, clutch: 0, reverse: false,
     steer: 0, drs: false, abs: false, t: 0, pitch: 0, roll: 0, pitchV: 0, rollV: 0,
     surface: ['track', 'track', 'track', 'track'],
-    tc: true, tcCut: 1,               // PSM (traction and stability control): on by default
+    tcCut: 1,                         // traction control's share of the drive
     esc: 0,                           // the stability control's yaw moment this step, N·m (for the readout)
     drift: 0,                         // s left of a handbrake-started drift, while PSM stands back
     absK: [1, 1, 1, 1],               // ABS: each wheel's share of its brake pressure
     kap: [0, 0, 0, 0],                // slip ratios
-  };
+  });
+  const s = Object.assign(fresh(), { tc: true });   // PSM (traction and stability control): on by default
   const input = { throttle: 0, brake: 0, steer: 0, handbrake: 0, reverse: false };
+  let acc = 0;                        // real time not yet stepped, s (under one step)
 
   function reset({ x = 0, z = 0, psi = 0 } = {}) {
-    Object.assign(s, { x, z, psi, u: 0, v: 0, r: 0, ax: 0, ay: 0, w: [0, 0, 0, 0], slip: [0, 0, 0, 0], alpha: [0, 0, 0, 0],
-      rpm: ENGINE.idle, gear: 1, shift: 0, reverse: false, steer: 0, drs: false, t: 0, pitch: 0, roll: 0, pitchV: 0, rollV: 0,
-      esc: 0, drift: 0, absK: [1, 1, 1, 1] });
+    Object.assign(s, fresh(), { x, z, psi, tc: s.tc });
+    Object.assign(input, { throttle: 0, brake: 0, steer: 0, handbrake: 0, reverse: false });
+    acc = 0;
     s.y = ground(x, z).h;
   }
+  /** Inputs from a device, a script or a replay: a number out of range or not a number at all is clamped or zeroed here. */
+  const fin = (x, lo, hi) => (Number.isFinite(x) ? clamp(x, lo, hi) : 0);
 
   // The wheels' positions in the body frame (forward, left), FL, FR, RL, RR.
   const WP = [[CAR.a, CAR.tf / 2], [CAR.a, -CAR.tf / 2], [-CAR.b, CAR.tr / 2], [-CAR.b, -CAR.tr / 2]];
@@ -120,24 +126,30 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
 
   /** One fixed step of the model. */
   function step(dt) {
+    input.throttle = fin(input.throttle, 0, 1); input.brake = fin(input.brake, 0, 1);
+    input.steer = fin(input.steer, -1, 1); input.handbrake = fin(input.handbrake, 0, 1); input.reverse = !!input.reverse;
     const c = Math.cos(s.psi), sn = Math.sin(s.psi);
     const V = Math.hypot(s.u, s.v);
     // ---- Aerodynamics. Auto-DRS: flat wings on a straight at full throttle above 100 km/h.
     s.drs = input.throttle > 0.95 && Math.abs(input.steer) < 0.15 && s.u > 28 && input.brake === 0;
-    const q = 0.5 * AERO.rho * s.u * Math.abs(s.u);
+    // Drag acts against the car's whole velocity (sideways too, in a slide: ≈ with the frontal
+    // CdA, as no side figure is published); the downforce comes from the flow along the car.
     const cdA = s.drs ? AERO.cdA : AERO.cdAHigh;
     const clA = AERO.clA * (s.drs ? AERO.drsClFactor : 1);
-    const drag = q * cdA, down = Math.abs(q) * clA;
+    const kD = 0.5 * AERO.rho * cdA * V;
+    const dragX = kD * s.u, dragY = kD * s.v, down = 0.5 * AERO.rho * s.u * s.u * clA;
     // ---- Loads: static share, downforce, and the transfer from the last step's accelerations.
     const mg = CAR.m * G;
     const fF = mg * CAR.b / CAR.L + down * AERO.frontShareDownforce;
     const fR = mg * CAR.a / CAR.L + down * (1 - AERO.frontShareDownforce);
-    const dLong = CAR.m * s.ax * CAR.h / CAR.L;
-    const latF = CAR.m * s.ay * CAR.h * 0.55 / CAR.tf, latR = CAR.m * s.ay * CAR.h * 0.45 / CAR.tr;  // ≈ roll stiffness 55/45
-    const load = [
-      (fF - dLong) / 2 - latF, (fF - dLong) / 2 + latF,
-      (fR + dLong) / 2 - latR, (fR + dLong) / 2 + latR,
-    ].map(f => Math.max(0, f));
+    // The transfer can empty an axle or a side but not take more than it carries: the four loads
+    // always add up to the weight and the downforce (a wheel at zero is a wheel off the ground,
+    // the most a planar model can say; it does not roll the car over).
+    const dLong = clamp(CAR.m * s.ax * CAR.h / CAR.L, -fR, fF);
+    const axF = fF - dLong, axR = fR + dLong;
+    const latF = clamp(CAR.m * s.ay * CAR.h * 0.55 / CAR.tf, -axF / 2, axF / 2);   // ≈ roll stiffness 55/45
+    const latR = clamp(CAR.m * s.ay * CAR.h * 0.45 / CAR.tr, -axR / 2, axR / 2);
+    const load = [axF / 2 - latF, axF / 2 + latF, axR / 2 - latR, axR / 2 + latR];
     // ay > 0 is to the left: the right-hand tyres take the load.
     s.load = load;
     // ---- Steering: the fronts, and the rears a little (opposite slow, with them fast).
@@ -295,7 +307,7 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     }
     Fx -= roll;
     // ---- Body.
-    Fx -= drag;
+    Fx -= dragX; Fy -= dragY;
     const axB = Fx / CAR.m, ayB = Fy / CAR.m;
     s.u += (axB + s.v * s.r) * dt;
     s.v += (ayB - s.u * s.r) * dt;
@@ -319,11 +331,19 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     const c = Math.cos(s.psi), sn = Math.sin(s.psi);
     return [s.x + px * c - py * sn, s.z - px * sn - py * c];
   }
-  /** Advances by dt in fixed 1/240 s steps. */
+  /**
+   * Advances by dt of real time in fixed 1/240 s steps. What is left under a step is carried to
+   * the next call, so the car's clock keeps the wall clock's at any frame rate; a backlog over
+   * 0.25 s (a stalled tab) is dropped rather than run all at once. Returns the steps taken.
+   */
+  const H = 1 / 240, MAX_STEPS = 60;
   function advance(dt) {
-    const h = 1 / 240;
-    let n = Math.min(240, Math.round(dt / h));
-    while (n-- > 0) step(h);
+    if (!(dt > 0) || !Number.isFinite(dt)) return 0;
+    acc = Math.min(acc + dt, MAX_STEPS * H);
+    let n = 0;
+    while (acc >= H * (1 - 1e-9) && n < MAX_STEPS) { step(H); acc -= H; n++; }
+    acc = Math.max(0, acc);
+    return n;
   }
   return { state: s, input, reset, advance, step, worldOf, WP };
 }

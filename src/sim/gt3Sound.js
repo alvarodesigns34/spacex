@@ -59,8 +59,20 @@ export function createGt3Sound() {
 
   const set = (p, v, tc = 0.04) => p.setTargetAtTime(v, ctx.currentTime, tc);
 
+  // A hidden tab stops requestAnimationFrame and with it update(): the engine would go on at the
+  // last frame's note behind another page. Suspended while hidden, resumed on return if still on
+  // (the same policy as the launch's sound, sim/sound.js).
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (!ctx) return;
+      if (document.hidden) ctx.suspend?.();
+      else if (enabled) ctx.resume?.();
+    });
+  }
+
   return {
     get enabled() { return enabled; },
+    get contextState() { return ctx?.state ?? 'none'; },
     setEnabled(on) {
       if (on && !ctx && !build()) return;
       enabled = !!on;

@@ -2,7 +2,7 @@
   "name": "spacex-vehicle-center",
   "version": "1.0.0",
   "private": true,
-  "description": "Recreaciones 3D a escala 1:1 de ocho expositores de SpaceX",
+  "description": "Recreaciones 3D a escala 1:1 de diez expositores: ocho de SpaceX, un F-16A Block 15 y un Porsche 911 GT3 RS",
   "type": "module",
   "scripts": {
     "serve": "node tools/serve.mjs",
@@ -13,9 +13,10 @@
     "check:ux": "node tools/ux-check.mjs",
     "check:provenance": "node tools/provenance-check.mjs",
     "lint": "eslint .",
-    "check:static": "npm run lint && node tools/provenance-check.mjs && node tools/cloud-check.mjs && node tools/hardware-check.mjs && node tools/f16-check.mjs && node tools/gt3rs-check.mjs",
+    "check:static": "npm run lint && node tools/provenance-check.mjs && node tools/cloud-check.mjs && node tools/hardware-check.mjs && node tools/f16-check.mjs && node tools/gt3rs-check.mjs && node tools/mission-check.mjs && node tools/static-check.mjs",
     "check:f16": "node tools/f16-check.mjs",
     "check:gt3rs": "node tools/gt3rs-check.mjs",
+    "check:mission": "node tools/mission-check.mjs",
     "check:lod": "node tools/lod-pop.mjs"
   },
   "devDependencies": {

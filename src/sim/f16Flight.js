@@ -42,13 +42,33 @@ const G0 = 9.80665, D2R = Math.PI / 180, R2D = 180 / Math.PI;
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 
-/** 1976 US Standard Atmosphere, troposphere and the lower stratosphere (to 20 km). */
+/**
+ * 1976 US Standard Atmosphere, its seven layers to 86 km (geopotential heights, close enough to
+ * geometric ones at these altitudes: 0.3 % at 20 km), and isothermal above as a stated
+ * extrapolation. Before, the stratosphere stopped at 20 km and every height above it read as 20 km.
+ */
+const ATM_LAYERS = (() => {
+  const R = 287.05287, base = [0, 11000, 20000, 32000, 47000, 51000, 71000, 84852];
+  const lapse = [-0.0065, 0, 0.001, 0.0028, 0, -0.0028, -0.002];
+  const out = [];
+  let T = 288.15, P = 101325;
+  for (let i = 0; i < base.length; i++) {
+    const L = lapse[i] ?? 0;
+    out.push({ h: base[i], T, P, L });
+    if (i === base.length - 1) break;
+    const dh = base[i + 1] - base[i], T1 = T + L * dh;
+    P = L === 0 ? P * Math.exp(-G0 * dh / (R * T)) : P * Math.pow(T1 / T, -G0 / (L * R));
+    T = T1;
+  }
+  return out;
+})();
 export function atmosphere(h) {
-  const T0 = 288.15, P0 = 101325, L = 0.0065, R = 287.05287;
-  const z = clamp(h, -500, 20000);
-  let T, P;
-  if (z < 11000) { T = T0 - L * z; P = P0 * Math.pow(T / T0, G0 / (L * R)); }
-  else { T = 216.65; P = 22632.06 * Math.exp(-G0 * (z - 11000) / (R * T)); }
+  const R = 287.05287;
+  const z = Math.max(-500, Number.isFinite(h) ? h : 0);
+  let k = 0; while (k < ATM_LAYERS.length - 1 && z >= ATM_LAYERS[k + 1].h) k++;
+  const { h: hb, T: Tb, P: Pb, L } = ATM_LAYERS[k];
+  const T = Tb + L * (z - hb);
+  const P = L === 0 ? Pb * Math.exp(-G0 * (z - hb) / (R * Tb)) : Pb * Math.pow(T / Tb, -G0 / (L * R));
   return { T, P, rho: P / (R * T), a: Math.sqrt(1.4 * R * T) };
 }
 
@@ -161,6 +181,13 @@ export function createF16Flight({ ground }) {
     lef: actuator({ limit: FCS.lef.limit, rate: FCS.lef.rate, tau: FCS.lef.tau }, 0),
   };
   const ctl = { pitchI: 0, lefX: 0, ydX: 0, qLow: 0, nzF: 1 };
+  // Scratch for the step, one set per airplane (no allocation in the 240 Hz loop; never shared
+  // between two instances, so two airplanes cannot alias each other's temporaries).
+  const X = {
+    Fw: new THREE.Vector3(), Mw: new THREE.Vector3(), rw: new THREE.Vector3(), wW: new THREE.Vector3(),
+    vp: new THREE.Vector3(), fwd: new THREE.Vector3(), side: new THREE.Vector3(), F: new THREE.Vector3(),
+    d: new THREE.Vector3(), M: new THREE.Vector3(), wm: new THREE.Vector3(), Y: new THREE.Vector3(0, 1, 0),
+  };
   const input = { pitch: 0, roll: 0, yaw: 0, throttle: 0, brake: 0, speedBrake: 0, gearDown: true };
 
   /** Model frame → world, and back, for a vector (no translation). */
@@ -179,6 +206,15 @@ export function createF16Flight({ ground }) {
     s.crashed = null; s.t = 0; Object.assign(ctl, { pitchI: 0, lefX: 0, ydX: 0, qLow: 0, nzF: 1 });
     for (const k of Object.keys(act)) act[k].x = 0;
     Object.assign(input, { pitch: 0, roll: 0, yaw: 0, throttle: 0, brake: 1, speedBrake: 0, gearDown: true });
+    // Everything the last flight left in the telemetry and on the wheels goes too: before, a
+    // reset airplane sat still on the runway reading Mach 0.6, 40 kN of thrust and no weight on
+    // its wheels, and a wheel's brake anchor from the last stop held it to the old spot.
+    Object.assign(s.surfaces, { de: 0, da: 0, dr: 0, lef: 0, flap: 20, diff: 0 });
+    for (const w of s.wheels) Object.assign(w, { comp: 0, load: 0, anchor: null });
+    s.wow = true; s.nz = 1; s.load = 1; s.thrust = thrust(0, s.pos.y, 0);
+    s.alpha = 0; s.beta = 0; s.mach = 0; s.tas = 0; s.qbar = 0;
+    s.alt = s.pos.y; s.agl = s.pos.y - g - CG.y;
+    for (let i = 0; i < WHEELS.length; i++) s.wheels[i].load = WHEELS[i].load;
   }
 
   /** The air data: α, β, Mach, q̄ and the body-axis velocity. */
@@ -292,14 +328,14 @@ export function createF16Flight({ ground }) {
     }
     Fb[0] += s.thrust;
     // To the world.
-    const Fw = modelFromBody(Fb[0], Fb[1], Fb[2], new THREE.Vector3());
+    const Fw = modelFromBody(Fb[0], Fb[1], Fb[2], X.Fw);
     toWorld(Fw);
     // The aerodynamic load factor, body z (positive up), for the pitch law.
     s.nz = -Fb[2] / W;
 
     // Gear and hard points against the ground.
     s.wow = false;
-    const Mw = new THREE.Vector3();     // ground moments, world
+    const Mw = X.Mw.set(0, 0, 0);       // ground moments, world
     let hit = null;
     if (s.gear > 0.98) {
       WHEELS.forEach((wh, i) => {
@@ -315,19 +351,19 @@ export function createF16Flight({ ground }) {
         if (pen > wh.static + wh.travel) { hit = 'gear'; return; }
         s.wow = true;
         // Velocity of the contact point (world).
-        const rw = wh.r.clone(); toWorld(rw);
-        const wWorld = modelFromBody(s.w.x, s.w.y, s.w.z, new THREE.Vector3()); toWorld(wWorld);
-        const vp = new THREE.Vector3().crossVectors(wWorld, rw).add(s.vel);
+        const rw = X.rw.copy(wh.r); toWorld(rw);
+        const wWorld = modelFromBody(s.w.x, s.w.y, s.w.z, X.wW); toWorld(wWorld);
+        const vp = X.vp.crossVectors(wWorld, rw).add(s.vel);
         const Fn = Math.max(0, wh.k * pen - wh.c * vp.y);
         ws.load = Fn;
         // A strut loaded past ≈8 times its share of the weight fails (≈ a sink rate of 5 m/s;
         // the F-16's gear is designed for about 3, with the usual margin above it).
         if (Fn > 8 * wh.load) { hit = 'gear'; return; }
         // Rolling direction: the airframe's x on the ground, turned by the nose-wheel steering.
-        const fwd = new THREE.Vector3(1, 0, 0);
-        if (wh.steer) fwd.applyAxisAngle(new THREE.Vector3(0, 1, 0), -input.yaw * clamp(32 - air.V * 0.6, 5, 32) * D2R);
+        const fwd = X.fwd.set(1, 0, 0);
+        if (wh.steer) fwd.applyAxisAngle(X.Y, -input.yaw * clamp(32 - air.V * 0.6, 5, 32) * D2R);
         toWorld(fwd); fwd.y = 0; fwd.normalize();
-        const side = new THREE.Vector3(-fwd.z, 0, fwd.x);
+        const side = X.side.set(-fwd.z, 0, fwd.x);
         const vl = vp.dot(fwd), vs = vp.dot(side);
         const mu = gnd.hard ? 0.02 : 0.07;
         const brake = wh.brake ? input.brake * (gnd.hard ? 0.5 : 0.3) : 0;
@@ -336,7 +372,7 @@ export function createF16Flight({ ground }) {
         if (wh.brake && input.brake > 0.5 && Math.abs(vl) < 0.3) {
           // Held by the brakes: a stiff anchor where the wheel stopped, up to the tyre's grip.
           if (!ws.anchor) ws.anchor = pt.clone();
-          const d = new THREE.Vector3().subVectors(pt, ws.anchor).dot(fwd);
+          const d = X.d.subVectors(pt, ws.anchor).dot(fwd);
           Fl = clamp(-60000 * d - 30000 * vl, -lim, lim);
           if (Math.abs(Fl) >= lim) ws.anchor = null;   // it skids
         } else {
@@ -344,9 +380,9 @@ export function createF16Flight({ ground }) {
           Fl = -lim * Math.tanh(vl / 0.3);
         }
         const Fs = -clamp(vs * 8 * Fn / Math.max(1, Math.abs(vl) * 0.2 + 1), -0.7 * Fn, 0.7 * Fn);
-        const F = new THREE.Vector3(0, Fn, 0).addScaledVector(fwd, Fl).addScaledVector(side, Fs);
+        const F = X.F.set(0, Fn, 0).addScaledVector(fwd, Fl).addScaledVector(side, Fs);
         Fw.add(F);
-        Mw.add(new THREE.Vector3().crossVectors(rw, F));
+        Mw.add(X.M.crossVectors(rw, F));
       });
     }
     for (const r of HARD) {
@@ -376,7 +412,7 @@ export function createF16Flight({ ground }) {
     s.pos.addScaledVector(s.vel, dt);
 
     // Rotation, Euler's equations in body axes with the cross product of inertia.
-    const Mg = toModel(Mw.clone());
+    const Mg = toModel(Mw);
     const [gl, gm, gn] = bodyFromModel(Mg);
     const Lm = Mb[0] + gl, Mm = Mb[1] + gm, Nm = Mb[2] + gn;
     const [p, q, r] = [s.w.x, s.w.y, s.w.z];
@@ -384,7 +420,7 @@ export function createF16Flight({ ground }) {
     const tx = Lm - (q * hz - r * hy), ty = Mm - (r * hx - p * hz), tz = Nm - (p * hy - q * hx);
     const pd = (I.z * tx + I.xz * tz) / DET, qd = ty / I.y, rd = (I.xz * tx + I.x * tz) / DET;
     s.w.x += pd * dt; s.w.y += qd * dt; s.w.z += rd * dt;
-    const wm = modelFromBody(s.w.x, s.w.y, s.w.z, new THREE.Vector3());
+    const wm = modelFromBody(s.w.x, s.w.y, s.w.z, X.wm);
     const ang = wm.length() * dt;
     if (ang > 0) s.q.multiply(tmpQ.setFromAxisAngle(wm.normalize(), ang)).normalize();
 
@@ -396,7 +432,7 @@ export function createF16Flight({ ground }) {
 
   return {
     state: s, input, reset,
-    /** Advances by `dt` seconds in fixed 1/240 s steps. */
+    /** Advances by `dt` seconds in n equal steps of at most 1/240 s (dt is kept whole; f16Fly caps it per frame). */
     advance(dt) { const n = Math.min(240, Math.ceil(dt * 240 - 1e-9)); for (let i = 0; i < n; i++) step(dt / n); },
     /** The airframe's pose for the visuals: the model origin's world position and the rotation. */
     pose(out = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() }) {
