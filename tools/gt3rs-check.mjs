@@ -15,7 +15,7 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 
-const { createGt3Car, CAR, fullTorque, steerReach } = await import('../src/sim/gt3Car.js');
+const { createGt3Car, CAR, fullTorque, steerReach, OUTLINE } = await import('../src/sim/gt3Car.js');
 const { ENGINE, GEARBOX, PERFORMANCE, AERO, BODY } = await import('../src/data/gt3rs.js');
 const { circuitSurface } = await import('../src/core/circuit.js');
 const { toWorld, LAP, CENTRE } = await import('../src/core/circuitPlan.js');
@@ -46,7 +46,12 @@ const rolling = (s, v, g) => { s.u = v; s.gear = g; s.w = s.w.map((_, k) => v / 
 // ---- Acceleration and top speed, as Porsche measures them: launch control, PSM on ----------------
 {
   const { c, s, i } = make();
-  s.tc = true; i.throttle = 1;
+  // Launch Control: brake and throttle held at a standstill (the engine at its launch speed),
+  // then the brake let go; the clock starts there.
+  s.tc = true; i.throttle = 1; i.brake = 1;
+  for (let t = 0; t < 1.5; t += DT) c.step(DT);
+  const armed = s.launch, launchRpm = s.rpm;
+  i.brake = 0;
   const at = {};
   let top = 0;
   for (let t = 0; t < 120; t += DT) {
@@ -59,6 +64,7 @@ const rolling = (s, v, g) => { s.u = v; s.gear = g; s.w = s.w.map((_, k) => v / 
     const got = at[v];
     report(got !== undefined && Math.abs(got - want) / want < 0.05, `0–${Math.round(v * 3.6)} km/h en ${want} s (±5 %)`, `${got?.toFixed(2)} s`);
   }
+  report(armed && Math.abs(launchRpm - 5500) < 300, 'Launch Control: parado con freno y gas, el motor espera a su régimen de salida con el embrague abierto', `${launchRpm.toFixed(0)} rpm`);
   report(Math.abs(top - PERFORMANCE.topSpeed * 3.6) < 4, `velocidad máxima ${Math.round(PERFORMANCE.topSpeed * 3.6)} km/h (±4), en 7.ª con el DRS`, `${top.toFixed(1)} km/h, ${s.gear}.ª, ${s.rpm.toFixed(0)} rpm, DRS ${s.drs}`);
   report(s.rpm < ENGINE.maxRpm && s.gear === 7, 'a la máxima, por debajo del corte: la resistencia la limita, no el motor', `${s.rpm.toFixed(0)} rpm`);
 }
@@ -263,6 +269,116 @@ function drive({ v0 = 0, gear = 1, psm = true, keys, T = 5 }) {
   for (let k = 0; k < 240; k++) c.step(DT);
   // ½ρ·CdA·v²/m ≈ 0.31 m/s² at 30 m/s: ≈ 29.7 m/s after a second (before, it stayed at 30).
   report(s.v < 29.8 && s.v > 29.5, 'arrastre: también se opone a la velocidad lateral en un derrape (sin agarre, 1 s a 30 m/s ≈ 29,7)', `${s.v.toFixed(2)} m/s`);
+}
+
+// ---- The audit's P1: the ground, the suspension, the engine, the aids, the contacts -----------------
+{
+  // On a 10 % grade, standing with no pedal, the car rolls back; the brake holds it (H02).
+  const slope = () => (x) => ({ h: 0.1 * x, mu: 1, roll: 0, kind: 'track' });
+  const g = slope();
+  const { c, s } = make((x) => g(x));
+  for (let k = 0; k < 480; k++) c.step(DT);
+  const back = s.u;
+  const h = make((x) => g(x)); h.i.brake = 1;
+  for (let k = 0; k < 480; k++) h.c.step(DT);
+  report(back < -1.2 && Math.abs(h.s.u) < 0.05, 'pendiente del 10 %: sin pedales el coche cae hacia atrás; frenado, se queda', `${back.toFixed(2)} m/s en 2 s · frenado ${h.s.u.toFixed(3)} m/s`);
+}
+{
+  // Over a crest taken fast the car leaves the ground, carries nothing on its tyres in the air and
+  // lands (H02): a 2 m ramp over 12 m, then the ground falls away.
+  const ramp = (x) => ({ h: x > 0 && x < 12 ? x / 6 : 0, mu: 1, roll: 0, kind: 'track' });
+  const { c, s } = make(ramp);
+  c.reset({ x: -40 }); rolling(s, 110 * KMH, 3);
+  let air = 0, airLoad = 0, landed = false, peak = 0;
+  for (let k = 0; k < 240 * 4; k++) {
+    c.step(DT);
+    if (s.air > 0) { air = Math.max(air, s.air); airLoad = Math.max(airLoad, ...s.load); peak = Math.max(peak, s.y); }
+    if (air > 0 && s.air === 0) landed = true;
+  }
+  const finite = [s.x, s.u, s.y, s.hz, ...s.load].every(Number.isFinite);
+  report(air > 0.3 && airLoad < 1 && landed && finite, 'salto: por una cresta a 110 km/h despega, en el aire las ruedas no cargan nada y aterriza', `${air.toFixed(2)} s en el aire, a ${peak.toFixed(2)} m · carga máx. en el aire ${airLoad.toFixed(0)} N`);
+}
+{
+  // A twisted ground (one diagonal higher) loads that diagonal (H02).
+  const twist = (x, z) => ({ h: 0.02 * x * z, mu: 1, roll: 0, kind: 'track' });
+  const { c, s } = make(twist);
+  for (let k = 0; k < 240; k++) c.step(DT);
+  const d = s.load[1] + s.load[2] - (s.load[0] + s.load[3]);
+  report(Math.abs(d) > 500, 'suelo alabeado: una diagonal carga más que la otra', `${d.toFixed(0)} N de diferencia`);
+}
+{
+  // Ackermann: at full lock the inner front wheel turns tighter than the outer (H08).
+  const { c, s, i } = make();
+  rolling(s, 3, 1); i.steer = 1;
+  for (let k = 0; k < 240; k++) c.step(DT);
+  report(s.steerW[0] > s.steerW[1] + 0.02, 'Ackermann: con todo el volante a la izquierda, la delantera izquierda gira más que la derecha', `${(s.steerW[0] * 57.3).toFixed(1)}° y ${(s.steerW[1] * 57.3).toFixed(1)}°`);
+}
+{
+  // The active aerodynamics: DRS on a straight, the airbrake hard on the brakes from speed (H09).
+  const { c, s, i } = make();
+  rolling(s, 200 * KMH, 5); i.brake = 1;
+  c.step(DT);
+  const ab = s.aero;
+  const d0 = make(); rolling(d0.s, 200 * KMH, 5); d0.i.brake = 0.3; d0.c.step(DT);
+  report(ab === 'airbrake' && d0.s.aero === 'normal', 'aerodinámica activa: aerofreno al frenar fuerte a 200 km/h; normal con un toque de freno', `${ab} · ${d0.s.aero}`);
+}
+{
+  // The engine on its own inertia (H06): through a downshift under braking the PDK blips it up to
+  // the lower gear's speed; and pulling away without Launch Control the clutch takes up the drive
+  // as the engine gathers revs, so the car starts later than launched.
+  const { c, s, i } = make();
+  rolling(s, 70 * KMH, 3); s.rpm = 70 * KMH / CAR.rr * GEARBOX.ratios[2] * GEARBOX.final * 60 / (2 * Math.PI);
+  i.brake = 0.4;
+  let before = 0, peak = 0, seen = false;
+  for (let k = 0; k < 240 * 3 && !seen; k++) {
+    const g0 = s.gear; const r0 = s.rpm;
+    c.step(DT);
+    if (s.gear < g0) { before = r0; peak = r0; for (let m = 0; m < 30; m++) { c.step(DT); peak = Math.max(peak, s.rpm); } seen = true; }
+  }
+  report(seen && peak > before + 800, 'motor con inercia: al reducir frenando, el golpe de gas sube el motor al régimen de la marcha inferior', `${before.toFixed(0)} → ${peak.toFixed(0)} rpm`);
+  const a = make(); a.s.tc = true; a.i.throttle = 1;
+  let t1 = 0; while (a.s.u < 50 * KMH && t1 < 5) { a.c.step(DT); t1 += DT; }
+  const b = make(); b.s.tc = true; b.i.throttle = 1; b.i.brake = 1;
+  for (let k = 0; k < 360; k++) b.c.step(DT);
+  b.i.brake = 0;
+  let t2 = 0; while (b.s.u < 50 * KMH && t2 < 5) { b.c.step(DT); t2 += DT; }
+  report(t1 > t2 + 0.1, 'salida: sin Launch Control el coche tarda más que con él (el motor sube de vueltas mientras el embrague coge)', `0–50 km/h en ${t1.toFixed(2)} s frente a ${t2.toFixed(2)} s`);
+}
+{
+  // The aids are their own module, driven here alone (H07): traction control cuts the drive as the
+  // rears spin past their peak, and stability control brakes the outer front when the car oversteers.
+  const A = await import('../src/sim/gt3Assists.js');
+  const st = { kap: [0, 0, 0.30, 0.30], tcCut: 1 };
+  for (let k = 0; k < 30; k++) A.tractionControl(st, true, 0.10, DT);
+  const car = { u: 25, v: -2, r: 0.9, steer: 0.05, reverse: false, tc: true, drift: 0, esc: 0 };
+  const aid = A.stability(car, { brake: 0, handbrake: 0 }, true, Math.atan2(car.v, car.u), { L: CAR.L, tf: CAR.tf, tr: CAR.tr, R: [CAR.rf, CAR.rf, CAR.rr, CAR.rr], mu: 1.48 });
+  report(st.tcCut < 0.3 && aid.brake[1] > 0 && aid.brake[0] === 0, 'ayudas en su propio módulo: el control de tracción corta con las traseras patinando y el de estabilidad frena la delantera exterior al sobrevirar', `corte ${st.tcCut.toFixed(2)} · freno delantera derecha ${aid.brake[1].toFixed(0)} N·m`);
+}
+{
+  // Contacts (H10): driven into a post at 50 km/h the car stops against it and bounces back a
+  // little, never through it; a glancing blow turns it.
+  const post = [{ x: 20, z: 0, r: 0.3 }];
+  const c = createGt3Car({ ground: flat(), obstacles: () => post }); c.reset();
+  const s = c.state; rolling(s, 50 * KMH, 2);
+  let impact = 0, worst = Infinity;
+  for (let k = 0; k < 240 * 3; k++) {
+    c.step(DT); impact = Math.max(impact, s.impact);
+    worst = Math.min(worst, 20 - 0.3 - (s.x + OUTLINE.front));
+  }
+  report(impact > 10 && s.u < 0.5 && worst > -0.05, 'choque de frente contra un poste a 50 km/h: se detiene contra él y no lo atraviesa', `cierre ${impact.toFixed(1)} m/s · penetración máx. ${Math.max(0, -worst * 100).toFixed(1)} cm · sale a ${(s.u * 3.6).toFixed(1)} km/h`);
+  const g2 = createGt3Car({ ground: flat(), obstacles: () => [{ x: 20, z: -0.95, r: 0.3 }] }); g2.reset();
+  rolling(g2.state, 50 * KMH, 2);
+  let yaw = 0;
+  for (let k = 0; k < 240 * 2; k++) { g2.step(DT); yaw = Math.max(yaw, Math.abs(g2.state.r)); }
+  report(yaw > 0.3, 'golpe de refilón en la esquina: el impulso hace girar el coche', `${yaw.toFixed(2)} rad/s`);
+}
+{
+  // Water (H10): driven into the sea the car is braked hard by it and its engine drowns.
+  const sea = (x) => (x > 10 ? { h: -0.9, mu: 0.3, roll: 0.5, kind: 'water' } : { h: 0, mu: 1, roll: 0, kind: 'track' });
+  const { c, s, i } = make(sea);
+  rolling(s, 60 * KMH, 2); i.throttle = 1;
+  for (let k = 0; k < 240 * 5; k++) c.step(DT);
+  report(s.x < 40 && s.wet > 1.5 && Math.abs(s.u) < 1, 'al mar: el agua lo frena en pocos metros y el motor se ahoga', `se para a ${(s.x - 10).toFixed(1)} m de la orilla · ${s.rpm.toFixed(0)} rpm`);
 }
 
 void GEARBOX; void BODY;

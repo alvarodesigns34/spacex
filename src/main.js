@@ -695,6 +695,19 @@ async function main() {
     // The plain: dry grass and silt (≈ μ 0.55, a soft surface's drag).
     return { h: Math.max(h, -0.85), mu: 0.55, roll: 0.06, kind: 'grass' };
   };
+  // What the car can hit: the other exhibits, as their occluders (circles in plan, the walking
+  // visitor's obstacles too), near where it is.
+  const gt3Obstacles = (x, z) => {
+    const out = [];
+    for (const [id, ex] of Object.entries(exhibits)) {
+      if (id === 'gt3rs') continue;
+      for (const [ox, oz, r] of ex.occluders) {
+        const cx = ex.lay.x + ox, cz = ex.lay.z + oz;
+        if (Math.abs(cx - x) < r + 4 && Math.abs(cz - z) < r + 4) out.push({ x: cx, z: cz, r });
+      }
+    }
+    return out;
+  };
   const gt3Hud = createGt3Hud({
     root: hudRoot,
     onEnd: () => gt3drive.reset(),
@@ -705,7 +718,7 @@ async function main() {
     onSound: () => gt3drive.setSound(!gt3drive.sound.enabled),
   });
   const gt3drive = createGt3Drive({
-    scene, exhibit: exhibits.gt3rs, env, rig, camera, ground: gt3Ground, hud: gt3Hud,
+    scene, exhibit: exhibits.gt3rs, env, rig, camera, ground: gt3Ground, obstacles: gt3Obstacles, hud: gt3Hud,
     // Where it waits: its own spot on the skid pad, nose to the east.
     home: () => ({ x: exhibits.gt3rs.lay.x, z: exhibits.gt3rs.lay.z, psi: THREE.MathUtils.degToRad(exhibits.gt3rs.lay.yaw ?? 0) }),
     onStart: () => {

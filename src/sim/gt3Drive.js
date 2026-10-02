@@ -3,7 +3,7 @@
  * from where it waits on the skid pad, onto its circuit or anywhere over the plain. No change
  * of scene: the car, the circuit, the site and the runway are the ones the visitor walks round.
  *
- * Controls: W throttle, S brake (held at a standstill, reverse), A/D steer, Space the parking
+ * Controls: W throttle, S brake (held at a standstill, reverse; with W, Launch Control: let go of S to launch), A/D steer, Space the parking
  * brake (tapped into a corner it locks the rears and starts a drift, which the throttle and the
  * counter-steer then hold), T the PSM (traction and stability control, on by default), C the
  * camera, M the engine's sound (off until turned on), Enter back to the pad, Esc to end. The
@@ -124,7 +124,7 @@ function createTyreSmoke(scene, max = 900) {
   return { emit, update, clear, points };
 }
 
-export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, home, onStart = () => {}, onFinish = () => {}, visibilityHook = null }) {
+export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obstacles, hud, home, onStart = () => {}, onFinish = () => {}, visibilityHook = null }) {
   const car = exhibit.model;            // the 'gt3rs' group
   const sprung = car.getObjectByName('gt3-sprung');
   const wheels = ['fl', 'fr', 'rl', 'rr'].map(t => car.getObjectByName(`gt3-wheel-${t[0]}${t[1]}`));
@@ -140,7 +140,9 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
   const smoke = createTyreSmoke(scene);
   const sound = createGt3Sound();
 
-  const sim = createGt3Car({ ground });
+  const sim = createGt3Car({ ground, obstacles });
+  // Each wheel's place on the car, for its travel on the springs.
+  const wheelY = wheels.map(w => w?.position.y ?? 0);
   const s = sim.state;
   const state = { running: false, paused: false, camera: 'chase', readout: null, messages: [], manual: false, lap: null, best: null, laps: 0 };
   const saved = { parent: null, position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), near: 0, far: 0, fov: 0 };
@@ -278,7 +280,8 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
   const spinAngle = [0, 0, 0, 0];
   function pose(dt) {
     holder.position.set(s.x, s.y, s.z);
-    holder.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), s.psi);
+    // The heading, then the body's attitude on its springs over the ground (nose up, left side up).
+    holder.rotation.set(s.br, s.psi, s.bp, 'YZX');
     // The body on its springs: the nose up under power and down under braking (about Z, the car's
     // lateral axis), leaning out of a turn (about X): s.ay > 0 is a left turn, the right side sinks.
     if (sprung) sprung.rotation.set(s.roll, 0, s.pitch, 'XYZ');
@@ -290,9 +293,11 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
       // Rolling forward turns the top of the wheel forward: a negative turn about the axle, on both
       // sides (the left wheel's mirroring in Z does not change a turn about Z).
       if (spin) spin.rotation.z = -spinAngle[i];
-      w.rotation.y = i < 2 ? s.steer : 0;
+      w.rotation.y = s.steerW[i];
+      w.position.y = wheelY[i] + s.travel[i];
     }
-    if (flap && flapBase) flap.quaternion.copy(flapBase).multiply(_q.setFromAxisAngle(new THREE.Vector3(0, 0, 1), (s.drs ? 13 : 0) / R2D));
+    // The flap: flat for the DRS, steepest as an airbrake.
+    if (flap && flapBase) flap.quaternion.copy(flapBase).multiply(_q.setFromAxisAngle(new THREE.Vector3(0, 0, 1), (s.aero === 'drs' ? 13 : s.aero === 'airbrake' ? -8 : 0) / R2D));
     instruments?.update({ rpm: s.rpm, gear: s.reverse ? 'R' : s.gear, kmh: Math.hypot(s.u, s.v) * 3.6, steer: s.steer });
     void _e;
   }
@@ -365,7 +370,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
     window.addEventListener('blur', onBlur);
     visibilityHook?.(true);
     hud?.show(true);
-    note('W go · S brake · A D steer · Space into a corner to drift · the circuit is through the lane');
+    note('W go · S brake · A D steer · Space into a corner to drift · W+S standing: Launch Control · the circuit is through the lane');
     apply(0);
   }
   function restart() { if (state.running) { placeHome(); note('Back on the skid pad'); } }
@@ -377,7 +382,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
     window.removeEventListener('blur', onBlur);
     keys.clear();
     if (sprung) sprung.rotation.set(0, 0, 0);
-    for (const w of wheels) if (w) { w.rotation.y = 0; if (w.userData.spin) w.userData.spin.rotation.z = 0; }
+    wheels.forEach((w, i) => { if (w) { w.rotation.y = 0; w.position.y = wheelY[i]; if (w.userData.spin) w.userData.spin.rotation.z = 0; } });
     if (flap && flapBase) flap.quaternion.copy(flapBase);
     instruments?.update({ rpm: 0, gear: 'N', kmh: 0, steer: 0 });
     saved.parent.add(car);
@@ -397,6 +402,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
     readControls(dt);
     if (!state.paused && dt > 0) {
       sim.advance(Math.min(dt, 0.25));
+      events();
       layMarks(Math.min(dt, 0.25));
       smoke.update(Math.min(dt, 0.25));
       timeLaps();
@@ -408,6 +414,16 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
     publish();
   }
 
+  // What the driver is told: a contact, the water, Launch Control armed, a jump.
+  let lastHit = -10, drowned = false, armed = false;
+  function events() {
+    if (s.impact > 2.5 && s.t - lastHit > 1) { lastHit = s.t; note(`Contact at ${Math.round(s.impact * 3.6)} km/h`); }
+    if (s.wet > 1.5 && !drowned) { drowned = true; note('In the water: the engine has drowned · Enter: back to the pad'); }
+    if (s.wet === 0) drowned = false;
+    if (s.launch && sim.input.brake > 0.1 && !armed) { armed = true; note('Launch Control: let go of S to launch'); }
+    if (!s.launch) armed = false;
+    if (s.air > 0.35 && s.air < 0.37) note('Airborne');
+  }
   function publish() {
     state.readout = {
       // Speed over the ground, sideways included (a drift is not slower than it moves).

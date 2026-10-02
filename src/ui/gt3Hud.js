@@ -25,7 +25,7 @@ export function createGt3Hud({ root, onEnd, onCamera, onRestart, onPause, onTrac
     <button type="button" class="f16-btn" id="gt3-sound" aria-pressed="false" title="Sound (M): the flat six, the tyres and the wind, synthesised; off until you turn it on">Sound <kbd>M</kbd></button>
     <button type="button" class="f16-btn" id="gt3-restart" title="Back to the skid pad (Enter)">Pad <kbd>Enter</kbd></button>
     <button type="button" class="f16-btn f16-end" id="gt3-end" title="Back to the exhibit (Esc)">End <kbd>Esc</kbd></button>
-    <p class="f16-keys"><kbd>W</kbd> throttle · <kbd>S</kbd> brake, held when stopped: reverse · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> parking brake: tap it into a corner to drift, then throttle and counter-steer · <kbd>C</kbd> camera · <kbd>M</kbd> sound — the gearbox shifts by itself</p>
+    <p class="f16-keys"><kbd>W</kbd> throttle · <kbd>S</kbd> brake, held when stopped: reverse · <kbd>W</kbd>+<kbd>S</kbd> stopped: Launch Control · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> parking brake: tap it into a corner to drift, then throttle and counter-steer · <kbd>C</kbd> camera · <kbd>M</kbd> sound — the gearbox shifts by itself</p>
     <ul class="f16-msgs" id="gt3-msgs" aria-live="polite"></ul>
   `;
   root.appendChild(bar);

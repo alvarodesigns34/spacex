@@ -768,7 +768,10 @@ try {
       const D = window.__vc.gt3drive, s = D.sim.state;
       const key = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code, key: code.slice(-1).toLowerCase(), bubbles: true }));
       const run = (codes, sec) => { for (const c of codes) key('keydown', c); for (let k = 0; k < sec * 30; k++) D.update(1 / 30); for (const c of codes) key('keyup', c); };
-      run(['KeyW'], 2.2);
+      // 3 s: since the engine has its own inertia and the clutch takes up the drive as it gathers
+      // revs (P1 audit, H06), the car pulls away without Launch Control a little later than it did
+      // and reaches second at ≈2.5 s, no longer within 2.2.
+      run(['KeyW'], 3.0);
       const fast = { kmh: s.u * 3.6, gear: s.gear };
       let grip = 0;
       for (const c of ['KeyW', 'KeyA']) key('keydown', c);

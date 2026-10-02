@@ -738,6 +738,29 @@ El habitáculo se ha rehecho desde cero en su propio módulo (`src/vehicles/gt3C
   - **Corregido:** el commit `bb348c6` se subió con esta comprobación del presupuesto en rojo (249 materiales); este commit la deja en verde.
 - El habitáculo tiene ≈53.000 triángulos. El coche entero, con la carrocería nueva, se queda en ≈452.000 (antes ≈527.000) y la escena, dentro de su presupuesto.
 
+### Porsche 911 GT3 RS, mejora 5: la dinámica P1 de la auditoría (2 de octubre de 2026)
+
+Los hallazgos P1 de la auditoría externa sobre el Porsche, cada uno con su prueba en `tools/gt3rs-check.mjs`. Todas las cifras nuevas son estimaciones (≈) y están en `src/data/gt3rs.js` con su etiqueta: `SUSPENSION`, `CLUTCH` y el aerofreno de `AERO`.
+
+- **H02: el suelo bajo cada rueda y la suspensión.** El modelo lee el suelo en las cuatro huellas y calcula el plano que pasa por ellas.
+  - En una pendiente, el peso tira a lo largo de ella: en una del 10 % el coche sin pedales cae hacia atrás, y frenado se queda.
+  - La carrocería va sobre muelles y amortiguadores (cabeceo, balanceo y altura, ≈2 Hz) que solo empujan. Cada rueda recibe lo que su muelle añade, y en un suelo alabeado carga más una diagonal.
+  - Por una cresta a 110 km/h el coche despega: ≈1 s en el aire, sin carga en las ruedas, y aterriza.
+  - En pantalla, el coche entero se inclina con el terreno y cada rueda sube y baja con su recorrido.
+- **H06: el motor con inercia y el embrague del PDK.**
+  - El embrague coge la tracción al arrancar, se abre en cada cambio y vuelve a cerrar. Al reducir frenando, un golpe de gas sube el motor al régimen de la marcha inferior.
+  - Frenando fuerte, o con el ABS trabajando atrás, deja pasar poco freno motor para no bloquear las traseras.
+  - **Launch Control:** W+S con el coche parado sostiene el motor a ≈5.500 rpm con el embrague abierto; al soltar S, sale. Las cifras de aceleración de Porsche se miden así (con el PDK va de serie; la ficha no lo especifica), y la prueba las mide igual: 0–100 en 3,19 s (publicado 3,2), 0–160 en 6,90 (6,9) y 0–200 en 10,65 (10,6).
+  - Sin Launch Control el coche tarda más: el motor tiene que subir de vueltas mientras el embrague coge.
+- **H07: las ayudas, separadas de la física.** El control de tracción, el de estabilidad, el ABS, el EBD y el modo derrape están en `src/sim/gt3Assists.js`, con sus umbrales en una tabla, y se pueden probar solos. El cambio se hizo primero sin modificar el comportamiento: las pruebas daban lo mismo, bit a bit.
+- **H08: Ackermann.** La rueda delantera interior gira más que la exterior (la mitad de la geometría completa, ≈): 32,8° frente a 27,9° con todo el volante. En pantalla, cada rueda gira su propio ángulo.
+- **H09: aerodinámica activa con tres estados.** DRS en recta a fondo; aerofreno al frenar fuerte por encima de 100 km/h (más resistencia, ≈ +15 %), con el *flap* del ala en su posición más inclinada; y la posición normal entre ambos.
+- **H10: choques y agua.**
+  - El coche, con su contorno publicado, choca con los demás vehículos expuestos. Sus huellas son los mismos círculos que ya esquiva el visitante a pie. Rebota (≈22 % de la velocidad de cierre), roza con fricción y, si el golpe es de refilón, gira.
+  - Contra un poste a 50 km/h se detiene sin atravesarlo, y el panel avisa del golpe.
+  - En el mar, el agua lo frena en ≈5 m, el motor se ahoga y el panel lo dice.
+- La frenada de 100 a 0 km/h baja de 29,7 a 27,7 m (≈, no publicada). La prueba de interfaz que arranca con W da ahora 3 s en vez de 2,2 para ver el paso a 2.ª: sin Launch Control, el coche llega a ella hacia los 2,5 s.
+
 ### Auditoría técnica externa del 2 de octubre de 2026 (ChatGPT): lo corregido
 
 Auditoría de la revisión `8e595b8`, con 60 hallazgos (1 crítico, 24 altos, 32 medios y 3 bajos). En esta ronda se han corregido los de prioridad P0 y algunos P1 acotados, cada uno con una prueba que falla con el fallo y pasa con la corrección. Los identificadores (H01…H60) son los de la auditoría.
@@ -783,7 +806,7 @@ Auditoría de la revisión `8e595b8`, con 60 hallazgos (1 crítico, 24 altos, 32
 
 **Pendiente (P1 y siguientes, sin hacer en esta ronda):**
 
-- **Porsche:** suspensión y contactos verticales por rueda, y gravedad en pendiente (H02); ayudas separadas de la física (H07); neumáticos, transmisión, dirección y aerodinámica activa con más estados (H05, H06, H08, H09); colisiones y agua (H10).
+- **Porsche:** H02, H06, H07, H08, H09 y H10, hechos en la *mejora 5*; queda H05 (un modelo de neumático más completo: temperatura y presión).
 - **F-16:**
   - marco geodésico para la altitud y la gravedad (H15);
   - dominio de Morelli, régimen supersónico y configuración del avión declarados (H16, H17, H19, H20).

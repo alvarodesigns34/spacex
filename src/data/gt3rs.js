@@ -29,7 +29,7 @@ export const ENGINE = {
   torqueCurve: [[800, 260], [1500, 300], [2500, 350], [3500, 395], [4500, 425], [5500, 450],
     [6300, 465], [7000, 460], [7800, 448], [8500, 433.7], [9000, 410]],
   idle: 900,                              // ESTIMATE
-  inertia: 0.18,                          // ESTIMATE, kg·m²: crank, flywheel, clutch
+  inertia: 0.14,                          // ESTIMATE, kg·m²: crank, flywheel, clutch
   friction: [18, 0.006],                  // ESTIMATE: engine braking, N·m and N·m per rpm (closed throttle)
 };
 
@@ -104,8 +104,28 @@ export const AERO = {
   cdA: 0.89,                              // DERIVED from 296 km/h, wings flat (see tools/gt3rs-check.mjs)
   cdAHigh: 1.10,                          // ESTIMATE ≈: wings at the high-downforce setting
   drsClFactor: 0.45,                      // ESTIMATE ≈: downforce left with the wings flat
+  // Airbrake: hard on the brakes from speed, the wing's flap and the front diffuser's flaps go to
+  // their steepest, for more drag (≈ how much: not published).
+  airbrakeCdFactor: 1.15, airbrakeSpeed: 100 / 3.6, airbrakePedal: 0.5,   // ESTIMATE ≈
   rho: RHO,
 };
+
+/**
+ * The suspension, for the body's motion over the ground: ride frequencies and damping of a
+ * track-set car on its springs, the body's inertias in pitch and roll, the stiffness that shares a
+ * twisted ground's load across the diagonals, and the travel to the bump stops. Not published:
+ * ESTIMATE throughout (a road car's are ≈1.2–1.5 Hz; a track car's ≈2).
+ */
+export const SUSPENSION = {
+  tag: 'ESTIMATE',
+  heaveHz: 2.0, pitchHz: 2.2, rollHz: 2.5, zeta: 0.35,
+  inertiaPitch: 1750, inertiaRoll: 520,   // kg·m²
+  warp: 42000,                            // N per metre of diagonal twist
+  bump: 0.055, droop: 0.075,              // m from the static ride height
+  ackermann: 0.5,                         // share of full Ackermann steering geometry
+};
+/** The clutches of the PDK: their torque capacity when closed, and while launching (≈). */
+export const CLUTCH = { tag: 'ESTIMATE', capacity: 620, dragCap: 90, launchRpm: 5500, slipBand: 6 };
 
 /**
  * The tyres' grip: a simplified Pacejka "magic formula" per tyre with combined slip, the

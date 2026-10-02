@@ -208,7 +208,7 @@ Lo hecho en 1 y 2 (detalle en el README, sección del 2 de octubre):
    - Banco de pruebas fuera del repositorio (carpeta temporal `bench/`): construye solo el Porsche y lo renderiza con las cámaras de las fotos (`match/cams.json`; q34 resuelta por PnP). `match/overlay.py` superpone los bordes. Las fotos de Porsche están solo en la carpeta temporal.
    - Extremos: `relief(spec)` con `NOSE`/`TAIL`; `endPatch`, `endBand` e `intake` sobre `ENDS[dir]`. `endNormal` estaba mal para la cola (componentes laterales invertidas): corregido.
 2. **Habitáculo: hecho** (commit «Porsche: the new cabin with live instruments»). Está en `src/vehicles/gt3Cabin.js`: `buildCabin(M)`, `EYE` (el ojo del conductor, que usa `gt3Drive.js`) y `userData.instruments.update({ rpm, gear, kmh, steer })` en el grupo `gt3-cabin`. `gt3Drive.js` la llama en cada frame y al terminar. El banco de pruebas tiene `cab.html` y las vistas `drv`, `clu`, `seats` y `door`.
-3. Dinámica P1 del Porsche (H02, H06–H10).
+3. **Dinámica P1: hecha** (commit «Porsche: P1 dynamics»). `gt3Car.js` lleva `groundPlane()` (el suelo en las cuatro huellas), la suspensión (`hz`, `bp`, `br` y `travel`), el embrague (`clutchLocked`, `launch`), `steerW`, `aero`, `contacts()` con `obstacles(x, z)` y el agua (`wet`). Las ayudas están en `gt3Assists.js`. `main.js` pasa `gt3Obstacles` (los oclusores de los expositores).
 4. Flight 14: misión continua de masa puntual (H28–H33).
 5. F-16: marco geodésico, dominio y configuración (H15, H16, H19, H20).
 6. Mejoras propias: telemetría en vivo y accesible (H25) y otras dentro de las reglas.
