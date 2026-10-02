@@ -1062,6 +1062,35 @@ export function makeRoadPaint({ size = 256, tile = 1.0 } = {}) {
 }
 
 // =====================================================================================
+//  HONEYCOMB MESH: a car's black intake and outlet grille, ≈8 mm hexagonal cells in a satin
+//  web. Eight cells across the tile and the matching sixteen rows (√3 taller), so it tiles.
+// =====================================================================================
+export function makeHoneycomb({ w = 256, cell = 0.008 } = {}) {
+  const cols = 8, h = Math.round(w * Math.sqrt(3)), sx = w / cols, sy = sx * Math.sqrt(3);
+  const map = canvas(w, h), height = canvas(w, h);
+  // Distance to the nearest and second nearest centres of the two offset lattices: the web is where they nearly tie.
+  const web = (x, y) => {
+    let d1 = 1e9, d2 = 1e9;
+    for (const [ox, oy] of [[0, 0], [sx / 2, sy / 2]]) {
+      const i0 = Math.floor((x - ox) / sx), j0 = Math.floor((y - oy) / sy);
+      for (let i = i0 - 1; i <= i0 + 2; i++) for (let j = j0 - 1; j <= j0 + 2; j++) {
+        const d = Math.hypot(x - (ox + i * sx), y - (oy + j * sy));
+        if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d;
+      }
+    }
+    return 1 - smoothstep(0.035 * sx, 0.11 * sx, d2 - d1);
+  };
+  shade(map, (x, y) => { const k = web(x, y), c = clamp((0.035 + 0.13 * k) * 255); return [c, c, c + 1]; });
+  shade(height, (x, y) => { const k = clamp(web(x, y) * 255); return [k, k, k]; });
+  const tile = cell * cols;
+  return {
+    map: toTexture(map, { srgb: true, tileSize: tile * Math.sqrt(3), tileSizeU: tile }),
+    normalMap: toTexture(heightToNormal(height, 2.5), { tileSize: tile * Math.sqrt(3), tileSizeU: tile }),
+    tileSize: tile,
+  };
+}
+
+// =====================================================================================
 //  WEATHERED PAINTED STEEL (Pad 2 tower, arms and mount). Dark grey coating on a coastal
 //  site: uneven paint, rust weeping down from joints and edges in vertical streaks, chipped
 //  spots showing lighter primer, a little salt bloom. Tiles every 4 m; boxUV maps it in

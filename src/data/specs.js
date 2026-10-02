@@ -531,8 +531,9 @@ export const VEHICLES = [
     ],
     approximations: [
       'Published and used as given: the length, widths, height, wheelbase, tracks, wheel and tyre sizes and brake discs (Porsche technical data, 08/2022).',
-      'Traced (≈ ±2 cm) on Porsche\'s studio side, front and rear photographs, scaled by the published wheelbase and height: the profile from nose to tail, the windscreen, the roof, the rear window, the bonnet, the fenders\' crests, the sills and the wheel arches. The photographs are reference only and are not in the centre.',
-      'Reconstructed (≈): the cross-sections between the traced lines, the lamps, the vents, louvres and intakes, the rear wing\'s sections, span and swan necks, the wheels\' spokes, the callipers and the cabin.',
+      'Traced (≈ ±2 cm) on Porsche\'s studio side, front and rear photographs, scaled by the published wheelbase and height, each read with its fitted camera: the profile from nose to tail, the windscreen, the roof, the rear window, the bonnet, the fenders\' crests, the sills, the wheel arches, the side windows\' outline, the doors\' shut lines and handles, the mirrors, the intakes, outlets and louvres, the front blades, the tail\'s lamps and panel. The photographs are reference only and are not in the centre.',
+      'Reconstructed (≈): the cross-sections between the traced lines, the rounding of the bumpers\' faces, the depth and height of the raised trim (outlet walls, louvre slats, roof fins, blades), the mirrors\' sections, the rear wing\'s sections and swan necks, the wheels\' spokes, the callipers and the cabin.',
+      'The rear wing\'s span is not published: the front photograph reads ≈1.63 m between its end plates, the rear one ≈1.80 m over them; the model uses 1.74 m (≈ ±5 cm).',
       'The wheels\' satin dark finish is a choice for this car; the red callipers are the cast-iron brakes\' colour (ceramic brakes carry yellow ones).',
       'No badges, script, crests or number plates.',
     ],

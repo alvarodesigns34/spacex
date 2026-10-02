@@ -542,7 +542,7 @@ El siguiente vehículo es un **Porsche 911 GT3 RS (992, 2023, 525 CV) en Arctic 
 El GT3 RS ya está en el centro, en Arctic Grey: aparcado en la explanada del circuito, mirando al sur a lo largo de ella. Se conduce con **B** o con el botón *Porsche · Drive*.
 
 - **Modelo** (`src/vehicles/gt3rs.js`), a 1:1:
-  - **Superficie:** la carrocería es una sola superficie maestra. Son secciones de 13 puntos (umbral, entrante, anchura máxima, flanco, hombro, borde superior y eje) a lo largo de tablas trazadas sobre las fotos de estudio de Porsche, que solo sirven de referencia y no están en el repositorio. La escala sale de la batalla y la altura publicadas, y al superponer el perfil a la foto lateral, los extremos caen a 4,575 m frente a los 4,572 publicados.
+  - **Superficie:** la carrocería es una sola superficie maestra. Son secciones de 15 puntos (umbral, entrante, anchura máxima, flanco, cadera, hombro, borde superior y eje) a lo largo de tablas trazadas sobre las fotos de estudio de Porsche, que solo sirven de referencia y no están en el repositorio. La escala sale de la batalla y la altura publicadas, y al superponer el perfil a la foto lateral, los extremos caen a 4,575 m frente a los 4,572 publicados.
   - **Altura:** los 1.322 mm publicados son la altura al **borde superior del ala**, que según Porsche sobresale del techo. El techo queda en ≈1,29 m.
   - **Regiones:** cristales, juntas, tomas y faldones negros, salidas del radiador en el capó, rejillas de las aletas, tomas detrás de las ruedas delanteras, toma lateral trasera, salidas de los pasos traseros, franja de luces, grupos ópticos, panel negro y difusor son regiones de esa misma superficie, así que no pueden despegarse de ella.
   - **Faros:** son redondos, proyectados sobre la aleta con un método de Newton, con fondo cromado oscuro, lente, bisel y los cuatro puntos LED.
@@ -587,6 +587,29 @@ El GT3 RS ya está en el centro, en Arctic Grey: aparcado en la explanada del ci
 - **Marcas de neumático.** Solo se veían a ratos: cada segmento se orientaba según el sentido de la marcha y la mitad quedaban boca abajo, así que se descartaban. Ahora son de doble cara, más oscuras y mates, y la explanada es algo más clara para que contrasten.
 - **Humo de neumáticos.** Al derrapar o patinar sobre superficie dura salen bocanadas grises que crecen, suben y se desvanecen (≈, un efecto visual).
 - **Vista *The circuit*.** Miraba al lado contrario desde que el coche se giró hacia el sur; ahora encuadra la recta, la parrilla, el carril, la explanada y el trazado.
+
+### Porsche 911 GT3 RS, mejora 1: la carrocería contra las fotos (2 de octubre de 2026)
+
+El coche se ha vuelto a medir sobre las fotos de prensa de Porsche (solo como referencia, fuera del repositorio), esta vez con la cámara de cada foto ajustada: la lateral, la frontal y la trasera. Así cada pieza se lee a su profundidad real y no en el plano medio.
+
+- **Sección de 15 puntos.** Añade la cadera (la cresta de la aleta, el borde de la puerta y el anca) al hombro y al borde superior. La parte trasera del habitáculo ya no sale ancha en las vistas de frente y de detrás.
+- **Ventanillas.** Su base estaba ≈6 cm alta; ahora queda a ≈0,885 m, como en la foto. El contorno se traza por alturas, con su marco negro, y el montante B está en su sitio (≈−0,52 a −0,58 m).
+- **Morro y cola redondeados.** Ya no son caras planas con arista viva: cada una se curva hasta quedar tangente a los costados, como las esquinas de los paragolpes. El centro sigue en los 4,572 m publicados.
+- **Frontal.** Lleva el panel negro inferior, la toma central de rejilla en nido de abeja con sus dos barras, las dos grandes aberturas laterales y las cejas negras sobre ellas.
+- **Zaga.** El panel negro es más ancho y envuelve las esquinas. Los pilotos, la franja roja y los catadióptricos tienen ahora la medida de la foto.
+- **Capó.** Las dos salidas del radiador central se ensanchan hacia delante, con su rejilla, la pared negra alta en el lado interior, dos álabes y el labio delantero.
+- **Laterales:**
+  - las lamas sobre las ruedas delanteras;
+  - las láminas negras delante y detrás de cada rueda delantera;
+  - la salida oscura con el intermitente ámbar;
+  - la toma inclinada delante de la rueda trasera, que antes estaba en otro sitio;
+  - la salida negra detrás de la rueda trasera;
+  - los tiradores enrasados;
+  - la puerta con sus juntas medidas (antes empezaba 17 cm más atrás);
+  - el tapón del depósito en la aleta delantera derecha.
+- **Retrovisores.** Carcasa perfilada de color carrocería con la parte inferior negra, espejo y brazo negro desde la esquina de la puerta. Su posición sale de la foto; la anchura sobre los espejos sigue en los 2,027 m publicados.
+- **Más detalles:** las aletas del techo, los limpiaparabrisas y los pasos de rueda negros (antes se veía el hueco).
+- **Envergadura del ala.** Porsche no la publica. La cámara frontal da ≈1,63 m entre las caras interiores de las derivas y la trasera ≈1,80 sobre las exteriores; el modelo usa 1,74 m (≈ ±5 cm).
 
 ### Historial
 

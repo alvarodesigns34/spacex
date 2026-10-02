@@ -161,6 +161,7 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
     // The circuit's and the skid pad's: the same mix, laid and kept smooth (no patches, no cracks).
     ['trackAsphalt', () => TX.makeAsphalt({ cracks: false, patches: 0, seed: 7716 })],
     ['roadPaint', () => TX.makeRoadPaint()],
+    ['honeycomb', () => TX.makeHoneycomb()],
     ['terrain', () => TX.makeGroundTerrain()],
     ['trenchArmor', () => TX.makeTrenchArmor()],
     ['foil', () => TX.makeFoil()],
@@ -300,6 +301,11 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
   M.carbon = new THREE.MeshPhysicalMaterial({
     map: T.carbon.map, roughnessMap: T.carbon.roughnessMap, normalMap: T.carbon.normalMap,
     normalScale: new THREE.Vector2(0.45, 0.45), metalness: 0.12, roughness: 1.0, clearcoat: 0.65, clearcoatRoughness: 0.22,
+  });
+  // A car's black honeycomb grille (the GT3 RS's intakes and bonnet outlets).
+  M.honeycomb = new THREE.MeshStandardMaterial({
+    name: 'honeycomb-grille', map: T.honeycomb.map, normalMap: T.honeycomb.normalMap, normalScale: new THREE.Vector2(0.8, 0.8),
+    color: 0xffffff, metalness: 0.15, roughness: 0.62,
   });
 
   // ---- Power, thermal and structure ---------------------------------------------------

@@ -97,12 +97,6 @@ Fases, un commit cada una:
      - El cambio necesita histéresis.
      - `setIndex` no acepta arrays tipados.
      - Los bordes inclinados necesitan filas densas en su banda.
-   - **Pendiente de pulir en el modelo:**
-     - bordes escalonados en las tomas del paragolpes;
-     - la forma de los retrovisores;
-     - detalles del habitáculo;
-     - marcas de los pianos;
-     - humo de los neumáticos (no hecho).
 3. **Revisión: hecha.**
    - Las tapas planas llevan sus piezas como placas (`facePlate`, `buildFacePlates`).
    - Los cristales laterales tienen juntas a lo largo de sus bordes exactos.
@@ -111,13 +105,17 @@ Fases, un commit cada una:
    - Hay humo de neumáticos (`createTyreSmoke` en `gt3Drive.js`, puntos con shader propio).
    - La vista *The circuit* está corregida.
 
-   Lo siguiente podría ser:
-   - retrovisores más fieles;
-   - detalle del habitáculo;
-   - una parada del Porsche en la visita guiada;
-   - sonido del motor.
-
-   El usuario no lo ha pedido; pregúntale.
+4. **Mejora absoluta (orden del usuario del 02-10-2026):** «Haz el 911 GT3 hiperrealista, mejora absoluta… nada de simplificar el modelo. Añade también todo eso que dices» (retrovisores fieles, habitáculo, sonido del motor y la parada en la visita guiada). Subfases, un commit cada una:
+   1. **Referencias y carrocería: hecha.**
+      - Fotos de prensa de Porsche solo como referencia, en la carpeta temporal. Cámaras ajustadas: lateral (plano medio 191 px/m, ruedas 203, cámara a 13,5 m y 0,65 m de altura: `px = 693 − x·2580/(13,5 + z)`), frontal `{xc 12,28, hc 1,56, f 3159, cx 563,5, cy 167,8}` y trasera `{xc −9,9, hc 1,304, f 2103,7, cx 555, cy 184,7}`, sobre la imagen a 1.400 px.
+      - Sección de 15 puntos (`hipZ/hipY` nuevas). La base de las ventanillas está a ≈0,885 m (la foto con su cámara); la cadera y el hombro bajaron para dejarla ahí.
+      - Ventanillas por alturas trazadas (`DLO`), con su marco negro y el montante B en −0,52…−0,58.
+      - Morro y cola: caras redondeadas (`endCap` con perfil `bulge·(1 − f^m)^½`, tangente a los costados); las placas se pegan encima con `facePatch` y `faceX`.
+      - Piezas sobre la superficie con `bandPatch`, `loopPatch`, `loopWall` y `bodyFin` (vistas `side` en (x, y) y `plan` en (x, |z|), invertidas con `tAtY` y `tAtZ`). Contornos densificados: si no, el parche se hunde bajo la pintura.
+      - Puerta (borde delantero 0,66, trasero −0,58, abajo 0,27), tiradores, retrovisores (`MIRROR`), tomas traseras, lamas de las aletas, salidas del capó con rejilla (`M.honeycomb`, `makeHoneycomb`), láminas negras delante y detrás de la rueda delantera, intermitente ámbar, salida tras la rueda trasera, aletas del techo, limpiaparabrisas, tapón del depósito (aleta delantera derecha) y pasos de rueda negros.
+   2. Ruedas, frenos y ala: pendiente.
+   3. Habitáculo completo: pendiente.
+   4. Sonido del motor y parada en la visita guiada: pendiente.
 
 ### Al retomar
 
