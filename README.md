@@ -579,6 +579,15 @@ El GT3 RS ya está en el centro, en Arctic Grey: aparcado en la explanada del ci
   - Con diez expositores, el atajo numérico comparaba cadenas (`'5' <= '10'` es falso) y habría desactivado las teclas 2 a 9. Ahora las teclas 1–9 eligen los nueve primeros.
   - Los techos del presupuesto suben con el coche: 3,2 M de triángulos, 1.600 mallas, 240 materiales y 140 texturas.
 
+### Porsche 911 GT3 RS, fase 3: revisión (2 de octubre de 2026)
+
+- **Morro y cola planos con placas.** Las zonas negras del morro y de la cola eran regiones de los triángulos de sus tapas, y sus bordes salían escalonados. La franja de luces se veía a trazos. Ahora cada tapa es plana y lleva sus piezas como placas de contorno exacto: la toma central con tres lamas, las tomas de las esquinas, el panel negro inferior, la franja roja, los grupos ópticos y los catadióptricos.
+- **Bordes de los cristales laterales.** Sus juntas negras siguen ahora los bordes exactos, inclinados incluidos. La banda de las ventanillas tiene filas cada centímetro, y el montante B es negro.
+- **Faros.** La lente reflejaba tanto cielo que el faro parecía un disco blanco. Ahora la lente es más discreta, el reflector es oscuro y destacan los cuatro puntos LED.
+- **Marcas de neumático.** Solo se veían a ratos: cada segmento se orientaba según el sentido de la marcha y la mitad quedaban boca abajo, así que se descartaban. Ahora son de doble cara, más oscuras y mates, y la explanada es algo más clara para que contrasten.
+- **Humo de neumáticos.** Al derrapar o patinar sobre superficie dura salen bocanadas grises que crecen, suben y se desvanecen (≈, un efecto visual).
+- **Vista *The circuit*.** Miraba al lado contrario desde que el coche se giró hacia el sur; ahora encuadra la recta, la parrilla, el carril, la explanada y el trazado.
+
 ### Historial
 
 Las rondas anteriores —entorno, vehículos contra las fotos, nube y sonido del lanzamiento, revisión corriendo la simulación y las auditorías externas de Grok y ChatGPT— están en [docs/historial.md](docs/historial.md), rotuladas como históricas. Este README describe el estado actual.

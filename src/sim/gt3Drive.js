@@ -38,7 +38,9 @@ function createSkidMarks(scene, max = 12000) {
   geo.setIndex(new THREE.BufferAttribute(idx, 1));
   geo.setDrawRange(0, 0);
   const mat = new THREE.MeshStandardMaterial({
-    name: 'gt3-tyre-marks', color: 0x0a0a0a, roughness: 0.75, metalness: 0, vertexColors: true, transparent: true,
+    name: 'gt3-tyre-marks', color: 0x050505, roughness: 0.92, metalness: 0, vertexColors: true, transparent: true,
+    // A segment's winding follows the way the tyre was going: either face may be the upper one.
+    side: THREE.DoubleSide,
     depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
   });
   const m = new THREE.Mesh(geo, mat);
@@ -67,6 +69,57 @@ function createSkidMarks(scene, max = 12000) {
   return { lay, lift, clear, mesh: m, get count() { return used; } };
 }
 
+/**
+ * Tyre smoke: soft grey puffs from a tyre sliding hard on a hard surface, growing, rising a
+ * little and drifting back as they thin out (≈, a look, not a simulation of the rubber's
+ * vapour). A pool of point sprites with their own size and opacity.
+ */
+function createTyreSmoke(scene, max = 900) {
+  const pos = new Float32Array(max * 3), size = new Float32Array(max), alpha = new Float32Array(max);
+  const vel = new Float32Array(max * 3), age = new Float32Array(max).fill(1e9), life = new Float32Array(max);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('size', new THREE.BufferAttribute(size, 1).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('alpha', new THREE.BufferAttribute(alpha, 1).setUsage(THREE.DynamicDrawUsage));
+  const mat = new THREE.ShaderMaterial({
+    name: 'gt3-tyre-smoke', transparent: true, depthWrite: false,
+    uniforms: { scale: { value: 600 } },
+    vertexShader: `attribute float size; attribute float alpha; varying float vA; uniform float scale;
+      void main() { vA = alpha; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = size * scale / max(0.5, -mv.z); gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `varying float vA;
+      void main() { vec2 d = gl_PointCoord - 0.5; float r = length(d); if (r > 0.5) discard; float a = vA * smoothstep(0.5, 0.1, r); gl_FragColor = vec4(vec3(0.84, 0.85, 0.86), a); }`,
+  });
+  const points = new THREE.Points(geo, mat);
+  points.name = 'gt3-tyre-smoke';
+  points.frustumCulled = false;
+  points.renderOrder = 3;
+  scene.add(points);
+  let next = 0;
+  function emit(x, y, z, vx, vz, strength) {
+    const i = next; next = (next + 1) % max;
+    pos.set([x + (Math.random() - 0.5) * 0.2, y + 0.15, z + (Math.random() - 0.5) * 0.2], i * 3);
+    vel.set([vx * 0.25 + (Math.random() - 0.5) * 0.6, 0.35 + Math.random() * 0.3, vz * 0.25 + (Math.random() - 0.5) * 0.6], i * 3);
+    age[i] = 0; life[i] = 1.6 + Math.random() * 1.4 * strength;
+  }
+  function update(dt) {
+    let any = false;
+    for (let i = 0; i < max; i++) {
+      if (age[i] > life[i]) { alpha[i] = 0; continue; }
+      any = true;
+      age[i] += dt;
+      const k = age[i] / life[i];
+      pos[i * 3] += vel[i * 3] * dt; pos[i * 3 + 1] += vel[i * 3 + 1] * dt; pos[i * 3 + 2] += vel[i * 3 + 2] * dt;
+      vel[i * 3] *= 1 - dt; vel[i * 3 + 2] *= 1 - dt;
+      size[i] = 0.5 + 3.2 * Math.sqrt(k);
+      alpha[i] = 0.22 * (1 - k) * Math.min(1, age[i] * 6);
+    }
+    points.visible = any;
+    geo.attributes.position.needsUpdate = true; geo.attributes.size.needsUpdate = true; geo.attributes.alpha.needsUpdate = true;
+  }
+  function clear() { age.fill(1e9); alpha.fill(0); points.visible = false; }
+  return { emit, update, clear, points };
+}
+
 export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, home, onStart = () => {}, onFinish = () => {}, visibilityHook = null }) {
   const car = exhibit.model;            // the 'gt3rs' group
   const sprung = car.getObjectByName('gt3-sprung');
@@ -78,6 +131,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
   holder.visible = false;
   scene.add(holder);
   const marks = createSkidMarks(scene);
+  const smoke = createTyreSmoke(scene);
 
   const sim = createGt3Car({ ground });
   const s = sim.state;
@@ -237,10 +291,15 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
       const hard = HARD.has(s.surface[i]);
       const slide = s.slip[i];
       if (!hard || slide < 1.15 || Math.hypot(s.u, s.v) < 1.5) { marks.lift(i); continue; }
-      const a = THREE.MathUtils.clamp((slide - 1.15) / 1.6, 0.08, 0.85);
+      const a = THREE.MathUtils.clamp(0.3 + (slide - 1.15) / 1.4, 0.3, 0.95);
       _c.set(x, ground(x, z).h + 0.004, z);
       _side.set(Math.sin(s.psi), 0, Math.cos(s.psi));
       marks.lay(i, _c, _side, (i < 2 ? WHEELS.front.width : WHEELS.rear.width) * 0.45, a);
+      // Smoke where it slides hardest: a puff or two a frame from a spinning or sideways tyre.
+      if (slide > 1.8 && Math.random() < Math.min(0.9, (slide - 1.8) * 0.5)) {
+        const c = Math.cos(s.psi), sn = Math.sin(s.psi);
+        smoke.emit(x, _c.y, z, s.u * c - s.v * sn, -s.u * sn - s.v * c, Math.min(1, (slide - 1.8) / 3));
+      }
     }
   }
 
@@ -323,6 +382,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
     if (!state.paused && dt > 0) {
       sim.advance(Math.min(dt, 0.25));
       layMarks();
+      smoke.update(Math.min(dt, 0.25));
       timeLaps();
     }
     pose(Math.min(dt, 0.25));
@@ -347,7 +407,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, hud, 
     get state() { return state; },
     get running() { return state.running; },
     get position() { return holder.position; },
-    sim, marks, driver, start, reset, restart, setPaused, setCamera, cycleCamera, setTraction, fmtTime,
+    sim, marks, smoke, driver, start, reset, restart, setPaused, setCamera, cycleCamera, setTraction, fmtTime,
     update(dt) { if (state.running) apply(dt); },
     AXLE_F, AXLE_R, CAR,
   };

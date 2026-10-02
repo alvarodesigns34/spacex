@@ -4,7 +4,7 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ---
 
-## ⭐ Empieza aquí (estado real al 01-10-2026: F-16 volable y revisado, pista 10/28 junto al recinto; siguiente: Porsche 911 GT3 RS; galería pendiente de confirmación)
+## ⭐ Empieza aquí (estado real al 02-10-2026: F-16 volable y revisado; Porsche 911 GT3 RS conducible con su circuito y su explanada; galería pendiente de confirmación)
 
 ### Proyecto en curso: F-16A Block 15 volable (desde el 01-10-2026)
 
@@ -103,7 +103,21 @@ Fases, un commit cada una:
      - detalles del habitáculo;
      - marcas de los pianos;
      - humo de los neumáticos (no hecho).
-3. Revisión.
+3. **Revisión: hecha.**
+   - Las tapas planas llevan sus piezas como placas (`facePlate`, `buildFacePlates`).
+   - Los cristales laterales tienen juntas a lo largo de sus bordes exactos.
+   - La lente de los faros es más discreta.
+   - Las marcas de neumático son de doble cara (`DoubleSide`: sus quads giran con el sentido de la marcha).
+   - Hay humo de neumáticos (`createTyreSmoke` en `gt3Drive.js`, puntos con shader propio).
+   - La vista *The circuit* está corregida.
+
+   Lo siguiente podría ser:
+   - retrovisores más fieles;
+   - detalle del habitáculo;
+   - una parada del Porsche en la visita guiada;
+   - sonido del motor.
+
+   El usuario no lo ha pedido; pregúntale.
 
 ### Al retomar
 

@@ -233,7 +233,7 @@ function buildSkidpad(M) {
       const edge = u < u0 || u > u1 || v < v0 || v > v1;
       const [x, z] = toWorld(u, v);
       pos.push(x, edge ? LOW_Y : EDGE_Y, z); uv.push(u, v);
-      col.push(0.7, 0.69, 0.68);
+      col.push(0.82, 0.81, 0.8);
     }
     const n = vs.length;
     for (let i = 0; i < us.length - 1; i++) for (let j = 0; j < n - 1; j++) {

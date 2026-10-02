@@ -544,7 +544,7 @@ export const VEHICLES = [
       { id: 'side', label: 'Side', pos: [0, 0.8, 7.5], target: [0, 0.65, 0] },
       { id: 'wheel', label: 'Front wheel and brake', pos: [2.2, 0.55, 2.4], target: [1.23, 0.36, 0.8] },
       { id: 'top', label: 'From above', pos: [0.3, 9.5, 0.3], target: [0, 0, 0] },
-      { id: 'circuit', label: 'The circuit', pos: [70, 30, 95], target: [-120, 0, -60] },
+      { id: 'circuit', label: 'The circuit', pos: [60, 120, -140], target: [-40, 0, 330] },
     ],
   },
 ];
