@@ -4,7 +4,36 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ---
 
-## ⭐ Empieza aquí (estado real al 02-10-2026: F-16 volable con mandos sencillos; Porsche 911 GT3 RS conducible con PSM y derrape con Espacio; galería regenerada el 02-10; auditoría de ChatGPT del 02-10: P0 corregidos, P1 mayores pendientes)
+## ⭐ Empieza aquí (estado real al 03-10-2026, último commit `d119f84`)
+
+### Estado al 03-10-2026 (léelo primero)
+
+- **Ramas:** las cinco apuntan a `d119f84`, con los despliegues de Pages en verde.
+  - `claude/spacex-vehicle-center-3d-48zlkm`
+  - `claude/dreamy-bell-qn1eth`
+  - `grok/sun18-audit-10c9929`
+  - `claude/elegant-ptolemy-l99qgo`
+  - `claude/affectionate-euler-o447rh`
+- **Hecho en la última sesión:**
+  - `098f64d`: la Ninja H2R, rehecha. README, *La Ninja H2R, rehecha*.
+  - `5ef0196` y `d119f84`: el Porsche, mejora 7. README, *mejora 7*.
+    - Llantas de radios en Y; frontal inferior hundido; faros cromados; rejilla del motor y piloto central.
+    - Parabrisas envolvente (`WRAP` en `inWindscreen`), que deja un montante A fino.
+    - Levas E/Q/G; cabeza del piloto con fuerzas G; sonido del bóxer por AudioWorklet; luces de freno vivas.
+- **Peticiones del usuario aún abiertas (ambición máxima, «me da igual el tiempo»):**
+  - Que la H2R y el Porsche sean idénticos a los reales en modelo, conducción y sonido. Ambos están muy mejorados, pero se puede afinar más.
+  - H2R: forma del ala de carbono (una pala a lo largo del borde inferior de la cúpula), detalle del motor, basculante, cabina; la cúpula se ve blanquecina desde los ojos del piloto.
+  - Porsche: cortinas de aire del frontal, aletas del difusor, salpicadero y habitáculo, y reflejos de la pintura. La conducción con teclado se puede seguir puliendo.
+- **Otros pendientes:** F-16 H17 (supersónico con datos); auditoría visual y de vuelo del F-16 (opcional); P1 de la auditoría (abajo). **La galería no se regenera sin aprobación del usuario.**
+- **Ojo, la carpeta temporal se pierde entre sesiones.** Allí estaban las fotos de referencia (Porsche newsroom, Kawasaki), las cámaras calibradas y los bancos de pruebas (`bench/`, `match/`, `hb/`), y no están en el repositorio. Las fotos se usan solo como referencia y nunca se suben. Si hacen falta, vuelve a descargarlas y rehaz el banco: una página que cargue solo el vehículo y lo renderice con la cámara ajustada a la foto, más una superposición de bordes.
+- **Lecciones de esta sesión:**
+  - `npm run check` tarda ≈25–30 min. Lánzalo en segundo plano y no edites el repositorio mientras corre.
+  - Antes del check, guarda `git write-tree` y compáralo justo antes del commit.
+  - Una prueba con esperas fijas puede fallar bajo carga: espera a una condición (`waitForFunction`).
+  - En `gt3rs.js` las regiones del cuerpo se cortan sobre una rejilla. Un borde inclinado en x deja escalones; un borde por banda del parámetro t sale limpio.
+  - Para importar módulos del repositorio desde Node fuera de `tools/`, usa `registerHooks`, que resuelve `three` a `vendor/three`.
+
+### Histórico (02-10-2026: F-16 volable con mandos sencillos; Porsche conducible con PSM y derrape con Espacio; galería regenerada el 02-10; auditoría de ChatGPT del 02-10: P0 corregidos, P1 mayores pendientes)
 
 ### Proyecto en curso: F-16A Block 15 volable (desde el 01-10-2026)
 
