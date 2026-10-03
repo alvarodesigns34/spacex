@@ -1159,6 +1159,11 @@ Todas están auto-testeadas: romper cada cosa a propósito hace saltar su compro
 
 **En paralelo en CI.** El flujo de GitHub Actions ya no ejecuta la batería entera en un runner (unos 13–15 minutos): la reparte en cuatro trabajos simultáneos —estático (lint, procedencia, nube y trayectoria, hardware), escena (`check:scene`), interfaz (`check:ux`) y nivel de detalle (`check:lod`)— y el despliegue espera a los cuatro. En local, `npm run check` sigue ejecutando todo.
 
+**Comprobación por niveles (desde el 3 de octubre de 2026).** El check completo tarda ≈25–30 min en local (la escena se dibuja por software). Para no pagarlo en cada commit:
+- antes de cada commit se ejecuta `npm run check:static` (≈2–3 min: lint, procedencia y las pruebas de física de todos los vehículos);
+- el `npm run check` completo, una vez al cerrar cada bloque de trabajo;
+- CI, que ya lo ejecuta en cada push y no despliega si falla, cubre lo demás.
+
 También comprueba las **combinaciones**, que es donde han estado los errores: del lanzamiento al vuelo libre, de la vista orbital al lanzamiento y de vuelta, sol bajo + vuelo completo + reset devolviendo la misma atmósfera, redimensionar en mitad de una transición, veinte cambios de vista seguidos dejando un estado coherente, y el detalle retirándose con la distancia y volviendo al acercarse. Y las invariantes de la máquina de estados directamente: que una vista inexistente cae en la primera del expositor, que la vista orbital se *deduce* en vez de fijarse, y que el dueño de la cámara pasa limpiamente de visita a lanzamiento a visitante.
 
 El último paso es `tools/lod-pop.mjs`, que mide el **salto visible al cambiar de nivel de detalle**. Desde la distancia exacta del umbral de cada intercambio (el escudo de la Starship y la carrocería del Roadster), renderiza los dos estados con la misma cámara y falla en tres casos:

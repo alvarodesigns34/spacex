@@ -6,4 +6,7 @@
 - Para empezar o retomar el trabajo, lee `TRASPASO.md` (sección «Empieza aquí»).
 - No regenerar la galería de capturas hasta que el usuario lo apruebe.
 - Escala 1:1, solo medidas verificables, y las aproximaciones marcadas como tales. Sin banderas ni logotipos nuevos, sin plataformas de lanzamiento extra, sin modo noche, sin plantas ni objetos nuevos en el entorno.
-- Antes de cada commit, `npm run check` tiene que terminar con código 0.
+- **Comprobación por niveles** (orden del usuario del 03-10-2026):
+  - Antes de cada commit, `npm run check:static` (lint, procedencia y las pruebas de física de todos los vehículos, ≈2–3 min) tiene que terminar con código 0.
+  - El `npm run check` completo (≈25–30 min, con navegador) se ejecuta una vez al cerrar cada bloque de trabajo o al final de la sesión, antes del último push.
+  - CI ya ejecuta el check completo en cada push y no despliega si falla: tras empujar, comprueba que los trabajos y el despliegue salen en verde y, si algo falla, arréglalo enseguida.

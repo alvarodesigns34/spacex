@@ -27,7 +27,7 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 - **Otros pendientes:** F-16 H17 (supersónico con datos); auditoría visual y de vuelo del F-16 (opcional); P1 de la auditoría (abajo). **La galería no se regenera sin aprobación del usuario.**
 - **Ojo, la carpeta temporal se pierde entre sesiones.** Allí estaban las fotos de referencia (Porsche newsroom, Kawasaki), las cámaras calibradas y los bancos de pruebas (`bench/`, `match/`, `hb/`), y no están en el repositorio. Las fotos se usan solo como referencia y nunca se suben. Si hacen falta, vuelve a descargarlas y rehaz el banco: una página que cargue solo el vehículo y lo renderice con la cámara ajustada a la foto, más una superposición de bordes.
 - **Lecciones de esta sesión:**
-  - `npm run check` tarda ≈25–30 min. Lánzalo en segundo plano y no edites el repositorio mientras corre.
+  - **Comprobación por niveles (orden del usuario del 03-10-2026):** `npm run check:static` (≈2–3 min) antes de cada commit; el `npm run check` completo (≈25–30 min) una vez al cerrar cada bloque o al final de la sesión, en segundo plano y sin editar el repositorio mientras corre. CI ejecuta el check completo en cada push y no despliega si falla: vigila que salga en verde.
   - Antes del check, guarda `git write-tree` y compáralo justo antes del commit.
   - Una prueba con esperas fijas puede fallar bajo carga: espera a una condición (`waitForFunction`).
   - En `gt3rs.js` las regiones del cuerpo se cortan sobre una rejilla. Un borde inclinado en x deja escalones; un borde por banda del parámetro t sale limpio.
@@ -326,7 +326,7 @@ Lo hecho en 1 y 2 (detalle en el README, sección del 2 de octubre):
 - **Reglas innegociables** (sección 0):
   - háblame siempre en español;
   - sin pull requests: el mismo commit a las **cuatro ramas**;
-  - **`npm run check` con código 0 antes de cada commit**, sin excepción;
+  - comprobación por niveles: **`npm run check:static` con código 0 antes de cada commit**; el `npm run check` completo al cerrar cada bloque o la sesión; CI lo repite en cada push;
   - README en español, actualizado con cada cambio;
   - solo medidas verificables, con las aproximaciones marcadas (≈);
   - sin banderas ni logotipos, sin plataformas extra, sin modo noche, sin plantas ni objetos nuevos en el entorno;
@@ -412,7 +412,10 @@ Commits, del más antiguo al más reciente, en las cuatro ramas; el detalle est�
    - `grok/sun18-audit-10c9929`
    - `claude/elegant-ptolemy-l99qgo`
    - `claude/spacex-vehicle-center-3d-48zlkm` (la rama por defecto; la que despliega Pages)
-3. **Antes de cada commit, `npm run check` tiene que terminar con código 0.** Tarda unos 25 minutos. Nunca confirmes sin él.
+3. **Comprobación por niveles** (orden del usuario del 03-10-2026, sustituye a «el check completo antes de cada commit»):
+   - **Antes de cada commit, `npm run check:static` tiene que terminar con código 0** (≈2–3 min: lint, procedencia y las pruebas de física de todos los vehículos).
+   - **El `npm run check` completo** (≈25–30 min) se ejecuta una vez al cerrar cada bloque de trabajo o al final de la sesión, antes del último push.
+   - **CI** (`.github/workflows/pages.yml`) ejecuta el check completo en cada push y no despliega si falla. Tras empujar, comprueba que todo sale en verde; si algo falla, arréglalo enseguida.
 4. **Tras cada push, comprueba que GitHub Pages sirve la versión nueva:** https://alvarodesigns34.github.io/spacex/
 5. **No regenerar la galería de capturas** (`docs/screenshots`, `docs/hud`, `npm run shots`) **hasta que yo lo apruebe explícitamente** en cada ocasión. Estado: ver la sección 4.
 6. **Escala 1:1, solo medidas verificables, y las aproximaciones marcadas como tales** (≈, `approx: true`, «reconstruido»).
