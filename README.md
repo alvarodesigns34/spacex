@@ -813,6 +813,39 @@ El usuario juzgó la primera versión «horrible» y pidió una copia idéntica 
   - Encima: el silbido del compresor a ≈9,2 veces el cigüeñal según la presión de soplado, el chirrido al cortar gas con presión, los petardeos al retener, el corte del cambio rápido y del limitador, el silbido de la primaria y la admisión.
   - Es una síntesis a oído, no una grabación.
 
+### Porsche 911 GT3 RS, mejora 7: piezas, vista del piloto, levas y sonido (3 de octubre de 2026)
+
+El usuario juzgó el Porsche «deficiente» en modelado y conducción. La silueta ya cuadraba con las cuatro fotos de estudio (±1–2 cm sobre los bordes, con sus cámaras ajustadas). Lo que fallaba eran las piezas que se miran de cerca y la experiencia al volante. Las fotos de Porsche se usan solo como referencia y no están en el repositorio.
+
+- **Llantas:** la foto ampliada de la rueda trasera muestra radios en Y que se abren a ≈0,4 del radio, con tallos de ≈30 mm y brazos finos (≈14 mm). El modelo los abría a media llanta, con brazos gruesos, y parecía una estrella. Ahora los diez radios forman la tela fina de la foto, y el barril, la campana y el disco son oscuros, como en las fotos (≈ los acabados).
+- **Frontal:**
+  - La parte baja negra ya no es un parche pintado sobre la cara: va hundida ≈2,8 cm tras el borde blanco, con su escalón, y proyecta sombra.
+  - El panal central está a pocos centímetros de la cara, donde le llega la luz; antes, a 11 cm, se veía negro.
+- **Faros:** cuenco cromado brillante en vez de gris mate; proyector con aro cromado y cristal oscuro; las cuatro luces diurnas en sus copas cromadas; la banda de LED matriciales en dos filas de puntos.
+- **Zaga:**
+  - Se añade la rejilla negra del capó del motor bajo la luna, con ocho lamas a cada lado, y el piloto de freno central (foto trasera).
+  - Las salidas de escape son de titanio oscuro, como en la foto; antes eran de aluminio brillante.
+- **Toma de la aleta trasera:** ≈7 cm de ancho abajo y ≈11 cm arriba, con su reborde (antes, 5,6 y 8,4 cm).
+- **Lamas sobre las ruedas delanteras:** a ras de la abertura, como en la foto; antes sobresalían como un peine.
+- **Parabrisas y montante A:** el parabrisas acababa ≈8 cm por dentro del borde del techo, y entre él y la ventanilla quedaban ≈25 cm de montante, que tapaban un cuarto de la vista del piloto. Ahora el cristal rodea la esquina como en el 992. El montante pintado mide ≈7–12 cm a lo largo del coche en su mitad alta (en la foto lateral, ≈6,5 cm de ancho) y se ensancha hacia el retrovisor.
+- **Levas (cambio PDK manual):**
+  - **E** sube y **Q** baja. El primer toque pone el modo manual, y **G** devuelve el automático.
+  - El cambio rechaza la reducción que pasaría del corte, como el PDK. En manual no sube solo: el motor llega al limitador. Solo reduce por sí mismo para no calarse.
+  - Los toques dados mientras entra una marcha esperan su turno.
+  - El cuadro muestra **M** o **A** junto a la marcha, en rojo un instante si rechaza una reducción.
+  - Prueba nueva en `tools/gt3rs-check.mjs`.
+- **Vista del piloto viva:**
+  - La cabeza va sobre un muelle (≈2,5 Hz, bien amortiguado): se desplaza hacia fuera en las curvas y hacia delante al frenar, unos centímetros con el agarre del coche.
+  - La mirada se adelanta hacia donde va la trazada a 30 m.
+  - Los pianos, la grava y la velocidad hacen vibrar la vista (≈).
+- **Cámara de persecución:** se aleja y baja un poco con la velocidad, y abre el campo de visión hasta 9° (≈).
+- **Sonido nuevo** (`src/sim/gt3Sound.js`), sintetizado muestra a muestra en un AudioWorklet, como el de la H2R:
+  - El bóxer de seis cilindros enciende cada 120° en el orden 1-6-2-4-3-5, alternando bancadas. Cada bancada tiene su colector, algo distinto en fuerza y color, y de ahí salen los medios órdenes bajo la nota principal: orden 3, 45 Hz al ralentí y 450 Hz en el corte a 9.000 /min.
+  - Cada pulso hace sonar las resonancias del escape y se satura con la carga.
+  - Encima van el aullido de la admisión por las seis mariposas, más fuerte dentro del habitáculo; el corte del PDK al subir y el del limitador; los petardeos al retener; el tic de la distribución y el silbido del grupo.
+  - Dentro del coche, el escape suena filtrado.
+  - Es una síntesis a oído, no una grabación.
+
 ### Choques de verdad y la nave cayendo al agua (3 de octubre de 2026)
 
 El usuario pidió que chocar con el Porsche o con el F-16 fuera realista y que, cuando la nave cae al agua, pareciera agua. Antes un choque solo paraba el vehículo y el amerizaje era una nube de vapor sobre un mar intacto.

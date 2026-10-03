@@ -160,16 +160,19 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     flood: 0,                         // how far the body has flooded, 0..1
     afloat: false, sunk: false,
     hits: [],                         // contacts since the drive last read them: { fx, fy, nx, ny, vn } (gt3Damage.js)
+    refused: 0,                       // s since the PDK last refused a downshift that would over-rev the engine
     damage: 0,                        // how badly the car is hurt, 0..1: power lost, then the engine dead (≈)
     dead: false,
   });
-  const s = Object.assign(fresh(), { tc: true });   // PSM (traction and stability control): on by default
-  const input = { throttle: 0, brake: 0, steer: 0, handbrake: 0, reverse: false };
+  // PSM (traction and stability control): on by default; the PDK in its automatic mode by default
+  // (paddles: the manual mode). Both are the visitor's choices, kept through a reset.
+  const s = Object.assign(fresh(), { tc: true, paddles: false });
+  const input = { throttle: 0, brake: 0, steer: 0, handbrake: 0, reverse: false, shiftUp: false, shiftDown: false };
   let acc = 0;                        // real time not yet stepped, s (under one step)
 
   function reset({ x = 0, z = 0, psi = 0 } = {}) {
-    Object.assign(s, fresh(), { x, z, psi, tc: s.tc });
-    Object.assign(input, { throttle: 0, brake: 0, steer: 0, handbrake: 0, reverse: false });
+    Object.assign(s, fresh(), { x, z, psi, tc: s.tc, paddles: s.paddles });
+    Object.assign(input, { throttle: 0, brake: 0, steer: 0, handbrake: 0, reverse: false, shiftUp: false, shiftDown: false });
     acc = 0;
     // The body settled on the ground where it stands.
     const g = groundPlane();
@@ -196,6 +199,7 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
   function step(dt) {
     input.throttle = fin(input.throttle, 0, 1); input.brake = fin(input.brake, 0, 1);
     input.steer = fin(input.steer, -1, 1); input.handbrake = fin(input.handbrake, 0, 1); input.reverse = !!input.reverse;
+    input.shiftUp = !!input.shiftUp; input.shiftDown = !!input.shiftDown;
     const c = Math.cos(s.psi), sn = Math.sin(s.psi);
     const V = Math.hypot(s.u, s.v);
     // ---- Aerodynamics. Auto-DRS: flat wings on a straight at full throttle above 100 km/h.
@@ -340,8 +344,24 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
       driveT = Tcl * Gt * GEARBOX.efficiency;
       s.rpm = Math.max(300, (we + (Te - Tcl) / ENGINE.inertia * dt) * RPM);
     }
+    // The paddles (the PDK's manual mode): a pull is one gear, taken at once unless a downshift
+    // would send the engine past its cut — then the gearbox refuses it, as the PDK does. It never
+    // shifts up by itself (the engine runs into the limiter), and changes down by itself only
+    // where the engine would otherwise stall.
+    s.refused = Math.max(0, s.refused - dt);
+    if (!s.reverse && s.paddles) {
+      const up = input.shiftUp, down = input.shiftDown;
+      input.shiftUp = false; input.shiftDown = false;
+      if (s.shift <= 0) {
+        const below = s.gear > 1 ? rpmWheel * GEARBOX.ratios[s.gear - 2] / GEARBOX.ratios[s.gear - 1] : Infinity;
+        if (up && s.gear < 7) { s.gear++; s.shift = GEARBOX.shiftTime; s.shiftDir = 1; }
+        else if (down && s.gear > 1) {
+          if (below < ENGINE.maxRpm - 300) { s.gear--; s.shift = GEARBOX.shiftTime * 0.8; s.shiftDir = -1; } else s.refused = 0.6;
+        } else if (s.gear > 1 && rpmWheel < ENGINE.idle * 1.25 && below < ENGINE.maxRpm - 300) { s.gear--; s.shift = GEARBOX.shiftTime * 0.8; s.shiftDir = -1; }
+      }
+    }
     // Automatic shifts (the PDK in its automatic mode).
-    if (!s.reverse && s.shift <= 0) {
+    else if (!s.reverse && s.shift <= 0) {
       // Up on the road speed's rpm (not a spinning wheel's), down with hysteresis: 2,600 rpm
       // pulling, 4,200 braking, and never into a gear that would over-rev.
       const below = s.gear > 1 ? rpmWheel * GEARBOX.ratios[s.gear - 2] / GEARBOX.ratios[s.gear - 1] : Infinity;

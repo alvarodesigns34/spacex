@@ -752,7 +752,9 @@ try {
       return { pos: p.toArray().map(x => +x.toFixed(3)), children: v.scene.children.length, fov: v.camera.fov };
     });
     await page.keyboard.press('b');
-    await page.waitForTimeout(600);
+    // Until the car has taken its first steps (under a loaded software renderer the first frames
+    // after the start can take longer than a fixed wait).
+    await page.waitForFunction(() => window.__vc.gt3drive.sim.state.t > 0.05, null, { timeout: 5000 }).catch(() => {});
     const started = await page.evaluate(() => {
       const v = window.__vc, D = v.gt3drive, s = D.sim.state;
       return {

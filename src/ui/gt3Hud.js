@@ -29,7 +29,7 @@ export function createGt3Hud({ root, onEnd, onCamera, onRestart, onPause, onTrac
     <button type="button" class="f16-btn" id="gt3-sound" aria-pressed="false" title="Sound (M): the flat six, the tyres and the wind, synthesised; off until you turn it on">Sound <kbd>M</kbd></button>
     <button type="button" class="f16-btn" id="gt3-restart" title="Back to the skid pad (Enter)">Pad <kbd>Enter</kbd></button>
     <button type="button" class="f16-btn f16-end" id="gt3-end" title="Back to the exhibit (Esc)">End <kbd>Esc</kbd></button>
-    <p class="f16-keys"><kbd>W</kbd> throttle · <kbd>S</kbd> brake, held when stopped: reverse · <kbd>W</kbd>+<kbd>S</kbd> stopped: Launch Control · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> parking brake: tap it into a corner to drift, then throttle and counter-steer · <kbd>C</kbd> camera · <kbd>M</kbd> sound — the gearbox shifts by itself</p>
+    <p class="f16-keys"><kbd>W</kbd> throttle · <kbd>S</kbd> brake, held when stopped: reverse · <kbd>W</kbd>+<kbd>S</kbd> stopped: Launch Control · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> parking brake: tap it into a corner to drift, then throttle and counter-steer · <kbd>E</kbd><kbd>Q</kbd> paddles, up and down (<kbd>G</kbd> back to automatic) · <kbd>C</kbd> camera · <kbd>M</kbd> sound</p>
     <ul class="f16-msgs" id="gt3-msgs" aria-live="polite"></ul>
   `;
   root.appendChild(bar);
@@ -69,7 +69,7 @@ export function createGt3Hud({ root, onEnd, onCamera, onRestart, onPause, onTrac
     }
     telemetry.update({
       speed: `${fmt(Math.abs(r.kmh))} km/h`, gear: String(r.gear), rpm: `${fmt(r.rpm)} rpm`, g: `${fmt(r.g, 2)} g`,
-      slide: `${fmt(Math.abs(r.slide))} degrees`, aids: [r.tc ? 'PSM on' : 'PSM off', r.abs && 'ABS working', r.drs && 'DRS open'].filter(Boolean).join(', '),
+      slide: `${fmt(Math.abs(r.slide))} degrees`, aids: [r.tc ? 'PSM on' : 'PSM off', r.paddles ? 'gearbox manual' : 'gearbox automatic', r.abs && 'ABS working', r.drs && 'DRS open'].filter(Boolean).join(', '),
       lap: lapTime(r.lap), best: lapTime(r.best),
     });
     $('#gt3-cam').firstChild.textContent = `${r.camera[0].toUpperCase()}${r.camera.slice(1)} `;
@@ -112,6 +112,10 @@ export function createGt3Hud({ root, onEnd, onCamera, onRestart, onPause, onTrac
     g.fillStyle = shift ? '#ff4a3c' : '#fff';
     g.font = `700 ${Math.round(R * 0.5)}px system-ui, sans-serif`;
     g.fillText(String(r.gear), cx, cy - R * 0.12);
+    // The PDK's mode beside the gear: M on the paddles (red a moment when it refuses a downshift), A automatic.
+    g.font = `700 ${Math.round(R * 0.17)}px system-ui, sans-serif`;
+    g.fillStyle = r.refused ? '#ff4a3c' : r.paddles ? '#ffd24a' : 'rgba(255,255,255,0.45)';
+    g.fillText(r.paddles ? 'M' : 'A', cx + R * 0.36, cy - R * 0.3);
     g.fillStyle = '#fff'; g.font = `600 ${Math.round(R * 0.22)}px system-ui, sans-serif`;
     g.fillText(`${fmt(Math.abs(r.kmh))} km/h`, cx, cy + R * 0.38);
     g.font = '500 11px system-ui, sans-serif'; g.fillStyle = 'rgba(255,255,255,0.7)';

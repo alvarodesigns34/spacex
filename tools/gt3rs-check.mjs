@@ -345,6 +345,23 @@ function drive({ v0 = 0, gear = 1, psm = true, keys, T = 5 }) {
   report(t1 > t2 + 0.1, 'salida: sin Launch Control el coche tarda más que con él (el motor sube de vueltas mientras el embrague coge)', `0–50 km/h en ${t1.toFixed(2)} s frente a ${t2.toFixed(2)} s`);
 }
 {
+  // The paddles (the PDK's manual mode): a pull is one gear; a downshift that would over-rev the
+  // engine is refused; on the paddles the gearbox never shifts up by itself (the engine runs into
+  // its limiter), and the mode survives a reset like PSM.
+  const { c, s, i } = make(); s.paddles = true; i.throttle = 1;
+  for (let k = 0; k < 240 * 6; k++) c.step(DT);
+  const held = s.gear, limiter = s.rpm;
+  i.shiftUp = true; for (let k = 0; k < 60; k++) c.step(DT);
+  const up = s.gear;
+  i.throttle = 0;
+  const m2 = make(); m2.s.paddles = true; rolling(m2.s, 150 * KMH, 3); m2.i.shiftDown = true; m2.c.step(DT);
+  const refused = m2.s.gear === 3 && m2.s.refused > 0;
+  const m3 = make(); m3.s.paddles = true; rolling(m3.s, 150 * KMH, 5); m3.i.shiftDown = true; m3.c.step(DT);
+  const taken = m3.s.gear === 4;
+  c.reset();
+  report(held === 1 && limiter > ENGINE.maxRpm - 400 && up === 2 && refused && taken && s.paddles, 'levas: una marcha por toque, la reducción que pasaría del corte se rechaza, en manual no sube sola y el modo sobrevive al reset', `en 1.ª a ${limiter.toFixed(0)} rpm · sube a ${up}.ª · 5.ª→4.ª ${taken} · 3.ª→2.ª a 150 km/h rechazada ${refused}`);
+}
+{
   // The aids are their own module, driven here alone (H07): traction control cuts the drive as the
   // rears spin past their peak, and stability control brakes the outer front when the car oversteers.
   const A = await import('../src/sim/gt3Assists.js');

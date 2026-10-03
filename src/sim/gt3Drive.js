@@ -6,7 +6,8 @@
  * Controls: W throttle, S brake (held at a standstill, reverse; with W, Launch Control: let go of S to launch), A/D steer, Space the parking
  * brake (tapped into a corner it locks the rears and starts a drift, which the throttle and the
  * counter-steer then hold), T the PSM (traction and stability control, on by default), C the
- * camera, M the engine's sound (off until turned on), Enter back to the pad, Esc to end. The
+ * camera, M the engine's sound (off until turned on), E and Q the paddles (up and down: the PDK's
+ * manual mode; G back to automatic), Enter back to the pad, Esc to end. The
  * keyboard's steering ramps in and centres itself, and asks for as much lock as the grip can
  * use at the speed and under the braking of the moment (steerReach), more the way a slide is
  * caught, for the counter-steer (≈ this simulation's aid).
@@ -212,7 +213,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
   const keys = new Set();
   const driver = { throttle: 0, brake: 0, steer: 0, handbrake: 0 };
   const typing = (t) => t.tagName === 'TEXTAREA' || t.isContentEditable || (t.tagName === 'INPUT' && t.type !== 'range');
-  const CODES = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyC', 'KeyT', 'KeyK', 'KeyM', 'Escape', 'Enter']);
+  const CODES = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyC', 'KeyT', 'KeyK', 'KeyM', 'KeyQ', 'KeyE', 'KeyG', 'Escape', 'Enter']);
   // An open modal dialog (the guide) owns the keyboard: Tab and Shift+Tab stay inside it and
   // Escape closes it, not the drive; and the keys held when it opened are let go.
   const modalOpen = () => typeof document !== 'undefined' && !!document.querySelector('[role="dialog"][aria-modal="true"]:not(.hidden)');
@@ -230,6 +231,9 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
       case 'KeyT': setTraction(!s.tc); break;
       case 'KeyK': setPaused(!state.paused); break;
       case 'KeyM': setSound(!sound.enabled); break;
+      case 'KeyE': paddle(1); break;
+      case 'KeyQ': paddle(-1); break;
+      case 'KeyG': setPaddles(!s.paddles); break;
       case 'Enter': restart(); break;
       case 'Escape': reset(); break;
       default: break;
@@ -239,6 +243,17 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
   function onBlur() { keys.clear(); }
   function note(text) { state.messages.push({ text, t: performance.now() }); if (state.messages.length > 4) state.messages.shift(); }
   function setTraction(on) { s.tc = !!on; note(s.tc ? 'PSM on: traction and stability control' : 'PSM off: the tail is yours'); }
+  // The paddles: the first pull puts the PDK in its manual mode; G gives it back its automatic one.
+  // Pulls made while a shift is still going through wait their turn, as the PDK takes them.
+  let pulls = 0;
+  function paddle(dir) {
+    if (!s.paddles) setPaddles(true);
+    pulls = THREE.MathUtils.clamp(pulls + dir, -3, 3);
+  }
+  function setPaddles(on) {
+    s.paddles = !!on; pulls = 0;
+    note(s.paddles ? 'PDK manual: E up · Q down · G back to automatic' : 'PDK automatic');
+  }
   function setSound(on) { sound.setEnabled(on); note(sound.enabled ? 'Sound on: the flat six, the tyres, the wind (synthesised)' : 'Sound off'); }
 
   function readControls(dt) {
@@ -271,10 +286,17 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
     }
     toSim();
   }
-  function toSim() { Object.assign(sim.input, { throttle: driver.throttle, brake: driver.brake, steer: driver.steer, handbrake: driver.handbrake }); }
+  function toSim() {
+    Object.assign(sim.input, { throttle: driver.throttle, brake: driver.brake, steer: driver.steer, handbrake: driver.handbrake });
+    // One queued pull a shift.
+    if (pulls && s.shift <= 0 && !sim.input.shiftUp && !sim.input.shiftDown) {
+      if (pulls > 0) { sim.input.shiftUp = true; pulls--; } else { sim.input.shiftDown = true; pulls++; }
+    }
+  }
 
   // ---- Cameras ----------------------------------------------------------------------------------
   let chase = null, ridePrev = null, trackside = null;
+  const head = { x: 0, z: 0, vx: 0, vz: 0, look: 0 };
   const _cam = new THREE.Vector3(), _look = new THREE.Vector3(), _f = new THREE.Vector3(), _off = new THREE.Vector3();
   function cycleCamera() { setCamera(CAMERAS[(CAMERAS.indexOf(state.camera) + 1) % CAMERAS.length]); }
   function setCamera(name) {
@@ -297,10 +319,22 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
     _f.set(Math.cos(s.psi), 0, -Math.sin(s.psi));
     if (state.camera === 'driver' || state.camera === 'bonnet') {
       // The driver's eye in the left-hand seat (≈, gt3Cabin.js), or low on the bonnet.
-      const eye = state.camera === 'driver' ? EYE : [1.05, 0.98, 0];
-      _cam.set(...eye);
+      const inside = state.camera === 'driver';
+      const eye = inside ? EYE : [1.05, 0.98, 0];
+      // The head on the neck (≈ a spring of ≈2.5 Hz, well damped): pushed out of a turn and
+      // forward under braking, a few centimetres at the car's grip; the eyes look a little into the
+      // turn, to where the path goes 30 m on; the kerbs, the gravel and the speed shake it.
+      const k = Math.min(0.1, dt), wn = 2 * Math.PI * 2.5;
+      const tz = THREE.MathUtils.clamp(s.ay * 0.0045, -0.06, 0.06), tx = THREE.MathUtils.clamp(-s.ax * 0.0035, -0.045, 0.045);
+      head.vz += (wn * wn * (tz - head.z) - 1.6 * wn * head.vz) * k; head.z += head.vz * k;
+      head.vx += (wn * wn * (tx - head.x) - 1.6 * wn * head.vx) * k; head.x += head.vx * k;
+      const V = Math.hypot(s.u, s.v), rough = s.surface.some(x => x === 'kerb') ? 1 : s.surface.some(x => x === 'gravel' || x === 'grass') ? 0.7 : 0;
+      const amp = inside ? 0.0006 * Math.min(1, V / 70) + 0.004 * rough * Math.min(1, V / 15) : 0;
+      const curv = s.r / Math.max(5, Math.abs(s.u));
+      head.look += (THREE.MathUtils.clamp(-curv * 450 * 0.5, -9, 9) - head.look) * Math.min(1, dt * 3);
+      _cam.set(eye[0] + head.x + (Math.random() - 0.5) * amp, eye[1] + (Math.random() - 0.5) * amp * 1.5, eye[2] + (inside ? head.z : 0));
       sprung.localToWorld(_cam);
-      _look.set(eye[0] + 30, eye[1] - 0.8, eye[2]);
+      _look.set(eye[0] + 30, eye[1] - 0.8, eye[2] + (inside ? head.look : 0));
       sprung.localToWorld(_look);
       camera.position.copy(_cam); camera.lookAt(_look);
       camera.fov = 68; camera.near = 0.03; camera.updateProjectionMatrix();
@@ -326,15 +360,17 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
       _look.set(s.u * c - s.v * sn, 0, -s.u * sn - s.v * c).normalize();
       _f.lerp(_look, 0.55).normalize();
     }
-    _cam.copy(holder.position).addScaledVector(_f, -6.4);
-    _cam.y += 2.1;
+    // A little further back and lower with the speed, and a wider view: the sense of speed a
+    // chase camera on a real car gives (≈).
+    _cam.copy(holder.position).addScaledVector(_f, -(6.4 + Math.min(1.6, V * 0.02)));
+    _cam.y += 2.1 - Math.min(0.35, V * 0.004);
     if (!chase || chase.distanceTo(_cam) > 40) chase = _cam.clone();
     chase.lerp(_cam, 1 - Math.exp(-dt * 5));
     // Over the ground, and over the water: the chase camera stays above the surface.
     { const gc = ground(chase.x, chase.z); chase.y = Math.max(chase.y, gc.h + 0.6, (gc.water ?? -Infinity) + 0.4); }
     camera.position.copy(chase);
     camera.lookAt(holder.position.x, holder.position.y + 0.75, holder.position.z);
-    camera.fov = saved.fov; camera.updateProjectionMatrix();
+    camera.fov = saved.fov + Math.min(9, V * 0.11); camera.updateProjectionMatrix();
   }
 
   // ---- Pose, wheels, marks ------------------------------------------------------------------
@@ -518,7 +554,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
     pose(Math.min(dt, 0.25));
     placeCamera(Math.max(dt, 1 / 120));
     if (rig.external) rig.target.copy(holder.position);
-    if (state.paused) sound.stop(); else sound.update(s, sim.input, s.surface[2]);
+    if (state.paused) sound.stop(); else sound.update(s, sim.input, s.surface[2], state.camera === 'driver');
     publish();
   }
 
@@ -550,7 +586,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
       gLong: s.ax / 9.81, gLat: s.ay / 9.81, t: s.t,
       throttle: driver.throttle, brake: driver.brake, handbrake: driver.handbrake > 0, surface: s.surface[2],
       lap: state.lap !== null ? s.t - state.lap : null, best: state.best, laps: state.laps,
-      camera: state.camera, paused: state.paused, marks: marks.count, sound: sound.enabled,
+      camera: state.camera, paused: state.paused, marks: marks.count, sound: sound.enabled, paddles: s.paddles, refused: s.refused > 0,
       messages: state.messages.filter(m => performance.now() - m.t < 5000).map(m => m.text),
     };
     hud?.update(state.readout);
@@ -560,7 +596,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
     get state() { return state; },
     get running() { return state.running; },
     get position() { return holder.position; },
-    sim, marks, smoke, sound, driver, damage, fx, start, reset, restart, setPaused, setCamera, cycleCamera, setTraction, setSound, fmtTime,
+    sim, marks, smoke, sound, driver, damage, fx, start, reset, restart, setPaused, setCamera, cycleCamera, setTraction, setSound, setPaddles, paddle, fmtTime,
     update(dt) { if (state.running) apply(dt); },
     AXLE_F, AXLE_R, CAR,
   };
