@@ -98,6 +98,7 @@ export const SOURCES = {
   porsche_presskit: { label: 'Porsche Cars North America — The new Porsche 911 GT3 RS (992), press kit, 2022 (central radiator, active aerodynamics, DRS and airbrake, downforce)', url: 'https://newsroom.porsche.com/dam/jcr:46a23375-e7ee-4507-a577-d9761b784d33/992%20911%20GT3%20RS%20Press%20Kit%201.pdf' },
   porsche_photos: { label: 'Porsche AG — 911 GT3 RS world premiere, studio photographs (side, front, rear, three-quarter; reference only)', url: 'https://newsroom.porsche.com/en/2022/products/porsche-911-gt3-rs-world-premiere-29177.html' },
   kawasaki_h2r: { label: 'Kawasaki Motors Europe — Ninja H2R, specifications, model year 2027 (engine, gearing, frame geometry, suspension, brakes, tyres, dimensions, weights, colour)', url: 'https://www.kawasaki.eu/en/Motorcycles/Hypersport/NinjaH2R_2027.html' },
+  commons_h2r_photos: { label: 'Wikimedia Commons — photographs of the Ninja H2R at shows (right side, head-on, three-quarters, without the fairing; free licences; reference only)', url: 'https://commons.wikimedia.org/wiki/Category:Kawasaki_Ninja_H2R' },
   kawasaki_h2r_photos: { label: 'Kawasaki Motors Europe — Ninja H2R studio photographs, Mirror Coated Spark Black (left side, right side, right front; reference only)', url: 'https://www.kawasaki.eu/en/Motorcycles/Hypersport/NinjaH2R_2027.html' },
   tesla_roadster_sm: { label: 'Tesla — Roadster Service Manual, Technical Data (dimensions and weights)', url: 'https://service.tesla.com/docs/Public/Roadster/ServiceManual/en-us/GUID-4E037ADB-D0F4-48A0-9261-1083193D4C1B.html' },
 };
@@ -578,9 +579,10 @@ export const VEHICLES = [
       'Traced (≈ ±1 cm) on Kawasaki\'s studio side photograph at 1.80 mm a pixel, which puts the traced axles 1.445 m apart, the screen\'s top 1.165 m up and the seat 0.830 m up against the published 1.450, 1.160 and 0.830 m: the cowl, screen, tank, seat and tail, the panels\' outlines, the frame\'s nodes, the engine\'s outline, the headers, the swingarm, the fender. The photographs are reference only and are not in the centre.',
       'Reconstructed (≈): the widths (no top or head-on drawing is published; read from the photographs within the published 0.850 m), the panels\' sections, the engine\'s covers, the wheels\' spokes, the callipers, the controls.',
       'The torque curve between the published points, the limiter (14,500 rpm), the drag area (0.30 m² with the rider tucked), the centre of mass and the tyres\' grip are estimates (≈); the top speed then follows from the gearing.',
+      'Measured (≈ ±2 cm) on photographs from Wikimedia Commons with their cameras solved on the published wheelbase and tyre diameters (right side ≈1.9 px; head-on, near orthographic): the wings (a flat blade, ≈15–18° of dihedral, ≈23° of sweep, ≈20° nose down), the screen widening upwards to ±0.16 m and the carbon horns along its edges, the eyes, chevrons and ram-air mouth under the nose, the lower cowls and lower wings, the radiator shrouds, the triple clamps\' height and the engine\'s right-side covers.',
       'Kawasaki\'s own markings as on the photographed bike — "Kawasaki", "Ninja", "H2R", "brembo" — at the visitor\'s request: drawn as type, not copied artwork.',
     ],
-    sources: ['kawasaki_h2r', 'kawasaki_h2r_photos'],
+    sources: ['kawasaki_h2r', 'kawasaki_h2r_photos', 'commons_h2r_photos'],
     presets: [
       { id: 'overview', label: 'Overview', pos: [3.0, 1.5, 2.6], target: [0, 0.6, 0] },
       { id: 'side', label: 'Side', pos: [0, 0.75, -4.2], target: [0, 0.6, 0] },

@@ -26,6 +26,9 @@ import { T, AXLE_F, AXLE_R, PIVOT, STEER_AXIS, STEER_GROUND, RR, RF, D2R, TAU, s
 
 export { STEER_AXIS, AXLE_F, AXLE_R, PIVOT } from './h2rParts.js';
 
+/** The top triple clamp's place along the fork from the front axle, m (its top face ≈0.98 m up). */
+const TOP_CLAMP = 0.76;
+
 export function buildH2r(M) {
   partMaterials(M);
   const root = new THREE.Group();
@@ -40,7 +43,7 @@ export function buildH2r(M) {
   const fairing = buildFairing(M), tank = buildTank(M);
   root.add(buildSteer(M), buildSwingarm(M), buildFrame(M), buildEngine(M), buildExhaust(M), tank, buildSeatTail(M), fairing, buildDetails(M));
   root.updateMatrixWorld(true);
-  root.add(buildDecals(fairing.userData.panel, tank.getObjectByName('h2r-tank-top')));
+  root.add(buildDecals(fairing.userData.panel, tank.getObjectByName('h2r-tank-top'), root.getObjectByName('h2r-tail')));
   root.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   return root;
 }
@@ -70,13 +73,16 @@ function buildSteer(M) {
     const tubeIn = new THREE.CylinderGeometry(0.0215, 0.0215, 0.36, 24); tubeIn.applyQuaternion(q);
     const pIn = along(base, 0.2); tubeIn.translate(pIn.x, pIn.y, pIn.z);
     inner.add(mesh(tubeIn, M.h2rForkInner, { name: 'h2r-fork-inner' }));
-    // Outer (upper) tube, ≈56 mm, through both clamps, its lower end chamfered.
-    const prof = [new THREE.Vector2(0.0, 0), new THREE.Vector2(0.0255, 0), new THREE.Vector2(0.028, 0.012), new THREE.Vector2(0.028, 0.43), new THREE.Vector2(0.0255, 0.445), new THREE.Vector2(0, 0.445)];
+    // Outer (upper) tube, ≈56 mm, through both clamps and ≈3 cm proud of the top one (the
+    // photographs without the fairing), its lower end chamfered.
+    const prof = [new THREE.Vector2(0.0, 0), new THREE.Vector2(0.0255, 0), new THREE.Vector2(0.028, 0.012), new THREE.Vector2(0.028, 0.52), new THREE.Vector2(0.0255, 0.535), new THREE.Vector2(0, 0.535)];
     const tubeOut = new THREE.LatheGeometry(prof, 28); tubeOut.applyQuaternion(q);
     const pOut = along(base, 0.255); tubeOut.translate(pOut.x, pOut.y, pOut.z);
-    inner.add(mesh(tubeOut, M.h2rFork, { name: 'h2r-fork-outer' }));
+    // (Its outer tubes are bright, as in every photograph; the axle brackets stay black.)
+    M.h2rForkTube ??= new THREE.MeshStandardMaterial({ name: 'h2r-fork-tube', color: 0xc4c1ba, metalness: 1, roughness: 0.16 });
+    inner.add(mesh(tubeOut, M.h2rForkTube, { name: 'h2r-fork-outer' }));
     const cap = new THREE.CylinderGeometry(0.019, 0.022, 0.016, 20); cap.applyQuaternion(q);
-    const pCap = along(base, 0.705); cap.translate(pCap.x, pCap.y, pCap.z);
+    const pCap = along(base, 0.795); cap.translate(pCap.x, pCap.y, pCap.z);
     M.h2rGreenAnod ??= new THREE.MeshStandardMaterial({ name: 'h2r-green-anodised', color: 0x1f9a2c, metalness: 0.8, roughness: 0.3 });
     inner.add(mesh(cap, M.h2rGreenAnod, { name: 'h2r-fork-cap' }));
     // The axle bracket, black, with the radial calliper mounts behind the leg.
@@ -94,8 +100,11 @@ function buildSteer(M) {
     if (side < 0) cal.scale.z = -1;
     inner.add(cal);
   }
-  // Triple clamps, both black (the detail photograph), joining the legs at the steering head.
-  for (const [d, mat, h] of [[0.47, M.h2rSatin, 0.04], [0.665, M.h2rSatin, 0.024]]) {
+  // Triple clamps, machined aluminium (the photographs without the fairing), joining the legs at the steering head. The
+  // top one sits on the head tube, above where the frame's upper rails meet it, the clip-ons
+  // ≈4 cm under it (the photographs without the fairing).
+  M.h2rClamp ??= new THREE.MeshStandardMaterial({ name: 'h2r-triple-clamp', color: 0x9da0a5, metalness: 0.85, roughness: 0.38 });
+  for (const [d, mat, h] of [[0.47, M.h2rClamp, 0.04], [TOP_CLAMP, M.h2rClamp, 0.024]]) {
     const c = slab([[-0.04, -0.13], [0.03, -0.13], [0.05, -0.105], [0.05, 0.105], [0.03, 0.13], [-0.04, 0.13], [-0.075, 0.05], [-0.075, -0.05]], h, 0.003);
     c.rotateX(-Math.PI / 2); c.translate(0, -h / 2, 0);
     const cm = mesh(c, mat, { name: 'h2r-triple-clamp' });
@@ -103,6 +112,10 @@ function buildSteer(M) {
     cm.position.copy(along(AXLE_F.clone(), d)).add(new THREE.Vector3(-0.028 * Math.cos(25.1 * D2R), -0.028 * Math.sin(25.1 * D2R), 0));
     inner.add(cm);
   }
+  // The steering stem's nut on the top clamp, on the steering axis.
+  { const top = STEER_GROUND.clone().addScaledVector(STEER_AXIS, (AXLE_F.y + TOP_CLAMP * STEER_AXIS.y - 0.028 * Math.sin(25.1 * D2R) + 0.012) / STEER_AXIS.y);
+    const nut = new THREE.CylinderGeometry(0.019, 0.019, 0.014, 6); nut.applyQuaternion(q); nut.translate(top.x, top.y + 0.006, top.z);
+    inner.add(mesh(nut, M.h2rSatin, { name: 'h2r-stem-nut' })); }
   // Clip-on bars below the top clamp, angled down and back to the grips (the side photograph: the
   // grip from ≈0.90 m up at the clamp to ≈0.82 m at the bar end); the levers, the master cylinders'
   // reservoirs (smoked amber), the switchgear.
@@ -241,7 +254,9 @@ function buildFrame(M) {
     items.push({ geometry: c });
   }
   // The head tube on the steering axis.
-  items.push({ geometry: new THREE.CylinderGeometry(1, 1, 1, 24), matrix: segMatrix(headBot.clone().addScaledVector(STEER_AXIS, -0.03), headTop.clone().addScaledVector(STEER_AXIS, 0.02), 0.03) });
+  // (From just over the bottom clamp to just under the top one: it no longer stands through the
+  // top clamp, where the rider saw its green end as a disc.)
+  items.push({ geometry: new THREE.CylinderGeometry(1, 1, 1, 24), matrix: segMatrix(headBot.clone().addScaledVector(STEER_AXIS, -0.045), headTop.clone().addScaledVector(STEER_AXIS, 0.005), 0.03) });
   g.add(mesh(mergeAll(items), M.h2rGreen, { name: 'h2r-trellis' }));
   return g;
 }
@@ -272,36 +287,45 @@ function cover(u, v, z, r, depth, side) {
  */
 function buildEngine(M) {
   M.h2rEngine ??= new THREE.MeshStandardMaterial({ name: 'h2r-engine', color: 0x232427, metalness: 0.6, roughness: 0.48 });
-  M.h2rCaseGrey ??= new THREE.MeshStandardMaterial({ name: 'h2r-case-grey', color: 0x3a3c40, metalness: 0.5, roughness: 0.55 });
+  M.h2rCaseGrey ??= new THREE.MeshStandardMaterial({ name: 'h2r-case-grey', color: 0x55585d, metalness: 0.5, roughness: 0.6 });
   M.h2rRedAnod ??= new THREE.MeshStandardMaterial({ name: 'h2r-red-anodised', color: 0x8c1d12, metalness: 0.7, roughness: 0.35 });
   M.h2rPlenum ??= new THREE.MeshStandardMaterial({ name: 'h2r-intake-chamber', color: 0xbfc3c8, metalness: 0.9, roughness: 0.32 });
+  // The cylinder block, head and sump are bare cast aluminium, light; the covers charcoal (the
+  // right-side photograph and those with the fairing off).
+  M.h2rCast ??= new THREE.MeshStandardMaterial({ name: 'h2r-cast-aluminium', color: 0xa9adb2, metalness: 0.75, roughness: 0.5 });
   const g = new THREE.Group(); g.name = 'h2r-engine';
-  const dark = [], grey = [], bright = [];
+  const dark = [], grey = [], bright = [], cast = [];
   // Crankcase and gearbox.
   dark.push({ geometry: blockPx([[498, 520], [497, 598], [510, 638], [540, 658], [600, 662], [690, 658], [718, 640], [726, 560], [722, 505], [650, 490], [560, 492]], -0.15, 0.15, 0.012) });
   // Cylinders and head, leaning forward, under the duct and the intake chamber.
-  dark.push({ geometry: blockPx([[498, 525], [474, 440], [470, 405], [500, 390], [565, 392], [610, 430], [640, 500]], -0.18, 0.18, 0.012) });
-  // The sump (cast, grey) under the crankcase.
-  grey.push({ geometry: blockPx([[583, 657], [690, 652], [684, 712], [640, 725], [600, 722], [588, 690]], -0.085, 0.085, 0.006) });
-  // Covers: generator and sprocket on the left, clutch and pickup on the right (the right side
-  // photograph, mirrored).
+  cast.push({ geometry: blockPx([[498, 525], [474, 440], [470, 405], [500, 390], [565, 392], [610, 430], [640, 500]], -0.18, 0.18, 0.012) });
+  // The sump (cast) under the crankcase.
+  cast.push({ geometry: blockPx([[583, 657], [690, 652], [684, 712], [640, 725], [600, 722], [588, 690]], -0.085, 0.085, 0.006) });
+  // Covers: generator and sprocket on the left; on the right the clutch cover, a charcoal ring
+  // (r ≈0.092 m) round a raised dished disc (r ≈0.063 m) centred at (−0.025, 0.484) m, and the
+  // pickup cover (r ≈0.03 m) at (0.115, 0.44) m (the right-side photograph through its camera).
   dark.push({ geometry: cover(583, 578, -0.15, 0.072, 0.03, -1) });
   dark.push({ geometry: cover(673, 573, -0.15, 0.058, 0.024, -1) });
-  grey.push({ geometry: cover(649, 550, 0.15, 0.104, 0.05, 1) });
-  grey.push({ geometry: cover(574, 575, 0.15, 0.04, 0.018, 1) });
-  for (const [u, v, z, r, n] of [[583, 578, -0.154, 0.08, 10], [673, 573, -0.154, 0.065, 8], [649, 550, 0.154, 0.112, 14], [574, 575, 0.154, 0.046, 4]]) {
+  dark.push({ geometry: cover(654.6, 538.7, 0.15, 0.092, 0.035, 1) });
+  grey.push({ geometry: cover(654.6, 538.7, 0.18, 0.063, 0.018, 1) });
+  grey.push({ geometry: cover(576.3, 563.3, 0.15, 0.03, 0.016, 1) });
+  for (const [u, v, z, r, n] of [[583, 578, -0.154, 0.08, 10], [673, 573, -0.154, 0.065, 8], [654.6, 538.7, 0.154, 0.1, 14], [576.3, 563.3, 0.154, 0.036, 4]]) {
     const [x, y] = PXY(u, v);
     for (let k = 0; k < n; k++) {
       const a = (k / n) * TAU + 0.2, b = new THREE.CylinderGeometry(0.0055, 0.0055, 0.012, 6); b.rotateX(Math.PI / 2);
       b.translate(x + Math.cos(a) * r, y + Math.sin(a) * r, z); bright.push({ geometry: b });
     }
   }
-  // The oil filler cap on the right, its red ring (the right side photograph).
-  { const [x, y] = PXY(669, 455); const cap = new THREE.CylinderGeometry(0.03, 0.03, 0.02, 32); cap.rotateX(Math.PI / 2); cap.translate(x, y, 0.16); bright.push({ geometry: cap }); }
+  // The oil filler cap on the clutch cover's top front, its red ring, at (0.076, 0.547) m.
+  { const cap = new THREE.CylinderGeometry(0.018, 0.018, 0.02, 32); cap.rotateX(Math.PI / 2); cap.translate(0.076, 0.547, 0.165); bright.push({ geometry: cap }); }
+  // The round black plate in its cast housing on the head's right side, at (−0.05, 0.653) m.
+  { const h = new THREE.CylinderGeometry(0.045, 0.048, 0.03, 40); h.rotateX(Math.PI / 2); h.translate(-0.05, 0.653, 0.135); cast.push({ geometry: h }); }
   g.add(mesh(mergeAll(dark), M.h2rEngine, { name: 'h2r-engine-cases' }));
   g.add(mesh(mergeAll(grey), M.h2rCaseGrey, { name: 'h2r-engine-covers' }));
+  g.add(mesh(mergeAll(cast), M.h2rCast, { name: 'h2r-engine-castings' }));
   g.add(mesh(mergeAll(bright), M.h2rSatin, { name: 'h2r-engine-bolts' }));
-  { const [x, y] = PXY(669, 455); const ring = new THREE.TorusGeometry(0.026, 0.004, 8, 32); ring.translate(x, y, 0.171); g.add(mesh(ring, M.h2rRedAnod, { name: 'h2r-filler-ring' })); }
+  { const ring = new THREE.TorusGeometry(0.016, 0.003, 8, 32); ring.translate(0.076, 0.547, 0.176); g.add(mesh(ring, M.h2rRedAnod, { name: 'h2r-filler-ring' })); }
+  { const p = new THREE.CylinderGeometry(0.028, 0.028, 0.004, 40); p.rotateX(Math.PI / 2); p.translate(-0.05, 0.653, 0.151); g.add(mesh(p, M.h2rSatin, { name: 'h2r-head-plate' })); }
   // The intake chamber over the head, aluminium, under the tank.
   g.add(mesh(blockPx([[470, 398], [482, 362], [560, 336], [650, 350], [665, 395], [600, 412], [520, 410]], -0.15, 0.15, 0.02), M.h2rPlenum, { name: 'h2r-intake-chamber' }));
   // The supercharger, behind the cylinders on the left: the impeller's scroll housing.
@@ -357,7 +381,9 @@ function carbonMaterial() {
  * to its large round end can behind the footpeg.
  */
 function buildExhaust(M) {
-  M.h2rTi ??= new THREE.MeshStandardMaterial({ name: 'h2r-titanium', color: 0xc2bdb6, metalness: 1, roughness: 0.2 });
+  // The headers' titanium has the bronze-gold heat tint of the photographs; the silencer is polished.
+  M.h2rTi ??= new THREE.MeshStandardMaterial({ name: 'h2r-titanium', color: 0xb38d58, metalness: 1, roughness: 0.25 });
+  M.h2rCan ??= new THREE.MeshStandardMaterial({ name: 'h2r-silencer', color: 0xd6d7d9, metalness: 1, roughness: 0.14 });
   const P = (u, v, z) => new THREE.Vector3(...PXY(u, v), z);
   const g = new THREE.Group(); g.name = 'h2r-exhaust';
   const items = [];
@@ -374,7 +400,7 @@ function buildExhaust(M) {
   const L = B.distanceTo(C), q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), C.clone().sub(B).normalize());
   const can = lathe([[0.034, 0], [0.042, L * 0.2], [0.05, L * 0.55], [0.058, L * 0.85], [0.06, L * 0.97], [0.064, L], [0.054, L + 0.003], [0.0, L + 0.003]], 36);
   can.applyQuaternion(q); can.translate(B.x, B.y, B.z);
-  g.add(mesh(can, M.h2rTi, { name: 'h2r-silencer' }));
+  g.add(mesh(can, M.h2rCan, { name: 'h2r-silencer' }));
   return g;
 }
 
@@ -396,11 +422,24 @@ function buildDetails(M) {
     const ring = new THREE.TorusGeometry(0.016, 0.003, 8, 24); ring.rotateY(Math.PI / 2); ring.translate(A.x, A.y, -0.06); g.add(mesh(ring, M.h2rGold, { name: 'h2r-damper-ring' })); }
   // The radiator, behind the side panels, ahead of the engine.
   { const r = new THREE.BoxGeometry(0.05, 0.3, 0.42); const m = mesh(r, M.h2rRadiator, { name: 'h2r-radiator' }); m.position.copy(P(440, 500)); m.rotation.z = 0.2; g.add(m); }
-  // The lower side slats, carbon: three blades stepping down under the side panel (the side photograph).
-  for (const [u0, v0, u1, v1, z] of [[430, 445, 600, 470, 0.25], [440, 492, 560, 520, 0.24], [440, 530, 540, 552, 0.23]]) {
-    const pts = [PXY(u0, v0), PXY(u1, v1), PXY(u1 - 20, v1 + 14), PXY(u0 + 10, v0 + 16)];
-    const sl = slab(pts, 0.012, 0.002);
-    for (const s of [-1, 1]) { const m = mesh(sl.clone(), M.h2rCarbon, { name: 'h2r-slat' }); m.position.z = s * z - 0.006; g.add(m); }
+  // The radiator's side shrouds, mirror-coated and bolted, between the engine's front and the lower
+  // cowl (the right-side photograph through its calibrated camera: from (0.112, 0.611) m at the top
+  // rear to the lower cowl at x 0.388 m, down to ≈0.48 m, 0.215–0.24 m out), with a ridge along the
+  // top. (They replace three carbon blades that are not on the bike.)
+  {
+    const V = (x, y, z) => new THREE.Vector3(x, y, z);
+    const out = [V(0.112, 0.611, 0.215), V(0.388, 0.618, 0.24), V(0.388, 0.495, 0.24), V(0.22, 0.476, 0.215)];
+    const ridge = [V(0.127, 0.592, 0.228), V(0.373, 0.600, 0.25)];
+    const pos = [], tri = (a, b, c) => pos.push(...a.toArray(), ...b.toArray(), ...c.toArray());
+    tri(out[0], ridge[0], ridge[1]); tri(out[0], ridge[1], out[1]);
+    tri(ridge[0], out[3], out[2]); tri(ridge[0], out[2], ridge[1]);
+    let geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.computeVertexNormals();
+    const L = geo.clone(); L.scale(1, 1, -1); const ix = L.attributes.position;
+    for (let i = 0; i < ix.count; i += 3) { const t = [ix.getX(i + 1), ix.getY(i + 1), ix.getZ(i + 1)]; ix.setXYZ(i + 1, ix.getX(i + 2), ix.getY(i + 2), ix.getZ(i + 2)); ix.setXYZ(i + 2, ...t); }
+    L.computeVertexNormals();
+    M.h2rChrome2s ??= Object.assign(M.h2rChrome.clone(), { side: THREE.DoubleSide, name: 'h2r-mirror-coat-shroud' });
+    g.add(mesh(mergeAll([{ geometry: geo }, { geometry: L }]), M.h2rChrome2s, { name: 'h2r-radiator-shroud' }));
+    for (const s of [-1, 1]) { const b = new THREE.CylinderGeometry(0.008, 0.008, 0.006, 12); b.rotateX(Math.PI / 2); b.translate(0.252, 0.535, s * 0.229); g.add(mesh(b, M.h2rAlu, { name: 'h2r-shroud-bolt' })); }
   }
   // Rearsets: aluminium heel plates and pegs (the side photograph), the right one with the brake pedal.
   for (const s of [-1, 1]) {
@@ -411,9 +450,10 @@ function buildDetails(M) {
     const knurl = new THREE.CylinderGeometry(0.012, 0.012, 0.05, 12); knurl.rotateX(Math.PI / 2); knurl.translate(...PXY(800, 604), s * 0.225);
     g.add(mesh(knurl, M.h2rGold, { name: 'h2r-peg-knurl' }));
   }
-  // The Öhlins shock's gold reservoir and its black preload knob, low on the right under the seat.
-  { const c = new THREE.CylinderGeometry(0.02, 0.02, 0.09, 20); c.rotateZ(Math.PI / 2); c.translate(...PXY(860, 438), 0.165); g.add(mesh(c, M.h2rGold, { name: 'h2r-shock-reservoir' }));
-    const k = new THREE.CylinderGeometry(0.022, 0.022, 0.035, 20); k.rotateZ(Math.PI / 2); k.translate(...PXY(820, 438), 0.165); g.add(mesh(k, M.h2rSatin, { name: 'h2r-shock-knob' })); }
+  // The Öhlins shock's gold reservoir and its black preload knob, under the seat inside the side
+  // cover (it does not show in the right-side photograph).
+  { const c = new THREE.CylinderGeometry(0.02, 0.02, 0.09, 20); c.rotateZ(Math.PI / 2); c.translate(...PXY(860, 438), 0.085); g.add(mesh(c, M.h2rGold, { name: 'h2r-shock-reservoir' }));
+    const k = new THREE.CylinderGeometry(0.022, 0.022, 0.035, 20); k.rotateZ(Math.PI / 2); k.translate(...PXY(820, 438), 0.085); g.add(mesh(k, M.h2rSatin, { name: 'h2r-shock-knob' })); }
   return g;
 }
 function radiatorTexture() {
@@ -431,7 +471,9 @@ function radiatorTexture() {
 function buildDash(M) {
   const g = new THREE.Group(); g.name = 'h2r-dash';
   const P = (u, v, z = 0) => new THREE.Vector3(...PXY(u, v), z);
-  const c = P(318, 282);
+  // Above the top clamp, where the rider sees it over the clamp and the fork caps (≈5 cm higher
+  // than first traced, which the raised clamp hid).
+  const c = P(318, 282).add(new THREE.Vector3(0.01, 0.05, 0));
   g.position.copy(c);
   // Facing up and back towards the rider's eye (≈60° from vertical).
   g.rotation.set(0, -Math.PI / 2, 0); g.rotateX(-1.0);

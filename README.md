@@ -813,6 +813,38 @@ El usuario juzgó la primera versión «horrible» y pidió una copia idéntica 
   - Encima: el silbido del compresor a ≈9,2 veces el cigüeñal según la presión de soplado, el chirrido al cortar gas con presión, los petardeos al retener, el corte del cambio rápido y del limitador, el silbido de la primaria y la admisión.
   - Es una síntesis a oído, no una grabación.
 
+### La Ninja H2R contra fotos calibradas: frontal, alas, cúpula y cabina (3 de octubre de 2026, tercera versión)
+
+Las fotos oficiales de Kawasaki no se pudieron volver a descargar en esta sesión. Se usaron como referencia fotos libres de Wikimedia Commons de la moto en exposiciones: perfil derecho, frontal, tres cuartos y varias sin carenado. Ninguna está en el repositorio.
+- **Cámaras resueltas sobre las cotas publicadas.**
+  - **Lateral derecha:** batalla y diámetros de los neumáticos, con 1,9 px de error medio. En la foto la moto está sobre un caballete y la rueda trasera queda libre, 1,7 cm levantada.
+  - **Frontal:** con los puntos ya medidos; es casi ortográfica.
+  - De la lateral salen x e y; de la frontal, z (≈ ±2 cm). El banco de pruebas aislado (render con la cámara de cada foto y superposición de bordes) está en la carpeta temporal.
+- **Alas:**
+  - Eran placas casi verticales.
+  - Ahora son una tabla plana de carbono que sale de un pie atornillado junto a la base del parabrisas y va hacia fuera, hacia arriba y hacia atrás, morro abajo: ≈15–18° de diedro, ≈23° de flecha, ≈20° de incidencia.
+  - Su punta, cortada en recto, es el punto más ancho (0,850 m).
+- **Parabrisas:**
+  - Se ensancha hacia arriba hasta ±0,16 m; antes se estrechaba a ±0,07 m.
+  - Lleva las tiras negras atornilladas en sus bordes y los cuernos de carbono a lo largo de ellos.
+  - Desde los ojos del piloto ya no se ve blanquecino: la cara interior es solo tinte, sin reflejos, y la exterior conserva el brillo.
+- **Morro:**
+  - Capó de carbono rehecho en metros, con su V y los filetes verdes.
+  - Ojos oscuros en bolsillo, quilla central y galones de carbono con el filete verde.
+  - Cara inferior con la toma de aire dinámico.
+  - Carenados inferiores cromados que bajan hasta ≈0,33 m, y aletas inferiores de láminas con su placa en flecha.
+  - La punta del panel lateral se retrasa ≈4 cm y sale ≈5 cm, como en la foto.
+  - Las tres láminas de carbono bajo el panel, que la moto no tiene, se sustituyen por las tapas cromadas atornilladas del radiador.
+- **Dirección:**
+  - El tubo verde de la pipa atravesaba la tija superior y se veía como un disco desde los ojos del piloto.
+  - Ahora la tija superior, de aluminio mecanizado como en las fotos sin carenado, va encima, a ≈0,97 m. Las barras asoman ≈3 cm por encima, con su tapa verde, y los semimanillares quedan ≈4 cm por debajo.
+  - El cuadro de instrumentos sube 5 cm para verse por encima de la tija. Las barras exteriores de la horquilla son plateadas.
+- **Motor y colín:**
+  - Tapa del embrague con su aro y su disco abombado, tapa del encendido y placa redonda de la culata en su sitio (medidas en la foto).
+  - Bloque, culata y cárter de aluminio fundido claro; colectores con el tono bronce del titanio y silencioso pulido.
+  - El depósito del amortiguador queda tras la tapa, como en la foto.
+  - El colín tiene aristas vivas y el rótulo «Ninja» de fábrica en su panel.
+
 ### Porsche 911 GT3 RS, mejora 7: piezas, vista del piloto, levas y sonido (3 de octubre de 2026)
 
 El usuario juzgó el Porsche «deficiente» en modelado y conducción. La silueta ya cuadraba con las cuatro fotos de estudio (±1–2 cm sobre los bordes, con sus cámaras ajustadas). Lo que fallaba eran las piezas que se miran de cerca y la experiencia al volante. Las fotos de Porsche se usan solo como referencia y no están en el repositorio.

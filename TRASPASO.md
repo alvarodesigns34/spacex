@@ -20,9 +20,14 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
     - Llantas de radios en Y; frontal inferior hundido; faros cromados; rejilla del motor y piloto central.
     - Parabrisas envolvente (`WRAP` en `inWindscreen`), que deja un montante A fino.
     - Levas E/Q/G; cabeza del piloto con fuerzas G; sonido del bóxer por AudioWorklet; luces de freno vivas.
+- **Sesión del 03-10 (tercera, rama de sesión `claude/sleepy-cannon-a1exgi`):**
+  - `1a072a7`: el Porsche lee el suelo bajo sus ruedas en `reset()` (fallo intermitente de CI en «B starts the Porsche…»); CLAUDE.md con cinco ramas.
+  - H2R contra fotos de Commons calibradas: alas, parabrisas, cuernos, morro, carenados inferiores, tija y motor. README, *La Ninja H2R contra fotos calibradas*.
+  - Las fotos oficiales de kawasaki.eu y del newsroom de Porsche **no se pudieron descargar**: el clasificador de permisos bloqueó la descarga con curl y el registro de la CA del proxy para Chromium. WebFetch sí lee páginas de texto. Si hacen falta, pide al usuario que permita esas acciones.
+  - Banco (carpeta temporal, se pierde): `bench/server.mjs`, `page.html` (render con `K`/`Rt` de OpenCV), `shoot.mjs`, `frames.mjs` (la app real); `cal/solve2.py` (PnP con punto principal y un grupo de puntos con desplazamiento libre, para la rueda en el caballete), `cal/tri.py` (`fuse`: x, y de la lateral; z de la frontal), `cal/overlay.py`.
 - **Peticiones del usuario aún abiertas (ambición máxima, «me da igual el tiempo»):**
   - Que la H2R y el Porsche sean idénticos a los reales en modelo, conducción y sonido. Ambos están muy mejorados, pero se puede afinar más.
-  - H2R: forma del ala de carbono (una pala a lo largo del borde inferior de la cúpula), detalle del motor, basculante, cabina; la cúpula se ve blanquecina desde los ojos del piloto.
+  - H2R: alas, cúpula, cuernos, morro, tija y tapas del motor hechos (tercera sesión). Quedan: lado izquierdo del motor (compresor, tapas), basculante, tapa lateral bajo el asiento con su hueco triangular, chasis con más tubos (foto cenital sin carenado).
   - Porsche: cortinas de aire del frontal, aletas del difusor, salpicadero y habitáculo, y reflejos de la pintura. La conducción con teclado se puede seguir puliendo.
 - **Otros pendientes:** F-16 H17 (supersónico con datos); auditoría visual y de vuelo del F-16 (opcional); P1 de la auditoría (abajo). **La galería no se regenera sin aprobación del usuario.**
 - **Ojo, la carpeta temporal se pierde entre sesiones.** Allí estaban las fotos de referencia (Porsche newsroom, Kawasaki), las cámaras calibradas y los bancos de pruebas (`bench/`, `match/`, `hb/`), y no están en el repositorio. Las fotos se usan solo como referencia y nunca se suben. Si hacen falta, vuelve a descargarlas y rehaz el banco: una página que cargue solo el vehículo y lo renderice con la cámara ajustada a la foto, más una superposición de bordes.
