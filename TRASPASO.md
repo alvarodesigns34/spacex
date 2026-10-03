@@ -26,6 +26,17 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
   - Porsche: cortinas de aire del frontal, aletas del difusor, salpicadero y habitáculo, y reflejos de la pintura. La conducción con teclado se puede seguir puliendo.
 - **Otros pendientes:** F-16 H17 (supersónico con datos); auditoría visual y de vuelo del F-16 (opcional); P1 de la auditoría (abajo). **La galería no se regenera sin aprobación del usuario.**
 - **Ojo, la carpeta temporal se pierde entre sesiones.** Allí estaban las fotos de referencia (Porsche newsroom, Kawasaki), las cámaras calibradas y los bancos de pruebas (`bench/`, `match/`, `hb/`), y no están en el repositorio. Las fotos se usan solo como referencia y nunca se suben. Si hacen falta, vuelve a descargarlas y rehaz el banco: una página que cargue solo el vehículo y lo renderice con la cámara ajustada a la foto, más una superposición de bordes.
+- **Entorno del contenedor (sesión del 03-10, segunda):**
+  - Al empezar: `npm ci`; para el banco de pruebas, `pip install pillow numpy opencv-python-headless`.
+  - Red completa: kawasaki.eu, newsroom.porsche.com (la raíz da 503 a agentes genéricos; `/en.html` con agente de navegador da 200) y files.porsche.com responden.
+  - **Wikimedia:** su API (`/w/api.php` de Commons y Wikipedia) devolvía 429 a todo. upload.wikimedia.org sí descarga, con la ruta `/wikipedia/commons/thumb/<md5[0]>/<md5[0:2]>/<nombre>/1280px-<nombre>`, donde md5 es el del nombre del archivo con guiones bajos. Despacio, con unos segundos entre descargas.
+  - Fotos libres de la H2R en Commons: `Kawasaki_Ninja_H2R_right.JPG`, `_front.JPG`, `_front_left.JPG`, `_front_left_2.JPG`, `_half-cowl.jpg`, `_exposed_left_front.JPG`, `_exposd_right_front.JPG`, `_exposed_left_rear.JPG`, `_exposed_top_right.JPG`, `_engine.jpg`, `2019_Kawasaki_Ninja_H2R_FOS19.jpg`, `_Petersen_Automotive_Museum.jpg`, `_at_the_Tokyo_Motor_Show_2015-1/-2.jpg` y las del Mondial de Paris 2018 `-001/-002/-003`.
+- **Banco de pruebas aislado (recrearlo en la carpeta temporal, nunca en el repositorio: eslint y `provenance-check` escanean el árbol):**
+  - Un servidor Node propio que sirva el repositorio en `/` (con `tools/static.mjs`) y la carpeta del banco en `/bench/`.
+  - Una página con importmap a `/vendor/three` que construya solo el vehículo: `buildH2r(M)` no necesita `createMaterials`; `buildGt3rs` sí (`M = await createMaterials()` de `src/materials/library.js`).
+  - `window.render({ pos, target, fov, up, w, h, hide, normals })` devuelve un JPEG.
+  - `vendor/three` no incluye `RoomEnvironment`: el entorno de estudio se hace con una caja gris y planos emisivos más `PMREMGenerator.fromScene`.
+  - Chromium con `--use-gl=angle --use-angle=swiftshader`.
 - **Lecciones de esta sesión:**
   - **Comprobación por niveles (orden del usuario del 03-10-2026):** `npm run check:static` (≈2–3 min) antes de cada commit; el `npm run check` completo (≈25–30 min) una vez al cerrar cada bloque o al final de la sesión, en segundo plano y sin editar el repositorio mientras corre. CI ejecuta el check completo en cada push y no despliega si falla: vigila que salga en verde.
   - Antes del check, guarda `git write-tree` y compáralo justo antes del commit.
@@ -276,7 +287,7 @@ Lo hecho en 1 y 2 (detalle en el README, sección del 2 de octubre):
 ### Al retomar
 
 1. `git fetch --all` y comprueba:
-   - que las cuatro ramas (`claude/spacex-vehicle-center-3d-48zlkm`, `claude/dreamy-bell-qn1eth`, `grok/sun18-audit-10c9929`, `claude/elegant-ptolemy-l99qgo`), y `claude/affectionate-euler-o447rh`, apuntan al mismo commit, el último con este TRASPASO;
+   - que las cinco ramas (`claude/spacex-vehicle-center-3d-48zlkm`, `claude/dreamy-bell-qn1eth`, `grok/sun18-audit-10c9929`, `claude/elegant-ptolemy-l99qgo` y `claude/affectionate-euler-o447rh`) apuntan al mismo commit, el último con este TRASPASO;
    - que los últimos workflows de GitHub Actions pasaron;
    - que Pages sirve ese commit (`curl` a un archivo cambiado con `?x=<aleatorio>`).
 2. Lee «Auditoría del 30-09» (abajo) y «Lo que NO se terminó», y espera a que el usuario diga qué priorizar.
@@ -325,7 +336,7 @@ Lo hecho en 1 y 2 (detalle en el README, sección del 2 de octubre):
 - Simulación web en Three.js de un museo de vehículos de SpaceX **a escala 1:1**, con el lanzamiento completo de Starship V3 desde el Pad 2 de Starbase. Repositorio `alvarodesigns34/spacex`, rama por defecto `claude/spacex-vehicle-center-3d-48zlkm`, web en https://alvarodesigns34.github.io/spacex/.
 - **Reglas innegociables** (sección 0):
   - háblame siempre en español;
-  - sin pull requests: el mismo commit a las **cuatro ramas**;
+  - sin pull requests: el mismo commit a las **cinco ramas**;
   - comprobación por niveles: **`npm run check:static` con código 0 antes de cada commit**; el `npm run check` completo al cerrar cada bloque o la sesión; CI lo repite en cada push;
   - README en español, actualizado con cada cambio;
   - solo medidas verificables, con las aproximaciones marcadas (≈);
@@ -407,7 +418,8 @@ Commits, del más antiguo al más reciente, en las cuatro ramas; el detalle est�
    - el texto de la interfaz de la simulación sigue en inglés;
    - los comentarios del código siguen el estilo existente (en inglés);
    - los mensajes de commit se escriben en inglés, como todos los del historial.
-2. **No crear pull requests.** Empujar siempre el mismo commit a estas **cuatro ramas** (y a la de la sesión, si te asigna otra):
+2. **No crear pull requests.** Empujar siempre el mismo commit a estas **cinco ramas** (y a la de la sesión, si te asigna otra):
+   - `claude/affectionate-euler-o447rh`
    - `claude/dreamy-bell-qn1eth`
    - `grok/sun18-audit-10c9929`
    - `claude/elegant-ptolemy-l99qgo`
@@ -513,9 +525,9 @@ Commits, del más antiguo al más reciente, en las cuatro ramas; el detalle est�
   until grep -q '^EXIT' $S/check.log; do sleep 10; done   # (con timeout ≤ 590 s por llamada)
   ```
   **No edites archivos servidos mientras corre el check** (el servidor sirve en vivo).
-- **Push a las cuatro ramas con reintentos:**
+- **Push a las cinco ramas con reintentos:**
   ```
-  for b in claude/dreamy-bell-qn1eth grok/sun18-audit-10c9929 claude/elegant-ptolemy-l99qgo claude/spacex-vehicle-center-3d-48zlkm; do for d in 2 4 8 16; do git push -q origin HEAD:$b 2>/dev/null && { echo "ok $b"; break; } || sleep $d; done; done
+  for b in claude/affectionate-euler-o447rh claude/dreamy-bell-qn1eth grok/sun18-audit-10c9929 claude/elegant-ptolemy-l99qgo claude/spacex-vehicle-center-3d-48zlkm; do for d in 2 4 8 16; do git push -q origin HEAD:$b 2>/dev/null && { echo "ok $b"; break; } || sleep $d; done; done
   ```
 - **Comprobar Pages**: hacer `curl` a un archivo cambiado con `?x=$RANDOM` hasta que contenga el texto nuevo. El workflow tarda unos 12 minutos porque ejecuta el check antes de desplegar.
 - **Estilo de respuesta que quiero**: en español, claro y honesto. Si algo falla, lo digo con la salida. Pequeños avisos de progreso mientras trabajas en tareas largas.

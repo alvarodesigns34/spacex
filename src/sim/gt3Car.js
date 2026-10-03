@@ -178,6 +178,8 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     const g = groundPlane();
     Object.assign(s, { hz: g.hc, bp: g.th, br: g.ph, y: g.hc });
     s.gnd = [g.hc, g.th, g.ph];
+    // And it knows what it stands on before its first step (the readout and the sound read this).
+    s.surface = g.grs.map(gr => gr.kind);
   }
   /** The ground under each tyre and the plane through the four: its height at the CG, pitch (nose up) and roll (left up), and its twist. */
   function groundPlane() {

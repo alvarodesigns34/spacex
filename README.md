@@ -849,6 +849,11 @@ El usuario juzgó el Porsche «deficiente» en modelado y conducción. La siluet
   - Dentro del coche, el escape suena filtrado.
   - Es una síntesis a oído, no una grabación.
 
+### El Porsche sabe dónde está desde el primer instante (3 de octubre de 2026)
+
+- En CI, la prueba «B starts the Porsche on its skid pad» falló en una de las cinco ramas con el mismo commit (`onPad: false`). Causa: `reset()` de `gt3Car.js` dejaba la superficie bajo cada rueda en su valor inicial (`'track'`) hasta el primer paso de la física, y en un runner cargado ese paso no llegó antes de que la prueba mirara.
+- Ahora `reset()` lee el suelo de las cuatro huellas al posar el coche, así que el estado ya es el real antes del primer paso (el cuadro y el sonido lo leen).
+
 ### Choques de verdad y la nave cayendo al agua (3 de octubre de 2026)
 
 El usuario pidió que chocar con el Porsche o con el F-16 fuera realista y que, cuando la nave cae al agua, pareciera agua. Antes un choque solo paraba el vehículo y el amerizaje era una nube de vapor sobre un mar intacto.
