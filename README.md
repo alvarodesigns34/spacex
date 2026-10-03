@@ -907,7 +907,7 @@ Hallazgos P1 de la auditoría sobre el F-16 (H15, H16, en parte H17, y H20) y la
   - La masa baja con lo que se quema, y sin combustible el motor se apaga.
   - El HUD muestra el combustible y avisa con FUEL por debajo de 300 kg y con FLAMEOUT.
   - Comprobación: 10 s a fondo gastan 43 kg, unos 5,5 kg/s en postcombustión.
-- **Sigue pendiente:** la separación de las leyes del FLCS en un módulo propio (H19).
+- **H19, hecho el 3 de octubre de 2026:** las leyes del FLCS viven ahora en su propio módulo, `src/sim/f16Flcs.js` (C*, limitador de α, alabeo, guiñada, flap de borde de ataque y su programa con q̄). El modelo de vuelo le da los datos de aire, su estado y los actuadores, y mueve las superficies que pide. Una prueba nueva lo ejercita aislado en `tools/f16-check.mjs`.
 - **H25: telemetría accesible.** Los instrumentos del coche y del avión se dibujan en un lienzo que un lector de pantalla no ve. Ahora las lecturas principales están también como texto (`src/ui/telemetryList.js`): una lista de definiciones fuera de la vista, pero no oculta al lector.
   - Para el coche: velocidad, marcha, régimen, aceleración, derrape, ayudas y vueltas. Para el avión: velocidad, Mach, altitud, velocidad vertical, rumbo, g, α, motor, combustible, tren y si el modelo extrapola.
   - Se refresca como mucho dos veces por segundo. No es una región viva, porque un valor que cambia sesenta veces por segundo no dejaría de hablar: el lector la consulta cuando el visitante quiere, y los eventos siguen anunciándose en la lista de mensajes.
@@ -963,7 +963,7 @@ Auditoría de la revisión `8e595b8`, con 60 hallazgos (1 crítico, 24 altos, 32
 **Pendiente (P1 y siguientes, sin hacer en esta ronda):**
 
 - **Porsche:** H02, H06, H07, H08, H09 y H10, hechos en la *mejora 5*; queda H05 (un modelo de neumático más completo: temperatura y presión).
-- **F-16:** H15, H16 y H20 se resuelven en *F-16: Tierra redonda, combustible y límites del modelo*; quedan el régimen supersónico con datos (H17) y la separación del FLCS (H19).
+- **F-16:** H15, H16 y H20 se resuelven en *F-16: Tierra redonda, combustible y límites del modelo*; queda el régimen supersónico con datos (H17); la separación del FLCS (H19) se hizo el 3 de octubre de 2026 (`src/sim/f16Flcs.js`).
 - **Flight 14:** H28, H30, H32 y H33 (en parte) se resuelven en *Flight 14: una sola misión*. Quedan H29 y H31, la dinámica del volteo y el índice térmico dimensional (H34).
 - **Datos:** procedencia por campos y conjuntos de validación independientes (H38, H39, H41, H50).
 - **Rendimiento y estructura:** arranque progresivo (H42, H44–H46), módulos grandes (H49). La telemetría accesible (H25) ya está hecha.
@@ -1211,6 +1211,7 @@ src/data/verify.js         comprobación de coherencia entre lo declarado y lo c
 src/sim/missionClock.js    reloj de misión independiente de los fotogramas
 src/sim/mission.js         Flight 14 como una sola misión: corte, órbita, salida de órbita, entrada
 src/sim/gt3Damage.js       daños del Porsche en un choque: abolladuras, piezas que se sueltan, chispas
+src/sim/f16Flcs.js         leyes de control de vuelo del F-16 (FLCS), en su propio módulo
 src/data/h2r.js            ficha de la Kawasaki Ninja H2R con la procedencia de cada cifra
 src/vehicles/h2r.js        modelo de la H2R trazado sobre la foto lateral de Kawasaki
 src/vehicles/h2rRider.js   el piloto que va encima cuando se pilota

@@ -386,5 +386,22 @@ function assisted({ setup, plan, T }) {
     `a 20 m: ${low?.what ?? 'sigue'} · a 80 m: ${high?.what ?? 'sigue'}`);
 }
 
+// The flight control laws on their own (f16Flcs.js, audit H19): in level flight at 1 g with
+// the stick centred they ask for almost nothing; stick back asks for nose-up stabilator (negative
+// δe) and stick right for right roll (negative aileron); the α limiter cuts the g asked for.
+{
+  const { createF16Flcs } = await import('../src/sim/f16Flcs.js');
+  const f = createF16Flcs({ I: { x: 12875, y: 75674, z: 85552, xz: 1331 }, S: 27.87, CBAR: 3.45, cmDe: MORELLI.m[2] });
+  const s = { w: { x: 0, y: 0, z: 0 }, nz: 1, wow: false };
+  const air = { alpha: 3 / 57.3, beta: 0, qbar: 15000, atm: { P: 60000 } };
+  const act = { da: { x: 0 } };
+  const run = (input, a = air) => { f.reset(); let c; for (let k = 0; k < 24; k++) c = f.command(s, input, a, act, 1 / 240); return c; };
+  const trim = run({ pitch: 0, roll: 0, yaw: 0 }), back = run({ pitch: 1, roll: 0, yaw: 0 }), right = run({ pitch: 0, roll: 1, yaw: 0 });
+  const hiA = run({ pitch: 1, roll: 0, yaw: 0 }, { ...air, alpha: 22 / 57.3 });
+  report(Math.abs(trim.de) < 1 && back.de < -5 && right.da < -5 && hiA.de > back.de,
+    'el FLCS en su propio módulo: centrado no pide nada, atrás pide morro arriba, derecha alabeo a la derecha, y el limitador de α recorta',
+    `δe ${trim.de.toFixed(2)} / ${back.de.toFixed(1)} / con 22° de α ${hiA.de.toFixed(1)} · δa ${right.da.toFixed(1)}`);
+}
+
 console.log(failed ? `\n${failed} comprobación(es) del F-16 fallida(s)` : '\nModelo de vuelo del F-16: todo correcto');
 process.exit(failed ? 1 : 0);

@@ -195,7 +195,7 @@ Lo hecho en 1 y 2 (detalle en el README, sección del 2 de octubre):
 - **No verificado:** el Raptor Vacuum apagado en el ascenso que cita la auditoría. La página de SpaceX no se pudo leer (se genera con JavaScript), así que no está en el panel.
 - **Pendiente (P1+, cambios grandes; pedir prioridad al usuario):**
   - Porsche: suspensión y contactos por rueda (H02); ayudas separadas de la física (H07); neumáticos, transmisión, dirección y aerodinámica activa (H05, H06, H08, H09); colisiones y agua (H10).
-  - F-16: H15, H16 y H20 hechos (plan, punto 5); quedan H17 y H19.
+  - F-16: H15, H16, H19 (FLCS en `sim/f16Flcs.js`) y H20 hechos; queda H17.
   - Flight 14: H28, H30, H32 y H33 en parte hechos (plan, punto 4); quedan H29, H31 y H34.
   - Datos: procedencia por campos y validación independiente (H38, H39, H41, H50).
   - Rendimiento y estructura: arranque progresivo (H42, H44–H46), módulos grandes (H49); la telemetría accesible (H25) está hecha.
@@ -215,7 +215,7 @@ Lo hecho en 1 y 2 (detalle en el README, sección del 2 de octubre):
    - `f16Fly.js`: la velocidad calibrada y la altitud usan `s.alt`. El HUD muestra FUEL, EXTRAPOLATED y FLAMEOUT.
    - `src/ui/telemetryList.js` (`createTelemetryList`), en `gt3Hud.js` y `f16Hud.js`, con la clase `.sr-only` de `styles.css`.
    - `gt3Hud.js`: `drawTelemetry` (trazas de 20 s y círculo g-g), muestreado con `r.t`, el reloj de la simulación.
-   - Pendientes: H17 (supersónico con datos) y H19 (FLCS en módulo propio).
+   - Pendiente: H17 (supersónico con datos). H19 hecho (`sim/f16Flcs.js`).
 6. Más mejoras propias dentro de las reglas.
 
 ### Orden del usuario del 02-10-2026 (segunda): todo el F-16 y el Porsche a fondo, físicas del mapa y la Ninja H2R

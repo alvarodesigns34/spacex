@@ -46,10 +46,10 @@ import { morelli, MORELLI, MORELLI_RANGE, THRUST, FCS } from '../data/f16Aero.js
 import { WING, MASS, GEAR, MODEL, OVERALL } from '../data/f16.js';
 import { curvatureDrop } from '../core/outerGround.js';
 import { SEA_LEVEL } from '../core/f16Ground.js';
+import { createF16Flcs, GAIN } from './f16Flcs.js';
 
-const KBETA = -12;
-/** The pitch law's gains (≈, tuned against tools/f16-check.mjs), per unit of the q̄ schedule. */
-export const GAIN = { kp: 3, ki: 4.0, kq: 1.0 };
+export { GAIN };
+
 const G0 = 9.80665, D2R = Math.PI / 180, R2D = 180 / Math.PI;
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -229,7 +229,8 @@ export function createF16Flight({ ground, solid = null }) {
     de: actuator(FCS.stab), da: actuator(FCS.aileron), dr: actuator(FCS.rudder),
     lef: actuator({ limit: FCS.lef.limit, rate: FCS.lef.rate, tau: FCS.lef.tau }, 0),
   };
-  const ctl = { pitchI: 0, lefX: 0, ydX: 0, qLow: 0, nzF: 1 };
+  // The flight control laws (f16Flcs.js), one instance per airplane.
+  const flcs = createF16Flcs({ I, S, CBAR, cmDe: MORELLI.m[2] });
   const GEO = { h: 0, g: G0, nx: 0, ny: 1, nz: 0 };   // this airplane's own (never shared)
   // Scratch for the step, one set per airplane (no allocation in the 240 Hz loop; never shared
   // between two instances, so two airplanes cannot alias each other's temporaries).
@@ -254,7 +255,7 @@ export function createF16Flight({ ground, solid = null }) {
     s.vel.set(0, 0, 0); s.w.set(0, 0, 0);
     s.power = s.powerCmd = 0; s.gear = s.gearCmd = 1; s.sb = s.sbCmd = 0;
     for (const p of hardPrev) p.valid = false;
-    s.crashed = null; s.t = 0; Object.assign(ctl, { pitchI: 0, lefX: 0, ydX: 0, qLow: 0, nzF: 1 });
+    s.crashed = null; s.t = 0; flcs.reset();
     s.mass = CONFIG.startMass; s.fuel = CONFIG.fuel; s.flameout = false;
     Object.assign(s.domain, { alpha: false, beta: false, mach: false, out: false, tOut: 0 });
     for (const k of Object.keys(act)) act[k].x = 0;
@@ -277,64 +278,6 @@ export function createF16Flight({ ground, solid = null }) {
     const V = Math.max(1e-3, Math.hypot(u, v, w));
     const atm = atmosphere(geodesy(s.pos.x, s.pos.y, s.pos.z, GEO).h);
     return { u, v, w, V, atm, alpha: Math.atan2(w, u), beta: Math.asin(clamp(v / V, -1, 1)), mach: V / atm.a, qbar: 0.5 * atm.rho * V * V };
-  }
-
-  /** The flight control system: pilot inputs → surface commands (TP-1538 appendix A, ≈ gains). */
-  function fcs(air, dt) {
-    const [p, q, r] = [s.w.x, s.w.y, s.w.z];
-    const aDeg = air.alpha * R2D;
-    const qn = Math.max(air.qbar, 800);                          // gain schedule floor (≈)
-    const sched = clamp(12000 / qn, 0.15, 3.5);
-    // Pitch: C* = Nz + (Vco/g)·q, the stick commanding load factor above 1 g, limited by the
-    // α limiter (TP-1538: −0.322 g/deg from 15° to 20.4°, −1.322 g/deg above).
-    const L = FCS.aoaLimiter;
-    const nMax = 9 - L.slope1 * clamp(aDeg - L.start, 0, L.knee - L.start) - L.slope2 * Math.max(0, aDeg - L.knee);
-    const st = input.pitch;
-    let nCmd = 1 + (st >= 0 ? 8 * st : 4 * st);
-    nCmd = Math.min(nCmd, Math.max(-3, nMax));
-    const Vco = 122;
-    let de;
-    if (s.wow) {
-      // On the wheels: a pitch-rate command; the integrator is held (no g to hold on the ground).
-      // The stick moves the stabilators directly, damped by pitch rate, so the nose comes up
-      // at the speed the pilot rotates at, not when a g command is met.
-      ctl.pitchI = 0;
-      de = -FCS.stab.limit * st + 1.2 * q * R2D;
-    } else {
-      // TP-1538: "washed-out pitch rate and filtered normal acceleration were fed back", with
-      // a forward-loop integrator so the steady response matches the command. The washout
-      // (≈ 1 s) leaves the pitch rate to damp the motion and the load factor to set it.
-      ctl.qLow += (q - ctl.qLow) * dt / 1.0;
-      ctl.nzF += (s.nz - ctl.nzF) * dt / 0.05;
-      const cstar = ctl.nzF + (Vco / G0) * (q - ctl.qLow);
-      const err = nCmd - cstar;
-      ctl.pitchI = clamp(ctl.pitchI + err * dt, -10, 10);
-      de = -(GAIN.kp * err + GAIN.ki * ctl.pitchI) * sched + GAIN.kq * q * R2D * Math.sqrt(sched);
-      // Roll-coupling compensation (≈, not in TP-1538): the stabilators cancel the inertial
-      // pitching moment −(Ix − Iz)pr − Ixz(p² − r²) of a fast roll before it shows as g.
-      const mInert = -(I.x - I.z) * p * r - I.xz * (p * p - r * r);
-      de += clamp(mInert / (Math.max(air.qbar, 500) * S * CBAR * -MORELLI.m[2]) * R2D, -10, 10);
-    }
-    // Roll: a roll-rate command up to 308°/s, aileron with 1° of differential tail per 4°.
-    const pCmd = FCS.rollRateMax * D2R * (0.35 * input.roll + 0.65 * input.roll ** 3);
-    const da = s.wow ? -input.roll * 10 : -(0.02 * pCmd + 1.6 * (pCmd - p)) * R2D * sched;
-    // Yaw: pedal faded to zero from 20° to 30° α, a stability-axis yaw damper (r − pα) through a
-    // washout, and the aileron–rudder interconnect (gain 0.075/deg of α).
-    const fade = 1 - sstep(FCS.rudder.fade[0], FCS.rudder.fade[1], aDeg);
-    const rs = r - p * air.alpha;
-    ctl.ydX += (rs - ctl.ydX) * dt / 3.0;                        // 3 s washout (≈)
-    const yd = s.wow ? 0 : 3.5 * (rs - ctl.ydX) * R2D * sched;
-    const ari = s.wow ? 0 : clamp(FCS.ari.slope * Math.max(0, aDeg), 0, 1.5) * act.da.x;
-    // Lateral acceleration feedback (TP-1538: "feedbacks of r − pα and ay"), here on sideslip,
-    // which ay measures: it keeps β near zero through a fast roll, where p·β becomes α.
-    const bf = s.wow ? 0 : KBETA * air.beta * R2D * sched;
-    const dr = -30 * input.yaw * fade + yd + ari + bf;
-    // Leading-edge flap: 1.38·(2s + 7.25)/(s + 7.25)·α − 9.05·q̄/ps + 1.45 (deg), 0…25°.
-    const F = FCS.lef;
-    ctl.lefX += (-F.pole * ctl.lefX + aDeg) * dt;
-    const lead = 2 * aDeg - F.pole * ctl.lefX;
-    const lef = s.wow ? 0 : F.k * lead - F.q * air.qbar / air.atm.P + F.bias;
-    return { de, da, dr, lef };
   }
 
   function step(dt) {
@@ -361,7 +304,7 @@ export function createF16Flight({ ground, solid = null }) {
     s.sb += clamp(s.sbCmd - s.sb, -dt / 2, dt / 2);
 
     // Surfaces.
-    const cmd = fcs(air, dt);
+    const cmd = flcs.command(s, input, air, act, dt);
     const de = act.de.step(cmd.de, dt), da = act.da.step(cmd.da, dt), dr = act.dr.step(cmd.dr, dt), lef = act.lef.step(cmd.lef, dt);
     s.surfaces.de = de; s.surfaces.da = da; s.surfaces.dr = dr; s.surfaces.lef = lef;
     s.surfaces.diff = da / FCS.diffTail.ratio; s.surfaces.flap = s.gear > 0.5 ? 20 * s.gear : 0;
