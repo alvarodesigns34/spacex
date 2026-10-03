@@ -14,7 +14,7 @@ registerHooks({ resolve(specifier, context, next) {
 } });
 
 const { createH2rBike, BIKE } = await import('../src/sim/h2rBike.js');
-const { KMH_TOP, BODY } = await import('../src/data/h2r.js');
+const { KMH_TOP, BODY, PRESS } = await import('../src/data/h2r.js');
 const { buildH2r } = await import('../src/vehicles/h2r.js');
 const THREE = await import('three');
 
@@ -44,13 +44,16 @@ const flat = (mu = 1, kind = 'track') => () => ({ h: 0, mu, roll: 0, kind });
 {
   const b = createH2rBike({ ground: flat() }); const s = b.state;
   b.reset(); b.input.throttle = 1;
-  let t = 0; const at = {};
-  while (t < 60 && !s.crashed) { b.step(DT); t += DT; for (const k of [100, 200]) if (s.u * 3.6 >= k && !at[k]) at[k] = t; }
-  report(at[100] > 2.2 && at[100] < 3.0 && at[200] > 4.8 && at[200] < 6.2, 'acelera como una hiperdeportiva con las ayudas: 0–100 y 0–200 km/h',
-    `0–100 ${at[100]?.toFixed(2)} s · 0–200 ${at[200]?.toFixed(2)} s`);
+  let t = 0, x = 0; const at = {}, dist = {};
+  while (t < 90 && !s.crashed) { b.step(DT); t += DT; x += s.u * DT; for (const k of [100, 200, 300]) if (s.u * 3.6 >= k && !at[k]) { at[k] = t; dist[k] = x; } }
+  // Against MOTORRAD's GPS-timed runs (PRESS): within ≈0.3 s, ≈10 % of the distance.
+  report(Math.abs(at[100] - PRESS.t100) < 0.35 && Math.abs(at[200] - PRESS.t200) < 0.35 && Math.abs(at[300] - PRESS.t300) < 0.6
+    && Math.abs(dist[200] / PRESS.d200 - 1) < 0.1 && Math.abs(dist[300] / PRESS.d300 - 1) < 0.1,
+    'acelera como la H2R de la prueba de MOTORRAD (GPS, Lausitzring): 0–100, 0–200 y 0–300 km/h',
+    `0–100 ${at[100]?.toFixed(2)} s (${PRESS.t100}) · 0–200 ${at[200]?.toFixed(2)} s en ${dist[200]?.toFixed(0)} m (${PRESS.t200} s, ${PRESS.d200} m) · 0–300 ${at[300]?.toFixed(2)} s en ${dist[300]?.toFixed(0)} m (${PRESS.t300} s, ${PRESS.d300} m)`);
   const wheelKmh = s.wR * 0.325 * 3.6;
-  report(s.gear === 5 && s.rpm > 14000 && Math.abs(wheelKmh - KMH_TOP) < 6 && s.slip > 0 && s.slip < 0.07, 'la punta la dan el desarrollo en sexta, el arrastre y el deslizamiento del neumático trasero',
-    `${(s.u * 3.6).toFixed(0)} km/h sobre el suelo, la rueda a ${wheelKmh.toFixed(0)} km/h (desliza un ${(s.slip * 100).toFixed(1)} %), en ${s.gear + 1}.ª a ${s.rpm.toFixed(0)} rpm; desarrollo al corte ${KMH_TOP.toFixed(0)} km/h`);
+  report(s.gear === 5 && Math.abs(s.u * 3.6 - PRESS.vmaxGps) < 8 && wheelKmh < KMH_TOP && s.slip > 0 && s.slip < 0.07, 'la punta la da el arrastre en sexta, por debajo del corte: la de MOTORRAD por GPS',
+    `${(s.u * 3.6).toFixed(0)} km/h sobre el suelo (${PRESS.vmaxGps} por GPS), la rueda a ${wheelKmh.toFixed(0)} km/h (desliza un ${(s.slip * 100).toFixed(1)} %), en ${s.gear + 1}.ª a ${s.rpm.toFixed(0)} rpm; desarrollo al corte ${KMH_TOP.toFixed(0)} km/h`);
   b.reset(); s.u = 200 / 3.6; s.wR = s.u / BIKE.RR; s.gear = 4; b.input.brake = 1; t = 0; let minPitch = 0;
   while (s.u > 0.1 && t < 15) { b.step(DT); t += DT; minPitch = Math.min(minPitch, s.theta * D); }
   report(t > 4.4 && t < 6.2 && !s.crashed && minPitch > -2, 'frena de 200 a 0 sin levantar la rueda trasera con las ayudas', `${t.toFixed(2)} s (≈${(200 / 3.6 / t / 9.81).toFixed(2)} g de media) · cabeceo mín. ${minPitch.toFixed(1)}°`);

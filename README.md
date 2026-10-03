@@ -845,6 +845,29 @@ Las fotos oficiales de Kawasaki no se pudieron volver a descargar en esta sesió
   - El depósito del amortiguador queda tras la tapa, como en la foto.
   - El colín tiene aristas vivas y el rótulo «Ninja» de fábrica en su panel.
 
+### La conducción de la H2R contra la prueba de MOTORRAD (3 de octubre de 2026)
+
+Se contrastó con una prueba de prensa publicada: la revista alemana MOTORRAD cronometró con GPS la H2R en el óvalo de Dekra en el Lausitzring (julio de 2015; la misma potencia publicada de 228/240 kW).
+
+| | MOTORRAD | Modelo antes | Modelo ahora |
+|---|---|---|---|
+| 0–100 km/h | 3,1 s | 2,55 s | 2,87 s |
+| 0–200 km/h | 6,5 s en 184 m | 5,44 s en 158 m | 6,51 s en 196 m |
+| 0–300 km/h | 13,4 s en 660 m | 10,2 s en 498 m | 13,06 s en 670 m |
+| Punta | 337 km/h por GPS (357 en el cuadro) | 348 km/h, contra el corte | 338 km/h, por la resistencia del aire |
+
+- **Fallo de física corregido.**
+  - La transferencia de carga al eje trasero solo tenía en cuenta la aceleración neta. Faltaba el momento de la resistencia del aire, que actúa a la altura del centro de presión: carga la rueda trasera y aligera la delantera aunque la velocidad sea constante (≈800 N a 330 km/h).
+  - Sin él, con una resistencia realista, la punta la limitaba el agarre del neumático trasero, que patinaba un 10 %.
+  - Se corrige también en el momento que levanta la rueda delantera.
+- **Ajustados a la prueba** (todos estimados, ≈):
+  - La altura del centro de masas con el piloto: de 0,62 a 0,68 m. Fija dónde se levanta la rueda delantera (≈1,1 g), que es lo que limita la salida.
+  - El área de resistencia con las alas y el piloto agachado: de 0,30 a 0,39 m².
+  - Las pérdidas de transmisión: 0,85, que incluyen la diferencia con la potencia declarada que MOTORRAD midió en su banco (261 CV, sin aire dinámico).
+  - La potencia, el par y los desarrollos publicados no cambian.
+- `tools/h2r-check.mjs` compara ahora con esas cifras (`PRESS` en `src/data/h2r.js`): ±0,35 s y ±10 % de distancia, y la punta a ±8 km/h de la de GPS.
+- El 0–100 queda 0,2 s más rápido que el medido: en la prueba la salida la hizo un piloto. La frenada de 200 a 0 km/h (≈5,7 s, ≈1 g) no tiene medida publicada con la que contrastarla.
+
 ### Porsche 911 GT3 RS, mejora 7: piezas, vista del piloto, levas y sonido (3 de octubre de 2026)
 
 El usuario juzgó el Porsche «deficiente» en modelado y conducción. La silueta ya cuadraba con las cuatro fotos de estudio (±1–2 cm sobre los bordes, con sus cámaras ajustadas). Lo que fallaba eran las piezas que se miran de cerca y la experiencia al volante. Las fotos de Porsche se usan solo como referencia y no están en el repositorio.

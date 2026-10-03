@@ -194,7 +194,9 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
     // ---- Springs and pitch. The load transfer m·a·h/L moves weight between the axles through
     // the springs; when an axle unloads the bike rotates about the other contact.
     {
-      const transfer = BIKE.m * s.ax * BIKE.h / BIKE.L;
+      // (And the air's drag, acting about the centre of mass's height (≈ the centre of pressure's),
+      // loads the rear and lifts the front even at a steady speed: ≈800 N at 330 km/h.)
+      const transfer = (BIKE.m * s.ax * BIKE.h + Faero * BIKE.h) / BIKE.L;
       const wantF = BIKE.m * G * BIKE.b / BIKE.L - transfer, wantR = BIKE.m * G * BIKE.lf / BIKE.L + transfer;
       // Each axle's spring–damper driven towards the load it must carry (≈ a quarter-bike each).
       const mF = 0.45 * BIKE.m * BIKE.b / BIKE.L, mR = 0.45 * BIKE.m * BIKE.lf / BIKE.L;
@@ -207,7 +209,7 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
       const a = s.ax;
       if (s.theta >= 0) {
         const lr = BIKE.b * Math.cos(s.theta) - BIKE.h * Math.sin(s.theta), hh = BIKE.b * Math.sin(s.theta) + BIKE.h * Math.cos(s.theta);
-        const M = BIKE.m * a * hh - BIKE.m * G * lr;
+        const M = (BIKE.m * a + Faero) * hh - BIKE.m * G * lr;
         if (s.theta > 0 || M > 0) {
           s.thetaDot += M / BIKE.Ip * dt; s.thetaDot *= Math.exp(-dt * 0.8); s.theta += s.thetaDot * dt;
           if (s.theta < 0) { s.theta = 0; s.thetaDot = Math.max(0, -s.thetaDot * 0.15); s.vF -= 0.6; }

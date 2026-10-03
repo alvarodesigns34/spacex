@@ -38,7 +38,10 @@ export const GEARBOX = {
   src: 'Kawasaki H2R specifications MY2027', tag: 'PUBLISHED',
   primary: 1.551, ratios: [3.188, 2.526, 2.045, 1.727, 1.524, 1.348], final: 2.333,   // 76/49; 42/18
   shiftTime: 0.06,                        // ESTIMATE: a quick-shifter's cut, s
-  efficiency: 0.92,                       // ESTIMATE: primary, gearbox and chain
+  // ESTIMATE, fitted (with MASS below) to MOTORRAD's GPS-timed runs on the Lausitzring oval (2015):
+  // the primary, gearbox and chain, and the shortfall against the published power that MOTORRAD's
+  // own dyno showed (261 PS, falling off from 12,200 rpm, no ram air on a dyno).
+  efficiency: 0.85,
   upshiftRpm: 14200, downshiftRpm: 8500,  // ESTIMATE: the automatic mode
 };
 
@@ -64,10 +67,23 @@ export const BODY = {
   fuel: 17.0, curb: 216, dry: 196,
 };
 
-/** ESTIMATE: centre of mass with a 75 kg rider tucked in (≈ a superbike's 52 % on the front). */
+/**
+ * ESTIMATE: centre of mass with a 75 kg rider tucked in (≈ a superbike's 52 % on the front), its
+ * height and the drag area fitted to MOTORRAD's GPS-timed acceleration test (Dekra oval, Lausitzring,
+ * July 2015): 0–100 km/h 3.1 s, 0–200 km/h 6.5 s in 184 m, 0–300 km/h 13.4 s in 660 m, 337 km/h by
+ * GPS (357 on the display). The model gives 2.87 s, 6.51 s / 196 m, 13.06 s / 670 m and 338 km/h
+ * (tools/h2r-check.mjs). The centre of mass's height sets where the front lifts (≈1.1 g), which
+ * holds the launch; the drag area, with the wings and the rider tucked, sets the top speed.
+ */
 export const MASS = {
-  tag: 'ESTIMATE', rider: 75, front: 0.52, cgHeight: 0.62,
-  cdA: 0.30,                              // ESTIMATE, m²: bike and rider tucked
+  tag: 'ESTIMATE', rider: 75, front: 0.52, cgHeight: 0.68,
+  cdA: 0.39,                              // ESTIMATE, m²: bike, wings and rider tucked (fitted)
+};
+
+/** MOTORRAD's measurements (2015 H2R, the same published 228/240 kW), what the ride model is held to. */
+export const PRESS = {
+  src: 'MOTORRAD, acceleration test of the Ninja H2 and H2R, Dekra oval at the Lausitzring, 23 July 2015', tag: 'PUBLISHED',
+  t100: 3.1, t200: 6.5, d200: 184, t300: 13.4, d300: 660, vmaxGps: 337, vmaxDisplay: 357,
 };
 
 /** DERIVED: the top speed the gearing allows at the limiter, in sixth. */
