@@ -30,7 +30,7 @@ const CAMERAS = ['chase', 'driver', 'bonnet', 'trackside', 'orbit'];
 const HARD = new Set(['track', 'verge', 'kerb', 'pad', 'runway', 'road']);
 
 /** The marks: one geometry of quads in a ring buffer, drawn just above the surface. */
-function createSkidMarks(scene, max = 12000) {
+export function createSkidMarks(scene, max = 12000) {
   const pos = new Float32Array(max * 4 * 3), col = new Float32Array(max * 4 * 4);
   const idx = new Uint32Array(max * 6);
   for (let i = 0; i < max; i++) idx.set([i * 4, i * 4 + 2, i * 4 + 1, i * 4 + 1, i * 4 + 2, i * 4 + 3], i * 6);
@@ -80,7 +80,7 @@ function createSkidMarks(scene, max = 12000) {
  * little and drifting back as they thin out (≈, a look, not a simulation of the rubber's
  * vapour). A pool of point sprites with their own size and opacity.
  */
-function createTyreSmoke(scene, max = 900) {
+export function createTyreSmoke(scene, max = 900) {
   const pos = new Float32Array(max * 3), size = new Float32Array(max), alpha = new Float32Array(max);
   const vel = new Float32Array(max * 3), age = new Float32Array(max).fill(1e9), life = new Float32Array(max);
   const geo = new THREE.BufferGeometry();
@@ -131,7 +131,7 @@ function createTyreSmoke(scene, max = 900) {
  * of it. Droplets fly on ballistic paths and fall back to the water (≈ the sizes and speeds:
  * a tyre's spray leaves at a fraction of the road speed, sideways and up off the tread).
  */
-function createSpray(scene, max = 1600) {
+export function createSpray(scene, max = 1600) {
   const pos = new Float32Array(max * 3), size = new Float32Array(max), alpha = new Float32Array(max);
   const vel = new Float32Array(max * 3), age = new Float32Array(max).fill(1e9), life = new Float32Array(max), floor = new Float32Array(max);
   const geo = new THREE.BufferGeometry();

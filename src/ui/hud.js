@@ -7,7 +7,7 @@ import { SOURCES, SOURCE_LABEL } from '../data/specs.js';
 const fmtHeight = (h) => `${h >= 10 ? Math.round(h) : h} m`;
 const THREE_DEG20 = Math.PI / 9;
 
-export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWalk, onSun, onReset, onLaunch, onReentry, onFly, onDrive, onLaunchAbort, onLaunchSpeed, onLaunchSound, onLaunchPause, onLaunchSeek, onLaunchRestart, onLaunchCamera, onTour, onHelp }) {
+export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWalk, onSun, onReset, onLaunch, onReentry, onFly, onDrive, onRide, onLaunchAbort, onLaunchSpeed, onLaunchSound, onLaunchPause, onLaunchSeek, onLaunchRestart, onLaunchCamera, onTour, onHelp }) {
   const root = document.getElementById('hud');
   root.innerHTML = `
     <header class="hud-header">
@@ -48,6 +48,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
       <button class="tool tool-btn" id="reentry-btn" title="Starship's re-entry and splashdown, on flight 14's timeline (X)">Reentry <kbd>X</kbd></button>
       <button class="tool tool-btn" id="fly-btn" title="Fly the F-16 from runway 28: take off, fly anywhere, land (J)">F-16 · Fly <kbd>J</kbd></button>
       <button class="tool tool-btn" id="drive-btn" title="Drive the Porsche 911 GT3 RS from its skid pad, on its circuit or anywhere (B)">Porsche · Drive <kbd>B</kbd></button>
+      <button class="tool tool-btn" id="ride-btn" title="Ride the Kawasaki Ninja H2R from the skid pad, on the circuit or anywhere (N)">H2R · Ride <kbd>N</kbd></button>
       <button class="tool tool-btn" id="tour-btn" title="Guided tour of the centre (P)">Tour <kbd>P</kbd></button>
       <button class="tool tool-btn" id="mode-btn" title="Switch camera mode (F)">Orbit <kbd>F</kbd></button>
       <button class="tool tool-btn" id="walk-btn" type="button" aria-pressed="false" title="Walk the apron at eye height, 1.7 m (V)">Walk <kbd>V</kbd></button>
@@ -190,6 +191,16 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
               <dt><kbd>W</kbd> · <kbd>S</kbd></dt><dd>throttle · brake (held when stopped: reverse)</dd>
               <dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>steer · with the throttle on, the tail slides</dd>
               <dt><kbd>Space</kbd> · <kbd>T</kbd></dt><dd>parking brake · traction control</dd>
+              <dt><kbd>C</kbd> · <kbd>M</kbd></dt><dd>camera · sound (off until you turn it on)</dd>
+              <dt><kbd>Enter</kbd> · <kbd>Esc</kbd></dt><dd>back to the pad · end</dd>
+            </dl>
+          </section>
+          <section class="guide-sec" data-mode="h2r">
+            <h3>Ride the Ninja H2R <kbd>N</kbd> <span class="guide-here">you are here</span></h3>
+            <dl>
+              <dt><kbd>W</kbd> · <kbd>S</kbd></dt><dd>throttle · brake</dd>
+              <dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>lean: the bike turns by leaning</dd>
+              <dt><kbd>Space</kbd> · <kbd>T</kbd></dt><dd>rear brake · the aids (wheelie, traction, rear lift)</dd>
               <dt><kbd>C</kbd> · <kbd>M</kbd></dt><dd>camera · sound (off until you turn it on)</dd>
               <dt><kbd>Enter</kbd> · <kbd>Esc</kbd></dt><dd>back to the pad · end</dd>
             </dl>
@@ -408,6 +419,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
   reentryBtn.addEventListener('click', () => onReentry?.());
   el('#fly-btn').addEventListener('click', () => onFly?.());
   el('#drive-btn').addEventListener('click', () => onDrive?.());
+  el('#ride-btn').addEventListener('click', () => onRide?.());
   el('#mission-abort').addEventListener('click', () => onLaunchAbort?.());
   el('#mission-restart').addEventListener('click', () => onLaunchRestart?.());
   const camBtn = el('#mission-cam');

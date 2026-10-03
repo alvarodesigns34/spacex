@@ -890,7 +890,11 @@ try {
     // itself, the centre's tenth exhibit, bring their own paint, glass, rubber, carbon, brake and
     // lamp materials. With the car (≈195 k triangles in ≈80 meshes) and the circuit's smooth
     // asphalt (three maps), triangles go to 3.2 M, meshes to 1,600 and textures to 140.
-    const LIMITS = { tris: 3_200_000, meshes: 1600, materials: 240, textures: 140 };
+    // And again with the eleventh exhibit, the Ninja H2R (October 2026: ≈56 k triangles in ≈87
+    // meshes, sixteen materials of its own — mirror coat, carbon, frame green, titanium… — and
+    // its decals), at 3.24 M triangles, 1,552 meshes, 259 materials and ≈130 textures: 3.6 M,
+    // 1,800, 290 and 160, clear of today's figures by the same margins as before.
+    const LIMITS = { tris: 3_600_000, meshes: 1800, materials: 290, textures: 160 };
     const over = Object.entries(LIMITS).filter(([k, max]) => budget[k] > max);
     report(over.length === 0, 'presupuesto de escena',
       `${budget.tris.toLocaleString('es-ES')} triángulos construidos, ${budget.drawnTris.toLocaleString('es-ES')} dibujados `

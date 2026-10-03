@@ -29,12 +29,15 @@ import { buildRoadster } from './vehicles/roadster.js';
 import { buildEngineHall } from './vehicles/enginehall.js';
 import { buildF16 } from './vehicles/f16.js';
 import { buildGt3rs } from './vehicles/gt3rs.js';
+import { buildH2r } from './vehicles/h2r.js';
 import { buildRunway, runwaySurface } from './core/runway.js';
 import { buildCircuit, circuitSurface } from './core/circuit.js';
 import { SKIDPAD, toWorld as circuitToWorld } from './core/circuitPlan.js';
 import { createF16Fly } from './sim/f16Fly.js';
 import { createF16Hud } from './ui/f16Hud.js';
 import { createGt3Drive } from './sim/gt3Drive.js';
+import { createH2rRide } from './sim/h2rRide.js';
+import { createH2rHud } from './ui/h2rHud.js';
 import { createGt3Hud } from './ui/gt3Hud.js';
 import { groundSample } from './core/environment.js';
 import { f16Ground } from './core/f16Ground.js';
@@ -133,6 +136,11 @@ const LAYOUT = {
     const [x, z] = circuitToWorld(SKIDPAD.u0 + 18, (SKIDPAD.v0 + SKIDPAD.v1) / 2);
     return { x, z, mount: circuitSurface(x, z)?.y ?? 0.06, yaw: -90, remote: true, people: [[-6.0, 0.06, -3.4, 0.9], [5.5, 0.06, -5.0, -2.0]] };
   })(),
+  // The Ninja H2R beside it, 4.5 m to the car's left and a metre ahead, facing the same way.
+  h2r: (() => {
+    const [x, z] = circuitToWorld(SKIDPAD.u0 + 19, (SKIDPAD.v0 + SKIDPAD.v1) / 2 - 4.5);
+    return { x, z, mount: circuitSurface(x, z)?.y ?? 0.06, yaw: -90, remote: true, people: [] };
+  })(),
 };
 // Recomposed when the Roadster became the sixth exhibit: the old frame was centred on x = -14
 // and the car sat at the right-hand edge, so the first thing a visitor saw did not contain it.
@@ -181,6 +189,8 @@ const OCCLUDER = {
     [-1.6, 2.6, 1.6, 2.0], [-1.6, -2.6, 1.6, 2.0], [-6.2, 1.9, 0.9, 2.0], [-6.2, -1.9, 0.9, 2.0]],
   // The car along its own X: three cylinders from the nose to the wing.
   gt3rs: [[1.4, 0, 0.95, 1.0], [0, 0, 0.95, 1.3], [-1.5, 0, 0.95, 1.33]],
+  // The bike along its own X: front wheel and cowl, the tank, the tail.
+  h2r: [[0.6, 0, 0.42, 1.16], [-0.1, 0, 0.3, 1.02], [-0.75, 0, 0.3, 1.02]],
 };
 
 const nextFrame = () => new Promise(r => requestAnimationFrame(r));
@@ -262,6 +272,7 @@ async function main() {
     onReentry: () => toggleReentry(),
     onFly: () => toggleFly(),
     onDrive: () => toggleDrive(),
+    onRide: () => toggleRide(),
     // The panel drives whichever sequence is playing: the launch, or the re-entry chapter.
     onLaunchAbort: () => seq()?.reset(),
     onLaunchSpeed: (k) => seq()?.setSpeed(k),
@@ -356,6 +367,7 @@ async function main() {
     engines: [buildEngineHall, 'Raptor 3, Raptor Vacuum and Merlin 1D…'],
     f16: [buildF16, 'F-16A Fighting Falcon…'],
     gt3rs: [buildGt3rs, 'Porsche 911 GT3 RS…'],
+    h2r: [buildH2r, 'Kawasaki Ninja H2R…'],
   };
   let step = 0;
   let complex = null;
@@ -406,7 +418,7 @@ async function main() {
       group.add(ped);
       model.position.y = lay.mount + 0.6;
       env.addStation(lay.x, lay.z, 5);
-    } else if (v.id === 'f16' || v.id === 'gt3rs') {
+    } else if (v.id === 'f16' || v.id === 'gt3rs' || v.id === 'h2r') {
       // On its wheels on its own pavement, no plinth and no apron ring.
       model.position.y = lay.mount;
     } else if (v.id === 'engines') {
@@ -598,7 +610,7 @@ async function main() {
   // reset, called with nothing launched, used to clear it under a running re-entry and bring the
   // pad's callouts back over the Pacific (found in the October 2026 review).
   const sequences = {};   // the re-entry, once it is made below
-  const anyFlying = (flying) => flying || !!launch.running || !!sequences.reentry?.running || !!sequences.f16?.running || !!sequences.gt3?.running;
+  const anyFlying = (flying) => flying || !!launch.running || !!sequences.reentry?.running || !!sequences.f16?.running || !!sequences.gt3?.running || !!sequences.h2r?.running;
   launch.setVisibilityHook((flying) => view.setFlying(anyFlying(flying)));
   // Opt-in engine sound. Assigned here, after the HUD that toggles it, hence `let` above.
   sound = createLaunchSound({ launch, camera });
@@ -680,6 +692,7 @@ async function main() {
   function toggleFly() {
     if (f16fly.running) { f16fly.reset(); return; }
     if (sequences.gt3?.running) sequences.gt3.reset(false);
+    if (sequences.h2r?.running) sequences.h2r.reset(false);
     f16fly.start();
   }
 
@@ -765,6 +778,7 @@ async function main() {
       if (launch.running) launch.reset(false);
       if (reentry.running) reentry.reset(false);
       if (f16fly.running) f16fly.reset(false);
+      if (sequences.h2r?.running) sequences.h2r.reset(false);
       if (view.exhibit !== 'gt3rs') { enforce(view.select('gt3rs', 'launch')); syncHud(); }
       enforce(view.claim('launch'));
       hudRoot.classList.add('is-gt3');
@@ -776,6 +790,61 @@ async function main() {
   function toggleDrive() {
     if (gt3drive.running) { gt3drive.reset(); return; }
     gt3drive.start();
+  }
+  // ---- The Ninja H2R ----
+  // The same ground and the same solid scene as the car's, without the bike itself (it moves);
+  // the car is something the bike can hit.
+  let h2rGrid = null, h2rNear = null, h2rKey = '';
+  const h2rObstacles = (x, z) => {
+    const key = `${Math.round(x * 2)},${Math.round(z * 2)}`;
+    if (key === h2rKey && h2rNear) return h2rNear;
+    h2rKey = key;
+    const out = [];
+    for (const [id, ex] of Object.entries(exhibits)) {
+      if (id === 'h2r') continue;
+      for (const [ox, oz, r] of ex.occluders) {
+        const cx = ex.lay.x + ox, cz = ex.lay.z + oz;
+        if (Math.abs(cx - x) < r + 4 && Math.abs(cz - z) < r + 4) out.push({ x: cx, z: cz, r });
+      }
+    }
+    h2rGrid?.query(x - 3, z - 3, x + 3, z + 3, (cx, cz, lo, hi) => {
+      const k = `${cx},${cz}`;
+      let h = cellGround.get(k);
+      if (h === undefined) { h = gt3Ground(cx, cz).h; cellGround.set(k, h); }
+      if (hi > h + 0.15 && lo < h + 1.1) out.push({ x: cx, z: cz, r: CELL * 0.75 });
+    });
+    h2rNear = out;
+    return out;
+  };
+  const h2rHud = createH2rHud({
+    root: hudRoot,
+    onEnd: () => h2rRide.reset(),
+    onCamera: () => h2rRide.cycleCamera(),
+    onRestart: () => h2rRide.restart(),
+    onPause: () => h2rRide.setPaused(!h2rRide.state.paused),
+    onTraction: () => h2rRide.setAids(!h2rRide.sim.state.aids),
+    onSound: () => h2rRide.setSound(!h2rRide.sound.enabled),
+  });
+  const h2rRide = createH2rRide({
+    scene, exhibit: exhibits.h2r, rig, camera, ground: gt3Ground, obstacles: h2rObstacles, hud: h2rHud, M,
+    home: () => ({ x: exhibits.h2r.lay.x, z: exhibits.h2r.lay.z, psi: THREE.MathUtils.degToRad(exhibits.h2r.lay.yaw ?? 0) }),
+    onStart: () => {
+      if (!h2rGrid) { h2rGrid = buildColliders(scene, { exclude: [exhibits.h2r.model], maxY: 30 }); h2rNear = null; h2rKey = ''; }
+      if (launch.running) launch.reset(false);
+      if (reentry.running) reentry.reset(false);
+      if (f16fly.running) f16fly.reset(false);
+      if (gt3drive.running) gt3drive.reset(false);
+      if (view.exhibit !== 'h2r') { enforce(view.select('h2r', 'launch')); syncHud(); }
+      enforce(view.claim('launch'));
+      hudRoot.classList.add('is-gt3');
+    },
+    onFinish: () => { hudRoot.classList.remove('is-gt3'); goPreset('h2r', 'overview'); },
+    visibilityHook: (riding) => { view.setFlying(anyFlying(riding)); if (!riding) hudRoot.classList.remove('is-gt3'); },
+  });
+  sequences.h2r = h2rRide;
+  function toggleRide() {
+    if (h2rRide.running) { h2rRide.reset(); return; }
+    h2rRide.start();
   }
   function seq() { return reentry?.running ? reentry : launch; }
 
@@ -1069,6 +1138,7 @@ async function main() {
     // The F-16's flight holds the camera under the same owner, and stops the same way.
     if (stop?.launch && sequences.f16?.running) sequences.f16.reset(false);
     if (stop?.launch && sequences.gt3?.running) sequences.gt3.reset(false);
+    if (stop?.launch && sequences.h2r?.running) sequences.h2r.reset(false);
   }
 
   /** Brings the HUD into line with the state, after the scene has been. */
@@ -1142,6 +1212,8 @@ async function main() {
     ['gt3rs', 'side', 5, 'Behind the rear axle, a naturally aspirated flat six of 3,996 cm³: 386 kW (525 PS) at 8,500 rpm, 9,000 rpm maximum. Press B to drive it.', 'porsche_techdata'],
     ['gt3rs', 'rear', 5, 'The swan-neck wing, with the first DRS on a production Porsche: 409 kg of downforce at 200 km/h and 860 kg at 285 km/h.', 'porsche_presskit'],
     ['gt3rs', 'wheel', 5, 'Centre-lock wheels on 275/35 ZR 20 tyres in front and 335/30 ZR 21 behind; 408 × 36 mm cast iron discs with six-piston callipers.', 'porsche_techdata'],
+    ['h2r', 'overview', 6, 'Kawasaki Ninja H2R, 2027: 2.070 m long, 0.850 m wide across its carbon wings, 1.160 m tall; 216 kg ready to ride. Closed-course only.', 'kawasaki_h2r'],
+    ['h2r', 'engine', 5, 'A supercharged 998 cm³ inline four in a green steel trellis: 228 kW at 14,000 rpm, 240 kW with ram air, 165 Nm at 12,500 rpm. Press N to ride it.', 'kawasaki_h2r'],
   ];
   let tourAt = -1, tourTimer = 0;
 
@@ -1243,6 +1315,7 @@ async function main() {
     else if (k === 'x') toggleReentry();
     else if (k === 'j') toggleFly();
     else if (k === 'b') toggleDrive();
+    else if (k === 'n') toggleRide();
     else if (k === 'f') toggleMode();
     else if (k === 'v') toggleWalk();
     else if (k === 'g') toggleLaunch();
@@ -1554,6 +1627,7 @@ async function main() {
     // under 20 fps (at 10 fps, at half speed).
     f16fly.update(steps.mission);
     gt3drive.update(steps.mission);
+    h2rRide.update(steps.mission);
     sound?.update();
     // Water keeps moving whatever the camera or the launch is doing.
     WAVE_TIME.value += dt;
@@ -1677,7 +1751,7 @@ async function main() {
   }
 
   window.__vc = {
-    M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, select, goPreset, jump, renderer, env,
+    M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, h2rRide, select, goPreset, jump, renderer, env,
     setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour,
     claimUserControl, tourRunToEnd, toggleMode, toggleWalk,
     walkRouteFor: (hit) => { const r = walkRoute(hit); rig.travelTo(r.route, r.look); return r; },

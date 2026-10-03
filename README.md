@@ -14,6 +14,7 @@ Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones
 | Engine Row | Raptor 3, Raptor Vacuum y Merlin 1D sobre cunas, a 1:1 | 4,4 m (RVac) |
 | F-16A | Block 15 con motor F100-PW-200, sobre su tren en la cabecera de su pista; geometría de los informes NASA TP-1538 y TP-3355 | 15,038 m de largo · 9,144 m de envergadura · 5,01 m de alto |
 | Porsche 911 GT3 RS | 992 de 2023 en el gris casi blanco y las llantas rojas de las fotos de estudio de Porsche, conducible, en la explanada junto a su circuito; cotas de la ficha técnica de Porsche | 4,572 m de largo · 1,900 m de ancho · 1,322 m de alto (al ala) |
+| Kawasaki Ninja H2R | Modelo 2027 en Mirror Coated Spark Black con el chasis verde de las fotos de estudio de Kawasaki, pilotable, junto al Porsche; cotas de la ficha de Kawasaki | 2,070 m de largo · 0,850 m de ancho · 1,160 m de alto |
 
 **Starship** encabeza la lista, porque es el expositor principal y el del lanzamiento (tecla **1**). Le sigue el **Falcon 1** (tecla **2**), que abre la línea histórica: Falcon 1 → Falcon 9 → Falcon Heavy.
 
@@ -784,6 +785,32 @@ Revisión pieza a pieza contra las fotos de estudio, con sus cámaras ajustadas 
   - Las seis aletas del difusor van donde la foto: ±0,155, ±0,306 y ±0,474 m, de 0,19 a 0,32 m de altura; antes colgaban por debajo del coche.
 - **Retrovisores:** la carcasa medía 0,13 m de ancho vista de frente; en la foto, ≈0,17 m.
 
+### La Kawasaki Ninja H2R (3 de octubre de 2026)
+
+Undécimo expositor, a petición del usuario: la Ninja H2R en **Mirror Coated Spark Black** con el chasis verde, junto al Porsche en la explanada. Se pilota con **N** o con *H2R · Ride*.
+
+- **Datos** (`src/data/h2r.js`), de la ficha de Kawasaki para el modelo 2027:
+  - 998 cm³ sobrealimentado, 228 kW (240 kW con admisión dinámica) a 14.000 rpm y 165 Nm a 12.500 rpm;
+  - primaria, seis marchas y secundaria;
+  - lanzamiento 25,1°, avance 108 mm, recorridos 120/135 mm;
+  - neumáticos 120/600 R17 y 190/650 R17, discos de 330 y 250 mm;
+  - 2.070 × 850 × 1.160 mm, batalla 1.450 mm, asiento 830 mm, 216 kg en orden de marcha.
+- **Modelo** (`src/vehicles/h2r.js`), trazado sobre la foto lateral de estudio de Kawasaki a 1,80 mm por píxel. A esa escala los ejes quedan a 1,445 m (publicado: 1,450), la cúpula a 1,165 m (1,160) y el asiento a 0,830 m (0,830).
+  - Carrocería: cada panel es su contorno lateral trazado, con su semianchura y un borde biselado o redondeado: cúpula y mentón de carbono, flanco con espejo «Ninja H2R», panel inferior, depósito, asiento, colín con su panel y su piloto, y la cúpula ahumada.
+  - Debajo: el chasis tubular verde entre sus nudos trazados, el motor con sus tapas, el compresor, el conducto de admisión de carbono por el lado izquierdo, los cuatro colectores de titanio y el silencioso por la derecha, el basculante monobrazo con la cadena y las estriberas.
+  - Ruedas con slicks, llantas negras de cinco radios dobles con cantos mecanizados, discos taladrados y pinzas Brembo; horquilla invertida al ángulo de lanzamiento publicado; alas de carbono.
+  - Rótulos de fábrica, por decisión expresa del usuario (la única excepción a la regla de no añadir logotipos): «Kawasaki» en el depósito, «Ninja» y «H2R» en el carenado, «brembo» en las pinzas. Están dibujados como tipografía, no copiados, y se pegan a la superficie del panel.
+  - La verificación dimensional los mide: 2,075 × 0,850 × 1,161 m.
+- **Pilotaje** (`src/sim/h2rBike.js`, `h2rRide.js`, `h2rSound.js`, `ui/h2rHud.js`):
+  - La moto gira inclinándose: el piloto pide una inclinación y la moto rueda hacia ella con retraso. El giro es g·tan φ / v, y por debajo de ≈4 m/s se gira con el manillar (27° publicados).
+  - Transferencia de carga sobre la batalla: el caballito gira sobre el contacto trasero y el *stoppie* sobre el delantero. Pasado el punto de equilibrio, vuelca.
+  - Cada neumático tiene su círculo de adherencia (slick ≈1,35 veces el μ del firme, ≈). Con las ayudas (por defecto; **T**), el control de caballito, tracción y elevación trasera mantiene la moto dentro.
+  - Sin ayudas, pedir más agarre del que hay, frenar fuerte inclinado o tumbarse en la hierba la tira: *lowside*. La moto desliza de lado echando chispas y el piloto sale despedido, rueda y se para por su cuenta.
+  - También choca con todo lo sólido (el mismo mapa de celdas que el coche, con el Porsche incluido) y no pasa por más de ≈0,45 m de agua.
+  - Un piloto con mono y casco va encima y se cuelga hacia el interior de las curvas (`vehicles/h2rRider.js`). Cámaras: persecución, casco (que se inclina con la cabeza), pista y órbita.
+  - Sonido sintetizado (≈): el orden 2 del cuatro en línea, el silbido del compresor a ≈9,2 veces el cigüeñal, el chirrido al cortar gas y el viento.
+  - Resultados del modelo (`tools/h2r-check.mjs`, en `npm run check`): 0–100 km/h en 2,49 s, 0–200 km/h en 5,39 s, 200–0 km/h en 5,18 s, 355 km/h de punta (el desarrollo da 364 km/h al corte, ≈14.500 rpm), 52° de inclinación y 1,29 g a 100 km/h.
+
 ### Choques de verdad y la nave cayendo al agua (3 de octubre de 2026)
 
 El usuario pidió que chocar con el Porsche o con el F-16 fuera realista y que, cuando la nave cae al agua, pareciera agua. Antes un choque solo paraba el vehículo y el amerizaje era una nube de vapor sobre un mar intacto.
@@ -1184,6 +1211,13 @@ src/data/verify.js         comprobación de coherencia entre lo declarado y lo c
 src/sim/missionClock.js    reloj de misión independiente de los fotogramas
 src/sim/mission.js         Flight 14 como una sola misión: corte, órbita, salida de órbita, entrada
 src/sim/gt3Damage.js       daños del Porsche en un choque: abolladuras, piezas que se sueltan, chispas
+src/data/h2r.js            ficha de la Kawasaki Ninja H2R con la procedencia de cada cifra
+src/vehicles/h2r.js        modelo de la H2R trazado sobre la foto lateral de Kawasaki
+src/vehicles/h2rRider.js   el piloto que va encima cuando se pilota
+src/sim/h2rBike.js         dinámica de la moto: inclinación, caballitos, adherencia, caídas
+src/sim/h2rRide.js         modo de pilotaje: postura, cámaras, marcas, el piloto al caer
+src/sim/h2rSound.js        sonido sintetizado del cuatro en línea y su compresor
+src/ui/h2rHud.js           instrumentos de la moto: vueltas, marcha, inclinación, ayudas
 src/ui/hud.js              interfaz
 src/ui/telemetryList.js    lecturas de conducción y vuelo como texto, para lectores de pantalla
 src/core/water.js          dónde hay agua (mar, charcas, canales) y a qué profundidad

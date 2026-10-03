@@ -37,7 +37,7 @@ const LABEL_FILES = {
   'pad.js': ['starship'], 'starship.js': ['starship'], 'falcon.js': ['falcon9', 'falconheavy'],
   'falcon1.js': ['falcon1'], 'dragon.js': ['dragon'], 'starlink.js': ['starlink'],
   'roadster.js': ['roadster'], 'enginehall.js': ['engines'], 'f16.js': ['f16'],
-  'gt3rs.js': ['gt3rs'],
+  'gt3rs.js': ['gt3rs'], 'h2r.js': ['h2r'],
 };
 // The guided tour's captions (main.js): each stop names an exhibit, so each figure it states
 // answers to that exhibit's sheet, exactly as a 3-D label does.

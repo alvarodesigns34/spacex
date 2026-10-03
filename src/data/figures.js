@@ -98,6 +98,13 @@ export const FIGURES = {
     mirrors: { value: 2.027, grade: 'A', ref: 'porsche_techdata', note: 'overall width including mirrors' },
     readme: ['footprint', 'breadth', 'height'],
   },
+  h2r: {
+    // Kawasaki's specifications (MY2027): overall dimensions.
+    height: { value: 1.160, grade: 'A', ref: 'kawasaki_h2r', note: 'overall height, to the screen' },
+    footprint: { value: 2.070, grade: 'A', ref: 'kawasaki_h2r', note: 'overall length' },
+    breadth: { value: 0.850, grade: 'A', ref: 'kawasaki_h2r', note: 'overall width' },
+    readme: ['footprint', 'breadth', 'height'],
+  },
   engines: {
     height: { value: 4.4, grade: 'A', ref: 'spacex_starship', note: 'Raptor Vacuum' },
     footprint: { value: 2.3, grade: 'A', ref: 'spacex_starship', note: 'Raptor Vacuum nozzle exit' },

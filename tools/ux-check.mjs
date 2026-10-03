@@ -655,7 +655,9 @@ try {
     // let go the wings come level; ↓ held towards the ground and Auto-GCAS pulls it out.
     const easy = await page.evaluate(() => {
       const F = window.__vc.f16fly, s = F.sim.state;
-      const key = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code, key: code.slice(-1).toLowerCase(), bubbles: true }));
+      // The key as a browser names it: 'KeyW' → 'w', 'ArrowDown' → 'ArrowDown' (its last letter, 'n', is
+      // the ride's shortcut, and started the bike in the middle of the flight).
+      const key = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code, key: code.startsWith('Key') ? code.slice(3).toLowerCase() : code, bubbles: true }));
       const fly = (sec) => { for (let k = 0; k < sec * 30 && !s.crashed; k++) F.update(1 / 30); };
       key('keydown', 'KeyW'); fly(40); key('keyup', 'KeyW');
       const up = { alt: s.agl, gear: F.pilot.gearDown, crashed: s.crashed?.what ?? null };
@@ -766,7 +768,7 @@ try {
     // the tyres lay marks on the pad; S stops it.
     const drive = await page.evaluate(() => {
       const D = window.__vc.gt3drive, s = D.sim.state;
-      const key = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code, key: code.slice(-1).toLowerCase(), bubbles: true }));
+      const key = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code, key: code.startsWith('Key') ? code.slice(3).toLowerCase() : code, bubbles: true }));
       const run = (codes, sec) => { for (const c of codes) key('keydown', c); for (let k = 0; k < sec * 30; k++) D.update(1 / 30); for (const c of codes) key('keyup', c); };
       // 3 s: since the engine has its own inertia and the clutch takes up the drive as it gathers
       // revs (P1 audit, H06), the car pulls away without Launch Control a little later than it did
