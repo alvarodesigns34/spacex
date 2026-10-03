@@ -839,6 +839,9 @@ El usuario juzgó el Porsche «deficiente» en modelado y conducción. La siluet
   - La mirada se adelanta hacia donde va la trazada a 30 m.
   - Los pianos, la grava y la velocidad hacen vibrar la vista (≈).
 - **Cámara de persecución:** se aleja y baja un poco con la velocidad, y abre el campo de visión hasta 9° (≈).
+- **Luces de freno:** las láminas de los pilotos y el piloto central se encienden al frenar; sin freno quedan en un rojo ahumado. Los catadióptricos ya no brillan como luces.
+- **Plásticos negros satinados**, no mates: en las fotos de estudio los paragolpes y faldones negros dejan ver su forma con brillos suaves (≈ el acabado).
+- **Prueba de interfaz más robusta:** la de «B arranca el Porsche en la explanada» esperaba 600 ms fijos. Con la máquina cargada por la comprobación completa, el primer paso de la simulación llegó más tarde y la prueba falló una vez. Ahora espera a que la simulación haya dado sus primeros pasos (como mucho, 5 s), y lo que comprueba no cambia.
 - **Sonido nuevo** (`src/sim/gt3Sound.js`), sintetizado muestra a muestra en un AudioWorklet, como el de la H2R:
   - El bóxer de seis cilindros enciende cada 120° en el orden 1-6-2-4-3-5, alternando bancadas. Cada bancada tiene su colector, algo distinto en fuerza y color, y de ahí salen los medios órdenes bajo la nota principal: orden 3, 45 Hz al ralentí y 450 Hz en el corte a 9.000 /min.
   - Cada pulso hace sonar las resonancias del escape y se satura con la carga.

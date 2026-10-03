@@ -355,7 +355,8 @@ function gt3Materials(M) {
     envMapIntensity: 1.3, depthWrite: false, side: THREE.DoubleSide,
   });
   M.gt3Black = new THREE.MeshStandardMaterial({ name: 'gt3-black-gloss', color: 0x0d0e10, metalness: 0.1, roughness: 0.22 });
-  M.gt3Plastic = new THREE.MeshStandardMaterial({ name: 'gt3-black-plastic', color: 0x1c1d1f, metalness: 0, roughness: 0.78 });
+  // Satin, not dead matt: in the studio photographs the black bumpers and skirts show their form in soft highlights.
+  M.gt3Plastic = new THREE.MeshStandardMaterial({ name: 'gt3-black-plastic', color: 0x222326, metalness: 0, roughness: 0.6 });
   M.gt3Interior = new THREE.MeshStandardMaterial({ name: 'gt3-interior', color: 0x161718, metalness: 0, roughness: 0.9, side: THREE.DoubleSide });
   M.gt3Tyre = new THREE.MeshStandardMaterial({ name: 'gt3-tyre', color: 0x18191a, metalness: 0, roughness: 0.86 });
   // The wheels: forged, in a satin dark finish (≈: the colour is a choice for this car).
@@ -375,6 +376,10 @@ function gt3Materials(M) {
   M.gt3Bowl = new THREE.MeshStandardMaterial({ name: 'gt3-lamp-bowl', color: 0x8d939a, metalness: 1, roughness: 0.26 });
   M.gt3Drl = new THREE.MeshStandardMaterial({ name: 'gt3-drl', color: 0xffffff, emissive: 0xf4f8ff, emissiveIntensity: 2.4, roughness: 0.4 });
   M.gt3Tail = new THREE.MeshStandardMaterial({ name: 'gt3-tail', color: 0x7a0a0c, emissive: 0xd0161a, emissiveIntensity: 0.9, roughness: 0.35 });
+  // The brake lights (the lamp units' blades and the high-level light): lit only on the brakes,
+  // which the drive does (userData.brakeLights). Unlit, a smoked red.
+  M.gt3Brake = new THREE.MeshStandardMaterial({ name: 'gt3-brake-lights', color: 0x5a0a0c, emissive: 0xff2020, emissiveIntensity: 0.25, roughness: 0.3 });
+  M.gt3Reflector = new THREE.MeshStandardMaterial({ name: 'gt3-reflector', color: 0x9a1014, emissive: 0x400406, roughness: 0.4 });
   M.gt3Smoke = new THREE.MeshStandardMaterial({ name: 'gt3-tail-smoke', color: 0x1a0d0e, metalness: 0.2, roughness: 0.15 });
   // Openings into the body (intakes, outlets, wheel wells): near black, matt.
   M.gt3Void = new THREE.MeshStandardMaterial({ name: 'gt3-void', color: 0x060607, metalness: 0, roughness: 0.95 });
@@ -737,8 +742,8 @@ function buildEnds(M) {
     add(both(TAIL.lamp).map(pl => endPatch(-1, pl, 0.01)), M.gt3Smoke, 'gt3-tail-lamps');
     add(both(TAIL.lamp).map(pl => { const o = intake(-1, pl, -0.01, -0.003); return o.wall; }), M.gt3Black, 'gt3-tail-lamp-walls');
     // Inside each lamp, the light bar carries on as two red blades (rear photograph).
-    add(TAIL.blades.flatMap(both).map(pl => endPatch(-1, pl, 0.0115)), M.gt3Tail, 'gt3-tail-lamp-blades');
-    add(both(TAIL.reflector).map(pl => endPatch(-1, pl, 0.003)), M.gt3Tail, 'gt3-tail-reflectors');
+    add(TAIL.blades.flatMap(both).map(pl => endPatch(-1, pl, 0.0115)), M.gt3Brake, 'gt3-tail-lamp-blades');
+    add(both(TAIL.reflector).map(pl => endPatch(-1, pl, 0.003)), M.gt3Reflector, 'gt3-tail-reflectors');
   }
   return g;
 }
@@ -1241,7 +1246,7 @@ function buildBodyDetails(M) {
   {
     const pts = along('plan', 1, range(-1.83, -1.645, 8).map(x => [x, 0.0005]));
     plastic.push(bodyFin(pts, () => 0.052, 0.088));
-    g.add(mesh(bodyFin(pts, () => 0.055, 0.05, { base: 0.051 }), M.gt3Tail, { name: 'gt3-brake-light', castShadow: false }));
+    g.add(mesh(bodyFin(pts, () => 0.056, 0.05, { base: 0.051 }), M.gt3Brake, { name: 'gt3-brake-light', castShadow: false }));
   }
   // Fuel filler flap on the right front fender (the side photographs show it there): its shut line.
   {

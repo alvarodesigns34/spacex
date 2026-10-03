@@ -188,6 +188,9 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
   const wheels = ['fl', 'fr', 'rl', 'rr'].map(t => car.getObjectByName(`gt3-wheel-${t[0]}${t[1]}`));
   const flap = car.getObjectByName('gt3-wing-flap');
   const flapBase = flap?.quaternion.clone();
+  // The brake lights: lit on the brakes (the material the lamp units' blades and the high-level light share).
+  const brakeMat = car.getObjectByName('gt3-brake-light')?.material ?? null;
+  const brakeOff = brakeMat?.emissiveIntensity ?? 0;
   // The cabin's live instruments: the tachometer's needle, the gear and the speed, the steering wheel.
   const instruments = car.getObjectByName('gt3-cabin')?.userData.instruments;
   const holder = new THREE.Group();
@@ -397,6 +400,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
     // The flap: flat for the DRS, steepest as an airbrake.
     if (flap && flapBase) flap.quaternion.copy(flapBase).multiply(_q.setFromAxisAngle(new THREE.Vector3(0, 0, 1), (s.aero === 'drs' ? 13 : s.aero === 'airbrake' ? -8 : 0) / R2D));
     instruments?.update({ rpm: s.rpm, gear: s.reverse ? 'R' : s.gear, kmh: Math.hypot(s.u, s.v) * 3.6, steer: s.steer });
+    if (brakeMat) brakeMat.emissiveIntensity = sim.input.brake > 0.05 ? 3.2 : brakeOff;
     void _e;
   }
   const _c = new THREE.Vector3(), _side = new THREE.Vector3();
@@ -518,6 +522,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
     if (sprung) sprung.rotation.set(0, 0, 0);
     wheels.forEach((w, i) => { if (w) { w.rotation.y = 0; w.position.y = wheelY[i]; if (w.userData.spin) w.userData.spin.rotation.z = 0; } });
     if (flap && flapBase) flap.quaternion.copy(flapBase);
+    if (brakeMat) brakeMat.emissiveIntensity = brakeOff;
     instruments?.update({ rpm: 0, gear: 'N', kmh: 0, steer: 0 });
     // Back on its plinth whole: dents out, parts back on.
     damage.reset(); fx.clear(); spray.clear();
