@@ -369,5 +369,22 @@ function assisted({ setup, plan, T }) {
     `${burned.toFixed(0)} kg en 10 s a fondo (${exp.toFixed(1)} kg/s en postcombustión) · apagado ${s.flameout} · ${F.CONFIG.stores}, c.g. ${F.CONFIG.cg} c̄`);
 }
 
+// ---- What stands on the ground (core/colliders.js) ------------------------------------------------
+{
+  // A tower 40 m tall, 1 m thick, across the flight path 300 m ahead: flown into at 150 m/s, 20 m
+  // up, the airplane crashes into it (the step it flies between two checks passes through the
+  // tower: the test is along that step); flown over it at 80 m, it goes on.
+  const wall = (a, b) => (a.x - 300) * (b.x - 300) <= 0 || (Math.abs(a.x - 300) < 0.5) ? Math.min(a.y, b.y) < 40 : false;
+  const run = (h) => {
+    const f = createF16Flight({ ground: flat, solid: wall }), s = f.state;
+    airborne(f, s, { h, V: 150, a: 2, power: 60 });
+    for (let k = 0; k < 40 && !s.crashed; k++) f.advance(0.1);
+    return s.crashed;
+  };
+  const low = run(20), high = run(80);
+  report(low?.what === 'structure' && !high, 'contra una torre: a 20 m de altura se estrella contra ella; a 80 m pasa por encima',
+    `a 20 m: ${low?.what ?? 'sigue'} · a 80 m: ${high?.what ?? 'sigue'}`);
+}
+
 console.log(failed ? `\n${failed} comprobación(es) del F-16 fallida(s)` : '\nModelo de vuelo del F-16: todo correcto');
 process.exit(failed ? 1 : 0);

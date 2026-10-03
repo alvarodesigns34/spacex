@@ -8,7 +8,7 @@ import { noise2 } from '../materials/textures.js';
 import { waveNormals, grassNormals } from '../materials/library.js';
 import { createClouds } from './clouds.js';
 import { buildOuterGround } from './outerGround.js';
-import { shoreZ, seaward, fromCoast, terrainHeight, thicket, marsh } from './terrain.js';
+import { shoreZ, seaward, fromCoast, terrainHeight, thicket, marsh, poolDepth } from './terrain.js';
 
 /**
  * The Gulf shore. Starbase stands on the coast at Boca Chica, and the plain runs out into a
@@ -26,8 +26,9 @@ export { shoreZ };
 export function groundSample(x, y) {
   const past = seaward(x, -y);                 // metres seaward of the shoreline
   let h = past > 0 ? -9 * THREE.MathUtils.smoothstep(past, 0, 180) : 0.35 * THREE.MathUtils.smoothstep(-past, 0, 60) * (1 - THREE.MathUtils.smoothstep(-past, 60, 160));
-  // The lomas and the plain's micro-relief (terrain.js), zero on the site and the beach.
-  h += terrainHeight(x, -y);
+  // The lomas and the plain's micro-relief (terrain.js), zero on the site and the beach; the
+  // tidal pools' beds carved under their water (terrain.js poolDepth).
+  h += terrainHeight(x, -y) - poolDepth(x, -y);
   const broad = noise2(x / 110, y / 110);
   const patch = noise2(x / 42 + 19, y / 42 - 7);
   const salt = Math.max(0, broad - 0.46);

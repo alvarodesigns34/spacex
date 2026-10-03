@@ -82,6 +82,51 @@ export const poolStretch = (seed) => 1.5 + 0.8 * noise2(seed * 3.7, 0.5);
 const POOLS = POOL_SPEC.map(([x, z, r, seed]) => [x, z, r * 1.3 * Math.sqrt(poolStretch(seed))]);
 
 /**
+ * A pool's outline, the one campus.js draws its water to, and its bed. Three scales of wander on
+ * the outline (the pool's lobes, bays tens of metres across, the ragged few-metre edge that
+ * wind-driven water leaves on a flat), stretched 1,5–2,3 × along the pool's own axis.
+ *  - at(a, k): the world point at angle a, fraction k of the way out to the shore;
+ *  - frac(x, z): how far out a world point is, as that fraction (1 on the shore).
+ */
+export function poolShape([cx, cz, R, seed]) {
+  const rad = (a) => R * (0.72 + 0.55 * noise2(Math.cos(a) * 1.3 + seed * 7.1, Math.sin(a) * 1.3 + seed * 3.3)
+    + 0.12 * noise2(Math.cos(a) * 4 + seed, Math.sin(a) * 4 - seed)
+    + 0.05 * noise2(Math.cos(a) * 13 + seed * 2.3, Math.sin(a) * 13 + seed)
+    + 0.02 * noise2(Math.cos(a) * 37 - seed, Math.sin(a) * 37 + seed * 1.7));
+  const stretch = poolStretch(seed), axis = noise2(seed * 1.9, 2.5) * Math.PI;
+  const ca = Math.cos(axis), sa = Math.sin(axis), sx = Math.sqrt(stretch), sz = 1 / Math.sqrt(stretch);
+  const at = (a, r, k = 1) => {
+    const lx = Math.cos(a) * r * k * sx, lz = Math.sin(a) * r * k * sz;
+    return [cx + lx * ca - lz * sa, cz + lx * sa + lz * ca];
+  };
+  const frac = (x, z) => {
+    const dx = x - cx, dz = z - cz, lx = (dx * ca + dz * sa) / sx, lz = (-dx * sa + dz * ca) / sz;
+    const a = Math.atan2(lz, lx);
+    return Math.hypot(lx, lz) / rad(a);
+  };
+  return { cx, cz, R, seed, rad, at, frac, reach: R * 1.3 * sx };
+}
+export const POOL_SHAPES = POOL_SPEC.map(poolShape);
+/**
+ * The pools' beds: carved 0,35 m below the flat in the middle, rising to it at the shore, under
+ * water standing 6 cm over the flat. Wind-tidal flats hold water centimetres to decimetres deep;
+ * these depths are ≈ (no survey of these pools: they are drawn, not measured). The ground is
+ * carved to them (environment.js groundSample).
+ */
+export const POOL_DEPTH = 0.35;
+/** The water surface on the pools, m (campus.js lays the water there). */
+export const POOL_SURFACE = 0.06;
+/** How far below the flat the pool bed is at a world point: 0 outside every pool. */
+export function poolDepth(x, z) {
+  for (const p of POOL_SHAPES) {
+    if (Math.abs(x - p.cx) > p.reach || Math.abs(z - p.cz) > p.reach) continue;
+    const k = p.frac(x, z);
+    if (k < 1) return POOL_DEPTH * (1 - k * k);
+  }
+  return 0;
+}
+
+/**
  * The F-16's runway: a strip on the open plain just south-west of the site, parallel to the
  * exhibit row, its east end ≈500 m from the row. Placed by a search for the line nearest the site
  * that stays inside the ground disc, ≥300 m inland of the shoreline, clear of the site, the pad

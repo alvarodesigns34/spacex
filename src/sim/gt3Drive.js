@@ -16,7 +16,7 @@
  * 12,000 segments wraps.
  */
 import * as THREE from 'three';
-import { createGt3Car, CAR, steerReach } from './gt3Car.js';
+import { createGt3Car, CAR, steerReach, OUTLINE } from './gt3Car.js';
 import { AXLE_F, AXLE_R } from '../vehicles/gt3rs.js';
 import { EYE } from '../vehicles/gt3Cabin.js';
 import { WHEELS } from '../data/gt3rs.js';
@@ -124,6 +124,61 @@ function createTyreSmoke(scene, max = 900) {
   return { emit, update, clear, points };
 }
 
+/**
+ * Spray: the water a tyre throws up running through it, and the bow wave the body pushes ahead
+ * of it. Droplets fly on ballistic paths and fall back to the water (≈ the sizes and speeds:
+ * a tyre's spray leaves at a fraction of the road speed, sideways and up off the tread).
+ */
+function createSpray(scene, max = 1600) {
+  const pos = new Float32Array(max * 3), size = new Float32Array(max), alpha = new Float32Array(max);
+  const vel = new Float32Array(max * 3), age = new Float32Array(max).fill(1e9), life = new Float32Array(max), floor = new Float32Array(max);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('size', new THREE.BufferAttribute(size, 1).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('alpha', new THREE.BufferAttribute(alpha, 1).setUsage(THREE.DynamicDrawUsage));
+  const mat = new THREE.ShaderMaterial({
+    name: 'gt3-spray', transparent: true, depthWrite: false,
+    uniforms: { scale: { value: 600 } },
+    vertexShader: `attribute float size; attribute float alpha; varying float vA; uniform float scale;
+      void main() { vA = alpha; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = size * scale / max(0.5, -mv.z); gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `varying float vA;
+      void main() { vec2 d = gl_PointCoord - 0.5; float r = length(d); if (r > 0.5) discard; float a = vA * smoothstep(0.5, 0.15, r); gl_FragColor = vec4(vec3(0.86, 0.9, 0.93), a); }`,
+  });
+  const points = new THREE.Points(geo, mat);
+  points.name = 'gt3-spray';
+  points.frustumCulled = false;
+  points.renderOrder = 3;
+  scene.add(points);
+  let next = 0;
+  /** A droplet from (x, y, z) at velocity (vx, vy, vz), falling back to the surface at height `surface`. */
+  function emit(x, y, z, vx, vy, vz, surface, big = 0) {
+    const i = next; next = (next + 1) % max;
+    pos.set([x, y, z], i * 3);
+    vel.set([vx, vy, vz], i * 3);
+    age[i] = 0; life[i] = 2.5; floor[i] = surface; size[i] = 0.05 + 0.12 * Math.random() + big * 0.25;
+  }
+  function update(dt) {
+    let any = false;
+    for (let i = 0; i < max; i++) {
+      if (age[i] > life[i]) { alpha[i] = 0; continue; }
+      any = true;
+      age[i] += dt;
+      vel[i * 3 + 1] -= 9.81 * dt;
+      // Air drag on a droplet, ≈.
+      const k = 1 - 0.6 * dt;
+      vel[i * 3] *= k; vel[i * 3 + 2] *= k;
+      pos[i * 3] += vel[i * 3] * dt; pos[i * 3 + 1] += vel[i * 3 + 1] * dt; pos[i * 3 + 2] += vel[i * 3 + 2] * dt;
+      if (pos[i * 3 + 1] < floor[i] && vel[i * 3 + 1] < 0) { age[i] = 1e9; alpha[i] = 0; continue; }
+      size[i] *= 1 + 0.4 * dt;
+      alpha[i] = 0.55 * Math.min(1, age[i] * 12) * (1 - age[i] / life[i]);
+    }
+    points.visible = any;
+    geo.attributes.position.needsUpdate = true; geo.attributes.size.needsUpdate = true; geo.attributes.alpha.needsUpdate = true;
+  }
+  function clear() { age.fill(1e9); alpha.fill(0); points.visible = false; }
+  return { emit, update, clear, points };
+}
+
 export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obstacles, hud, home, onStart = () => {}, onFinish = () => {}, visibilityHook = null }) {
   const car = exhibit.model;            // the 'gt3rs' group
   const sprung = car.getObjectByName('gt3-sprung');
@@ -138,6 +193,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
   scene.add(holder);
   const marks = createSkidMarks(scene);
   const smoke = createTyreSmoke(scene);
+  const spray = createSpray(scene);
   const sound = createGt3Sound();
 
   const sim = createGt3Car({ ground, obstacles });
@@ -269,7 +325,8 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
     _cam.y += 2.1;
     if (!chase || chase.distanceTo(_cam) > 40) chase = _cam.clone();
     chase.lerp(_cam, 1 - Math.exp(-dt * 5));
-    chase.y = Math.max(chase.y, ground(chase.x, chase.z).h + 0.6);
+    // Over the ground, and over the water: the chase camera stays above the surface.
+    { const gc = ground(chase.x, chase.z); chase.y = Math.max(chase.y, gc.h + 0.6, (gc.water ?? -Infinity) + 0.4); }
     camera.position.copy(chase);
     camera.lookAt(holder.position.x, holder.position.y + 0.75, holder.position.z);
     camera.fov = saved.fov; camera.updateProjectionMatrix();
@@ -322,6 +379,38 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
     }
   }
 
+  // The water: each tyre running through it throws spray up and out behind, more the deeper and
+  // faster; the body, deeper than its floor, pushes a bow wave ahead and out to the sides.
+  function throwSpray(dt) {
+    const c = Math.cos(s.psi), sn = Math.sin(s.psi), V = Math.hypot(s.u, s.v);
+    const fx = c, fz = -sn, lx = -sn, lz = -c;          // forward and left in the world
+    for (let i = 0; i < 4; i++) {
+      const d = s.water[i];
+      if (d < 0.005 || V < 1) continue;
+      const [px, py] = sim.WP[i];
+      const [x, z] = sim.worldOf(px, py);
+      const g = ground(x, z), wsf = g.water ?? g.h;
+      const n = Math.min(40, V * Math.min(1, d / 0.05) * 3 * dt * 60);
+      const side = py > 0 ? 1 : -1;
+      for (let k = 0; k < n; k++) {
+        const out = (0.15 + 0.35 * Math.random()) * V * 0.35, up = (0.3 + 0.5 * Math.random()) * Math.min(9, V * 0.4), back = -(0.2 + 0.4 * Math.random()) * V * 0.3;
+        const vx = s.u * c - s.v * sn, vz = -s.u * sn - s.v * c;
+        spray.emit(x + (Math.random() - 0.5) * 0.3, wsf + 0.02, z + (Math.random() - 0.5) * 0.3,
+          vx * 0.5 + fx * back + lx * side * out, up, vz * 0.5 + fz * back + lz * side * out, wsf);
+      }
+    }
+    if (s.immersion > 0.02 && V > 0.8) {
+      const [x, z] = sim.worldOf(OUTLINE.front, 0);
+      const wsf = ground(x, z).water ?? 0;
+      const n = Math.min(60, V * s.immersion * 40 * dt * 60);
+      for (let k = 0; k < n; k++) {
+        const across = (Math.random() - 0.5) * 1.9, side = Math.sign(across) || 1;
+        spray.emit(x + lx * across, wsf + 0.02, z + lz * across,
+          s.u * c * 0.9 + lx * side * V * (0.2 + 0.3 * Math.random()), Math.min(6, V * (0.2 + 0.3 * Math.random())) * Math.min(1, s.immersion * 3), -s.u * sn * 0.9 + lz * side * V * (0.2 + 0.3 * Math.random()), wsf, 1);
+      }
+    }
+  }
+
   // ---- Laps -----------------------------------------------------------------------------------------
   let lastS = null;
   function timeLaps() {
@@ -346,6 +435,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
 
   // ---- Lifecycle ---------------------------------------------------------------------------------
   function placeHome() {
+    spray.clear();
     sim.reset(home());
     Object.assign(driver, { throttle: 0, brake: 0, steer: 0, handbrake: 0 });
     Object.assign(state, { paused: false, lap: null });
@@ -405,6 +495,8 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
       events();
       layMarks(Math.min(dt, 0.25));
       smoke.update(Math.min(dt, 0.25));
+      throwSpray(Math.min(dt, 0.25));
+      spray.update(Math.min(dt, 0.25));
       timeLaps();
     }
     pose(Math.min(dt, 0.25));
@@ -415,11 +507,18 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
   }
 
   // What the driver is told: a contact, the water, Launch Control armed, a jump.
-  let lastHit = -10, drowned = false, armed = false;
+  let lastHit = -10, drowned = false, armed = false, floated = false, sank = false, splashed = false;
   function events() {
     if (s.impact > 2.5 && s.t - lastHit > 1) { lastHit = s.t; note(`Contact at ${Math.round(s.impact * 3.6)} km/h`); }
-    if (s.wet > 1.5 && !drowned) { drowned = true; note('In the water: the engine has drowned · Enter: back to the pad'); }
-    if (s.wet === 0) drowned = false;
+    const inWater = s.water.some(d => d > 0.05);
+    if (inWater && !splashed) { splashed = true; note('Into the water'); }
+    if (!inWater) splashed = false;
+    if (s.drowned && !drowned) { drowned = true; note('The water has reached the intake: the engine has drowned · Enter: back to the pad'); }
+    if (!s.drowned) drowned = false;
+    if (s.afloat && !floated) { floated = true; note('Afloat: the tyres have lost the ground'); }
+    if (s.sunk && !sank) { sank = true; note('The car has flooded and sunk · Enter: back to the pad'); }
+    if (!s.sunk) sank = false;
+    if (!inWater) floated = false;
     if (s.launch && sim.input.brake > 0.1 && !armed) { armed = true; note('Launch Control: let go of S to launch'); }
     if (!s.launch) armed = false;
     if (s.air > 0.35 && s.air < 0.37) note('Airborne');

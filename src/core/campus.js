@@ -20,7 +20,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mesh, mergeAll, mat4, boxUV, chunkedInstances } from '../geometry/utils.js';
 import { noise2, canvas, toTexture } from '../materials/textures.js';
-import { POOL_SPEC, poolStretch, terrainHeight, seaward } from './terrain.js';
+import { POOL_SPEC, POOL_SHAPES, poolStretch, terrainHeight, seaward } from './terrain.js';
 import { waveNormals, grassNormals } from '../materials/library.js';
 
 function quad(x0, z0, x1, z1, y) {
@@ -241,22 +241,10 @@ function buildFlats(g, M) {
   const spec = POOL_SPEC;
   const water = [], rims = [];
   const N = 144;
-  for (const [cx, cz, R, seed] of spec) {
-    // Three scales of wander on the outline: the pool's overall lobes, bays tens of metres
-    // across, and the ragged few-metre edge that wind-driven water leaves on a flat.
-    const rad = (a) => R * (0.72 + 0.55 * noise2(Math.cos(a) * 1.3 + seed * 7.1, Math.sin(a) * 1.3 + seed * 3.3)
-      + 0.12 * noise2(Math.cos(a) * 4 + seed, Math.sin(a) * 4 - seed)
-      + 0.05 * noise2(Math.cos(a) * 13 + seed * 2.3, Math.sin(a) * 13 + seed)
-      + 0.02 * noise2(Math.cos(a) * 37 - seed, Math.sin(a) * 37 + seed * 1.7));
-    // Wind-tidal pools are long and shallow, drawn out along the direction the water drains,
-    // not round: each one is stretched 1,5–2,3 × along its own axis (area kept). Round ponds
-    // read as decals from the air.
-    const stretch = poolStretch(seed), axis = noise2(seed * 1.9, 2.5) * Math.PI;
-    const ca = Math.cos(axis), sa = Math.sin(axis), sx = Math.sqrt(stretch), sz = 1 / Math.sqrt(stretch);
-    const shape = (a, r, k = 1) => {
-      const lx = Math.cos(a) * r * k * sx, lz = Math.sin(a) * r * k * sz;
-      return [cx + lx * ca - lz * sa, cz + lx * sa + lz * ca];
-    };
+  for (const pool of POOL_SHAPES) {
+    // The outline (terrain.js poolShape): its lobes, bays and ragged edge, stretched along the
+    // pool's own axis (wind-tidal pools are long and shallow; round ponds read as decals from the air).
+    const { cx, cz, rad } = pool, shape = pool.at;
     const ring = Array.from({ length: N }, (_, i) => { const a = (i / N) * Math.PI * 2; return [a, rad(a)]; });
     // Water: rings in from the shore to the centre, 6 cm above the flat ground. The colour is
     // graded by depth: at the edge a film over the pale mud, which shows through warm and

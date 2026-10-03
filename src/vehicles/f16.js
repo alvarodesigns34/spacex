@@ -895,10 +895,11 @@ function buildGear(M) {
     const w = wheel(M, GEAR.nose.d, GEAR.nose.w, 'f16-nose-wheel');
     w.position.copy(axle);
     g.add(w);
-    // The doors: a long one each side of the well, hanging open (≈).
+    // The doors: a long one each side of the well, hanging open aft of the leg (DVIDS photographs
+    // 7682498 and 8138193 of F-16s on the ramp; sizes ≈).
     for (const sd of [-1, 1]) {
-      const door = new THREE.BoxGeometry(0.85, 0.32, 0.01);
-      const dm = mesh(door, M.f16Lower, { name: `f16-nose-door-${sd > 0 ? 'r' : 'l'}`, position: [-(s - 0.25), zFloor - 0.15, sd * 0.2] });
+      const door = new THREE.BoxGeometry(0.80, 0.36, 0.01);
+      const dm = mesh(door, M.f16Lower, { name: `f16-nose-door-${sd > 0 ? 'r' : 'l'}`, position: [-(s + 0.47), zFloor - 0.17, sd * 0.2] });
       dm.rotation.x = sd * 0.08;
       g.add(dm);
     }
@@ -928,11 +929,14 @@ function buildGear(M) {
     w.position.set(-s, axleY, side * GEAR.track / 2);
     w.scale.z = side;                                    // the brake's side faces the airplane
     g.add(w);
-    // The door: on the leg's outer face, following its slope.
-    const door = new THREE.BoxGeometry(1.05, top0.distanceTo(axle) * 0.72, 0.012);
+    // The door: a trapezoid hinged along the fuselage's lower edge ahead of the wheel, hanging
+    // open and leaning out, its lower edge rising to the front (the same photographs; ≈ sizes).
+    const shape = new THREE.Shape([[0, 0], [1.12, 0], [0.98, -0.40], [0.10, -0.50]].map(([a, b]) => new THREE.Vector2(a, b)));
+    const door = new THREE.ExtrudeGeometry(shape, { depth: 0.012, bevelEnabled: false });
+    door.translate(0, 0, -0.006);
     const dm = mesh(door, M.f16Lower, { name: `f16-main-door-${tag}` });
-    dm.position.copy(top0.clone().lerp(axle, 0.4).add(V(0.05, 0, side * 0.07)));
-    dm.quaternion.setFromUnitVectors(V(0, 1, 0), dir);
+    dm.position.set(-(s - 0.14), top0.y - 0.12, side * 0.66);
+    dm.rotation.x = -side * 0.26;
     g.add(dm);
   }
   return g;

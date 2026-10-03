@@ -373,12 +373,70 @@ function drive({ v0 = 0, gear = 1, psm = true, keys, T = 5 }) {
   report(yaw > 0.3, 'golpe de refilón en la esquina: el impulso hace girar el coche', `${yaw.toFixed(2)} rad/s`);
 }
 {
-  // Water (H10): driven into the sea the car is braked hard by it and its engine drowns.
-  const sea = (x) => (x > 10 ? { h: -0.9, mu: 0.3, roll: 0.5, kind: 'water' } : { h: 0, mu: 1, roll: 0, kind: 'track' });
-  const { c, s, i } = make(sea);
+  // A fence (core/colliders.js gives the scene's solid geometry as small cells, ≈0.19 m circles
+  // a quarter of a metre apart): driven at it at 250 km/h, the car must not step through it
+  // between two checks of the contacts.
+  const fence = []; for (let z = -6; z <= 6; z += 0.25) fence.push({ x: 30, z, r: 0.19 });
+  const c = createGt3Car({ ground: flat(), obstacles: () => fence }); c.reset();
+  const s = c.state; rolling(s, 250 * KMH, 6);
+  let worst = Infinity;
+  for (let k = 0; k < 240 * 2; k++) { c.step(DT); worst = Math.min(worst, 30 - (s.x + OUTLINE.front)); }
+  report(worst > -0.25 && s.x < 30, 'contra una valla fina a 250 km/h: no la atraviesa entre dos comprobaciones', `penetración máx. ${Math.max(0, -worst * 100).toFixed(0)} cm · morro a ${(s.x + OUTLINE.front).toFixed(2)} m de los postes`);
+}
+{
+  // Water (core/water.js; the user's report of 2 Oct 2026: the car drove over the pools and the
+  // sea as if they were dry). Down a beach into the sea at 60 km/h, throttle held: the water
+  // stops it within a few tens of metres, the engine drowns, it floats a while, floods and goes down.
+  const beach = (x) => { const h = x > 10 ? -Math.min(9, (x - 10) * 0.12) : 0; return { h, mu: h < 0 ? 0.6 : 1, roll: h < 0 ? 0.2 : 0, kind: h < 0 ? 'sand' : 'track', water: h < -0.9 ? -0.9 : null }; };
+  const { c, s, i } = make(beach);
   rolling(s, 60 * KMH, 2); i.throttle = 1;
-  for (let k = 0; k < 240 * 5; k++) c.step(DT);
-  report(s.x < 40 && s.wet > 1.5 && Math.abs(s.u) < 1, 'al mar: el agua lo frena en pocos metros y el motor se ahoga', `se para a ${(s.x - 10).toFixed(1)} m de la orilla · ${s.rpm.toFixed(0)} rpm`);
+  let floated = false, tFlood = null;
+  for (let k = 0; k < 240 * 120; k++) {
+    c.step(DT);
+    if (s.afloat) floated = true;
+    if (tFlood === null && s.sunk) tFlood = k * DT;
+  }
+  report(s.x < 70 && s.drowned && floated && tFlood !== null && tFlood > 20 && Math.abs(s.u) < 0.5,
+    'al mar: el agua lo frena, el motor se ahoga, flota un rato, se inunda y se hunde',
+    `se para a ${(s.x - 10).toFixed(1)} m de la orilla · flotó: ${floated} · hundido a los ${tFlood?.toFixed(0)} s · motor ahogado: ${s.drowned}`);
+}
+{
+  // The pools (terrain.js: their beds carved under the water). A quarter of a metre deep and
+  // crossed at 80 km/h: the water drags the car down hard, the tyres ploughing and the body
+  // pushing, and with the throttle it climbs out the far side, its engine running. Forty
+  // centimetres deep (the middle of the deepest): the body floats on what it displaces and the
+  // tyres lose their grip, as little water does to a car (the US National Weather Service's
+  // "Turn Around Don't Drown": a foot of moving water carries most cars away).
+  const cross = (depth) => {
+    const pool = (x) => (x > 20 && x < 60 ? { h: 0.06 - depth, mu: 0.55, roll: 0.06, kind: 'grass', water: 0.06 } : { h: 0, mu: 0.55, roll: 0.06, kind: 'grass' });
+    const { c, s, i } = make(pool);
+    rolling(s, 80 * KMH, 3);
+    let vMin = Infinity, t = 0, floated = false;
+    for (let k = 0; k < 240 * 30 && s.x < 70; k++) {
+      c.step(DT); t += DT;
+      if (s.x > 22 && s.x < 58) { vMin = Math.min(vMin, s.u); i.throttle = s.u < 4 ? 0.6 : 0; floated ||= s.afloat; }
+    }
+    return { vMin, out: s.x >= 70, t, floated, drowned: s.drowned };
+  };
+  const a = cross(0.25), b = cross(0.40);
+  report(a.vMin < 0.6 * 80 * KMH && a.out && !a.drowned && !a.floated && b.floated && !b.out,
+    'charcas: a 0,25 m el agua lo frena con fuerza y sale por el otro lado con el motor en marcha; a 0,40 m flota y se queda',
+    `0,25 m: mínimo ${(a.vMin * 3.6).toFixed(0)} km/h, fuera a los ${a.t.toFixed(1)} s · 0,40 m: flota ${b.floated}, sale ${b.out}`);
+}
+{
+  // Aquaplaning (Horne's rule, ≈94 km/h at ≈2,2 bar): on a centimetre of water the tyres hold a
+  // turn at 60 km/h but let go at 150.
+  const wet = () => ({ h: 0, mu: 1, roll: 0, kind: 'track', water: 0.01 });
+  const lat = (v) => {
+    const { c, s, i } = make(wet);
+    rolling(s, v * KMH, v > 100 ? 4 : 2); i.steer = 0.25;
+    let ay = 0;
+    for (let k = 0; k < 240 * 1.5; k++) { c.step(DT); ay = Math.max(ay, Math.abs(s.ay)); }
+    return ay;
+  };
+  const slow = lat(60), fast = lat(150);
+  report(slow > 3 && fast < slow * 0.6, 'aquaplaning sobre 1 cm de agua: agarra a 60 km/h y lo pierde a 150',
+    `aceleración lateral ${slow.toFixed(1)} m/s² a 60 km/h · ${fast.toFixed(1)} m/s² a 150`);
 }
 
 void GEARBOX; void BODY;

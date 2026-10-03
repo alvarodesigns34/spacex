@@ -27,7 +27,7 @@ const RW_NAME = RUNWAY.idents[1], RW_HEADING = (100.8 + RUNWAY.angleDeg + 180) %
 const L2 = RUNWAY.length / 2;
 const CAMERAS = ['chase', 'cockpit', 'tower', 'orbit'];
 
-export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, onStart = () => {}, onFinish = () => {}, visibilityHook = null }) {
+export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid = null, hud, onStart = () => {}, onFinish = () => {}, visibilityHook = null }) {
   const airframe = exhibit.model.getObjectByName('f16-airframe');
   const gearGroup = airframe.getObjectByName('f16-landing-gear');
   const holder = new THREE.Group();
@@ -83,7 +83,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
     flame.material.color.setRGB(1, 0.42 + 0.12 * ab, 0.16 + 0.1 * ab);
   }
 
-  const sim = createF16Flight({ ground });
+  const sim = createF16Flight({ ground, solid: (a, b) => solid?.(a, b) ?? false });
   const s = sim.state;
   // `manual`: the checks set `pilot` themselves and the keyboard is not read.
   const state = { running: false, paused: false, camera: 'chase', outcome: null, touchdown: null, messages: [], readout: null, flown: false, manual: false, assist: true };
@@ -308,6 +308,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, hud, on
         airframe: 'The airframe struck the ground.',
         belly: 'Belly landing: the gear was not down.',
         water: 'Into the water.',
+        structure: 'Struck a structure on the ground.',
       }[s.crashed.what] ?? 'Crashed.';
       state.outcome = { kind: 'crash', why };
       note(why);

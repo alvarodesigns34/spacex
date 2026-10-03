@@ -186,13 +186,14 @@ const WHEELS = [
   const k = w.load / w.static, m = w.load / G0;
   return { ...w, k, c: 2 * 0.7 * Math.sqrt(k * m), r: w.p.clone().sub(CG), travel: 0.30 };
 });
-/** Points that must never touch the ground: touching is a crash. From the model: the nose, the
- *  belly, the nozzle's lip (≈14.5° of pitch on the static gear), the wing tips, the ventral fins'
- *  tips and the stabilators' tips. */
+/** Points that must never touch the ground or anything standing on it: touching is a crash. From
+ *  the model: the nose, the belly, the nozzle's lip (≈14.5° of pitch on the static gear), the wing
+ *  tips, the ventral fins' tips, the stabilators' tips, and (for what stands on the ground) the
+ *  canopy's top and the fin's tip (≈ read off the model's side view). */
 const HARD = [
   [0.0, 1.80, 0], [-4.6, 0.99, 0], [-8.0, 0.99, 0], [-12.5, 1.30, 0], [-14.6, 1.33, 0],
   [-10.6, 1.86, -4.57], [-10.6, 1.86, 4.57], [-11.1, 0.55, -0.80], [-11.1, 0.55, 0.80],
-  [-14.0, 1.45, -2.6], [-14.0, 1.45, 2.6],
+  [-14.0, 1.45, -2.6], [-14.0, 1.45, 2.6], [-4.6, 2.94, 0], [-14.0, 5.0, 0],
 ].map(([x, y, z]) => new THREE.Vector3(x, y, z).sub(CG));
 
 const tmpV = new THREE.Vector3(), tmpW = new THREE.Vector3(), tmpQ = new THREE.Quaternion();
@@ -207,7 +208,9 @@ function actuator({ limit, rate, tau }, lo = -limit) {
   } };
 }
 
-export function createF16Flight({ ground }) {
+export function createF16Flight({ ground, solid = null }) {
+  // Each hard point's place at the last step, for the swept test against what stands on the ground.
+  const hardPrev = HARD.map(() => Object.assign(new THREE.Vector3(), { valid: false }));
   // ground(x, z) → { h, hard: true on pavement, water: true on the sea }.
   const s = {
     pos: new THREE.Vector3(), vel: new THREE.Vector3(), q: new THREE.Quaternion(),
@@ -250,6 +253,7 @@ export function createF16Flight({ ground }) {
     s.pos.set(x, g, z).add(tmpV.copy(CG).applyQuaternion(s.q));
     s.vel.set(0, 0, 0); s.w.set(0, 0, 0);
     s.power = s.powerCmd = 0; s.gear = s.gearCmd = 1; s.sb = s.sbCmd = 0;
+    for (const p of hardPrev) p.valid = false;
     s.crashed = null; s.t = 0; Object.assign(ctl, { pitchI: 0, lefX: 0, ydX: 0, qLow: 0, nzF: 1 });
     s.mass = CONFIG.startMass; s.fuel = CONFIG.fuel; s.flameout = false;
     Object.assign(s.domain, { alpha: false, beta: false, mach: false, out: false, tOut: 0 });
@@ -445,10 +449,16 @@ export function createF16Flight({ ground }) {
         Mw.add(X.M.crossVectors(rw, F));
       });
     }
-    for (const r of HARD) {
-      tmpV.copy(r); toWorld(tmpV); tmpV.add(s.pos);
+    for (let i = 0; i < HARD.length; i++) {
+      tmpV.copy(HARD[i]); toWorld(tmpV); tmpV.add(s.pos);
       const g = ground(tmpV.x, tmpV.z);
       if (tmpV.y < g.h) { hit = g.water ? 'water' : 'airframe'; break; }
+      // Below a pool's surface (core/water.js): into the water.
+      if (Number.isFinite(g.surface) && tmpV.y < g.surface) { hit = 'water'; break; }
+      // Into something standing on the ground (core/colliders.js), along the step just flown.
+      const prev = hardPrev[i];
+      if (solid && prev.valid && solid(prev, tmpV)) { hit = 'structure'; break; }
+      prev.copy(tmpV); prev.valid = true;
     }
     if (s.gear <= 0.98) {
       // With the gear in transit or up there is nothing to roll on.

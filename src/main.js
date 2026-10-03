@@ -38,6 +38,8 @@ import { createGt3Drive } from './sim/gt3Drive.js';
 import { createGt3Hud } from './ui/gt3Hud.js';
 import { groundSample } from './core/environment.js';
 import { f16Ground } from './core/f16Ground.js';
+import { waterAt } from './core/water.js';
+import { buildColliders, CELL } from './core/colliders.js';
 import { RUNWAY, fromRunway, toRunway } from './core/terrain.js';
 import { buildOrbitalBackdrop } from './core/backdrop.js';
 import { buildLaunchMount, buildPedestal, buildHumanCrowd } from './vehicles/common.js';
@@ -617,7 +619,7 @@ async function main() {
   // northern Pacific, on SpaceX's own timeline (reentry.js, reentryFlight.js).
   const REENTRY_TEXT = {
     kind: 'Flight 14 re-entry (SpaceX timeline) · northern Pacific · trajectory computed, not telemetry',
-    note: '<summary>Flight 14 re-entry · sources and limits</summary><p><b>Every time on this clock is SpaceX\'s own</b>, from its published flight 14 timeline (28 September 2026): orbit insertion T+25:17–25:36 · deorbit burn T+8:52:37–8:52:48 · entry T+9:28:56 · transonic 9:47:29 · subsonic 9:48:07 · landing burn 9:50:11 · landing flip 9:50:13 · three to two engines 9:50:21 · two to one 9:50:28 · splashdown 9:50:30, in the northern Pacific. The state at entry is <i>derived</i>: an assumed 200 km orbit and ≈190 t ship, the 11 s burn on one 250 tf Raptor, and vis-viva give ≈7.74 km/s at −1.6° at 120 km. The glide is <i>integrated</i> over a spherical Earth, with the lift banked whenever all of it would make the ship climb (≈; no bank profile is published), and its drag, lift-to-drag ratio and belly-flop drag are <i>solved</i> so it goes through Mach 1 and Mach 0.8 at the transonic and subsonic calls and reaches the landing burn at the height a smooth 19 s burn needs. Speeds and heights are the model\'s, not telemetry; the ≈60° angle of attack, the plasma colours and the camera positions are read off SpaceX\'s on-board views, approximately. The ocean and the clouds are generic.</p>',
+    note: '<summary>Flight 14 re-entry · sources and limits</summary><p><b>Every time on this clock is SpaceX\'s own</b>, from its published flight 14 timeline (28 September 2026): orbit insertion T+25:17–25:36 · deorbit burn T+8:52:37–8:52:48 · entry T+9:28:56 · transonic 9:47:29 · subsonic 9:48:07 · landing burn 9:50:11 · landing flip 9:50:13 · three to two engines 9:50:21 · two to one 9:50:28 · splashdown 9:50:30, in the northern Pacific. The state at entry is <i>derived</i> (sim/mission.js): the ship\'s cutoff state from the integrated ascent, on an assumed circular 200 km orbit, coasts to the 11 s deorbit burn on one 250 tf Raptor, and Kepler\'s equation carries it down to 120 km at ≈7.78 km/s, −1.3°, ≈262 t; that chain reaches the interface ≈22 min before the cited time, which the clock keeps. The glide is <i>integrated</i> over a spherical Earth, with the lift banked whenever all of it would make the ship climb (≈; no bank profile is published), and its drag, lift-to-drag ratio and belly-flop drag are <i>solved</i> so it goes through Mach 1 and Mach 0.8 at the transonic and subsonic calls and reaches the landing burn at the height a smooth 19 s burn needs. Speeds and heights are the model\'s, not telemetry; the ≈60° angle of attack, the plasma colours and the camera positions are read off SpaceX\'s on-board views, approximately. The ocean and the clouds are generic.</p>',
   };
   const reentry = createReentry({
     scene, exhibits, complex, env, rig, camera, M,
@@ -657,9 +659,14 @@ async function main() {
     onPause: () => f16fly.setPaused(!f16fly.state.paused),
     onAssist: () => f16fly.setAssist(!f16fly.state.assist),
   });
+  // What the F-16 can fly into (core/colliders.js): the scene's solid geometry, roofs and decks
+  // included, built once when it first flies, the airplane itself left out.
+  let f16Grid = null;
   const f16fly = createF16Fly({
     scene, exhibit: exhibits.f16, env, rig, camera, ground: f16Ground, hud: f16Hud,
+    solid: (a, b) => f16Grid?.hits(a, b) ?? false,
     onStart: () => {
+      if (!f16Grid) f16Grid = buildColliders(scene, { exclude: [exhibits.f16.model], level: true });
       if (launch.running) launch.reset(false);
       if (reentry.running) reentry.reset(false);
       if (view.exhibit !== 'f16') { enforce(view.select('f16', 'launch')); syncHud(); }
@@ -681,6 +688,16 @@ async function main() {
   // this same scene; the instruments and the drive's bar are ui/gt3Hud.js. What each tyre
   // stands on: the circuit's surfaces (core/circuit.js), the runway's pavement, else the
   // plain's ground, grass and sand, with the sea as a hard stop of a kind.
+  // The pad's two concrete levels and the 1:3 earth embankment round them (pad.js), with the
+  // flame trench 4 m down between them: for the car, and the free cameras below.
+  const P0 = exhibits.starship.lay, TW = PAD.trenchHalfW, RUN = PAD.bermY * 3;
+  const padGround = (x, z) => {
+    const lx = Math.abs(x - P0.x), lz = Math.abs(z - P0.z);
+    if (lx < 64 && lz < 46) return lx < TW ? PAD.trenchFloorY : PAD.padY;
+    if (lx < 74 && lz < 52) return PAD.bermY;
+    const d = Math.hypot(Math.max(0, lx - 74), Math.max(0, lz - 52));
+    return d < RUN ? PAD.bermY * (1 - THREE.MathUtils.smoothstep(d, 0, RUN)) : -Infinity;
+  };
   const gt3Ground = (x, z) => {
     const c = circuitSurface(x, z);
     if (c) {
@@ -690,14 +707,28 @@ async function main() {
     const [a, rc] = toRunway(x, z);
     const pave = runwaySurface(a, rc);
     if (pave > 0.01) return { h: pave, mu: 0.95, roll: 0, kind: 'runway' };
-    const h = groundSample(x, -z).h;
-    if (h < -0.9) return { h: -0.9, mu: 0.3, roll: 0.5, kind: 'water' };
-    // The plain: dry grass and silt (≈ μ 0.55, a soft surface's drag).
-    return { h: Math.max(h, -0.85), mu: 0.55, roll: 0.06, kind: 'grass' };
+    const pad = padGround(x, z);
+    if (pad > -Infinity) {
+      const slab = Math.abs(x - P0.x) < 64 && Math.abs(z - P0.z) < 46;   // the concrete, else the embankment's earth
+      return { h: Math.max(pad, terrainHeight(x, z)), mu: slab ? 0.9 : 0.55, roll: slab ? 0 : 0.06, kind: slab ? 'pad' : 'grass' };
+    }
+    // The plain: dry grass and silt (≈ μ 0.55, a soft surface's drag); under water its bed, the
+    // sea's sand or the pools' and channels' mud (core/water.js), with the water's surface.
+    const h = groundSample(x, -z).h, w = waterAt(x, z);
+    if (w) return w.kind === 'sea' ? { h, mu: 0.5, roll: 0.25, kind: 'sand', water: w.surface } : { h, mu: 0.4, roll: 0.15, kind: 'mud', water: w.surface };
+    return { h, mu: 0.55, roll: 0.06, kind: 'grass' };
   };
-  // What the car can hit: the other exhibits, as their occluders (circles in plan, the walking
-  // visitor's obstacles too), near where it is.
+  // What the car can hit: everything solid in the scene (core/colliders.js: its triangles laid
+  // into quarter-metre cells, built once when the drive starts, the car itself left out), as
+  // small circles where something stands more than 12 cm above the ground under it and below
+  // the car's roof; and the other exhibits, as their occluders. Gathered round the car, again
+  // whenever it has moved half a metre.
+  let gt3Grid = null, near = null, nearKey = '';
+  const cellGround = new Map();
   const gt3Obstacles = (x, z) => {
+    const key = `${Math.round(x * 2)},${Math.round(z * 2)}`;
+    if (key === nearKey && near) return near;
+    nearKey = key;
     const out = [];
     for (const [id, ex] of Object.entries(exhibits)) {
       if (id === 'gt3rs') continue;
@@ -706,6 +737,13 @@ async function main() {
         if (Math.abs(cx - x) < r + 4 && Math.abs(cz - z) < r + 4) out.push({ x: cx, z: cz, r });
       }
     }
+    gt3Grid?.query(x - 3.4, z - 3.4, x + 3.4, z + 3.4, (cx, cz, lo, hi) => {
+      const k = `${cx},${cz}`;
+      let h = cellGround.get(k);
+      if (h === undefined) { h = gt3Ground(cx, cz).h; cellGround.set(k, h); }
+      if (hi > h + 0.12 && lo < h + 1.25) out.push({ x: cx, z: cz, r: CELL * 0.75 });
+    });
+    near = out;
     return out;
   };
   const gt3Hud = createGt3Hud({
@@ -722,6 +760,8 @@ async function main() {
     // Where it waits: its own spot on the skid pad, nose to the east.
     home: () => ({ x: exhibits.gt3rs.lay.x, z: exhibits.gt3rs.lay.z, psi: THREE.MathUtils.degToRad(exhibits.gt3rs.lay.yaw ?? 0) }),
     onStart: () => {
+      // The scene's solid geometry, once, without the car (it moves).
+      if (!gt3Grid) { gt3Grid = buildColliders(scene, { exclude: [exhibits.gt3rs.model], maxY: 30 }); near = null; nearKey = ''; }
       if (launch.running) launch.reset(false);
       if (reentry.running) reentry.reset(false);
       if (f16fly.running) f16fly.reset(false);
@@ -1228,14 +1268,7 @@ async function main() {
   // the pad's two concrete levels with the 1:3 earth embankment round them (pad.js). Analytic,
   // so it costs nothing per frame and cannot disagree with a raycast against a hidden mesh.
   {
-    const P = exhibits.starship.lay, tw = PAD.trenchHalfW, RUN = PAD.bermY * 3;
-    const padGround = (x, z) => {
-      const lx = Math.abs(x - P.x), lz = Math.abs(z - P.z);
-      if (lx < 64 && lz < 46) return lx < tw ? PAD.trenchFloorY : PAD.padY;
-      if (lx < 74 && lz < 52) return PAD.bermY;
-      const d = Math.hypot(Math.max(0, lx - 74), Math.max(0, lz - 52));
-      return d < RUN ? PAD.bermY * (1 - THREE.MathUtils.smoothstep(d, 0, RUN)) : -Infinity;
-    };
+    const P = exhibits.starship.lay;
     rig.groundAt = (x, z) => Math.max(terrainHeight(x, z), padGround(x, z), 0);
     // Where a walking visitor cannot go: the mounts and plinths, the launch mount and the tower
     // base. Circles round each footprint, a little generous.

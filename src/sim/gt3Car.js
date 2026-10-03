@@ -28,8 +28,10 @@
  *    aerodynamics in three states: DRS on a straight at full throttle, as Porsche's Auto-DRS
  *    does, the airbrake hard on the brakes from speed, and the normal setting between;
  *  - rear-axle steering, opposite to the fronts at low speed and with them at high (≈ angles);
- *  - contacts with what stands on the ground (circles in plan) and water, whose drag stops the
- *    car and which drowns the engine.
+ *  - contacts with what stands on the ground: the scene's own solid geometry (core/colliders.js)
+ *    and the other exhibits;
+ *  - water (core/water.js): wet grip and aquaplaning, the drag of the water each tyre and the
+ *    body push through, the lift of what the body displaces, flooding, a drowned engine.
  *
  * Frame: world x, z (y up); the car's heading ψ is the angle of its nose from +x towards −z
  * (the scene's yaw), body velocity (u forward, v to the LEFT).
@@ -102,10 +104,25 @@ export const OUTLINE = { front: CAR.a + BODY.overhangFront, rear: -(CAR.b + BODY
 /** Contacts: how much of the closing speed comes back (a bumper's and a barrier's give, ≈), and the sliding friction. */
 const RESTITUTION = 0.22, CONTACT_MU = 0.5;
 /**
- * Water deeper than the tyres: its drag on the body pushing through it (½ρ·Cd·A·v², A the width
- * times ≈0.4 m wetted, Cd ≈1) and the engine drowning when it reaches the intakes (≈).
+ * Water (core/water.js): the ground function gives each tyre the water's surface over its bed.
+ *  - Tyres: a film past ≈3 mm takes some of the grip (≈0.85 of the surface's own, ≈), and fast
+ *    enough a tyre rides up on the water and loses nearly all of it: aquaplaning from ≈0.8 of the
+ *    speed Horne's NASA rule gives for its pressure, V ≈ 10.35·√p (mph, p in psi), ≈94 km/h at
+ *    ≈2.2 bar (the pressure ≈). Each tyre ploughs the water it runs in, ½ρ·Cd·(width × depth)·v²,
+ *    Cd ≈0.7 (≈): one side in a pool pulls the car round.
+ *  - The body: deeper than its floor (≈0.14 m up), it pushes the water ahead of it and aside,
+ *    ½ρ·Cd·(its width, or length, × the depth over the floor)·v², Cd ≈1; and it floats on what it
+ *    displaces, ≈80 % of its plan times that depth, ρg, less what has flooded in. Water over the
+ *    floor finds its way in, ≈45 s to full with the sills under (≈0.3 m over the floor), slower
+ *    shallower (≈: a car sinks in tens of seconds to minutes; there is no figure for this one),
+ *    and the car goes down.
+ *  - The engine drowns when the water reaches its intake (≈0.65 m over the bed at the rear axle).
  */
-const WATER = { rho: 1000, cdA: BODY.width * 0.4, stall: 1.5 };
+const WATER = {
+  rho: 1000, film: 0.003, wetMu: 0.85, vAq: 26.1, tyreCd: 0.7, floor: 0.14, bodyCd: 1.0,
+  plan: 0.8, sills: 0.3, floodTime: 45, intake: 0.65, sunk: 1.2,
+};
+const TYRE_W = [WHEELS.front.width, WHEELS.front.width, WHEELS.rear.width, WHEELS.rear.width];
 
 export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'track' }), obstacles = () => [] } = {}) {
   // Every integrated or filtered quantity starts from here, at creation and at each reset, so a
@@ -135,7 +152,12 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     travel: [0, 0, 0, 0],             // each wheel's travel from the body's plane, m (+ compressed)
     air: 0,                           // s airborne
     impact: 0,                        // the hardest contact this step: closing speed, m/s
-    wet: 0,                           // s in water (two wheels or more); the engine drowns after WATER.stall
+    wet: 0,                           // s since the engine drowned (0 while it runs)
+    drowned: false,                   // the engine has taken in water: dead until the car is reset
+    water: [0, 0, 0, 0],              // the water's depth at each tyre, m
+    immersion: 0,                     // the water's depth over the body's floor, m
+    flood: 0,                         // how far the body has flooded, 0..1
+    afloat: false, sunk: false,
   });
   const s = Object.assign(fresh(), { tc: true });   // PSM (traction and stability control): on by default
   const input = { throttle: 0, brake: 0, steer: 0, handbrake: 0, reverse: false };
@@ -187,6 +209,28 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     // plane through the four contact patches, through springs and dampers that can only push —
     // over a crest taken fast the car goes light, and leaves the ground.
     const gp = groundPlane(), grs = gp.grs, S = SUSPENSION;
+    // ---- Water: its depth at each tyre, and over the body's floor; the lift it gives, flooding.
+    let wS = -Infinity;
+    for (let i = 0; i < 4; i++) {
+      const wsf = grs[i].water;
+      s.water[i] = Number.isFinite(wsf) ? Math.max(0, wsf - grs[i].h) : 0;
+      if (Number.isFinite(wsf)) wS = Math.max(wS, wsf);
+    }
+    const imm = Number.isFinite(wS) ? clamp(wS - (s.hz + WATER.floor), 0, 1.1) : 0;
+    s.immersion = imm;
+    // Water over the floor finds its way in through the seals and vents, faster the deeper it is.
+    if (imm > 0.12) s.flood = Math.min(1, s.flood + dt / WATER.floodTime * clamp(imm / WATER.sills, 0.4, 2));
+    const planA = WATER.plan * BODY.length * BODY.width;
+    const buoy = WATER.rho * G * planA * imm * (1 - 0.92 * s.flood);
+    const lifted = clamp(buoy / (CAR.m * G), 0, 1);
+    // Afloat, the body rides at its draft on the water instead of on its springs.
+    const draft = CAR.m / (WATER.rho * planA * Math.max(0.08, 1 - 0.92 * s.flood));
+    const floatH = Number.isFinite(wS) ? wS - draft - WATER.floor : -Infinity;
+    // (Only while what it displaces, the body's height at most, can hold its weight up.)
+    s.afloat = draft < 1.1 && floatH > gp.hc + 0.02;
+    // Afloat it rides level on the water, and the bed's slope no longer acts on it.
+    if (s.afloat) { gp.hc = floatH; gp.th = 0; gp.ph = 0; gp.warp = 0; }
+    s.sunk = Number.isFinite(wS) && wS - s.hz > WATER.sunk;
     const wH = TAU * S.heaveHz, wP = TAU * S.pitchHz, wL = TAU * S.rollHz;
     const hcDot = clamp((gp.hc - s.gnd[0]) / dt, -3, 3), thDot = clamp((gp.th - s.gnd[1]) / dt, -3, 3), phDot = clamp((gp.ph - s.gnd[2]) / dt, -3, 3);
     s.gnd[0] = gp.hc; s.gnd[1] = gp.th; s.gnd[2] = gp.ph;
@@ -224,6 +268,8 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
       load[3] = Math.max(0, load[3] + heave * shareR - pitch / 2 - rollR + warp);
     }
     if (carried < 0.02) load.fill(0);
+    // What the water carries, the tyres do not.
+    if (lifted > 0) for (let i = 0; i < 4; i++) load[i] *= 1 - lifted;
     // ay > 0 is to the left: the right-hand tyres take the load.
     s.load = load;
     // ---- Steering: the fronts, and the rears a little (opposite slow, with them fast).
@@ -239,10 +285,10 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
       steerAt[0] = s.steer > 0 ? dIn : dOut; steerAt[1] = s.steer > 0 ? dOut : dIn;
     }
     for (let i = 0; i < 4; i++) s.steerW[i] = steerAt[i];
-    // In water: the engine drowns.
-    const inWater = grs.filter(g => g.kind === 'water').length >= 2;
-    s.wet = inWater ? s.wet + dt : 0;
-    const drowned = s.wet > WATER.stall;
+    // In water: the engine drowns once the water reaches its intake, and stays dead.
+    if (Number.isFinite(wS) && wS - (grs[2].h + grs[3].h) / 2 > WATER.intake) s.drowned = true;
+    const drowned = s.drowned;
+    s.wet = drowned ? s.wet + dt : 0;
     // ---- Drive: the engine on its own inertia, the PDK's clutch, the gearbox.
     const ratio = s.reverse ? -GEARBOX.reverse : GEARBOX.ratios[s.gear - 1];
     const Gt = ratio * GEARBOX.final;
@@ -334,7 +380,12 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
       const wx = vx * cd + vy * sd, wy = -vx * sd + vy * cd;
       const gr = grs[i];
       s.surface[i] = gr.kind;
-      const mu = TYRES.mu * AXLE_MU[i] * gr.mu * (1 - TYRES.muLoadSens * (load[i] / (mg / 4) - 1));
+      let mu = TYRES.mu * AXLE_MU[i] * gr.mu * (1 - TYRES.muLoadSens * (load[i] / (mg / 4) - 1));
+      // Water on the road: less grip, and fast enough, aquaplaning.
+      if (s.water[i] > WATER.film) {
+        const ride = clamp((Math.abs(wx) - 0.8 * WATER.vAq) / (0.3 * WATER.vAq), 0, 1) * clamp(s.water[i] / 0.008, 0, 1);
+        mu *= WATER.wetMu * (1 - 0.9 * ride);
+      }
       const R = RAD[i];
       const denom = Math.max(Math.abs(wx), 3);
       // Slip angle with a relaxation length: it builds over the first ≈0.35 m rolled.
@@ -367,30 +418,41 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
       s.slip[i] = sl; s.kap[i] = kap;
       // Rolling resistance and the surface's drag (gravel) act on the car, not through the wheel.
       roll += (TYRES.rolling + gr.roll) * load[i] * Math.tanh(wx / 0.5);
+      // The water the tyre ploughs through, against its rolling.
+      const fw = s.water[i] > 0 ? 0.5 * WATER.rho * WATER.tyreCd * TYRE_W[i] * Math.min(s.water[i], 2 * R) * wx * Math.abs(wx) : 0;
       // Back to the body frame.
-      const bx = fx * cd - fy * sd, by = fx * sd + fy * cd;
+      const bx = (fx - fw) * cd - fy * sd, by = (fx - fw) * sd + fy * cd;
       Fx += bx; Fy += by;
       Mz += px * by - py * bx;
     }
     Fx -= roll;
     // ---- Body.
     Fx -= dragX; Fy -= dragY;
-    if (inWater) { const kW = 0.5 * WATER.rho * WATER.cdA * V; Fx -= kW * s.u; Fy -= kW * s.v; }
+    // The body pushing the water ahead of it and aside, and the water damping its turning.
+    if (imm > 0) {
+      const kW = 0.5 * WATER.rho * WATER.bodyCd * imm;
+      Fx -= kW * BODY.width * s.u * Math.abs(s.u); Fy -= kW * BODY.length * s.v * Math.abs(s.v);
+      Mz -= kW * BODY.width * BODY.length ** 3 / 32 * s.r * Math.abs(s.r);
+    }
     // On a slope, the weight's part along it (as far as the springs carry the car).
-    const axB = Fx / CAR.m - G * Math.sin(gp.th) * carried, ayB = Fy / CAR.m - G * Math.sin(gp.ph) * carried;
+    const onBed = carried * (1 - lifted);
+    const axB = Fx / CAR.m - G * Math.sin(gp.th) * onBed, ayB = Fy / CAR.m - G * Math.sin(gp.ph) * onBed;
     s.u += (axB + s.v * s.r) * dt;
     s.v += (ayB - s.u * s.r) * dt;
     s.r += Mz / CAR.Iz * dt;
     // At a standstill, no creeping: friction holds it.
     // (Not on a slope steeper than the rolling resistance holds, without the brake: there it rolls.)
-    if (V < 0.05 && input.throttle === 0 && (input.brake > 0.05 || Math.abs(Math.sin(gp.th)) < TYRES.rolling * 1.5)) { s.u *= 0.9; s.v *= 0.9; s.r *= 0.9; }
+    if (V < 0.05 && input.throttle === 0 && !s.afloat && (input.brake > 0.05 || Math.abs(Math.sin(gp.th)) < TYRES.rolling * 1.5)) { s.u *= 0.9; s.v *= 0.9; s.r *= 0.9; }
     s.ax += (axB - s.ax) * Math.min(1, dt * 12);
     s.ay += (ayB - s.ay) * Math.min(1, dt * 12);
     // Heading and position (ψ from +x towards −z: forward is (cos ψ, −sin ψ) in x, z; left is (−sin ψ, −cos ψ)).
     s.psi += s.r * dt;
-    s.x += (s.u * c - s.v * sn) * dt;
-    s.z += (-s.u * sn - s.v * c) * dt;
-    contacts();
+    // The move, and the contacts along it: in steps of 10 cm at most, so a fast car meets a thin
+    // fence instead of stepping over it between two checks.
+    const dxm = (s.u * c - s.v * sn) * dt, dzm = (-s.u * sn - s.v * c) * dt;
+    const nm = Math.max(1, Math.ceil(Math.hypot(dxm, dzm) / 0.1));
+    s.impact = 0;
+    for (let k = 0; k < nm; k++) { s.x += dxm / nm; s.z += dzm / nm; contacts(); }
     // The engine follows the wheels while the clutch is closed (a stalling engine opens it).
     if (s.clutchLocked) {
       s.rpm = (s.w[2] + s.w[3]) / 2 * Gt * RPM;
@@ -413,7 +475,6 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
    * blow turns the car. s.impact keeps the hardest closing speed of the step.
    */
   function contacts() {
-    s.impact = 0;
     for (const o of obstacles(s.x, s.z)) {
       const c = Math.cos(s.psi), sn = Math.sin(s.psi);
       // The obstacle's centre in the body frame (forward, left).

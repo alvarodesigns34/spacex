@@ -784,6 +784,38 @@ Revisión pieza a pieza contra las fotos de estudio, con sus cámaras ajustadas 
   - Las seis aletas del difusor van donde la foto: ±0,155, ±0,306 y ±0,474 m, de 0,19 a 0,32 m de altura; antes colgaban por debajo del coche.
 - **Retrovisores:** la carcasa medía 0,13 m de ancho vista de frente; en la foto, ≈0,17 m.
 
+### Físicas del mapa: agua de verdad, desniveles y colisiones con todo (3 de octubre de 2026)
+
+El usuario lo encontró: con el Porsche se pasaba por encima de los lagos como si nada, y se atravesaban vallas, vehículos y estructuras. Era así:
+- Las charcas solo existían en el sombreador y en una lámina de agua de 6 cm sobre suelo plano.
+- El mar era un «suelo» duro a −0,9 m.
+- El coche solo chocaba con los expositores, como círculos.
+
+Ahora:
+
+- **El agua tiene fondo** (`src/core/water.js`, `terrain.js` `poolShape`/`poolDepth`):
+  - Las charcas son la misma silueta que dibuja `campus.js`, ahora compartida, con el lecho excavado en el suelo hasta 0,35 m en el centro bajo el agua (≈: no hay batimetría de estas charcas).
+  - El mar conserva su superficie a −0,9 m sobre el talud real de la orilla, hasta 9 m de fondo.
+  - Los canales de marisma que pinta el sombreador se calculan con la misma función, portada a JavaScript con la precisión simple de la GPU: lo que se ve como agua es agua. Ahí es una película de ≈4 cm sobre barro, porque la malla del suelo es demasiado gruesa para tallar cauces de pocos metros.
+- **El coche en el agua** (`gt3Car.js`):
+  - Con más de ≈3 mm de lámina pierde agarre (≈0,85 del de la superficie), y deprisa hace aquaplaning. Empieza hacia el 80 % de la velocidad que da la regla de Horne de la NASA, V ≈ 10,35·√p (mph, psi): ≈94 km/h a ≈2,2 bar (presión ≈).
+  - Cada neumático empuja el agua por la que pasa, ½ρ·Cd·(ancho × profundidad)·v² con Cd ≈0,7. Una charca por un solo lado hace girar el coche.
+  - Con el agua por encima del suelo del coche (≈0,14 m), la carrocería la aparta (Cd ≈1) y flota sobre lo que desplaza (≈80 % de su planta). A 0,40 m de agua un coche de 1.450 kg queda a flote y sin tracción, como advierte el servicio meteorológico de EE. UU. («Turn Around Don't Drown»).
+  - Se inunda poco a poco, ≈45 s con los umbrales bajo el agua (≈), y se hunde hasta el fondo. A flote va nivelado y la pendiente del fondo ya no lo empuja.
+  - El motor se ahoga cuando el agua llega a la admisión (≈0,65 m sobre el fondo en el eje trasero) y no vuelve a arrancar hasta reiniciar.
+  - Se ve: cada neumático en el agua levanta salpicaduras balísticas que caen de vuelta, y la carrocería empuja una ola de proa. Los avisos dicen cuándo entra en el agua, cuándo flota, cuándo se ahoga el motor y cuándo se hunde. La cámara de persecución no baja del agua.
+- **Desniveles:** el coche pisa también el pad de lanzamiento: sus dos niveles de hormigón, el foso de llamas 4 m más abajo y el terraplén 1:3 alrededor. Antes lo atravesaba al nivel del suelo.
+- **Colisiones con todo lo sólido** (`src/core/colliders.js`):
+  - Cada triángulo de la escena estática se reparte en celdas de 0,25 m en planta, con la altura mínima y máxima de lo que las cruza. Se construye una vez al empezar a conducir o a volar, sin el vehículo que se mueve, en menos de 1 s.
+  - Para el coche, cada celda donde algo se alza más de 12 cm sobre el suelo y por debajo del techo es un pequeño obstáculo: la valla, los postes, los tanques, los atriles, las personas, los demás vehículos. Las caras horizontales (cubiertas, suelos) no cuentan: lo que para un coche son los lados.
+  - El movimiento se comprueba en pasos de 10 cm como mucho: a 250 km/h el coche choca con una valla de postes y no la atraviesa entre dos comprobaciones.
+  - El F-16 comprueba sus puntos duros, ahora también la cúpula y la punta de la deriva, a lo largo de cada paso de vuelo. Contra cualquier estructura, tejados incluidos, se estrella; también si toca el agua de una charca.
+- **Pruebas nuevas:**
+  - en `tools/gt3rs-check.mjs`: el mar (frena, se ahoga el motor, flota, se inunda y se hunde), las charcas (0,25 m las cruza; 0,40 m flota), el aquaplaning (agarra a 60 km/h, lo pierde a 150) y la valla a 250 km/h;
+  - en `tools/f16-check.mjs`: una torre (a 20 m se estrella; a 80 m pasa por encima).
+- **F-16, puertas del tren:** la del tren de morro iba delante de la pata, y en las fotos de la USAF (DVIDS 7682498 y 8138193, dominio público) va detrás. La del tren principal era un rectángulo centrado sobre la rueda; es un trapecio por delante de ella, colgado del borde inferior del fuselaje y abierto hacia fuera.
+- **Nota de la reentrada:** seguía dando el estado de entrada anterior a la cadena de misión (≈190 t, 7,74 km/s a −1,6°). Ahora da el de la cadena, ≈262 t, 7,78 km/s a −1,3°, y el desfase de 22 min.
+
 ### Flight 14: una sola misión del corte a la entrada (2 de octubre de 2026)
 
 Hallazgos P1 de la auditoría sobre Flight 14 (H28, H30, H32 y H33, en parte). Las pruebas nuevas están en `tools/mission-check.mjs`.
@@ -1129,6 +1161,8 @@ src/sim/missionClock.js    reloj de misión independiente de los fotogramas
 src/sim/mission.js         Flight 14 como una sola misión: corte, órbita, salida de órbita, entrada
 src/ui/hud.js              interfaz
 src/ui/telemetryList.js    lecturas de conducción y vuelo como texto, para lectores de pantalla
+src/core/water.js          dónde hay agua (mar, charcas, canales) y a qué profundidad
+src/core/colliders.js      todo lo sólido de la escena, en celdas de 0,25 m, para los choques
 eslint.config.js           análisis estático (primer paso de npm run check)
 docs/historial.md          rondas anteriores, rotuladas como históricas
 ```
