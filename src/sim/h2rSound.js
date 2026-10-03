@@ -1,27 +1,125 @@
 /**
- * The Ninja H2R's sound, synthesised, and opt-in like the Porsche's: nothing is created or played
- * until the visitor turns it on from the ride bar (a click, which browsers require for audio).
+ * The Ninja H2R's sound, synthesised sample by sample, and opt-in like the Porsche's: nothing is
+ * created or played until the visitor turns it on (a click, which browsers require for audio).
  *
- * What it models (≈, chosen by ear, not a recording or a measured spectrum):
- *  - The inline four's firing: a four-stroke four fires twice a turn, so the main note is order
- *    2 of the crank — 483 Hz at the 14,500 /min limiter, 43 Hz at idle — with order 4 above it
- *    and a little order 1 for the crank's own unevenness.
- *  - The supercharger: its impeller, gear-driven from the crank, whines at a fixed multiple of
- *    the engine's speed — ≈9.2 times, the up to ≈130,000 /min Kawasaki gives for it at the top of
- *    the range — louder with the boost (the throttle and the revs).
- *  - Load: the throttle opens the induction (band noise tracking the firing) and the exhaust's
- *    rasp; shut at high revs, a short chirp as the boost bleeds off, and now and then a crackle.
- *  - The tyres sliding on a hard surface, gravel's rumble off it, and the wind, which on a bike
- *    is most of what is heard at speed.
+ * How (≈, chosen by ear against onboard recordings; not a recording):
+ *  - The exhaust is built from its pulses. An inline four with a 180° crank fires evenly, twice a
+ *    revolution, in the order 1-2-4-3: each firing is a pressure pulse — a fast rise and a decay
+ *    of ≈1.5 ms — its size set by the load, with a little difference from cylinder to cylinder
+ *    (the headers' lengths), so the note has the slight roughness a real four has. The pulse train
+ *    rings the exhaust's resonances (≈ the collector, the headers and the silencer's cavity) and is
+ *    clipped softly, more under load: a low howl at low revs, a scream towards 14,000.
+ *  - The supercharger: its impeller, driven by the crank through gears, whines at ≈9.2 times the
+ *    crank's speed (up to ≈130,000 /min, as Kawasaki gives it), louder with the boost; when the
+ *    throttle snaps shut on boost, the recirculation chirps.
+ *  - Overrun: with the throttle shut at high revs, the pulses weaken and some cylinders misfire into
+ *    the hot exhaust — pops and crackles.
+ *  - The primary gears' whine (49 teeth on the crank) under load, the intake's roar through the ram
+ *    air, the quick-shifter's cut and the limiter's stutter come from the engine's own state; the
+ *    tyres sliding and the wind (most of what a rider hears at speed) are mixed in on top.
+ * Off the worklet (an old browser), it falls back to a few oscillators.
  */
-function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
+const WORKLET = `
+class H2RExhaust extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.rpm = 1300; this.load = 0; this.thr = 0; this.cut = 0; this.on = 0;
+    this.tRpm = 1300; this.tLoad = 0; this.tThr = 0; this.tCut = 0;
+    this.theta = 0; this.next = 0; this.cyl = 0;
+    this.env = 0; this.envSlow = 0; this.pop = 0; this.chirp = 0; this.lastThr = 0;
+    this.sc = 0; this.gear = 0; this.seed = 12345;
+    // Resonators (biquad band-passes) — state per filter.
+    this.res = [ { f: 170, q: 3.2, g: 1.0 }, { f: 480, q: 4.5, g: 0.55 }, { f: 1150, q: 5, g: 0.3 }, { f: 2600, q: 3, g: 0.12 } ].map(r => ({ ...r, x1: 0, x2: 0, y1: 0, y2: 0, b0: 0, a1: 0, a2: 0 }));
+    this.cylGain = [1.0, 0.93, 1.05, 0.97];
+    this.lp = 0; this.lp2 = 0; this.hp = 0; this.nb = 0;
+    this.port.onmessage = (e) => { const d = e.data; this.tRpm = d.rpm; this.tLoad = d.load; this.tThr = d.thr; this.tCut = d.cut; this.on = d.on; };
+  }
+  rnd() { this.seed = (this.seed * 1664525 + 1013904223) >>> 0; return this.seed / 4294967296; }
+  design(r, sr) {
+    const w = 2 * Math.PI * r.f / sr, al = Math.sin(w) / (2 * r.q);
+    const a0 = 1 + al; r.b0 = al / a0; r.a1 = -2 * Math.cos(w) / a0; r.a2 = (1 - al) / a0;
+  }
+  process(_, outputs) {
+    const out = outputs[0][0], sr = sampleRate, n = out.length;
+    // Smooth the controls over the block.
+    this.rpm += (this.tRpm - this.rpm) * 0.25; this.load += (this.tLoad - this.load) * 0.2;
+    this.thr += (this.tThr - this.thr) * 0.3; this.cut = this.tCut;
+    // The resonances shift a little with the exhaust's temperature (≈ with revs and load).
+    const heat = 1 + 0.12 * (this.rpm / 14000) + 0.05 * this.load;
+    this.res[0].f = 170 * heat; this.res[1].f = 480 * heat; this.res[2].f = 1150 * heat; this.res[3].f = 2600 * heat;
+    for (const r of this.res) this.design(r, sr);
+    if (this.lastThr > 0.6 && this.thr < 0.2 && this.rpm > 8000) this.chirp = 1;
+    this.lastThr = this.thr;
+    const fCrank = this.rpm / 60, dTheta = 2 * Math.PI * fCrank / sr;
+    const decay = Math.exp(-1 / (sr * (0.0011 + 0.0012 * (1 - this.rpm / 15000))));
+    const slow = Math.exp(-1 / (sr * 0.006));
+    const overrun = this.thr < 0.06 && this.rpm > 6000;
+    for (let i = 0; i < n; i++) {
+      this.theta += dTheta;
+      let imp = 0;
+      // A firing every 180° of crank.
+      while (this.theta >= this.next) {
+        this.next += Math.PI;
+        const c = this.cyl; this.cyl = (this.cyl + 1) % 4;
+        let a = (0.22 + 0.78 * this.load) * (0.55 + 0.75 * this.rpm / 14000) * this.cylGain[c] * (0.92 + 0.16 * this.rnd());
+        if (this.cut > 0.5) a *= this.rnd() < 0.85 ? 0.04 : 0.6;      // the limiter / the quick-shifter's cut
+        if (overrun) {
+          a *= 0.18;
+          if (this.rnd() < 0.035 * Math.min(1, this.rpm / 12000)) this.pop = 0.9 + 0.6 * this.rnd();   // a misfire lights in the pipe
+        }
+        imp += a;
+      }
+      if (this.theta > 1e6) { this.theta -= 1e6; this.next -= 1e6; }
+      // The pulse: a fast rise into a short decay (two one-pole envelopes).
+      this.env = this.env * decay + imp;
+      this.envSlow = this.envSlow * slow + imp * 0.15;
+      const pulse = this.env - this.envSlow * 0.6;
+      // Pops: bursts of noise, decaying in ≈20 ms.
+      let popS = 0;
+      if (this.pop > 0.01) { popS = (this.rnd() * 2 - 1) * this.pop; this.pop *= 0.9975; }
+      // Ring the exhaust's resonances.
+      let y = 0;
+      const x = pulse + popS * 0.8;
+      for (const r of this.res) {
+        const o = r.b0 * x - r.b0 * r.x2 - r.a1 * r.y1 - r.a2 * r.y2;
+        r.x2 = r.x1; r.x1 = x; r.y2 = r.y1; r.y1 = o;
+        y += o * r.g;
+      }
+      // The body of the pulse itself, low-passed: the thump under the note.
+      this.lp += (pulse - this.lp) * 0.08; this.lp2 += (this.lp - this.lp2) * 0.08;
+      y = y * 2.2 + this.lp2 * 0.9;
+      // Soft clipping, harder with the load (the rasp).
+      const drive = 1.2 + 2.4 * this.load;
+      y = Math.tanh(y * drive) / Math.tanh(drive);
+      // Supercharger whine: ≈9.2 × the crank, two harmonics, with the boost.
+      this.sc += 2 * Math.PI * fCrank * 9.2 / sr; if (this.sc > 1e6) this.sc -= 1e6;
+      const boost = this.load * Math.pow(this.rpm / 14000, 1.6);
+      y += (Math.sin(this.sc) * 0.9 + Math.sin(this.sc * 2) * 0.25) * (0.006 + 0.07 * boost);
+      // Primary gear whine (49 teeth on the crank).
+      this.gear += 2 * Math.PI * fCrank * 49 / sr; if (this.gear > 1e6) this.gear -= 1e6;
+      y += Math.sin(this.gear) * 0.012 * this.load * (this.rpm / 14000);
+      // The recirculation chirp: a falling whistle as the boost bleeds off.
+      if (this.chirp > 0.01) { y += Math.sin(this.sc * (0.6 + this.chirp)) * this.chirp * 0.18; this.chirp *= 0.99965; }
+      // Intake roar through the ram air: band noise.
+      const nz = this.rnd() * 2 - 1; this.nb += (nz - this.nb) * (0.15 + 0.3 * this.rpm / 14000);
+      y += this.nb * 0.05 * this.thr * (0.3 + this.rpm / 14000);
+      // A DC block.
+      const o = y - this.hp; this.hp += o * 0.002;
+      out[i] = Math.tanh(o * 0.6 * (0.8 + 1.6 * (this.rpm / 14000) ** 2)) * this.on;
+    }
+    return true;
+  }
+}
+registerProcessor('h2r-exhaust', H2RExhaust);
+`;
 
-const MAX = 14500, BLOWER = 9.2;
+function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
+const MAX = 14500;
 
 export function createH2rSound() {
-  let ctx = null, enabled = false, N = null;
+  let ctx = null, enabled = false, N = null, building = null;
 
-  function build() {
+  async function build() {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return false;
     ctx = new AC();
@@ -31,33 +129,29 @@ export function createH2rSound() {
     const loopNoise = () => { const s = ctx.createBufferSource(); s.buffer = noise; s.loop = true; s.start(); return s; };
     const gain = (v = 0) => { const g = ctx.createGain(); g.gain.value = v; return g; };
     const comp = ctx.createDynamicsCompressor();
-    comp.threshold.value = -14; comp.ratio.value = 3; comp.attack.value = 0.005; comp.release.value = 0.25;
-    const master = gain(0.7);
+    comp.threshold.value = -12; comp.ratio.value = 3; comp.attack.value = 0.004; comp.release.value = 0.2;
+    const master = gain(0.8);
     master.connect(comp); comp.connect(ctx.destination);
-    const eng = gain(1), clip = ctx.createWaveShaper(), tone = ctx.createBiquadFilter(), engOut = gain(0);
-    clip.curve = Float32Array.from({ length: 1025 }, (_, i) => { const x = (i / 512 - 1) * 2.6; return Math.tanh(x) * 0.8; });
-    clip.oversample = '2x';
-    tone.type = 'lowpass'; tone.Q.value = 1.1;
-    eng.connect(clip); clip.connect(tone); tone.connect(engOut); engOut.connect(master);
-    const osc = (type, level, out = eng) => { const o = ctx.createOscillator(); o.type = type; const g = gain(level); o.connect(g); g.connect(out); o.start(); return o; };
-    const o2 = osc('sawtooth', 0.55), o1 = osc('square', 0.1), o4 = osc('triangle', 0.25);
-    // The supercharger's whine: a pure tone, straight to the output.
-    const whG = gain(0); whG.connect(master);
-    const wh = osc('sine', 1, whG), wh2 = osc('sine', 0.25, whG);
-    const ind = ctx.createBiquadFilter(); ind.type = 'bandpass'; ind.Q.value = 3;
-    const indG = gain(0); loopNoise().connect(ind); ind.connect(indG); indG.connect(master);
-    // The chirp: a quick falling band as the throttle shuts on boost.
-    const ch = ctx.createBiquadFilter(); ch.type = 'bandpass'; ch.Q.value = 6;
-    const chG = gain(0); loopNoise().connect(ch); ch.connect(chG); chG.connect(master);
-    const pop = ctx.createBiquadFilter(); pop.type = 'bandpass'; pop.frequency.value = 2000; pop.Q.value = 0.7;
-    const popG = gain(0); loopNoise().connect(pop); pop.connect(popG); popG.connect(master);
+    let engine = null, fallback = null;
+    try {
+      const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
+      await ctx.audioWorklet.addModule(url);
+      engine = new AudioWorkletNode(ctx, 'h2r-exhaust', { numberOfOutputs: 1, outputChannelCount: [1] });
+      engine.connect(master);
+    } catch {
+      // No worklet: a few oscillators on the firing orders.
+      const eng = gain(0); eng.connect(master);
+      const osc = (type, level) => { const o = ctx.createOscillator(); o.type = type; const g = gain(level); o.connect(g); g.connect(eng); o.start(); return o; };
+      fallback = { eng, o2: osc('sawtooth', 0.5), o4: osc('triangle', 0.25) };
+    }
     const sq = ctx.createBiquadFilter(); sq.type = 'bandpass'; sq.frequency.value = 1250; sq.Q.value = 14;
     const sqG = gain(0); loopNoise().connect(sq); sq.connect(sqG); sqG.connect(master);
     const gr = ctx.createBiquadFilter(); gr.type = 'lowpass'; gr.frequency.value = 260;
     const grG = gain(0); loopNoise().connect(gr); gr.connect(grG); grG.connect(master);
+    // The wind round the helmet: broadband, low-passed, rising with the square of the speed.
     const wd = ctx.createBiquadFilter(); wd.type = 'lowpass'; wd.frequency.value = 900;
     const wdG = gain(0); loopNoise().connect(wd); wd.connect(wdG); wdG.connect(master);
-    N = { master, o1, o2, o4, wh, wh2, whG, tone, engOut, ind, indG, ch, chG, popG, sq, sqG, grG, wdG, popUntil: 0, chirpUntil: 0, lastThr: 0, r };
+    N = { master, engine, fallback, sq, sqG, grG, wd, wdG, r };
     return true;
   }
 
@@ -75,38 +169,34 @@ export function createH2rSound() {
     get enabled() { return enabled; },
     get contextState() { return ctx?.state ?? 'none'; },
     setEnabled(on) {
-      if (on && !ctx && !build()) return;
       enabled = !!on;
+      if (enabled && !ctx && !building) building = build().then(ok => { if (!ok) enabled = false; });
       if (!ctx) return;
       if (enabled) ctx.resume?.();
-      set(N.master.gain, enabled ? 0.7 : 0, 0.08);
+      if (N) set(N.master.gain, enabled ? 0.8 : 0, 0.08);
     },
-    /** Per frame while riding: `s` the bike's state (rpm, u, slide, crashed), `i` its input. */
+    /** Per frame while riding: `s` the bike's state, `i` its input, `surface` what is underneath. */
     update(s, i, surface = 'track') {
       if (!enabled || !ctx || !N) return;
-      set(N.master.gain, 0.7, 0.08);
+      set(N.master.gain, 0.8, 0.08);
       const dead = !!s.crashed;
-      const rpm = Math.max(600, dead ? 0 : s.rpm), f = rpm / 60 * 2, thr = dead ? 0 : Math.max(0, Math.min(1, i.throttle));
-      set(N.o2.frequency, f, 0.01); set(N.o1.frequency, f / 2, 0.01); set(N.o4.frequency, f * 2, 0.01);
-      set(N.tone.frequency, 600 + 1400 * (rpm / MAX) + 4800 * thr, 0.03);
-      set(N.engOut.gain, dead ? 0 : 0.10 + 0.22 * thr + 0.10 * rpm / MAX, 0.03);
-      const blower = rpm * BLOWER / 60;
-      set(N.wh.frequency, blower, 0.02); set(N.wh2.frequency, blower * 2, 0.02);
-      set(N.whG.gain, dead ? 0 : 0.012 + 0.05 * thr * (rpm / MAX) ** 1.5, 0.05);
-      set(N.ind.frequency, f * 2, 0.02);
-      set(N.indG.gain, 0.12 * thr * (0.4 + rpm / MAX), 0.04);
-      const t = ctx.currentTime;
-      // Throttle snapped shut on boost: the chirp.
-      if (N.lastThr > 0.6 && thr < 0.2 && rpm > 8000) { N.chirpUntil = t + 0.18; set(N.ch.frequency, 3200, 0.001); set(N.ch.frequency, 1400, 0.06); }
-      N.lastThr = thr;
-      set(N.chG.gain, t < N.chirpUntil ? 0.3 : 0, 0.01);
-      if (thr < 0.05 && rpm > 7000 && t > N.popUntil && N.r() < 0.02) N.popUntil = t + 0.04 + 0.1 * N.r();
-      set(N.popG.gain, t < N.popUntil ? 0.3 * (0.5 + N.r()) : 0, 0.006);
-      const speed = Math.abs(s.u), hard = surface !== 'gravel' && surface !== 'grass';
-      set(N.sqG.gain, hard ? Math.min(0.28, (s.slide ?? 0) * 1.2) * Math.min(1, speed / 4) : 0, 0.05);
+      const rpm = dead ? 0 : Math.max(900, s.rpm), thr = dead ? 0 : Math.max(0, Math.min(1, i.throttle));
+      // Load: the throttle, held down a little by the traction control's and the shifter's cuts.
+      const load = thr * (s.tc ? 0.6 : 1) * (s.shift > 0 ? 0.1 : 1);
+      if (N.engine) N.engine.port.postMessage({ rpm, load, thr, cut: s.fuelCut || s.shift > 0 ? 1 : 0, on: dead ? 0 : 1 });
+      else if (N.fallback) {
+        const f = rpm / 60 * 2;
+        set(N.fallback.o2.frequency, f, 0.01); set(N.fallback.o4.frequency, f * 2, 0.01);
+        set(N.fallback.eng.gain, dead ? 0 : 0.1 + 0.25 * thr, 0.03);
+      }
+      const t = ctx.currentTime, speed = Math.abs(s.u), hard = surface !== 'gravel' && surface !== 'grass';
+      const sliding = Math.max(s.slide ?? 0, Math.max(0, (s.slip ?? 0) - 0.15) * 2, s.lock > 0 ? 0.4 : 0);
+      set(N.sqG.gain, hard ? Math.min(0.3, sliding * 1.2) * Math.min(1, speed / 4) : 0, 0.05);
       set(N.sq.frequency, 1150 + 180 * Math.sin(t * 7.3) + 120 * N.r(), 0.05);
-      set(N.grG.gain, hard && !dead ? 0 : Math.min(0.5, speed / 20), 0.08);
-      set(N.wdG.gain, Math.min(0.5, (speed / 70) ** 2 * 0.45), 0.1);
+      set(N.grG.gain, (hard && !dead) ? 0 : Math.min(0.5, speed / 20), 0.08);
+      set(N.wdG.gain, Math.min(0.6, (speed / 70) ** 2 * 0.5), 0.1);
+      set(N.wd.frequency, 500 + speed * 12, 0.1);
+      void MAX;
     },
     stop() { if (ctx && N) set(N.master.gain, 0, 0.05); },
   };

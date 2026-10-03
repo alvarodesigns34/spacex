@@ -785,31 +785,33 @@ Revisión pieza a pieza contra las fotos de estudio, con sus cámaras ajustadas 
   - Las seis aletas del difusor van donde la foto: ±0,155, ±0,306 y ±0,474 m, de 0,19 a 0,32 m de altura; antes colgaban por debajo del coche.
 - **Retrovisores:** la carcasa medía 0,13 m de ancho vista de frente; en la foto, ≈0,17 m.
 
-### La Kawasaki Ninja H2R (3 de octubre de 2026)
+### La Ninja H2R, rehecha (3 de octubre de 2026, segunda versión)
 
-Undécimo expositor, a petición del usuario: la Ninja H2R en **Mirror Coated Spark Black** con el chasis verde, junto al Porsche en la explanada. Se pilota con **N** o con *H2R · Ride*.
+El usuario juzgó la primera versión «horrible» y pidió una copia idéntica de la moto real, conducción real, mejor sonido y la moto sin piloto, vista desde los ojos de quien la lleva. Se rehízo entera.
 
-- **Datos** (`src/data/h2r.js`), de la ficha de Kawasaki para el modelo 2027:
-  - 998 cm³ sobrealimentado, 228 kW (240 kW con admisión dinámica) a 14.000 rpm y 165 Nm a 12.500 rpm;
-  - primaria, seis marchas y secundaria;
-  - lanzamiento 25,1°, avance 108 mm, recorridos 120/135 mm;
-  - neumáticos 120/600 R17 y 190/650 R17, discos de 330 y 250 mm;
-  - 2.070 × 850 × 1.160 mm, batalla 1.450 mm, asiento 830 mm, 216 kg en orden de marcha.
-- **Modelo** (`src/vehicles/h2r.js`), trazado sobre la foto lateral de estudio de Kawasaki a 1,80 mm por píxel. A esa escala los ejes quedan a 1,445 m (publicado: 1,450), la cúpula a 1,165 m (1,160) y el asiento a 0,830 m (0,830).
-  - Carrocería: cada panel es su contorno lateral trazado, con su semianchura y un borde biselado o redondeado: cúpula y mentón de carbono, flanco con espejo «Ninja H2R», panel inferior, depósito, asiento, colín con su panel y su piloto, y la cúpula ahumada.
-  - Debajo: el chasis tubular verde entre sus nudos trazados, el motor con sus tapas, el compresor, el conducto de admisión de carbono por el lado izquierdo, los cuatro colectores de titanio y el silencioso por la derecha, el basculante monobrazo con la cadena y las estriberas.
-  - Ruedas con slicks, llantas negras de cinco radios dobles con cantos mecanizados, discos taladrados y pinzas Brembo; horquilla invertida al ángulo de lanzamiento publicado; alas de carbono.
-  - Rótulos de fábrica, por decisión expresa del usuario (la única excepción a la regla de no añadir logotipos): «Kawasaki» en el depósito, «Ninja» y «H2R» en el carenado, «brembo» en las pinzas. Están dibujados como tipografía, no copiados, y se pegan a la superficie del panel.
-  - La verificación dimensional los mide: 2,075 × 0,850 × 1,161 m.
-- **Pilotaje** (`src/sim/h2rBike.js`, `h2rRide.js`, `h2rSound.js`, `ui/h2rHud.js`):
-  - La moto gira inclinándose: el piloto pide una inclinación y la moto rueda hacia ella con retraso. El giro es g·tan φ / v, y por debajo de ≈4 m/s se gira con el manillar (27° publicados).
-  - Transferencia de carga sobre la batalla: el caballito gira sobre el contacto trasero y el *stoppie* sobre el delantero. Pasado el punto de equilibrio, vuelca.
-  - Cada neumático tiene su círculo de adherencia (slick ≈1,35 veces el μ del firme, ≈). Con las ayudas (por defecto; **T**), el control de caballito, tracción y elevación trasera mantiene la moto dentro.
-  - Sin ayudas, pedir más agarre del que hay, frenar fuerte inclinado o tumbarse en la hierba la tira: *lowside*. La moto desliza de lado echando chispas y el piloto sale despedido, rueda y se para por su cuenta.
-  - También choca con todo lo sólido (el mismo mapa de celdas que el coche, con el Porsche incluido) y no pasa por más de ≈0,45 m de agua.
-  - Un piloto con mono y casco va encima y se cuelga hacia el interior de las curvas (`vehicles/h2rRider.js`). Cámaras: persecución, casco (que se inclina con la cabeza), pista y órbita.
-  - Sonido sintetizado (≈): el orden 2 del cuatro en línea, el silbido del compresor a ≈9,2 veces el cigüeñal, el chirrido al cortar gas y el viento.
-  - Resultados del modelo (`tools/h2r-check.mjs`, en `npm run check`): 0–100 km/h en 2,49 s, 0–200 km/h en 5,39 s, 200–0 km/h en 5,18 s, 355 km/h de punta (el desarrollo da 364 km/h al corte, ≈14.500 rpm), 52° de inclinación y 1,29 g a 100 km/h.
+- **Medida sobre las fotos con cámaras calibradas.** Se descargaron como referencia las imágenes oficiales de Kawasaki (estudio, detalles, chasis, motor, cuadro); no van al repositorio.
+  - Las dos cámaras de estudio, la lateral izquierda y la de tres cuartos delantera derecha, se resolvieron a la vez (un ajuste de haces, ≈2 px de error medio) sobre la batalla, los diámetros de los neumáticos y la altura publicados.
+  - Así cada rasgo visible en ambas fotos tiene posición en 3D, no solo en perfil: los tornillos y la punta del panel lateral, los nudos del chasis, las esquinas de las alas.
+  - Los contornos se trazan en la foto lateral (≈ ±1 cm); las anchuras, ≈ ±1,5 cm.
+- **Modelo nuevo** (`src/vehicles/h2r.js`, `h2rParts.js`, `h2rBody.js`):
+  - Cúpula de carbono y panel lateral con espejo como dos piezas separadas, con el pliegue del panel; depósito con el techo cromado y los costados negros; asiento; colín anguloso con su panel cromado y su piloto rojo; tapa lateral; alas de carbono triangulares bajo la cúpula ahumada.
+  - Chasis multitubular verde por los nudos triangulados; motor de cuatro cilindros con sus tapas (la del embrague en gris, la tapa de llenado con anillo rojo), cárter, cámara de admisión de aluminio, compresor rojo detrás de los cilindros y el conducto de carbono que lo alimenta; cuatro colectores de titanio bajo el motor y el silencioso subiendo por la derecha.
+  - Basculante monobrazo con guardacadenas, protector, corona de 42 dientes con su portacorona mecanizado y la cadena; horquilla invertida de 43 mm a 25,1°, tijas negras con tapones verdes; amortiguador de dirección Öhlins.
+  - Llantas negras con cantos mecanizados (la delantera de cinco radios dobles con su filete verde; la trasera, la estrella de cinco puntas), slicks, discos flotantes de 330 y 250 mm taladrados (el trasero a la derecha), pinzas Brembo Stylema.
+  - Semimanillares, manetas, depósitos de líquido de freno, piñas, estriberas de aluminio y el cuadro de instrumentos, que se redibuja en vivo (cuentarrevoluciones, velocidad, marcha, inclinación, control de tracción).
+  - Rótulos de fábrica en su sitio y orientados para cada lado (excepción autorizada por el usuario): «Kawasaki» en el depósito, «Ninja» y «H2R» en el panel, «brembo» en las pinzas.
+  - Verificación dimensional: 2,075 × 0,850 × 1,159 m (publicado: 2,070 × 0,850 × 1,160).
+- **Conducción nueva** (`src/sim/h2rBike.js`):
+  - La inclinación obedece la ecuación de la bicicleta de masa puntual (Whipple reducida): h·φ̈ = g·sin φ − (v²/L)·δ·cos φ − (b·v/L)·δ̇·cos φ. Nada inclina la moto salvo el manillar. Las teclas piden una inclinación y unas «manos» de piloto (un controlador) buscan el giro de manillar que la consigue: primero hacia el otro lado, es decir, contramanillar, como en la moto real. Más lentas a alta velocidad (≈ el efecto giroscópico).
+  - Rueda trasera con su propia velocidad, unida al motor por el cambio y el embrague, con una curva de agarre longitudinal frente al deslizamiento: patina con demasiado gas, y el control de tracción la mantiene cerca del pico. Freno delantero con ABS en curva (ayudas) o bloqueo sin ellas.
+  - Horquilla y amortiguador con muelles y amortiguación (recorridos publicados): hunde al frenar y se agacha al acelerar. Caballitos y *stoppies* alrededor de cada contacto, con sus controles.
+  - Embrague que patina en la salida hasta ≈9.000 rpm; cambio automático o manual con **Q**/**E** (cambio rápido de ≈60 ms).
+  - Sin piloto: la cámara por defecto es la de sus ojos, agachado tras la cúpula a ritmo y erguido despacio, con la cabeza inclinándose ≈60 % de lo que se inclina la moto. Al caer, la vista pasa a la cámara de persecución para ver la moto deslizar.
+  - Resultados (`tools/h2r-check.mjs`): 0–100 km/h en 2,55 s, 0–200 km/h en 5,45 s, 200–0 km/h en ≈5,1 s, 348 km/h de punta con la rueda a 362 km/h (desliza un 4 %), 52° y 1,3 g de inclinación a 100 km/h, contramanillar de ≈0,8° antes de entrar.
+- **Sonido nuevo** (`src/sim/h2rSound.js`): sintetizado muestra a muestra en un AudioWorklet.
+  - Cada explosión del cuatro en línea de 180° (orden 1-2-4-3) es un pulso de presión con su variación por cilindro, que hace sonar las resonancias del escape y se satura según la carga.
+  - Encima: el silbido del compresor a ≈9,2 veces el cigüeñal según la presión de soplado, el chirrido al cortar gas con presión, los petardeos al retener, el corte del cambio rápido y del limitador, el silbido de la primaria y la admisión.
+  - Es una síntesis a oído, no una grabación.
 
 ### Choques de verdad y la nave cayendo al agua (3 de octubre de 2026)
 
@@ -1213,11 +1215,12 @@ src/sim/mission.js         Flight 14 como una sola misión: corte, órbita, sali
 src/sim/gt3Damage.js       daños del Porsche en un choque: abolladuras, piezas que se sueltan, chispas
 src/sim/f16Flcs.js         leyes de control de vuelo del F-16 (FLCS), en su propio módulo
 src/data/h2r.js            ficha de la Kawasaki Ninja H2R con la procedencia de cada cifra
-src/vehicles/h2r.js        modelo de la H2R trazado sobre la foto lateral de Kawasaki
-src/vehicles/h2rRider.js   el piloto que va encima cuando se pilota
-src/sim/h2rBike.js         dinámica de la moto: inclinación, caballitos, adherencia, caídas
+src/vehicles/h2r.js        modelo de la H2R ajustado a las fotos de Kawasaki con cámaras calibradas
+src/vehicles/h2rParts.js   ruedas, frenos, horquilla y utilidades de superficie de la H2R
+src/vehicles/h2rBody.js    carrocería, rótulos y alas de la H2R
+src/sim/h2rBike.js         dinámica de la moto: contramanillar, neumáticos, suspensión, embrague, caídas
 src/sim/h2rRide.js         modo de pilotaje: postura, cámaras, marcas, el piloto al caer
-src/sim/h2rSound.js        sonido sintetizado del cuatro en línea y su compresor
+src/sim/h2rSound.js        sonido del cuatro en línea por pulsos de escape (AudioWorklet) y su compresor
 src/ui/h2rHud.js           instrumentos de la moto: vueltas, marcha, inclinación, ayudas
 src/ui/hud.js              interfaz
 src/ui/telemetryList.js    lecturas de conducción y vuelo como texto, para lectores de pantalla

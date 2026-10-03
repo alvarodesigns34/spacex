@@ -1,31 +1,31 @@
 /**
  * Riding the Ninja H2R: the exhibit itself rides off its spot on the skid pad (as the Porsche
- * drives off its own), with a rider aboard, and comes back to it when the ride ends.
+ * drives off its own), seen from the rider's own eyes, and comes back to it when the ride ends.
  *
  * Controls: W throttle, S brake (both ends, the front doing most of it), A/D lean — the bike
  * turns by leaning, so the keys ask for a lean and the bike rolls into it; Space the rear brake
  * alone; T the aids (wheelie, traction and rear-lift control, on by default); C the camera
- * (chase, the rider's helmet, trackside, your own orbit); K pause; M sound; Enter back to the
+ * (the rider's eyes, chase, trackside, your own orbit); Q / E gears down / up (manual from the
+ * first press; the gearbox shifts by itself until then); K pause; M sound; Enter back to the
  * pad; Esc the end. The gearbox shifts by itself, with a quick-shifter's cut.
  *
  * The dynamics are h2rBike.js's; this poses the model on them — yaw, then the wheelie or stoppie
  * about the contact on the ground, then the lean about the tyres' crowns — turns the bars and
- * the wheels, hangs the rider off to the inside of the turns, lays the tyres' marks, throws the
- * water, and when the bike falls, separates the rider from it: each slides and tumbles to a stop
- * on its own, the bike on its side throwing sparks.
+ * the wheels, works the springs, keeps the dash live, lays the tyres' marks, throws the water,
+ * and when the bike falls, lets it slide on its side throwing sparks while the view, thrown clear,
+ * follows it.
  */
 import * as THREE from 'three';
 import { createH2rBike, BIKE } from './h2rBike.js';
 import { createH2rSound } from './h2rSound.js';
 import { createSkidMarks, createTyreSmoke, createSpray } from './gt3Drive.js';
 import { createEffects } from '../core/effects.js';
-import { buildH2rRider } from '../vehicles/h2rRider.js';
 import { STEER_AXIS, AXLE_F, AXLE_R } from '../vehicles/h2r.js';
 import { WHEELS } from '../data/h2r.js';
 import { trackCoords, toLocal, LAP, START } from '../core/circuitPlan.js';
 
 const R2D = 180 / Math.PI;
-const CAMERAS = ['chase', 'helmet', 'trackside', 'orbit'];
+const CAMERAS = ['rider', 'chase', 'trackside', 'orbit'];
 const HARD = new Set(['track', 'verge', 'kerb', 'pad', 'runway', 'road']);
 /** The tyres' crowns, which the bike leans about (≈ the mean of the two sections' half-widths). */
 const CROWN = 0.08;
@@ -40,7 +40,7 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
   const pitchG = new THREE.Group(), pitchIn = new THREE.Group(), leanG = new THREE.Group(), leanIn = new THREE.Group();
   holder.add(pitchG); pitchG.add(pitchIn); pitchIn.add(leanG); leanG.add(leanIn);
   leanG.position.y = CROWN; leanIn.position.y = -CROWN;
-  const rider = buildH2rRider(M);
+  const dash = bike.getObjectByName('h2r-dash');
   const marks = createSkidMarks(scene, 6000);
   const smoke = createTyreSmoke(scene, 500);
   const spray = createSpray(scene, 800);
@@ -50,15 +50,12 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
   const s = sim.state;
   const state = { running: false, paused: false, camera: 'chase', readout: null, messages: [], lap: null, best: null, laps: 0 };
   const saved = { parent: null, position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), near: 0, fov: 0 };
-  // The rider off the bike after a fall: its own slide and tumble.
-  const thrown = { on: false, vel: new THREE.Vector3(), spin: new THREE.Vector3(), rest: false };
-  const tumbler = new THREE.Group(); tumbler.name = 'h2r-rider-fall';
 
   // ---- Controls -----------------------------------------------------------------------------
   const keys = new Set();
   const rider_ = { throttle: 0, brake: 0, rear: 0, lean: 0 };
   const typing = (t) => t.tagName === 'TEXTAREA' || t.isContentEditable || (t.tagName === 'INPUT' && t.type !== 'range');
-  const CODES = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyC', 'KeyT', 'KeyK', 'KeyM', 'Escape', 'Enter']);
+  const CODES = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyC', 'KeyT', 'KeyK', 'KeyM', 'KeyQ', 'KeyE', 'Escape', 'Enter']);
   const modalOpen = () => typeof document !== 'undefined' && !!document.querySelector('[role="dialog"][aria-modal="true"]:not(.hidden)');
   function onKeyDown(e) {
     if (!state.running || typing(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -74,6 +71,8 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
       case 'KeyT': setAids(!s.aids); break;
       case 'KeyK': setPaused(!state.paused); break;
       case 'KeyM': setSound(!sound.enabled); break;
+      case 'KeyE': sim.input.shiftUp = true; break;
+      case 'KeyQ': sim.input.shiftDown = true; break;
       case 'Enter': restart(); break;
       case 'Escape': reset(); break;
       default: break;
@@ -119,16 +118,18 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
       return;
     }
     _f.set(Math.cos(s.psi), 0, -Math.sin(s.psi));
-    if (state.camera === 'helmet' && !s.crashed) {
-      // From inside the helmet: low behind the screen, rolling with the bike and the rider.
-      const e = rider.userData.eye;
-      _cam.copy(e); rider.localToWorld(_cam);
-      _look.set(e.x + 30, e.y - 1.2, e.z); rider.localToWorld(_look);
+    if (state.camera === 'rider' && !s.crashed) {
+      // The rider's eyes: tucked in behind the screen at speed, sitting up when slow (≈ a 1.78 m
+      // rider on the published 830 mm seat); the head leans with the bike but holds itself nearer
+      // level (≈ 60 % of the lean), as onboard cameras on helmets show.
+      const tuck = Math.min(1, Math.max(0, (s.u - 8) / 25));
+      _cam.set(-0.12 + 0.22 * tuck, 1.36 - 0.2 * tuck, 0);
+      leanIn.localToWorld(_cam);
+      _look.set(30, 1.0 - 0.5 * tuck, 0); pitchIn.localToWorld(_look);
       camera.position.copy(_cam); camera.up.set(0, 1, 0);
       camera.lookAt(_look);
-      // Roll the view with the head: most of the bike's lean (≈ riders hold their heads nearer level).
-      camera.rotateZ(-s.phi * 0.55);
-      camera.fov = 72; camera.near = 0.03; camera.updateProjectionMatrix();
+      camera.rotateZ(-s.phi * 0.6);
+      camera.fov = 75; camera.near = 0.03; camera.updateProjectionMatrix();
       return;
     }
     if (state.camera === 'trackside') {
@@ -156,6 +157,7 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
 
   // ---- Pose -----------------------------------------------------------------------------------
   const _p = new THREE.Vector3();
+  let dashT = 0;
   function pose(dt) {
     // Down, the bike lies on its fairing and bars, ≈12 cm off the ground at its middle.
     holder.position.set(s.x, s.y + (s.crashed ? 0.12 * Math.sin(Math.abs(s.phi)) : 0), s.z);
@@ -171,7 +173,8 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
     if (spinF) spinF.rotation.z = -(s.wheelAngleF % (Math.PI * 2));
     if (spinR) spinR.rotation.z = -(s.wheelAngleR % (Math.PI * 2));
     if (swing) swing.rotation.z = -s.susR * 1.2;
-    if (!thrown.on) rider.userData.hangOff(THREE.MathUtils.clamp(s.phi / 0.9, -1, 1) * Math.min(1, s.u / 15));
+    // The dash, redrawn at ≈15 Hz.
+    if (dash?.userData.draw && (dashT += dt) > 1 / 15) { dashT = 0; dash.userData.draw(s.rpm, s.crashed ? '-' : s.gear + 1, s.u * 3.6, s.phi * R2D, s.aids); }
     void dt; void _p;
   }
 
@@ -215,44 +218,6 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
       }
     }
   }
-  function throwRider() {
-    // The rider leaves the bike with its speed, a little up and to the outside, and tumbles.
-    // It turns about its own middle: a pivot there, carrying the figure.
-    holder.updateMatrixWorld(true);
-    tumbler.position.set(-0.08, 0.95, 0); rider.localToWorld(tumbler.position);
-    tumbler.rotation.set(0, s.psi, 0);
-    scene.add(tumbler); tumbler.updateMatrixWorld(true);
-    tumbler.attach(rider);
-    const c = Math.cos(s.psi), sn = Math.sin(s.psi);
-    thrown.on = true; thrown.rest = false;
-    thrown.vel.set(s.vx || s.u * c, 1.5 + Math.random(), s.vz || -s.u * sn);
-    thrown.spin.set((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 6);
-    rider.userData.hangOff(0);
-  }
-  function tumble(dt) {
-    if (!thrown.on || thrown.rest) return;
-    thrown.vel.y -= 9.81 * dt;
-    tumbler.position.addScaledVector(thrown.vel, dt);
-    tumbler.rotation.x += thrown.spin.x * dt; tumbler.rotation.z += thrown.spin.z * dt;
-    const g = ground(tumbler.position.x, tumbler.position.z);
-    // Lying in leathers, the body's middle ≈0.15 m off the ground.
-    const floor = g.h + 0.15;
-    if (tumbler.position.y < floor) {
-      tumbler.position.y = floor;
-      thrown.vel.y = Math.abs(thrown.vel.y) * 0.2;
-      const v = Math.hypot(thrown.vel.x, thrown.vel.z), mu = 0.55, dv = Math.min(v, mu * 9.81 * dt * 4);
-      if (v > 1e-6) { thrown.vel.x -= thrown.vel.x / v * dv; thrown.vel.z -= thrown.vel.z / v * dv; }
-      thrown.spin.multiplyScalar(Math.exp(-dt * 2));
-      // Coming to rest lying down.
-      if (v < 3) {
-        // Settling flat: on its back or front, whichever is nearer.
-        tumbler.rotation.x += (Math.round(tumbler.rotation.x / Math.PI) * Math.PI - tumbler.rotation.x) * Math.min(1, dt * 2);
-        tumbler.rotation.z += (Math.round((tumbler.rotation.z - Math.PI / 2) / Math.PI) * Math.PI + Math.PI / 2 - tumbler.rotation.z) * Math.min(1, dt * 2);
-      }
-      if (v < 0.2) thrown.rest = true;
-    }
-  }
-
   // ---- Laps -------------------------------------------------------------------------------------
   let lastS = null;
   function timeLaps() {
@@ -274,20 +239,13 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
   const fmtTime = (t) => `${Math.floor(t / 60)}:${(t % 60).toFixed(3).padStart(6, '0')}`;
 
   // ---- Lifecycle --------------------------------------------------------------------------------
-  function seatRider() {
-    thrown.on = false;
-    tumbler.removeFromParent();
-    leanIn.add(rider);
-    rider.position.set(0, 0, 0); rider.rotation.set(0, 0, 0);
-    rider.userData.hangOff(0);
-  }
   function placeHome() {
     spray.clear(); fx.clear(); marks.clear(); smoke.clear?.();
     sim.reset(home());
     Object.assign(rider_, { throttle: 0, brake: 0, rear: 0, lean: 0 });
     Object.assign(state, { paused: false, lap: null });
     lastS = null; fell = false; wheelieNoted = false;
-    seatRider();
+    if (state.camera === 'chase' && fellCam) { setCamera('rider'); fellCam = false; }
   }
   function start() {
     if (state.running) return;
@@ -302,7 +260,7 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
     placeHome();
     state.running = true; state.messages = [];
     if (rig.mode !== 'orbit') rig.setMode('orbit');
-    setCamera('chase');
+    setCamera('rider');
     window.addEventListener('keydown', onKeyDown, true);
     window.addEventListener('keyup', onKeyUp, true);
     window.addEventListener('blur', onBlur);
@@ -323,7 +281,6 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
     if (spinF) spinF.rotation.z = 0;
     if (spinR) spinR.rotation.z = 0;
     if (swing) swing.rotation.z = 0;
-    rider.removeFromParent(); tumbler.removeFromParent();
     fx.clear(); spray.clear(); marks.clear();
     saved.parent.add(bike);
     bike.position.copy(saved.position); bike.quaternion.copy(saved.quaternion);
@@ -338,12 +295,14 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
   }
   function setPaused(on) { if (state.running) state.paused = !!on; }
 
+  let fellCam = false;
   let fell = false, wheelieNoted = false, lastHit = -10, splashed = false;
   function events() {
     if (s.crashed && !fell) {
       fell = true;
       note(`${s.crashed.why} · Enter: back on the pad`);
-      throwRider();
+      // Thrown clear: the view goes to the chase camera to watch the bike slide.
+      if (state.camera === 'rider') { setCamera('chase'); fellCam = true; }
     }
     if (s.theta > 10 / R2D && !wheelieNoted) { wheelieNoted = true; note(`Wheelie${s.aids ? ' · the control holds it' : ''}`); }
     if (s.theta < 2 / R2D) wheelieNoted = false;
@@ -361,7 +320,6 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
       layMarks(h);
       smoke.update(h);
       throwSpray(h);
-      tumble(h);
       fx.update(h);
       spray.update(h);
       timeLaps();
@@ -389,7 +347,7 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
     get state() { return state; },
     get running() { return state.running; },
     get position() { return holder.position; },
-    sim, marks, sound, rider, fx, start, reset, restart, setPaused, setCamera, cycleCamera, setAids, setSound, fmtTime,
+    sim, marks, sound, fx, start, reset, restart, setPaused, setCamera, cycleCamera, setAids, setSound, fmtTime,
     update(dt) { if (state.running) apply(dt); },
   };
 }

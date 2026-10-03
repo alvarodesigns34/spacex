@@ -119,7 +119,7 @@ function measure(model, hullNames, footprintNames) {
 const HULLS = {
   f16: ['f16-fin-skin', 'f16-rudder-skin'],
   gt3rs: ['gt3-body-paint', 'gt3-nose-face', 'gt3-tail-face', 'gt3-wing-main-skin', 'gt3-wing-flap-skin', 'gt3-wing-endplate-l', 'gt3-wing-endplate-r', 'gt3-wing-neck-l', 'gt3-wing-neck-r'],
-  h2r: ['h2r-screen', 'h2r-wing-upper-l', 'h2r-wing-upper-r', 'h2r-tyre-f', 'h2r-tyre-r', 'h2r-tail'],
+  h2r: ['h2r-screen', 'h2r-wings', 'h2r-tyre-f', 'h2r-tyre-r', 'h2r-tail'],
   falcon1: ['falcon1-stage1', 'falcon1-stage2', 'falcon1-fairing'],
   starship: ['skirt', 'tanks', 'hull'],
   falcon9: ['stage1', 'interstage', 'stage2', 'fairing'],

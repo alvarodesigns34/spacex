@@ -199,7 +199,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
             <h3>Ride the Ninja H2R <kbd>N</kbd> <span class="guide-here">you are here</span></h3>
             <dl>
               <dt><kbd>W</kbd> · <kbd>S</kbd></dt><dd>throttle · brake</dd>
-              <dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>lean: the bike turns by leaning</dd>
+              <dt><kbd>A</kbd> <kbd>D</kbd> · <kbd>Q</kbd> <kbd>E</kbd></dt><dd>lean (it counter-steers into it) · gear down / up</dd>
               <dt><kbd>Space</kbd> · <kbd>T</kbd></dt><dd>rear brake · the aids (wheelie, traction, rear lift)</dd>
               <dt><kbd>C</kbd> · <kbd>M</kbd></dt><dd>camera · sound (off until you turn it on)</dd>
               <dt><kbd>Enter</kbd> · <kbd>Esc</kbd></dt><dd>back to the pad · end</dd>

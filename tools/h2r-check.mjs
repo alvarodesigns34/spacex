@@ -48,8 +48,10 @@ const flat = (mu = 1, kind = 'track') => () => ({ h: 0, mu, roll: 0, kind });
   while (t < 60 && !s.crashed) { b.step(DT); t += DT; for (const k of [100, 200]) if (s.u * 3.6 >= k && !at[k]) at[k] = t; }
   report(at[100] > 2.2 && at[100] < 3.0 && at[200] > 4.8 && at[200] < 6.2, 'acelera como una hiperdeportiva con las ayudas: 0–100 y 0–200 km/h',
     `0–100 ${at[100]?.toFixed(2)} s · 0–200 ${at[200]?.toFixed(2)} s`);
-  report(Math.abs(s.u * 3.6 - KMH_TOP) < 15 && s.gear === 5, 'la punta la dan el desarrollo en sexta y el arrastre', `${(s.u * 3.6).toFixed(0)} km/h en ${s.gear + 1}.ª a ${s.rpm.toFixed(0)} rpm (desarrollo al corte ${KMH_TOP.toFixed(0)} km/h)`);
-  b.reset(); s.u = 200 / 3.6; s.gear = 4; b.input.brake = 1; t = 0; let minPitch = 0;
+  const wheelKmh = s.wR * 0.325 * 3.6;
+  report(s.gear === 5 && s.rpm > 14000 && Math.abs(wheelKmh - KMH_TOP) < 6 && s.slip > 0 && s.slip < 0.07, 'la punta la dan el desarrollo en sexta, el arrastre y el deslizamiento del neumático trasero',
+    `${(s.u * 3.6).toFixed(0)} km/h sobre el suelo, la rueda a ${wheelKmh.toFixed(0)} km/h (desliza un ${(s.slip * 100).toFixed(1)} %), en ${s.gear + 1}.ª a ${s.rpm.toFixed(0)} rpm; desarrollo al corte ${KMH_TOP.toFixed(0)} km/h`);
+  b.reset(); s.u = 200 / 3.6; s.wR = s.u / BIKE.RR; s.gear = 4; b.input.brake = 1; t = 0; let minPitch = 0;
   while (s.u > 0.1 && t < 15) { b.step(DT); t += DT; minPitch = Math.min(minPitch, s.theta * D); }
   report(t > 4.4 && t < 6.2 && !s.crashed && minPitch > -2, 'frena de 200 a 0 sin levantar la rueda trasera con las ayudas', `${t.toFixed(2)} s (≈${(200 / 3.6 / t / 9.81).toFixed(2)} g de media) · cabeceo mín. ${minPitch.toFixed(1)}°`);
 }
@@ -68,15 +70,15 @@ const flat = (mu = 1, kind = 'track') => () => ({ h: 0, mu, roll: 0, kind });
 // ---- Leaning.
 {
   const b = createH2rBike({ ground: flat() }); const s = b.state;
-  b.reset(); s.u = 100 / 3.6; s.gear = 2; b.input.throttle = 0.25; b.input.lean = 1;
+  b.reset(); s.u = 100 / 3.6; s.wR = s.u / BIKE.RR; s.gear = 2; b.input.throttle = 0.25; b.input.lean = 1;
   for (let k = 0; k < 240 * 4; k++) b.step(DT);
   const ay = s.u * s.r / 9.81;
   report(s.phi * D > 45 && s.phi * D < 58 && Math.abs(ay - Math.tan(s.phi)) < 0.02 && !s.crashed, 'gira inclinándose: a 100 km/h, a fondo, ≈52° y g·tan φ de aceleración lateral', `${(s.phi * D).toFixed(1)}° · ${ay.toFixed(2)} g`);
-  b.reset(); s.u = 100 / 3.6; s.gear = 2; b.input.lean = -1;
+  b.reset(); s.u = 100 / 3.6; s.wR = s.u / BIKE.RR; s.gear = 2; b.input.lean = -1;
   for (let k = 0; k < 240 * 2; k++) b.step(DT);
   report(s.phi < 0 && s.r < 0, 'hacia la izquierda se inclina y gira a la izquierda', `${(s.phi * D).toFixed(0)}°, r ${s.r.toFixed(2)} rad/s`);
   // Leant over, hard on the front brake without the aids: the front tucks.
-  b.reset(); s.aids = false; s.u = 120 / 3.6; s.gear = 3; b.input.lean = 1;
+  b.reset(); s.aids = false; s.u = 120 / 3.6; s.wR = s.u / BIKE.RR; s.gear = 3; b.input.lean = 1;
   for (let k = 0; k < 240 * 2; k++) b.step(DT);
   b.input.brake = 1;
   for (let k = 0; k < 240 * 2 && !s.crashed; k++) b.step(DT);
@@ -86,22 +88,36 @@ const flat = (mu = 1, kind = 'track') => () => ({ h: 0, mu, roll: 0, kind });
   report(s.u < 0.2 && Math.abs(s.phi * D) > 70, 'en el suelo desliza de lado hasta pararse', `${(s.u * 3.6).toFixed(1)} km/h · ${(s.phi * D).toFixed(0)}°`);
   // On grass the grip is lower: the same lean at the same speed goes down without the aids.
   const g = createH2rBike({ ground: flat(0.55, 'grass') }); const q = g.state;
-  g.reset(); q.aids = false; q.u = 90 / 3.6; q.gear = 2; g.input.lean = 1;
+  g.reset(); q.aids = false; q.u = 90 / 3.6; q.wR = q.u / BIKE.RR; q.gear = 2; g.input.lean = 1;
   for (let k = 0; k < 240 * 4 && !q.crashed; k++) g.step(DT);
   report(!!q.crashed, 'sin ayudas, tumbarse a fondo en la hierba la tira', q.crashed?.why ?? 'sigue de pie');
+}
+
+// ---- Counter-steering and a throttle chopped mid-corner.
+{
+  const b = createH2rBike({ ground: flat() }); const s = b.state;
+  b.reset(); s.u = 110 / 3.6; s.wR = s.u / BIKE.RR; s.gear = 2; b.input.throttle = 0.6; b.input.lean = 1;
+  let first = 0;
+  for (let k = 0; k < 120; k++) { b.step(DT); if (!first && Math.abs(s.steer) > 0.002) first = s.steer; }
+  for (let k = 0; k < 240 * 2; k++) b.step(DT);
+  report(first < 0 && s.phi > 0.6 && s.steer > 0, 'contramanillar: para inclinarse a la derecha gira primero el manillar a la izquierda, luego entra en la curva',
+    `primer giro ${(first * D).toFixed(2)}°, luego ${(s.steer * D).toFixed(2)}° con ${(s.phi * D).toFixed(0)}° de inclinación`);
+  b.input.throttle = 0;
+  for (let k = 0; k < 240 * 2; k++) b.step(DT);
+  report(!s.crashed, 'con las ayudas, cortar gas a fondo de inclinación no la tira', s.crashed?.why ?? `sigue a ${(s.phi * D).toFixed(0)}°`);
 }
 
 // ---- Water and walls.
 {
   const deep = (x) => ({ h: 0, mu: 1, roll: 0, kind: x > 20 ? 'mud' : 'track', water: x > 20 ? 0.6 : undefined });
   const b = createH2rBike({ ground: (x) => deep(x) }); const s = b.state;
-  b.reset(); s.u = 60 / 3.6; s.gear = 1; b.input.throttle = 0.3;
+  b.reset(); s.u = 60 / 3.6; s.wR = s.u / BIKE.RR; s.gear = 1; b.input.throttle = 0.3;
   for (let k = 0; k < 240 * 4 && !s.crashed; k++) b.step(DT);
   report(!!s.crashed && /water/.test(s.crashed.why), 'en 0,6 m de agua no se puede seguir: cae al agua', s.crashed?.why ?? `sigue a ${(s.u * 3.6).toFixed(0)} km/h`);
   const posts = [];
   for (let z = -4; z <= 4; z += 0.5) posts.push({ x: 30, z, r: 0.15 });
   const w = createH2rBike({ ground: flat(), obstacles: () => posts }); const t = w.state;
-  w.reset(); t.u = 80 / 3.6; t.gear = 2; w.input.throttle = 0.4;
+  w.reset(); t.u = 80 / 3.6; t.wR = t.u / BIKE.RR; t.gear = 2; w.input.throttle = 0.4;
   let maxX = -1e9;
   for (let k = 0; k < 240 * 4; k++) { w.step(DT); maxX = Math.max(maxX, t.x + BIKE.front); }
   report(!!t.crashed && maxX < 30.3, 'contra una valla a 80 km/h: no la atraviesa y cae', `morro hasta x ${maxX.toFixed(2)} m · ${t.crashed?.why}`);

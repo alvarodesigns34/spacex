@@ -21,13 +21,13 @@ export function createH2rHud({ root, onEnd, onCamera, onRestart, onPause, onTrac
   bar.setAttribute('aria-label', 'Kawasaki Ninja H2R ride');
   bar.innerHTML = `
     <span class="eyebrow">Kawasaki Ninja H2R · 228 kW supercharged, six speeds, Kawasaki's published figures</span>
-    <button type="button" class="f16-btn" id="h2r-cam" title="Camera: chase, the rider's helmet, trackside, your own orbit (C)">Chase <kbd>C</kbd></button>
+    <button type="button" class="f16-btn" id="h2r-cam" title="Camera: the rider's eyes, chase, trackside, your own orbit (C)">Rider <kbd>C</kbd></button>
     <button type="button" class="f16-btn" id="h2r-tc" aria-pressed="true" title="Aids (T): wheelie, traction and rear-lift control; off, the bike is all yours">Aids <kbd>T</kbd></button>
     <button type="button" class="f16-btn" id="h2r-pause" aria-pressed="false" title="Pause (K)">Pause <kbd>K</kbd></button>
     <button type="button" class="f16-btn" id="h2r-sound" aria-pressed="false" title="Sound (M): the four, the supercharger and the wind, synthesised; off until you turn it on">Sound <kbd>M</kbd></button>
     <button type="button" class="f16-btn" id="h2r-restart" title="Back to the skid pad (Enter)">Pad <kbd>Enter</kbd></button>
     <button type="button" class="f16-btn f16-end" id="h2r-end" title="Back to the exhibit (Esc)">End <kbd>Esc</kbd></button>
-    <p class="f16-keys"><kbd>W</kbd> throttle · <kbd>S</kbd> brake · <kbd>A</kbd><kbd>D</kbd> lean: the bike turns by leaning · <kbd>Space</kbd> rear brake · <kbd>T</kbd> aids · <kbd>C</kbd> camera · <kbd>M</kbd> sound — the gearbox shifts by itself</p>
+    <p class="f16-keys"><kbd>W</kbd> throttle · <kbd>S</kbd> brake · <kbd>A</kbd><kbd>D</kbd> lean: the bike counter-steers into it · <kbd>Space</kbd> rear brake · <kbd>Q</kbd><kbd>E</kbd> gear down / up (manual from the first press) · <kbd>T</kbd> aids · <kbd>C</kbd> camera · <kbd>M</kbd> sound</p>
     <ul class="f16-msgs" id="h2r-msgs" aria-live="polite"></ul>
   `;
   root.appendChild(bar);
@@ -88,7 +88,7 @@ export function createH2rHud({ root, onEnd, onCamera, onRestart, onPause, onTrac
     const barTop = bar.classList.contains('hidden') ? H : bar.getBoundingClientRect().top;
     // From the driver's seat the car's own cluster shows the revs, the gear and the speed: this
     // one moves to the bottom right corner, smaller, out of the windscreen's way.
-    const cab = r.camera === 'helmet';
+    const cab = r.camera === 'rider';
     const R = cab ? Math.min(54, W * 0.07) : Math.min(96, W * 0.11);
     const cx = cab ? W - R - 130 : W / 2, cy = Math.min(H - R - 34, barTop - R - 30);
     g.save();
