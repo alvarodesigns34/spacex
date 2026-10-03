@@ -31,7 +31,8 @@
  *  - contacts with what stands on the ground: the scene's own solid geometry (core/colliders.js)
  *    and the other exhibits;
  *  - water (core/water.js): wet grip and aquaplaning, the drag of the water each tyre and the
- *    body push through, the lift of what the body displaces, flooding, a drowned engine.
+ *    body push through, the lift of what the body displaces, flooding, a drowned engine;
+ *  - damage from hard contacts: power lost, then the engine dead (≈); the look is gt3Damage.js's.
  *
  * Frame: world x, z (y up); the car's heading ψ is the angle of its nose from +x towards −z
  * (the scene's yaw), body velocity (u forward, v to the LEFT).
@@ -158,6 +159,9 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     immersion: 0,                     // the water's depth over the body's floor, m
     flood: 0,                         // how far the body has flooded, 0..1
     afloat: false, sunk: false,
+    hits: [],                         // contacts since the drive last read them: { fx, fy, nx, ny, vn } (gt3Damage.js)
+    damage: 0,                        // how badly the car is hurt, 0..1: power lost, then the engine dead (≈)
+    dead: false,
   });
   const s = Object.assign(fresh(), { tc: true });   // PSM (traction and stability control): on by default
   const input = { throttle: 0, brake: 0, steer: 0, handbrake: 0, reverse: false };
@@ -287,7 +291,7 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     for (let i = 0; i < 4; i++) s.steerW[i] = steerAt[i];
     // In water: the engine drowns once the water reaches its intake, and stays dead.
     if (Number.isFinite(wS) && wS - (grs[2].h + grs[3].h) / 2 > WATER.intake) s.drowned = true;
-    const drowned = s.drowned;
+    const drowned = s.drowned || s.dead;
     s.wet = drowned ? s.wet + dt : 0;
     // ---- Drive: the engine on its own inertia, the PDK's clutch, the gearbox.
     const ratio = s.reverse ? -GEARBOX.reverse : GEARBOX.ratios[s.gear - 1];
@@ -310,7 +314,7 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     const held = s.launch && input.brake > 0.1;
     if (held) thr = clamp((CLUTCH.launchRpm - s.rpm) / 600, 0, 1);
     const limiter = s.rpm >= ENGINE.maxRpm ? 0 : 1;
-    const Te = drowned ? -(ENGINE.friction[0] + ENGINE.friction[1] * s.rpm) * 4 : thr * fullTorque(s.rpm) * limiter - (1 - thr) * (ENGINE.friction[0] + ENGINE.friction[1] * s.rpm);
+    const Te = drowned ? -(ENGINE.friction[0] + ENGINE.friction[1] * s.rpm) * 4 : thr * fullTorque(s.rpm) * limiter * (1 - 0.6 * s.damage) - (1 - thr) * (ENGINE.friction[0] + ENGINE.friction[1] * s.rpm);
     // The clutch: open through a shift; pulling away, slipping — taking up the drive as the engine
     // gathers revs, or, launching, holding it at the launch speed; otherwise closed, up to its capacity.
     // (Launching, it slips until the wheels have caught the engine up.)
@@ -496,6 +500,10 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
       const vx = s.u - s.r * qy, vy = s.v + s.r * qx, vn = vx * nx + vy * ny;
       if (vn <= 0) continue;
       s.impact = Math.max(s.impact, vn);
+      if (vn > 2 && s.hits.length < 16) s.hits.push({ fx: qx, fy: qy, nx, ny, vn });
+      // Damage (≈): past ≈22 km/h of closing speed a blow costs power; enough of them, or one
+      // big enough, and the engine dies.
+      if (vn > 6) { s.damage = Math.min(1, s.damage + (vn - 6) / 20); if (s.damage >= 1) s.dead = true; }
       const tx = -ny, ty = nx, rn = qx * ny - qy * nx, rt = qx * ty - qy * tx;
       const J = (1 + RESTITUTION) * vn / (1 / CAR.m + rn * rn / CAR.Iz);
       const vt = vx * tx + vy * ty, Jt = clamp(-vt / (1 / CAR.m + rt * rt / CAR.Iz), -CONTACT_MU * J, CONTACT_MU * J);

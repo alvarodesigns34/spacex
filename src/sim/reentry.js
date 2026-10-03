@@ -193,6 +193,8 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
     sea.receiveShadow = false;
     ocean.add(sea);
   }
+  // The hull comes down flat on the water (reentryPitchAt: it topples from T+1,5 s for 5 s).
+  const SLAP = RE.splash + 6.5;
   let seed = 0x5eed;
   const rng = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
   const spray = new Vapor({
@@ -202,14 +204,68 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
       { at: [0, 0.5, 0], dir: [0, 0.35, 0], speed: 18, spread: 1.0, count: 220, life: 9, size: 16, grow: 7, jitter: 6, window: [RE.twoEngines + 3, RE.splash + 1] },
       // The splash itself.
       { at: [0, 0.5, 0], dir: [0, 1, 0], speed: 22, spread: 0.7, count: 120, life: 6, size: 11, grow: 5, jitter: 4, window: [RE.splash - 0.4, RE.splash + 1.2] },
+      // The hull slapping down: the mist off its sheets of water hangs along it.
+      { at: [26, 1, 0], dir: [0, 1, 0], speed: 7, spread: 1.0, count: 90, life: 8, size: 12, grow: 4, jitter: 40, window: [SLAP, SLAP + 0.8] },
     ],
   });
   ocean.add(spray.mesh);
-  // A ring of foam spreading from where the ship came down (≈).
-  const foam = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 64), new THREE.MeshBasicMaterial({ color: 0xe8eef2, transparent: true, opacity: 0, depthWrite: false }));
+  // The water itself, thrown up and falling back under gravity (the steam above drifts; this
+  // does not): droplets and sheets on ballistic paths, a little air drag. Three moments, ≈ as
+  // filmed on the splashdowns (the sizes and speeds are not measured):
+  //  - the engine's jet on the surface in the last ≈45 m: a skirt of water blown out flat and
+  //    low all round, heavier as it comes down (one Raptor, ≈2 MN at sea level);
+  //  - touching down at a walking pace: a ring of water round the base;
+  //  - toppling (reentryFlight.js): the hull falls about its base and comes down flat at
+  //    T+6,5 s, its tip at ≈30 m/s (0,6 rad/s × 52 m). Each stretch of hull throws up water
+  //    in proportion to its own speed, so the sheets stand highest towards the nose.
+  const lane = [6, 14, 22, 30, 38, 46].map(x => ({
+    at: [x, 0.5, 0], dir: [0, 1, 0], speed: 4 + 0.36 * x, spread: 0.55, count: 700, life: 2 + 0.07 * x,
+    size: 3.0, grow: 3.0, jitter: 9, window: [SLAP - 0.1 + 0.003 * (46 - x), SLAP + 0.35],
+  }));
+  const water = new Vapor({
+    name: 'reentry-water', rng, accel: [0, -9.81, 0], tau: 6, opacity: 0.6, fadeIn: 0.02, colors: [0xf4f8fa, 0x6c8293],
+    emitters: [
+      { at: [0, 0.4, 0], dir: [0, 0.3, 0], speed: 16, spread: 2.2, count: 900, life: 2.0, size: 3.0, grow: 3.0, jitter: 8, window: [RE.splash - 6, RE.splash - 3] },
+      { at: [0, 0.4, 0], dir: [0, 0.3, 0], speed: 24, spread: 2.2, count: 1800, life: 2.4, size: 3.5, grow: 3.5, jitter: 9, window: [RE.splash - 3, RE.splash] },
+      { at: [0, 0.4, 0], dir: [0, 1, 0], speed: 9, spread: 0.6, count: 700, life: 2.0, size: 2.5, grow: 2.5, jitter: 10, window: [RE.splash - 0.2, RE.splash + 0.4] },
+      ...lane,
+    ],
+  });
+  ocean.add(water.mesh);
+  // The churned water where it came down: white water round the base, a ring running out
+  // from it, and a long patch of foam where the hull fell; streaked by noise and thinning as
+  // it spreads (≈). Drawn on the sea, 300 m across.
+  const foam = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), new THREE.ShaderMaterial({
+    name: 'reentry-foam', transparent: true, depthWrite: false,
+    uniforms: { uAge: { value: 0 }, uSlap: { value: SLAP - RE.splash + 4 } },   // age from 4 s before the splash, when the jet reaches the water
+    vertexShader: `varying vec2 vP; void main() { vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `
+      uniform float uAge, uSlap; varying vec2 vP;
+      float h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float n(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
+      float fbm(vec2 p) { return 0.5 * n(p) + 0.3 * n(p * 2.3 + 7.1) + 0.2 * n(p * 5.1 - 3.7); }
+      void main() {
+        // vP: x along the hull (+x, where it falls), y across it.
+        float d = length(vP), a = uAge;
+        float streak = fbm(vP * 0.22 + vec2(a * 0.05, 0.0)) * fbm(vP * 0.9 - vec2(0.0, a * 0.08));
+        float R = 9.0 + 2.2 * a;
+        float churn = (1.0 - smoothstep(0.55 * R, R, d)) * (1.0 - smoothstep(18.0, 40.0, a));
+        float rf = 10.0 + 5.0 * a, q = (d - rf) / (2.0 + 0.25 * a), ring = exp(-q * q) * 0.55 * (1.0 - smoothstep(6.0, 22.0, a));
+        float s = a - uSlap, hull = 0.0;
+        if (s > 0.0) {
+          float w = 7.0 + 1.6 * s, along = smoothstep(-6.0, 2.0, vP.x) * (1.0 - smoothstep(50.0, 58.0 + s, vP.x));
+          hull = along * (1.0 - smoothstep(0.5 * w, w, abs(vP.y))) * (1.0 - smoothstep(10.0, 18.0, s));
+        }
+        float alpha = clamp((churn + ring + hull) * smoothstep(0.25, 0.7, streak + 0.25), 0.0, 1.0) * 0.8;
+        if (alpha < 0.01) discard;
+        gl_FragColor = vec4(0.90, 0.94, 0.96, alpha);
+      }`,
+  }));
   foam.rotation.x = -Math.PI / 2;
   foam.position.y = 0.05;
   foam.name = 'reentry-foam';
+  foam.visible = false;
   ocean.add(foam);
 
   // The Earth under the whole thing: open ocean (the northern Pacific), no map.
@@ -310,10 +366,9 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
     plume.setTime?.(t);
     plume.setThrottle(lit ? 0.75 : 0, alt, lit === 3 ? 1 : lit === 2 ? 0.8 : 0.5, lit ? 0.75 : 0);
     spray.update(t, camera, env.sun);
-    const fu = t > RE.splash ? Math.min(1, (t - RE.splash) / 20) : 0;
-    foam.visible = fu > 0;
-    foam.scale.setScalar(12 + 110 * fu);
-    foam.material.opacity = 0.55 * (1 - fu);
+    water.update(t, camera, env.sun);
+    foam.visible = t > RE.splash - 4;
+    foam.material.uniforms.uAge.value = t - RE.splash + 4;
 
     // Sky, fog and the globe for the camera's height.
     const camAlt = Math.max(0, camera.position.y);
@@ -425,6 +480,7 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
     plume.setThrottle(0, 0);
     setHeatGlow(0);
     spray.hide?.();
+    water.hide();
     saved.parent.add(ship);
     ship.position.copy(saved.position);
     ship.quaternion.copy(saved.quaternion);

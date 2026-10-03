@@ -784,6 +784,30 @@ Revisión pieza a pieza contra las fotos de estudio, con sus cámaras ajustadas 
   - Las seis aletas del difusor van donde la foto: ±0,155, ±0,306 y ±0,474 m, de 0,19 a 0,32 m de altura; antes colgaban por debajo del coche.
 - **Retrovisores:** la carcasa medía 0,13 m de ancho vista de frente; en la foto, ≈0,17 m.
 
+### Choques de verdad y la nave cayendo al agua (3 de octubre de 2026)
+
+El usuario pidió que chocar con el Porsche o con el F-16 fuera realista y que, cuando la nave cae al agua, pareciera agua. Antes un choque solo paraba el vehículo y el amerizaje era una nube de vapor sobre un mar intacto.
+
+- **El Porsche se abolla** (`src/sim/gt3Damage.js`):
+  - Cada contacto de más de ≈2 m/s aplasta la carrocería contra un plano metido hacia dentro desde el punto del golpe: ≈4 cm por m/s, hasta ≈0,6 m. Como orden de magnitud, en la prueba de barrera a 56 km/h el frontal de un coche se aplasta ≈0,5 m (≈: es un aspecto, no un modelo estructural).
+  - Lo que sobresalía se comprime por delante del plano **sin cambiar de orden**: las piezas montadas unas sobre otras (pintura, rejillas, pasos de rueda, faros) se pliegan juntas y ninguna atraviesa a otra. El efecto es pleno en la línea del golpe y se suaviza hacia los lados, con un arrugado suave.
+  - Cada pieza afectada recibe su propia geometría, porque las mitades izquierda y derecha del coche comparten algunas.
+  - Por encima de ≈6 m/s en un costado se suelta el retrovisor de ese lado, y por encima de ≈9 m/s en la zaga, el alerón. Salen despedidos, giran y quedan en el suelo.
+  - Saltan chispas, escamas de pintura, trozos negros y cristal de los faros.
+  - Por encima de ≈6 m/s el golpe resta salud: el par cae hasta un 60 % y, con el daño total, el motor se para («too badly damaged»). Al reiniciar vuelve todo a su sitio.
+  - Corregido de paso: el modelo iba 0,27 m por detrás del centro de gravedad de la física, porque el origen del modelo está en el centro de la batalla.
+- **El F-16 se estrella** (`src/sim/f16Fly.js`, efectos en el nuevo `src/core/effects.js`):
+  - **Contra el suelo o una estructura**, por encima de ≈30 m/s: bola de fuego, pavesas, humo negro que sube en columna durante ≈30 s, restos, chispas y polvo. El avión desaparece: se ha roto. Más despacio solo saltan chispas, polvo y algunos trozos.
+  - **En el agua:** una cortina de agua a lo largo del último tramo de la trayectoria, llevada hacia delante, con rocío fino, láminas más pesadas y niebla.
+    - Por encima de ≈60 m/s el agua es tan dura como el suelo: el avión se rompe y el combustible arde unos segundos en la superficie; el humo sube cuando el agua ha vuelto a caer.
+    - Más despacio es un amaraje: queda entero y se hunde.
+  - Corregido: tocar el suelo con el tren subido daba siempre «aterrizaje de panza», aunque el golpe ya fuera otro. Ahora es panza solo si bajaba a menos de ≈4 m/s; si no, es el fuselaje contra el suelo, o el agua.
+- **La nave cae al agua** (`src/sim/reentry.js`). Agua de verdad, que sube y cae por la gravedad, además del vapor que ya había. Los tamaños y velocidades son ≈, a ojo de los vídeos de los amerizajes:
+  - En los últimos ≈45 m, el chorro del Raptor barre la superficie y lanza una falda de agua baja hacia todos lados, más fuerte al final.
+  - Al tocar el agua, a paso de persona, se levanta un anillo de agua alrededor de la base.
+  - Al volcar, el casco cae de plano a los 6,5 s con la punta a ≈30 m/s (0,6 rad/s × 52 m). Cada tramo levanta agua según su propia velocidad, así que las láminas suben más hacia el morro y dejan niebla a lo largo del casco.
+  - Espuma dibujada sobre el mar: agua blanca alrededor de la base desde que llega el chorro, un anillo que se aleja y una mancha alargada donde cayó el casco, con vetas de ruido, que se abren y se desvanecen.
+
 ### Físicas del mapa: agua de verdad, desniveles y colisiones con todo (3 de octubre de 2026)
 
 El usuario lo encontró: con el Porsche se pasaba por encima de los lagos como si nada, y se atravesaban vallas, vehículos y estructuras. Era así:
@@ -1159,10 +1183,12 @@ src/data/specs.js          ficha técnica con procedencia de cada dato
 src/data/verify.js         comprobación de coherencia entre lo declarado y lo construido
 src/sim/missionClock.js    reloj de misión independiente de los fotogramas
 src/sim/mission.js         Flight 14 como una sola misión: corte, órbita, salida de órbita, entrada
+src/sim/gt3Damage.js       daños del Porsche en un choque: abolladuras, piezas que se sueltan, chispas
 src/ui/hud.js              interfaz
 src/ui/telemetryList.js    lecturas de conducción y vuelo como texto, para lectores de pantalla
 src/core/water.js          dónde hay agua (mar, charcas, canales) y a qué profundidad
 src/core/colliders.js      todo lo sólido de la escena, en celdas de 0,25 m, para los choques
+src/core/effects.js        lo que salta en un choque: chispas, fuego, humo, restos, cristal, agua
 eslint.config.js           análisis estático (primer paso de npm run check)
 docs/historial.md          rondas anteriores, rotuladas como históricas
 ```

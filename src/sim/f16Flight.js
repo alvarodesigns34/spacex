@@ -460,11 +460,14 @@ export function createF16Flight({ ground, solid = null }) {
       if (solid && prev.valid && solid(prev, tmpV)) { hit = 'structure'; break; }
       prev.copy(tmpV); prev.valid = true;
     }
-    if (s.gear <= 0.98) {
-      // With the gear in transit or up there is nothing to roll on.
+    if (!hit && s.gear <= 0.98) {
+      // With the gear in transit or up there is nothing to roll on: a belly landing if it came
+      // down gently (≈ under 4 m/s of sink), else the airframe struck the ground; on the sea,
+      // into the water.
       for (const wh of WHEELS) {
         tmpV.copy(wh.r); toWorld(tmpV); tmpV.add(s.pos);
-        if (tmpV.y < ground(tmpV.x, tmpV.z).h - 0.05) { hit = 'belly'; break; }
+        const g = ground(tmpV.x, tmpV.z);
+        if (tmpV.y < g.h - 0.05) { hit = g.water ? 'water' : -s.vel.y > 4 ? 'airframe' : 'belly'; break; }
       }
     }
     if (hit) {

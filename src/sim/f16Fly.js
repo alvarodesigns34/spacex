@@ -14,6 +14,7 @@
 import * as THREE from 'three';
 import { createF16Flight, CG, atmosphere } from './f16Flight.js';
 import { createF16Assist, calibrated, attitude } from './f16Assist.js';
+import { createEffects } from '../core/effects.js';
 
 export { calibrated };
 import { RUNWAY, fromRunway, toRunway } from '../core/terrain.js';
@@ -30,6 +31,14 @@ const CAMERAS = ['chase', 'cockpit', 'tower', 'orbit'];
 export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid = null, hud, onStart = () => {}, onFinish = () => {}, visibilityHook = null }) {
   const airframe = exhibit.model.getObjectByName('f16-airframe');
   const gearGroup = airframe.getObjectByName('f16-landing-gear');
+  // What a crash leaves (core/effects.js): the fireball, the burning wreck's smoke, the pieces, the
+  // water thrown up. Fast into the ground or into something standing on it, the fuel goes up and
+  // the airframe breaks into pieces; into the water, a column of spray, and the airframe breaks up
+  // too if it came in fast, else settles whole and goes down;
+  // a collapsed gear or a belly landing, sparks and dust, the airframe where it stopped (≈ the
+  // look of such crashes filmed; nothing here models fire or fracture).
+  const fx = createEffects(scene);
+  let wreck = null;
   const holder = new THREE.Group();
   holder.name = 'f16-flight';
   holder.visible = false;
@@ -301,6 +310,66 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
 
   // ---- Touchdown, crash, stop ---------------------------------------------------------------------
   const onPavement = (x, z) => ground(x, z).hard;
+  const tmpDir = new THREE.Vector3();
+  function crashEffects(c) {
+    const at = holder.position.clone(), g = ground(at.x, at.z), v = c.speed;
+    const floor = g.h;
+    at.y = Math.max(at.y, floor + 0.5);
+    if (c.what === 'water') {
+      const surf = g.water ? g.h : (g.surface ?? g.h);
+      // From the surface it struck (the airframe's middle may already be under it).
+      at.y = surf + 0.3;
+      // The water is thrown up along the last stretch of the track, carried forward with what
+      // struck it: a curtain of fine spray and heavier sheets, the mist hanging after.
+      const run = Math.min(30, v * 0.2), dir = tmpDir.set(s.vel.x, 0, s.vel.z), hv = dir.length();
+      if (hv > 0.1) dir.multiplyScalar(1 / hv);
+      const carry = dir.clone().multiplyScalar(hv * 0.5);
+      for (let k = 0; k < 6; k++) {
+        const p = at.clone().addScaledVector(dir, -run * k / 5), w = 1 - k / 7;
+        fx.burst('spray', p, Math.round(Math.min(220, 40 + v * 1.5) * w), { vel: carry, spread: 3 + v * 0.08, up: (6 + v * 0.16) * w, floor: surf });
+        fx.burst('splash', p, Math.round(Math.min(60, 10 + v * 0.4) * w), { vel: carry, spread: 2 + v * 0.05, up: (4 + v * 0.1) * w, floor: surf });
+      }
+      fx.burst('mist', at, 30, { vel: carry, spread: 3 + v * 0.05, up: 3, floor: surf });
+      // Fast, the water is as hard as the ground: the airframe breaks up, some fuel burns on the
+      // surface; slower, a ditching: it settles whole and goes down.
+      if (v > 60) {
+        fx.burst('fire', at, 30, { spread: 4, up: 2 });
+        fx.burst('debris', at, 160, { vel: s.vel, spread: 8 + v * 0.1, up: 7, floor: surf });
+        airframe.visible = false;
+      }
+      wreck = { at, t: 0, burn: v > 60 ? 8 : 0, sink: v <= 60, surf };
+    } else if (v > 30 || c.what === 'structure') {
+      fx.burst('fire', at, 180, { spread: 5 + v * 0.06, up: 5 });
+      fx.burst('ember', at, 160, { spread: 8 + v * 0.1, up: 8, floor });
+      fx.burst('smoke', at, 70, { spread: 4, up: 3 });
+      fx.burst('debris', at, 300, { vel: s.vel, spread: 10 + v * 0.15, up: 9, floor });
+      fx.burst('spark', at, 200, { spread: 10 + v * 0.1, up: 4, floor });
+      fx.burst('dust', at, 40, { spread: 6, up: 2, floor });
+      airframe.visible = false;
+      wreck = { at, t: 0, burn: 30, sink: false };
+    } else {
+      fx.burst('spark', at, 160, { spread: 4, up: 1.5, floor });
+      fx.burst('dust', at, 40, { spread: 3, up: 1, floor });
+      fx.burst('debris', at, 25, { spread: 3, up: 2, floor });
+      wreck = { at, t: 0, burn: 0, sink: false };
+    }
+  }
+  /** The wreck: burning, and smoking for a while after; or going down in the water. */
+  function tendWreck(dt) {
+    fx.update(dt);
+    if (!wreck) return;
+    wreck.t += dt;
+    if (wreck.t < wreck.burn) {
+      const k = 1 - wreck.t / wreck.burn;
+      if (Math.random() < dt * 30 * k) fx.burst('fire', wreck.at, 2, { spread: 1.5, up: 2 });
+      // (On the water the smoke rises once the spray has fallen back, ≈1,5 s.)
+      if ((wreck.surf === undefined || wreck.t > 1.5) && Math.random() < dt * 20) fx.burst('smoke', wreck.at, 1, { spread: 1, up: 2 });
+    }
+    if (wreck.sink && holder.position.y > wreck.surf - 4) {
+      holder.position.y -= dt * 0.6;
+      if (holder.position.y < wreck.surf - 3.5) airframe.visible = false;
+    }
+  }
   function judge() {
     if (s.crashed && !state.outcome) {
       const why = {
@@ -312,6 +381,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
       }[s.crashed.what] ?? 'Crashed.';
       state.outcome = { kind: 'crash', why };
       note(why);
+      crashEffects(s.crashed);
       return;
     }
     // Moving again after a stop: the last landing's card goes away.
@@ -334,6 +404,8 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
   // ---- Lifecycle ---------------------------------------------------------------------------------
   /** On runway 28's threshold where the exhibit stands, at rest, brakes on. */
   function placeOnRunway() {
+    // A new start: the wreck cleared, the airframe whole.
+    wreck = null; fx.clear(); airframe.visible = true;
     // The exhibit's spot: the airplane's middle 40 m + half its length in from the 28 threshold,
     // the nose towards the west end.
     const a = L2 - 40 - OVERALL.length / 2;
@@ -383,6 +455,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
     for (const h of [surf.stabL, surf.stabR, surf.rudder, surf.flapL, surf.flapR, surf.lefL, surf.lefR, ...surf.sb]) if (h) h.o.quaternion.copy(h.base);
     if (gearGroup) gearGroup.visible = true;
     flame.removeFromParent();
+    wreck = null; fx.clear(); airframe.visible = true;
     saved.parent.add(airframe);
     airframe.position.copy(saved.position);
     airframe.quaternion.copy(saved.quaternion);
@@ -406,7 +479,8 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
       if (s.wow && vy < 0) lastSink = -vy;
       judge();
     }
-    sim.pose(holder);
+    if (!wreck?.sink) sim.pose(holder);
+    tendWreck(state.paused ? 0 : Math.min(dt, 0.25));
     animate(s);
     updateFlame(s);
     placeCamera(Math.max(dt, 1 / 120));

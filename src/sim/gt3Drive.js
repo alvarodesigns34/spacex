@@ -22,6 +22,8 @@ import { EYE } from '../vehicles/gt3Cabin.js';
 import { WHEELS } from '../data/gt3rs.js';
 import { trackCoords, toLocal, LAP, START } from '../core/circuitPlan.js';
 import { createGt3Sound } from './gt3Sound.js';
+import { createEffects } from '../core/effects.js';
+import { createGt3Damage } from './gt3Damage.js';
 
 const R2D = 180 / Math.PI;
 const CAMERAS = ['chase', 'driver', 'bonnet', 'trackside', 'orbit'];
@@ -194,6 +196,9 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
   const marks = createSkidMarks(scene);
   const smoke = createTyreSmoke(scene);
   const spray = createSpray(scene);
+  // What a crash does to the car and throws about (gt3Damage.js, core/effects.js).
+  const fx = createEffects(scene);
+  const damage = createGt3Damage({ car, scene, effects: fx, ground });
   const sound = createGt3Sound();
 
   const sim = createGt3Car({ ground, obstacles });
@@ -435,7 +440,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
 
   // ---- Lifecycle ---------------------------------------------------------------------------------
   function placeHome() {
-    spray.clear();
+    spray.clear(); fx.clear(); damage.reset();
     sim.reset(home());
     Object.assign(driver, { throttle: 0, brake: 0, steer: 0, handbrake: 0 });
     Object.assign(state, { paused: false, lap: null });
@@ -449,7 +454,10 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
     saved.quaternion.copy(car.quaternion);
     saved.near = camera.near; saved.far = camera.far; saved.fov = camera.fov;
     holder.add(car);
-    car.position.set(0, 0, 0); car.quaternion.identity();
+    // The model's origin is midway between its axles; the vehicle model's is the centre of mass,
+    // ahead of it by the published weight split (gt3Car.js CAR.a): the model sits back by the
+    // difference, so its wheels stand where the model's tyres touch the ground.
+    car.position.set(CAR.a - AXLE_F.x, 0, 0); car.quaternion.identity();
     holder.visible = true;
     placeHome();
     state.running = true; state.messages = [];
@@ -475,6 +483,8 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
     wheels.forEach((w, i) => { if (w) { w.rotation.y = 0; w.position.y = wheelY[i]; if (w.userData.spin) w.userData.spin.rotation.z = 0; } });
     if (flap && flapBase) flap.quaternion.copy(flapBase);
     instruments?.update({ rpm: 0, gear: 'N', kmh: 0, steer: 0 });
+    // Back on its plinth whole: dents out, parts back on.
+    damage.reset(); fx.clear(); spray.clear();
     saved.parent.add(car);
     car.position.copy(saved.position); car.quaternion.copy(saved.quaternion);
     holder.visible = false;
@@ -496,6 +506,12 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
       layMarks(Math.min(dt, 0.25));
       smoke.update(Math.min(dt, 0.25));
       throwSpray(Math.min(dt, 0.25));
+      // The contacts since the last frame, answered on the model (its frame sits back from the
+      // centre of mass by CAR.a − AXLE_F.x; the height struck ≈ the bumpers').
+      for (const h of s.hits) damage.hit(h.fx - (CAR.a - AXLE_F.x), h.fy, h.nx, h.ny, h.vn);
+      s.hits.length = 0;
+      damage.update(Math.min(dt, 0.25));
+      fx.update(Math.min(dt, 0.25));
       spray.update(Math.min(dt, 0.25));
       timeLaps();
     }
@@ -507,7 +523,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
   }
 
   // What the driver is told: a contact, the water, Launch Control armed, a jump.
-  let lastHit = -10, drowned = false, armed = false, floated = false, sank = false, splashed = false;
+  let lastHit = -10, drowned = false, armed = false, floated = false, sank = false, splashed = false, wrecked = false;
   function events() {
     if (s.impact > 2.5 && s.t - lastHit > 1) { lastHit = s.t; note(`Contact at ${Math.round(s.impact * 3.6)} km/h`); }
     const inWater = s.water.some(d => d > 0.05);
@@ -518,6 +534,8 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
     if (s.afloat && !floated) { floated = true; note('Afloat: the tyres have lost the ground'); }
     if (s.sunk && !sank) { sank = true; note('The car has flooded and sunk · Enter: back to the pad'); }
     if (!s.sunk) sank = false;
+    if (s.dead && !wrecked) { wrecked = true; note('The car is too badly damaged to go on: the engine has stopped · Enter: back to the pad'); }
+    if (!s.dead) wrecked = false;
     if (!inWater) floated = false;
     if (s.launch && sim.input.brake > 0.1 && !armed) { armed = true; note('Launch Control: let go of S to launch'); }
     if (!s.launch) armed = false;
@@ -542,7 +560,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
     get state() { return state; },
     get running() { return state.running; },
     get position() { return holder.position; },
-    sim, marks, smoke, sound, driver, start, reset, restart, setPaused, setCamera, cycleCamera, setTraction, setSound, fmtTime,
+    sim, marks, smoke, sound, driver, damage, fx, start, reset, restart, setPaused, setCamera, cycleCamera, setTraction, setSound, fmtTime,
     update(dt) { if (state.running) apply(dt); },
     AXLE_F, AXLE_R, CAR,
   };
