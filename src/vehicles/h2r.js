@@ -449,8 +449,15 @@ function buildDetails(M) {
   }
   // The Öhlins shock's gold reservoir and its black preload knob, under the seat inside the side
   // cover (it does not show in the right-side photograph).
-  { const c = new THREE.CylinderGeometry(0.02, 0.02, 0.09, 20); c.rotateZ(Math.PI / 2); c.translate(...PXY(860, 438), 0.085); g.add(mesh(c, M.h2rGold, { name: 'h2r-shock-reservoir' }));
-    const k = new THREE.CylinderGeometry(0.022, 0.022, 0.035, 20); k.rotateZ(Math.PI / 2); k.translate(...PXY(820, 438), 0.085); g.add(mesh(k, M.h2rSatin, { name: 'h2r-shock-knob' })); }
+  { const c = new THREE.CylinderGeometry(0.02, 0.02, 0.09, 20); c.rotateZ(Math.PI / 2); c.translate(...PXY(860, 438), 0.0); g.add(mesh(c, M.h2rGold, { name: 'h2r-shock-reservoir' }));
+    const k = new THREE.CylinderGeometry(0.022, 0.022, 0.035, 20); k.rotateZ(Math.PI / 2); k.translate(...PXY(820, 438), 0.0); g.add(mesh(k, M.h2rSatin, { name: 'h2r-shock-knob' })); }
+  // On the right, under the tail: the dark panel of the rear hugger and the subframe's side, between
+  // the tail and the tyre (the right-side photograph through its camera: x −0.52 to −0.22 m, 0.46 to
+  // 0.64 m up, a blade slanting down to the heel plate, ≈0.10 m out). The left side is the swingarm's
+  // and the chain's.
+  { const pl = slab([[-0.523, 0.643], [-0.374, 0.639], [-0.218, 0.483], [-0.366, 0.458]], 0.004, 0.001); pl.translate(0, 0, 0.098);
+    M.h2rSatin2 ??= Object.assign(M.h2rSatin.clone(), { side: THREE.DoubleSide, name: 'h2r-satin-black-2s' });
+    g.add(mesh(pl, M.h2rSatin2, { name: 'h2r-rear-hugger-panel' })); }
   return g;
 }
 function radiatorTexture() {

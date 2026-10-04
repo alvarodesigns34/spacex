@@ -844,6 +844,7 @@ Las fotos oficiales de Kawasaki no se pudieron volver a descargar en esta sesió
   - Bloque, culata y cárter de aluminio fundido claro; colectores con el tono bronce del titanio y silencioso pulido.
   - El depósito del amortiguador queda tras la tapa, como en la foto.
   - El colín tiene aristas vivas y el rótulo «Ninja» de fábrica en su panel.
+  - Bajo el colín, a la derecha, el panel oscuro del guardabarros interior y del lateral del subchasis: una pala inclinada entre el colín y el reposapiés, medida en la foto. Antes ahí se veía el fondo.
 
 ### Porsche 911 GT3 RS: frenada contra auto motor und sport y revisión con fotos libres (4 de octubre de 2026)
 
