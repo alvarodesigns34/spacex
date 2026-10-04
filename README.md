@@ -847,6 +847,12 @@ Auditoría: el F-16 decía expresamente «sin efecto suelo y sin viento». El Po
 - **Efecto suelo:** la resistencia inducida baja con el factor de McCormick, φ = (16h/b)²/(1+(16h/b)²), y la pendiente de sustentación sube como la de un ala de alargamiento A/φ (fórmula de Helmbold, A = 3,0). En la pista da +5 % de sustentación y −9 % de inducida; a una envergadura, nada. El cambio de momento de cabeceo cerca del suelo no está modelado (≈).
 - **Mandos simples, gas por energía total.** Con el viento del sitio, la aproximación automática rompía el tren: una ráfaga de cara subía la velocidad indicada, el autoacelerador quitaba gas y la senda se hundía (5,5 m/s de descenso al empezar la recogida). Es la trampa clásica de una aproximación con ráfagas. Ahora el gas atiende también a la senda: con viento toma a 1,8 m/s, volando cangrejeado 5,6°, y en calma a 1,5 m/s (antes 2,2).
 
+- **El viento cruzado en tierra, como lo lleva un piloto.** El check completo destapó algo real: con la brisa del sitio a través de la pista, un F-16 sin pedal se pone proa al viento (efecto veleta). Una rueda de morro recta apenas resiste un giro amplio: con ≈1,8 kN·m de par basta un radio de ≈800 m, unos 3°/s a 40 m/s. Así giró 26° en 10 s de carrera de despegue y se salió de la pista. Con el pedal a fondo, el timón sí domina (comprobado), así que el modelo es coherente. Lo que faltaba es que se usara el pedal.
+  - Los mandos simples llevan ahora los pedales en lazo cerrado sobre la velocidad de guiñada: la que pides al girar o la del rumbo al soltar, con acción integral para el par sostenido del viento y ganancia creciente con la velocidad (a alta velocidad trabaja el timón).
+  - Sobre la pista y alineado con ella (±20°), siguen el eje apuntando a un punto ≈3 s por delante.
+  - Con el viento del sitio, despegando, no se separa más de 3 m del eje (antes, 54 m: fuera de la pista).
+  - La prueba manual de `ux-check` mantiene el rumbo con el pedal. La del mando compara la misma carrera con y sin stick: el viento es determinista, así que la diferencia es solo del stick.
+
 **Porsche y H2R:** la resistencia y la carga aerodinámica se calculan con el aire relativo. Con 5 m/s de cara el Porsche pierde 8 km/h de punta y gana 15 con el viento de cola; la H2R pierde 15 y gana 11. El empuje lateral del viento sobre la moto inclinada no está modelado (≈).
 
 **El entorno sigue al mismo viento:**
@@ -856,7 +862,7 @@ Auditoría: el F-16 decía expresamente «sin efecto suelo y sin viento». El Po
 
 **Pruebas:**
 - `tools/wind-check.mjs` (nueva, en `check:static`): perfil, dirección, estadística de ráfagas, turbulencia viajando a sotavento, la manga y el vapor;
-- `f16-check`: efecto suelo (función y vuelo), viento aparcado y la aproximación con el viento del sitio;
+- `f16-check`: efecto suelo (función y vuelo), viento aparcado, la aproximación y el despegue con el viento del sitio;
 - `gt3rs-check` y `h2r-check`: punta con viento de cara y de cola.
 - Todas fallan con el código anterior.
 

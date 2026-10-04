@@ -25,6 +25,7 @@
  */
 import * as THREE from 'three';
 import { atmosphere } from './f16Flight.js';
+import { RUNWAY, toRunway } from '../core/terrain.js';
 
 const D2R = Math.PI / 180, R2D = 180 / Math.PI, KT = 0.514444;
 const clamp = THREE.MathUtils.clamp;
@@ -76,14 +77,14 @@ export function attitude(s) {
  */
 export function createF16Assist({ sim, pilot, note = () => {} }) {
   const s = sim.state;
-  const fresh = () => ({ rolling: false, gearAuto: false, bankCmd: 0, gammaCmd: 0, gcas: false, lowSpeed: false, pI: 0, gPrev: null, gRate: 0, atI: 0, vHold: null, holdI: 0, pathTouched: false, wasThr: false });
+  const fresh = () => ({ rolling: false, gearAuto: false, bankCmd: 0, gammaCmd: 0, gcas: false, lowSpeed: false, pI: 0, gPrev: null, gRate: 0, atI: 0, vHold: null, holdI: 0, pathTouched: false, wasThr: false, hdgHold: null, yI: 0 });
   const st = fresh();
   function reset() { Object.assign(st, fresh()); }
 
   /** keys: { gas, cut, up, down, turn (−1 left … +1 right), shift }; touchdown: a landing is under way. */
   function step(keys, dt, { touchdown = false } = {}) {
     const ramp = (cur, target, rate) => cur + clamp(target - cur, -rate * dt, rate * dt);
-    const { gas, up, down, turn: tr, shift } = keys;
+    const { gas, up, down, shift } = keys, tr = Number.isFinite(keys.turn) ? keys.turn : 0;
     // In the flare (gear down, airborne, under 20 m) S is the second pilot's to ignore: the touchdown is his.
     const cut = keys.cut && !(pilot.gearDown && !s.wow && s.agl < 20);
     const { pitch, bank, gamma, V } = attitude(s);
@@ -107,7 +108,35 @@ export function createF16Assist({ sim, pilot, note = () => {} }) {
       const rCmd = Math.min(20 * D2R, 0.15 * 9.81 / vg);
       // (The pedals' travel is 32° of the nose wheel; fast, the turn needs only a touch of them.)
       const steerWant = Math.min(1, Math.atan(4.0 * rCmd / vg) / (32 * D2R));
-      pilot.yaw = ramp(pilot.yaw, tr * steerWant, tr ? 2.5 : 5);
+      // The pedals as a pilot works them: on the yaw rate, not open loop. A crosswind turns an
+      // unsteered jet into it (the fin weathervanes it, and a straight nose wheel resists a
+      // wide turn only weakly: in the site's 12 kt breeze it turned 27° off the runway in 10 s
+      // of take-off roll). Turning, the rate asked for; let go, the heading it was let go on.
+      const nose = _a.set(1, 0, 0).applyQuaternion(s.q), hdg = Math.atan2(nose.z, nose.x);
+      if (tr || st.hdgHold === null) st.hdgHold = hdg;
+      // On the runway and lined up with it (within 20°), the heading is the centre line's, aimed
+      // back at it from wherever the wind has pushed the jet (a point ≈3 s ahead on the line).
+      let hold = st.hdgHold;
+      const [ra, rc] = toRunway(s.pos.x, s.pos.z), axis = RUNWAY.angleDeg * D2R;
+      if (!tr && Math.abs(ra) < RUNWAY.length / 2 && Math.abs(rc) < RUNWAY.width / 2 + 5) {
+        const fwdA = Math.cos(hdg - axis) > 0, line = fwdA ? axis : axis + Math.PI;
+        if (Math.abs(Math.atan2(Math.sin(hdg - line), Math.cos(hdg - line))) < 20 * D2R) {
+          const ahead = Math.max(60, 3 * vg);
+          hold = line + (fwdA ? -1 : 1) * Math.atan(rc / ahead);
+          st.hdgHold = line;
+        }
+      }
+      const hErr = Math.atan2(Math.sin(hold - hdg), Math.cos(hold - hdg));
+      const rDes = tr ? tr * rCmd : clamp(0.8 * hErr, -rCmd, rCmd);
+      // Feed-forward from the turn's geometry, and the rate's error on top (s.w.z: nose right).
+      const ff = rDes / Math.max(rCmd, 1e-3) * steerWant;
+      // (The rate's error on the pedals with a gain that grows with the speed: fast, the nose
+      // wheel's reach is a fraction of a degree and the rudder, on the same pedals, does the work.)
+      // A crosswind's steady weathervaning needs a steady pedal (≈ half of it at 40 m/s into
+      // 12 kt across), turning or not: an integral of the rate's error holds it.
+      st.yI = vg < 1 ? 0 : clamp(st.yI + 10 * (rDes - s.w.z) * dt, -1, 1);
+      const pedal = vg > 1 ? clamp(ff + (4 + 0.2 * vg) * (rDes - s.w.z) + st.yI, -1, 1) : tr * steerWant;
+      pilot.yaw = ramp(pilot.yaw, pedal, 5);
       // Rotation: from 120 kt the nose comes up to 11°, ↑/↓ trimming it by 1°, never past 12°.
       const kt = s.tas / KT, want = clamp(11 + (up ? 1 : 0) - (down ? 1 : 0), 0, 12);
       pilot.pitch = st.rolling && kt > 120 ? clamp(0.12 * (want - pitch) - 0.02 * s.w.y * R2D, -0.3, 0.9) : 0;
@@ -117,6 +146,7 @@ export function createF16Assist({ sim, pilot, note = () => {} }) {
       return;
     }
     st.rolling = false;
+    st.hdgHold = null; st.yI = 0;
     pilot.yaw = 0;
     pilot.brake = 0;
     // (At the geodesic altitude: the scene's y drifts from it with the Earth's curvature.)

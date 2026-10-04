@@ -16,6 +16,7 @@ registerHooks({ resolve(specifier, context, next) {
 const THREE = await import('three');
 const { createF16Flight, thrust, atmosphere, CG, groundEffect } = await import('../src/sim/f16Flight.js');
 const { windAt } = await import('../src/core/wind.js');
+const { RUNWAY, fromRunway, toRunway } = await import('../src/core/terrain.js');
 const { createF16Assist, calibrated, attitude } = await import('../src/sim/f16Assist.js');
 const { morelli, MORELLI, THRUST } = await import('../src/data/f16Aero.js');
 const { MASS } = await import('../src/data/f16.js');
@@ -405,6 +406,16 @@ function assisted({ setup, plan, T, wind = null, watch = null }) {
     crab = Math.max(crab, Math.abs(((d + 540) % 360) - 180));
   };
   const r = assisted({ setup, plan: () => ({}), T: 140, wind: (x, h, z, t, out) => windAt(x, h, z, t, out), watch });
+  // W held from runway 28's threshold in the same wind: the pedals keep it on the centre line
+  // (without them it weathervaned 26° into the breeze in 10 s and left the runway).
+  let off = 0;
+  const tko = assisted({
+    setup: (f2) => { const [x0, z0] = fromRunway(RUNWAY.length / 2 - 30, 0); f2.reset({ x: x0, z: z0, yaw: (180 - RUNWAY.angleDeg) * D2R }); },
+    plan: () => ({ gas: 1 }), T: 25, wind: (x, h, z, t, out) => windAt(x, h, z, t, out),
+    watch: (s2) => { if (s2.wow) off = Math.max(off, Math.abs(toRunway(s2.pos.x, s2.pos.z)[1])); },
+  });
+  report(!tko.crashed && tko.airborne && off < 8, 'viento cruzado en el despegue con los mandos simples: los pedales lo mantienen sobre el eje de la pista',
+    `máximo ${off.toFixed(1)} m del eje rodando (la pista tiene ${(RUNWAY.width / 2).toFixed(1)} m a cada lado)${tko.crashed ? ', ' + tko.crashed.what : ''}${tko.airborne ? ', en el aire' : ''}`);
   report(!r.crashed && r.td && r.td.sink < 3 && r.stopped && crab > 1.5,
     'viento del sitio en la aproximación con los mandos simples: el avión vuela cangrejeado y aun así toma y se para',
     `cangrejeo ${crab.toFixed(1)}° · toma con ${r.td?.sink.toFixed(2)} m/s${r.crashed ? ', ' + r.crashed.what : ''}${r.stopped ? ', parado' : ''}`);

@@ -673,12 +673,18 @@ try {
     });
     report(easy.assist && easy.alt > 150 && !easy.gear && !easy.crashed && Math.abs(easy.banked) > 40 && Math.abs(easy.level) < 10 && !easy.dive.crashed,
       'Simple controls: W held takes off and climbs out, D banks and the wings level when let go, a dive at the ground is pulled out', easy);
-    // A take-off on the flight model, flown in real time steps by a scripted pilot.
+    // A take-off on the flight model, flown in real time steps by a scripted pilot, who keeps
+    // straight with the pedals as a pilot does: the site's breeze blows across the runway, and an
+    // unsteered jet weathervanes into it (Phase 4).
     const flown = await page.evaluate(async () => {
       const v = window.__vc, F = v.f16fly, s = F.sim.state, P = F.pilot;
       F.state.manual = true; P.brake = 0; P.throttle = 1;
       let lift = null;
+      const hdg = () => { const n = new s.pos.constructor(1, 0, 0).applyQuaternion(s.q); return Math.atan2(n.z, n.x); };
+      const h0 = hdg();
       for (let k = 0; k < 40 * 30; k++) {
+        const e = Math.atan2(Math.sin(h0 - hdg()), Math.cos(h0 - hdg()));
+        P.yaw = s.wow ? Math.max(-1, Math.min(1, 6 * e - 1.5 * s.w.z)) : 0;
         P.pitch = s.tas > 69 && !lift ? 0.8 : lift ? 0.15 : 0;
         F.update(1 / 30);
         if (!lift && !s.wow && s.agl > 2) lift = { kt: s.tas / 0.514444, t: s.t };
@@ -716,25 +722,32 @@ try {
     {
       const pad = await page.evaluate(() => {
         const F = window.__vc.f16fly, s = F.sim.state;
+        // The same run twice from the threshold, the stick to the right in the second: the site's
+        // breeze blows across the runway the same way both times (core/wind.js is deterministic),
+        // so the difference is the stick's (Phase 4).
+        const run = (stick) => {
+          F.restart();
+          const g = { connected: true, index: 0, axes: [0, 0, 0, 0], buttons: Array.from({ length: 16 }, (_, i) => ({ pressed: i === 7, value: i === 7 ? 1 : 0 })) };
+          Object.defineProperty(navigator, 'getGamepads', { value: () => [g], configurable: true });
+          for (let k = 0; k < 4 * 30; k++) F.update(1 / 30);
+          const r = { assist: F.state.assist, throttle: +F.pilot.throttle.toFixed(2), parking: F.pilot.parking, kt: +(s.tas / 0.514444).toFixed(1) };
+          // The stick to the right: on the ground it steers the nose wheel (the pedals' channel; the
+          // ailerons stay centred, Phase 1), and the heading turns to the right: at full power it is
+          // past 80 kt within the 2 s, where a turn asks only ≈0.15 g of the tyres (≈2°/s).
+          const hdg = () => Math.atan2(-s.vel.z, s.vel.x);
+          const h0 = hdg();
+          g.axes[0] = stick;
+          for (let k = 0; k < 2 * 30; k++) F.update(1 / 30);
+          r.steer = +F.pilot.yaw.toFixed(3); r.roll = +F.pilot.roll.toFixed(2);
+          r.turned = +(((h0 - hdg()) * 180 / Math.PI + 540) % 360 - 180).toFixed(2);
+          delete navigator.getGamepads;
+          return r;
+        };
+        const still = run(0), r = run(0.8);
         F.restart();
-        const g = { connected: true, index: 0, axes: [0, 0, 0, 0], buttons: Array.from({ length: 16 }, (_, i) => ({ pressed: i === 7, value: i === 7 ? 1 : 0 })) };
-        Object.defineProperty(navigator, 'getGamepads', { value: () => [g], configurable: true });
-        for (let k = 0; k < 4 * 30; k++) F.update(1 / 30);
-        const r = { assist: F.state.assist, throttle: +F.pilot.throttle.toFixed(2), parking: F.pilot.parking, kt: +(s.tas / 0.514444).toFixed(1) };
-        // The stick to the right: on the ground it steers the nose wheel (the pedals' channel; the
-        // ailerons stay centred, Phase 1), and the heading turns to the right: at full power it is
-        // past 80 kt within the 2 s, where a turn asks only ≈0.15 g of the tyres (≈2°/s).
-        const hdg = () => Math.atan2(-s.vel.z, s.vel.x);
-        const h0 = hdg();
-        g.axes[0] = 0.8;
-        for (let k = 0; k < 2 * 30; k++) F.update(1 / 30);
-        r.steer = +F.pilot.yaw.toFixed(3); r.roll = +F.pilot.roll.toFixed(2);
-        r.turned = +(((h0 - hdg()) * 180 / Math.PI + 540) % 360 - 180).toFixed(2);
-        delete navigator.getGamepads;
-        F.restart();
-        return r;
+        return { ...r, still: still.turned, turnedByStick: +(r.turned - still.turned).toFixed(2) };
       });
-      report(pad.assist && pad.throttle > 0.5 && !pad.parking && pad.kt > 5 && pad.steer > 0 && Math.abs(pad.roll) < 0.05 && pad.turned > 0.5,
+      report(pad.assist && pad.throttle > 0.5 && !pad.parking && pad.kt > 5 && pad.steer > 0 && Math.abs(pad.roll) < 0.05 && pad.turnedByStick > 0.5,
         'A gamepad drives the simple controls: RT opens the throttle and it rolls, the stick steers on the ground', pad);
     }
     await page.keyboard.press('c');
