@@ -8,6 +8,7 @@
  */
 import * as THREE from 'three';
 import * as TX from './textures.js';
+import { WIND } from '../core/wind.js';
 
 /**
  * Moving water. One wave-normal map (textures.js makeWater, a 420 m tile) sampled four times,
@@ -20,6 +21,11 @@ import * as TX from './textures.js';
  *
  * `calm` scales the two long layers: a pool a few centimetres deep on a flat carries ripples
  * and no swell. The clock is WAVE_TIME, advanced by the render loop.
+ *
+ * Where each layer travels: the swell comes in off the Gulf from the ESE (towards ≈290°, ≈), and
+ * the wind waves, the chop and the ripples run before the site's wind (core/wind.js: the sea
+ * breeze from the SSE), the shorter ones spread a little more about it. Before, the four layers
+ * drifted four ways at once, up to 130° apart, whatever the wind.
  */
 /**
  * Grass tussocks are thin double-sided blades. Lit with their own side normals, and with the
@@ -38,13 +44,18 @@ export function grassNormals(geo) {
 export const WAVE_TIME = { value: 0 };
 export function waveNormals(sh, { tileSize = 420, calm = 1 } = {}) {
   sh.uniforms.uWaveTime = WAVE_TIME;
-  // [scale, rotation (rad), speed (m/s), weight, fade in from (m), fade out by (m)]
-  const L = [[1, 0.6, 4.5, 0.55 * calm, 0, 0], [5.3, 1.25, 2.6, 0.45 * calm, 0, 0], [23, 2.1, 1.4, 0.4, 700, 60], [97, 2.9, 0.7, 0.34, 140, 10]];
+  // [scale, rotation (rad), speed (m/s), weight, fade in from (m), fade out by (m), heading of travel (true °)]
+  const wind = (WIND.fromDeg + 180) % 360;
+  const L = [[1, 0.6, 4.5, 0.55 * calm, 0, 0, 290], [5.3, 1.25, 2.6, 0.45 * calm, 0, 0, wind], [23, 2.1, 1.4, 0.4, 700, 60, wind + 15], [97, 2.9, 0.7, 0.34, 140, 10, wind - 25]];
   const f = (x) => x.toFixed(5);
-  const layers = L.map(([s, a, v, w, far, near]) => {
+  const layers = L.map(([s, a, v, w, far, near, heading]) => {
     const c = Math.cos(a), sn = Math.sin(a), d = (v / tileSize) * s;
+    // The travel in the map's coordinates (u = x, v = −z; +x bears 100.8°, bearings clockwise
+    // towards +z). A sample offset moving by +o makes the pattern move by −R⁻¹o: so o = −R·m.
+    const b = (heading - 100.8) * Math.PI / 180, mu = Math.cos(b), mv = -Math.sin(b);
+    const ou = -(c * mu - sn * mv) * d, ov = -(sn * mu + c * mv) * d;
     const fade = far ? ` * (1.0 - smoothstep(${f(near)}, ${f(far)}, vcWaveDist))` : '';
-    return `  vcWave += (texture2D(normalMap, mat2(${f(c)}, ${f(sn)}, ${f(-sn)}, ${f(c)}) * vNormalMapUv * ${f(s)} + uWaveTime * vec2(${f(d * 0.8)}, ${f(d * 0.6)})).xy * 2.0 - 1.0) * ${f(w)}${fade};`;
+    return `  vcWave += (texture2D(normalMap, mat2(${f(c)}, ${f(sn)}, ${f(-sn)}, ${f(c)}) * vNormalMapUv * ${f(s)} + uWaveTime * vec2(${f(ou)}, ${f(ov)})).xy * 2.0 - 1.0) * ${f(w)}${fade};`;
   }).join('\n');
   sh.fragmentShader = sh.fragmentShader
     .replace('#include <common>', '#include <common>\nuniform float uWaveTime;')

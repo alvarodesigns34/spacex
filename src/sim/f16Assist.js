@@ -191,8 +191,13 @@ export function createF16Assist({ sim, pilot, note = () => {} }) {
     if (pilot.gearDown && st.gearAuto && !gas && !cut) {
       const e = 150 - kcas;
       st.atI = clamp(st.atI + e * 0.01 * dt, -0.3, 0.3);
-      pilot.throttle = s.agl < 6 ? 0 : clamp(0.45 + st.atI + e * 0.03, 0, 0.76);
-      pilot.speedBrake = e < -12;
+      // The power answers the path as well as the speed (total energy): below the path asked
+      // for, more. On the speed alone, a gust of headwind read as too much speed took the power
+      // off and the path sagged — 5.5 m/s of sink into the flare in the site's wind, and the gear
+      // broke (the classic gusty-approach trap; pilots carry power and half the gust instead).
+      const below = clamp(st.gammaCmd - gamma, 0, 3);
+      pilot.throttle = s.agl < 6 ? 0 : clamp(0.45 + st.atI + e * 0.03 + 0.12 * below, 0, 0.76);
+      pilot.speedBrake = e < -12 && below < 0.3;
     }
     // Gear down, never slower than 145 kt above the runway, and the speed brakes only above 150 kt
     // (S held on a gear-down approach used to stall the jet onto its wheels at 25 m/s; slower than

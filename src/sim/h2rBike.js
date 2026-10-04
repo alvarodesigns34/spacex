@@ -71,7 +71,10 @@ export function engineTorque(rpm) {
 /** Longitudinal grip against slip ratio (a magic-formula shape): its peak at ≈7 %, falling a little past it. */
 const tyreLong = (k) => Math.sin(1.6 * Math.atan(18 * k - 0.4 * (18 * k - Math.atan(18 * k))));
 
-export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'track' }), obstacles = () => [] } = {}) {
+export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'track' }), obstacles = () => [], wind = null } = {}) {
+  // The wind (core/wind.js), at ≈0.9 m (the rider's and the fairing's centre of pressure, ≈);
+  // none in the checks unless given.
+  const AIR = { x: 0, y: 0, z: 0 };
   const input = { throttle: 0, brake: 0, rearBrake: 0, lean: 0, shiftUp: false, shiftDown: false, auto: false };
   const s = {};
   function reset({ x = 0, z = 0, psi = 0 } = {}) {
@@ -130,6 +133,11 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
     const depth = g.water !== undefined ? Math.max(0, g.water - g.h) : 0;
     s.water = depth; s.immersion = depth;
     const V = Math.max(0, s.u);
+    // The air's drag on the bike and rider, through the air (the wind along the bike taken off:
+    // forward is (cos ψ, −sin ψ) in x, z). A crosswind's push on the lean is not modelled (≈).
+    if (wind) wind(s.x, 0.9, s.z, s.t, AIR); else { AIR.x = 0; AIR.z = 0; }
+    const ua = V - (AIR.x * Math.cos(s.psi) - AIR.z * Math.sin(s.psi));
+    const Faero = 0.5 * RHO * MASS.cdA * ua * Math.abs(ua);
 
     // ---- Loads, from the springs: each axle's spring and damper (the published travels).
     let Nf = Math.max(0, BIKE.kF * s.susF + BIKE.cF * s.vF), Nr = Math.max(0, BIKE.kR * s.susR + BIKE.cR * s.vR);
@@ -233,7 +241,7 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
       if (Fbf > capF * 0.95) { Fbf = capF * 0.95; s.abs = true; }
       // Held short of the deceleration that lifts the rear (a > g·lf/h, ≈1.1 g with the rider,
       // more leant over), counting what the air and the water already take.
-      const lift = Math.max(0, 0.96 * BIKE.m * G * BIKE.lf / hE - 0.5 * RHO * MASS.cdA * V * V - waterDrag);
+      const lift = Math.max(0, 0.96 * BIKE.m * G * BIKE.lf / hE - Faero - waterDrag);
       if (Fbf > lift) { Fbf = lift; s.abs = true; }
       // Rear-lift mitigation: the brake eased as the rear rises, let off entirely by 4° of it.
       if (s.theta < -1 * D2R) Fbf *= Math.max(0, 1 + (s.theta + 1 * D2R) / (3 * D2R));
@@ -254,7 +262,7 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
       // the front locks and skids on its sliding friction — a longer stop, not a fall.
       // The rider's hand: no harder than just lifts the rear (≈5 % past it, a light rear), as a
       // rider brakes without ABS; it is the aids' hold (0.96) that keeps it planted.
-      const feel = Math.max(0, 1.05 * BIKE.m * G * BIKE.lf / hE - 0.5 * RHO * MASS.cdA * V * V - waterDrag);
+      const feel = Math.max(0, 1.05 * BIKE.m * G * BIKE.lf / hE - Faero - waterDrag);
       if (Fbf > feel) Fbf = feel;
       const roomPhys = Math.max(0, BIKE.m * G * Math.sqrt(Math.max(0, mu * mu - leanTan * leanTan)) + Fx);
       if ((Fbf > capF || Fbf > roomPhys) && V > 2) { Fbf = Math.min(capF, roomPhys) * 0.7; s.lock += dt; }
@@ -266,7 +274,6 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
     // (Read ≈0.15 s ahead from the pitch rate, as a rider feels the rear going light before it rises.)
     const liftAhead = -s.theta - 0.15 * s.thetaDot;
     if (liftAhead > 3 * D2R) Fbf *= Math.max(0, 1 - (liftAhead - 3 * D2R) / (7 * D2R));
-    const Faero = 0.5 * RHO * MASS.cdA * V * V;
     const Froll = BIKE.m * G * (0.015 + (g.roll ?? 0)) * (V > 0.3 ? 1 : V / 0.3);
     // The grade: gravity along the slope (the pitch of the last step).
     const Fgrade = s.air ? 0 : BIKE.m * G * Math.sin(s.gradePitch);

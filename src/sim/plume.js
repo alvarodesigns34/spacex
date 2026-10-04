@@ -21,6 +21,7 @@
 import * as THREE from 'three';
 import { fbm } from '../materials/textures.js';
 import { GULF, LAUNCH_SITE } from '../data/gulf.js';
+import { DOWNWIND } from '../core/wind.js';
 
 const SCALE_HEIGHT = 7500;
 /** Ambient pressure as a fraction of sea level. */
@@ -986,6 +987,7 @@ const CLOUD_FRAG = /* glsl */`
   }`;
 
 const _sunDir = new THREE.Vector3();
+const _q = new THREE.Quaternion(), _w = new THREE.Vector3(), _up = new THREE.Vector3();
 
 /**
  * The steam, deluge spray and dust that leaves the flame trench.
@@ -1404,12 +1406,23 @@ export class Vapor {
     this.mesh.renderOrder = 1;
     this.windows = emitters.map(e => e.window);
     this.maxLife = Math.max(...emitters.map(e => e.life * 1.2));
+    // The horizontal part of the drift is the wind's (core/wind.js): the same strength as given,
+    // turned downwind, in whatever frame the puffs hang in (a turned pad, a tilting booster).
+    // Before, each vapour drifted its own way, south-east on the pad, into the sea breeze.
+    this.drift = Math.hypot(accel[0], accel[2]);
+    this.rise = accel[1];
   }
 
   /** Mission time; hidden outright when no emitter can have a live puff. */
   update(t, camera, sun) {
     this.material.uniforms.uTime.value = t;
     this.mesh.visible = this.windows.some(([a, b]) => t >= a && t <= b + this.maxLife);
+    if (this.mesh.visible && this.drift > 0 && this.mesh.parent) {
+      this.mesh.parent.getWorldQuaternion(_q).invert();
+      _w.set(DOWNWIND.x, 0, DOWNWIND.z).applyQuaternion(_q);
+      _up.set(0, 1, 0).applyQuaternion(_q);
+      this.material.uniforms.uAccel.value.copy(_w).multiplyScalar(this.drift).addScaledVector(_up, this.rise);
+    }
     if (this.mesh.visible && camera && sun) {
       _sunDir.subVectors(sun.position, sun.target ? sun.target.position : _zero).normalize();
       this.material.uniforms.uSunDir.value.copy(_sunDir.transformDirection(camera.matrixWorldInverse));

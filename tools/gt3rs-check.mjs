@@ -69,6 +69,21 @@ const rolling = (s, v, g) => { s.u = v; s.gear = g; s.w = s.w.map((_, k) => v / 
   report(Math.abs(top - PERFORMANCE.topSpeed * 3.6) < 4, `velocidad máxima ${Math.round(PERFORMANCE.topSpeed * 3.6)} km/h (±4), en 7.ª con el DRS`, `${top.toFixed(1)} km/h, ${s.gear}.ª, ${s.rpm.toFixed(0)} rpm, DRS ${s.drs}`);
   report(s.rpm < ENGINE.maxRpm && s.gear === 7, 'a la máxima, por debajo del corte: la resistencia la limita, no el motor', `${s.rpm.toFixed(0)} rpm`);
 }
+// ---- The wind (core/wind.js; Phase 4): the drag and the downforce are the air's ---------------------
+{
+  // Flat out on a long straight in still air, into 5 m/s of headwind and with it behind: with the
+  // power fixed, the drag through the air sets the top speed (P = ½ρCdA·(V+w)²·V ≈ −12 km/h into
+  // a 5 m/s headwind at this speed); before, the car ignored the wind.
+  const top = (wx) => {
+    const c = createGt3Car({ ground: flat(), wind: (x, h, z, tt, out) => { out.x = wx; out.y = 0; out.z = 0; return out; } }); c.reset();
+    const s = c.state; c.input.throttle = 1;
+    let v = 0; for (let tt = 0; tt < 120; tt += DT) { c.step(DT); v = Math.max(v, s.u * 3.6); }
+    return v;
+  };
+  const still = top(0), head = top(-5), tail = top(5);
+  report(still - head > 7 && still - head < 18 && tail > still + 3, 'viento: 5 m/s de cara le quitan velocidad punta y de cola se la dan (la resistencia es la del aire, no la del suelo)',
+    `en calma ${still.toFixed(1)} km/h · de cara ${head.toFixed(1)} · de cola ${tail.toFixed(1)}`);
+}
 
 // ---- Braking and cornering ------------------------------------------------------------------------
 {

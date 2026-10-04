@@ -31,6 +31,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mesh, mergeAll, mat4 } from '../geometry/utils.js';
 import { RUNWAY, APRON, fromRunway, terrainHeight } from './terrain.js';
+import { windAt, WIND } from './wind.js';
 
 const FT = 0.3048, IN = 0.0254;
 const HALF = RUNWAY.width / 2, L2 = RUNWAY.length / 2;
@@ -268,7 +269,10 @@ function buildFixtures(g, M, lensMat, sockMat) {
   g.add(faces);
 
   // Windsock near the 28 end, by the site, clear of the runway safety area (≈ a 12 ft sock on a hinged mast).
-  // It streams to the north-west on the coast's south-easterly sea breeze.
+  // It streams downwind of the site's wind (core/wind.js: the sea breeze from the SSE), and moves
+  // with it: tick(t) turns it to the wind at the mast's top and lifts it with the wind's speed —
+  // a sock is built to stand straight out at 15 kt (FAA AC 150/5345-27) and hangs limp in calm
+  // air; in between its droop is ≈.
   const wa = L2 - 1000 * FT, wc = 110;
   const [wx, wz] = fromRunway(wa, wc);
   const sock = new THREE.Group();
@@ -276,24 +280,47 @@ function buildFixtures(g, M, lensMat, sockMat) {
   sock.position.set(wa, terrainHeight(wx, wz), wc);
   const mast = 5.0;
   sock.add(mesh(new THREE.CylinderGeometry(0.05, 0.07, mast, 10), M.aluminum, { position: [0, mast / 2, 0], name: 'runway-windsock-mast' }));
-  // The sock streams along −x of its frame; the frame turns it to the north-west (315° true).
-  // +a bears 100.8° + the runway's turn, +c lies to its right (clockwise); the frame turns −x of
-  // the sock onto 315°.
+  // The sock streams along −x of its frame, which turns about the mast (yaw) and droops about its
+  // own z. +a bears 100.8° + the runway's turn, +c lies to its right (clockwise): a yaw θ points
+  // −x of the frame at the bearing (base + 180° − θ).
+  const base = 100.8 + RUNWAY.angleDeg;
   const frame = new THREE.Group();
+  frame.name = 'runway-windsock-frame';
   frame.position.set(0, mast, 0);
-  frame.rotation.y = -(315 - (100.8 + RUNWAY.angleDeg) - 180) * Math.PI / 180;
+  frame.rotation.order = 'YZX';
   frame.add(mesh(new THREE.TorusGeometry(0.46, 0.02, 6, 20), M.aluminum, { rotation: [0, Math.PI / 2, 0], name: 'runway-windsock-ring' }));
   const L = 12 * FT;
   const cloth = new THREE.CylinderGeometry(0.46, 0.23, L, 20, 6, true);
   cloth.rotateZ(Math.PI / 2);
   cloth.translate(-L / 2, 0, 0);
-  // A breeze of some 10 kt: the sock hangs a little below the horizontal and sags along its length.
+  // The fabric sags a little along its length, whatever the frame's angle (≈).
   const p = cloth.attributes.position;
-  for (let i = 0; i < p.count; i++) { const x = -p.getX(i); p.setY(i, p.getY(i) - 0.035 * x * x); }
+  for (let i = 0; i < p.count; i++) { const x = -p.getX(i); p.setY(i, p.getY(i) - 0.012 * x * x); }
   cloth.computeVertexNormals();
   frame.add(mesh(cloth, sockMat, { name: 'runway-windsock-sock' }));
   sock.add(frame);
   g.add(sock);
+  const w = { x: 0, y: 0, z: 0 }, at = new THREE.Vector3();
+  let yaw = null, droop = 0, last = null;
+  const aim = (t) => {
+    // The wind at the mast's top, in the world (the runway's group sits on the scene's axes but turned).
+    sock.getWorldPosition(at);
+    windAt(at.x, mast, at.z, t, w);
+    const U = Math.hypot(w.x, w.z), toward = 100.8 + Math.atan2(w.z, w.x) * 180 / Math.PI;
+    return { yaw: (base + 180 - toward) * Math.PI / 180, droop: Math.pow(1 - Math.min(1, U / (15 * 0.514444)), 1.3) * 75 * Math.PI / 180 };
+  };
+  /** Turns the sock to the wind at time t (s); it swings after it with ≈0.6 s of lag. */
+  sock.userData.tick = (t) => {
+    const want = aim(t), k = last === null ? 1 : 1 - Math.exp(-Math.max(0, Math.min(0.5, t - last)) / 0.6);
+    last = t;
+    if (yaw === null) yaw = want.yaw;
+    yaw += (Math.atan2(Math.sin(want.yaw - yaw), Math.cos(want.yaw - yaw))) * k;
+    droop += (want.droop - droop) * k;
+    frame.rotation.set(0, yaw, droop);
+  };
+  sock.userData.wind = WIND;
+  // Pointed once at build time (the scene's still pictures see it right before any frame runs).
+  sock.userData.tick(0);
 }
 
 export function buildRunway(M) {

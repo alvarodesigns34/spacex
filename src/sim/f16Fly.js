@@ -16,6 +16,7 @@ import { createF16Flight, CG, atmosphere } from './f16Flight.js';
 import { createF16Assist, calibrated, attitude } from './f16Assist.js';
 import { runwayCue } from './f16Cue.js';
 import { createF16Sound } from './f16Sound.js';
+import { windAt } from '../core/wind.js';
 import { createEffects } from '../core/effects.js';
 
 export { calibrated };
@@ -94,7 +95,8 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
     flame.material.color.setRGB(1, 0.42 + 0.12 * ab, 0.16 + 0.1 * ab);
   }
 
-  const sim = createF16Flight({ ground, solid: (a, b) => solid?.(a, b) ?? false });
+  // The site's wind (core/wind.js): the airplane flies in it, the HUD shows it.
+  const sim = createF16Flight({ ground, solid: (a, b) => solid?.(a, b) ?? false, wind: windAt });
   const s = sim.state;
   // The sound (f16Sound.js): off until the visitor turns it on (M, the bar's button).
   const sound = createF16Sound();
@@ -515,7 +517,9 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
     const [a, c] = toRunway(s.pos.x, s.pos.z);
     state.readout = {
       // The altitude over the sea beneath (the round Earth's, f16Flight geodesy), not over the pad's plane.
-      kcas: cas / KT, ktas: s.tas / KT, mach: s.mach, altFt: (s.alt - CG.y) / FT, aglFt: s.agl / FT,
+      kcas: cas / KT, ktas: s.tas / KT, mach: s.mach, gsKt: s.gs / KT,
+      // The wind where the airplane is: where it blows from (true) and its speed.
+      windFrom: (100.8 + Math.atan2(s.windV.z, s.windV.x) * R2D + 180 + 360) % 360, windKt: Math.hypot(s.windV.x, s.windV.z) / KT, altFt: (s.alt - CG.y) / FT, aglFt: s.agl / FT,
       vsFpm: s.vel.y / FT * 60, alpha: s.alpha, beta: s.beta, nz: s.load, heading: hdg,
       // The same attitude the simple controls fly by (bank over the full circle, ±180°).
       pitch: attitude(s).pitch, roll: attitude(s).bank,

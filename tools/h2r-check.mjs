@@ -43,6 +43,18 @@ const flat = (mu = 1, kind = 'track') => () => ({ h: 0, mu, roll: 0, kind });
   report(!missing.length, 'el modelo tiene las piezas que mueve el pilotaje', missing.length ? `faltan ${missing.join(', ')}` : names.length + ' piezas');
 }
 
+// ---- The wind (core/wind.js; Phase 4): the drag is the air's ----------------------------------------
+{
+  const top = (wx) => {
+    const b = createH2rBike({ ground: flat(), wind: (x, h, z, tt, out) => { out.x = wx; out.y = 0; out.z = 0; return out; } }); const s = b.state;
+    b.reset(); b.input.throttle = 1;
+    let v = 0, tt = 0; while (tt < 90 && !s.crashed) { b.step(DT); tt += DT; v = Math.max(v, s.u * 3.6); }
+    return v;
+  };
+  const still = top(0), head = top(-5), tail = top(5);
+  report(still - head > 7 && tail > still + 3, 'viento: 5 m/s de cara le quitan velocidad punta y de cola se la dan (la resistencia es la del aire)',
+    `en calma ${still.toFixed(1)} km/h · de cara ${head.toFixed(1)} · de cola ${tail.toFixed(1)}`);
+}
 // ---- Straight line.
 {
   const b = createH2rBike({ ground: flat() }); const s = b.state;

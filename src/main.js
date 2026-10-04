@@ -302,6 +302,8 @@ async function main() {
   const env = createEnvironment(renderer, scene, M, quality);
   dressCampus(scene, M, { stops: Object.values(LAYOUT).filter(l => !l.pad && !l.remote).map(l => l.x), quality: quality.name });
   scene.add(buildRunway(M));
+  // The runway's windsock follows the site's wind (core/wind.js), each frame.
+  const windsock = scene.getObjectByName('runway-windsock');
   scene.add(buildCircuit(M));
 
   // ---- Post-processing (MSAA render target + subtle bloom) ----
@@ -1648,6 +1650,7 @@ async function main() {
     sound?.update();
     // Water keeps moving whatever the camera or the launch is doing.
     WAVE_TIME.value += dt;
+    windsock?.userData.tick?.(WAVE_TIME.value);
     // The sky is a finite box; centring it on the viewer is what lets it survive an ascent.
     env.followCamera(camera);
     // The ground past the disc (outerGround.js): not under the launch's stretched disc and globe,

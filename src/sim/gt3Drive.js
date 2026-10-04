@@ -23,6 +23,7 @@ import { EYE } from '../vehicles/gt3Cabin.js';
 import { WHEELS } from '../data/gt3rs.js';
 import { trackCoords, toLocal, LAP, START } from '../core/circuitPlan.js';
 import { createGt3Sound } from './gt3Sound.js';
+import { windAt } from '../core/wind.js';
 import { createEffects } from '../core/effects.js';
 import { createGt3Damage } from './gt3Damage.js';
 import { readPad, rumbleFor } from './gt3Pad.js';
@@ -207,7 +208,8 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
   const damage = createGt3Damage({ car, scene, effects: fx, ground });
   const sound = createGt3Sound();
 
-  const sim = createGt3Car({ ground, obstacles });
+  // In the site's wind (core/wind.js).
+  const sim = createGt3Car({ ground, obstacles, wind: windAt });
   // Each wheel's place on the car, for its travel on the springs.
   const wheelY = wheels.map(w => w?.position.y ?? 0);
   const s = sim.state;

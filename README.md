@@ -833,6 +833,33 @@ El usuario pidió una pasada decisiva sobre la H2R, el Porsche y el F-16: modelo
 - **Sonido:** las explosiones se redondean a muestras enteras (≈ −25 dB de ruido), el silbido de alivio de la H2R se rompe a los 30 s y no hay modelo espacial. El F-16 no tiene sonido.
 - **No se llegó a hacer:** la auditoría del detalle de los modelos y el presupuesto de rendimiento, y la del entorno y las físicas.
 
+### Fase 4 del encargo: física y entorno: el viento del sitio (4 de octubre de 2026)
+
+Auditoría: el F-16 decía expresamente «sin efecto suelo y sin viento». El Porsche y la H2R medían su resistencia contra el suelo, no contra el aire. La manga de la pista estaba fija, el vapor de la plataforma derivaba hacia el sureste, contra la brisa del mar, y las cuatro capas de olas iban cada una por su lado. Ahora todo comparte un mismo viento.
+
+**El viento** (`src/core/wind.js`):
+- **Media:** la brisa del mar, del SSE (157,5°), a 6,2 m/s (13,9 mph, ≈12 kt) a 10 m. Fuente: los datos de ingeniería meteorológica de NOAA para Brownsville (WMO 722500, 1973–1996), cuyo viento medio coincidente de la estación cálida es de 13,9–15,7 mph, dominante del SSE. Es una tarde cálida típica, no un día concreto (≈).
+- **Con la altura:** ley logarítmica sobre terreno abierto (z0 ≈ 3 cm), constante por encima de la capa superficial (≈300 m). Da 4,5 m/s a 2 m y 8,7 m/s a 100 m.
+- **Ráfagas:** turbulencia «congelada» que viaja con el viento (la ráfaga que pasa por la manga llega a la pista segundos después), con σu ≈ 15 %, σv ≈ 0,75 σu y σw ≈ 0,5 σu (proporciones habituales de la capa superficial, ≈). Es determinista: las pruebas ven siempre el mismo viento.
+
+**F-16:**
+- **Vuela en el aire, no sobre el suelo.** La aerodinámica ve la velocidad respecto al aire; las ruedas, la del avión. El HUD muestra la velocidad sobre el suelo (GS) y el viento donde está el avión (W procedencia/nudos).
+- **Efecto suelo:** la resistencia inducida baja con el factor de McCormick, φ = (16h/b)²/(1+(16h/b)²), y la pendiente de sustentación sube como la de un ala de alargamiento A/φ (fórmula de Helmbold, A = 3,0). En la pista da +5 % de sustentación y −9 % de inducida; a una envergadura, nada. El cambio de momento de cabeceo cerca del suelo no está modelado (≈).
+- **Mandos simples, gas por energía total.** Con el viento del sitio, la aproximación automática rompía el tren: una ráfaga de cara subía la velocidad indicada, el autoacelerador quitaba gas y la senda se hundía (5,5 m/s de descenso al empezar la recogida). Es la trampa clásica de una aproximación con ráfagas. Ahora el gas atiende también a la senda: con viento toma a 1,8 m/s, volando cangrejeado 5,6°, y en calma a 1,5 m/s (antes 2,2).
+
+**Porsche y H2R:** la resistencia y la carga aerodinámica se calculan con el aire relativo. Con 5 m/s de cara el Porsche pierde 8 km/h de punta y gana 15 con el viento de cola; la H2R pierde 15 y gana 11. El empuje lateral del viento sobre la moto inclinada no está modelado (≈).
+
+**El entorno sigue al mismo viento:**
+- **La manga de viento** se orienta cada fotograma al viento en lo alto del mástil (con ≈0,6 s de inercia) y se levanta con la velocidad: extendida del todo a 15 kt (FAA AC 150/5345-27) y lacia en calma; la caída intermedia es ≈.
+- **El vapor de la plataforma** deriva a sotavento, en el marco en el que cuelgue (la plataforma girada o el propulsor inclinado).
+- **Las olas:** el mar de fondo entra desde el ESE (≈) y las olas de viento, la marejadilla y las ondas corren delante del viento.
+
+**Pruebas:**
+- `tools/wind-check.mjs` (nueva, en `check:static`): perfil, dirección, estadística de ráfagas, turbulencia viajando a sotavento, la manga y el vapor;
+- `f16-check`: efecto suelo (función y vuelo), viento aparcado y la aproximación con el viento del sitio;
+- `gt3rs-check` y `h2r-check`: punta con viento de cara y de cola.
+- Todas fallan con el código anterior.
+
 ### Fase 3 del encargo: sonido (4 de octubre de 2026)
 
 **El F-16 ya suena** (`src/sim/f16Sound.js`). Se activa con **M** o con el botón **Sound** de la barra de vuelo, y está apagado hasta que lo enciendes, como los coches. Es un motor F100 sintetizado muestra a muestra en un AudioWorklet con dos salidas: la toma (por delante) y el chorro (≈5 m por detrás de la tobera).

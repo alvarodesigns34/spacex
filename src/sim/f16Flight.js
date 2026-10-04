@@ -39,7 +39,15 @@
  *    feedback standing in for its lateral-acceleration loop.
  *  - The gear fails above ≈8 times a strut's static load (≈5 m/s of sink); the nozzle's lip
  *    strikes the ground at ≈14.5° of pitch on the static gear.
- *  - No ground effect, no wind; the Earth does not rotate.
+ *  - Wind (core/wind.js, passed in as `wind`): the aerodynamics see the air's velocity, the
+ *    wheels and the ground the airplane's own; the HUD's airspeed is the air's, the ground speed
+ *    the airplane's. The checks fly in still air unless they pass a wind.
+ *  - Ground effect, from the wing's height over the ground h against its span b: the induced
+ *    drag falls by McCormick's factor φ = (16h/b)² / (1 + (16h/b)²), and the lift slope rises as
+ *    for a wing of aspect ratio A/φ (Helmbold's low-aspect-ratio formula, A = 3.0): ≈ +6 % of
+ *    lift and ≈ −11 % of induced drag on the runway (h/b ≈ 0.18), nothing above one span. The
+ *    pitching moment's change near the ground is not modelled (≈). Oswald's e ≈ 0.8.
+ *  - The Earth does not rotate.
  */
 import * as THREE from 'three';
 import { morelli, MORELLI, MORELLI_RANGE, THRUST, FCS } from '../data/f16Aero.js';
@@ -208,7 +216,22 @@ function actuator({ limit, rate, tau }, lo = -limit) {
   } };
 }
 
-export function createF16Flight({ ground, solid = null }) {
+/**
+ * Ground effect at a height h (m) of the wing over the ground: { lift, induced } — the factor on
+ * the lift slope, and the share of the induced drag left (1, 1 out of it).
+ */
+export function groundEffect(h) {
+  const b = BSPAN, A = WING.span ** 2 / WING.area;
+  if (!(h > 0) || h >= b) return { lift: 1, induced: 1 };
+  const k = (16 * h / b) ** 2, phi = k / (1 + k);
+  const slope = (a) => 2 * Math.PI * a / (2 + Math.sqrt(a * a + 4));
+  // Faded out towards one span, where it is negligible.
+  const fade = 1 - sstep(0.6 * b, b, h);
+  return { lift: 1 + (slope(A / phi) / slope(A) - 1) * fade, induced: 1 - (1 - phi) * fade };
+}
+const OSWALD = 0.8;
+
+export function createF16Flight({ ground, solid = null, wind = null }) {
   // Each hard point's place at the last step, for the swept test against what stands on the ground.
   const hardPrev = HARD.map(() => Object.assign(new THREE.Vector3(), { valid: false }));
   // ground(x, z) → { h, hard: true on pavement, water: true on the sea }.
@@ -218,6 +241,7 @@ export function createF16Flight({ ground, solid = null }) {
     power: 0, powerCmd: 0, gear: 1, gearCmd: 1, sb: 0, sbCmd: 0,
     crashed: null, wow: true, t: 0,
     alpha: 0, beta: 0, mach: 0, tas: 0, nz: 1, load: 1, qbar: 0, alt: 0, agl: 0, thrust: 0,
+    windV: new THREE.Vector3(), gs: 0, ge: 1,
     mass: CONFIG.startMass, fuel: CONFIG.fuel, flameout: false,
     // Where the model is outside its data (H16): α or β outside Morelli's fit, Mach above TP-1538's 0.6.
     domain: { alpha: false, beta: false, mach: false, out: false, tOut: 0 },
@@ -266,14 +290,15 @@ export function createF16Flight({ ground, solid = null }) {
     Object.assign(s.surfaces, { de: 0, da: 0, dr: 0, lef: 0, flap: 20, diff: 0 });
     for (const w of s.wheels) Object.assign(w, { comp: 0, load: 0, anchor: null });
     s.wow = true; s.nz = 1; s.load = 1; s.thrust = thrust(0, s.pos.y, 0);
-    s.alpha = 0; s.beta = 0; s.mach = 0; s.tas = 0; s.qbar = 0;
+    s.alpha = 0; s.beta = 0; s.mach = 0; s.tas = 0; s.qbar = 0; s.windV.set(0, 0, 0); s.gs = 0; s.ge = 1;
     geodesy(s.pos.x, s.pos.y, s.pos.z, GEO); s.alt = GEO.h; s.g = GEO.g; s.agl = s.pos.y - g - CG.y;
     for (let i = 0; i < WHEELS.length; i++) s.wheels[i].load = WHEELS[i].load;
   }
 
-  /** The air data: α, β, Mach, q̄ and the body-axis velocity. */
+  /** The air data: α, β, Mach, q̄ and the body-axis velocity — through the air, not over the ground. */
   function airData() {
-    tmpV.copy(s.vel); toModel(tmpV);
+    if (wind) wind(s.pos.x, Math.max(0, s.agl + CG.y), s.pos.z, s.t, s.windV); else s.windV.set(0, 0, 0);
+    tmpV.copy(s.vel).sub(s.windV); toModel(tmpV);
     const [u, v, w] = bodyFromModel(tmpV);
     const V = Math.max(1e-3, Math.hypot(u, v, w));
     const atm = atmosphere(geodesy(s.pos.x, s.pos.y, s.pos.z, GEO).h);
@@ -326,8 +351,20 @@ export function createF16Flight({ ground, solid = null }) {
       const c = morelli(al, be, de * D2R, da * D2R, dr * D2R, p * BSPAN / (2 * air.V), q * CBAR / (2 * air.V), r * BSPAN / (2 * air.V), { xcg: 0.35, cbar: CBAR, b: BSPAN });
       const comp = compressibility(air.mach);
       // The lift part of Cz scales with the lift slope; drag adds gear, speed brakes and waves.
-      const Cz = c.Cz * comp.lift;
-      const Cx = c.Cx - comp.wave - 0.015 * s.gear - 0.06 * s.sb;
+      let Cz = c.Cz * comp.lift;
+      let Cx = c.Cx - comp.wave - 0.015 * s.gear - 0.06 * s.sb;
+      // Ground effect: in the wind axes, the lift up by the slope's factor, the induced drag
+      // down by φ's; back to the body. (The wing's height: the CG's over the ground, ≈ the
+      // wing's within a few tens of centimetres.)
+      const ge = groundEffect(s.agl + CG.y);
+      s.ge = ge.lift;
+      if (ge.lift !== 1) {
+        const ca = Math.cos(air.alpha), sa = Math.sin(air.alpha);
+        const CL = -Cz * ca + Cx * sa, CD = -Cx * ca - Cz * sa;
+        const CDi = CL * CL / (Math.PI * OSWALD * (BSPAN * BSPAN / S));
+        const CL2 = CL * ge.lift, CD2 = CD - (1 - ge.induced) * CDi;
+        Cz = -CL2 * ca - CD2 * sa; Cx = CL2 * sa - CD2 * ca;
+      }
       const qs = air.qbar * S;
       Fb[0] = qs * Cx; Fb[1] = qs * c.Cy; Fb[2] = qs * Cz;
       // The pitching moment grows with the lift slope too, but less (≈: part of Cm is not lift).
@@ -458,7 +495,7 @@ export function createF16Flight({ ground, solid = null }) {
 
     // Telemetry.
     const a2 = airData();
-    s.alpha = a2.alpha * R2D; s.beta = a2.beta * R2D; s.mach = a2.mach; s.tas = a2.V; s.qbar = a2.qbar;
+    s.alpha = a2.alpha * R2D; s.beta = a2.beta * R2D; s.mach = a2.mach; s.tas = a2.V; s.qbar = a2.qbar; s.gs = Math.hypot(s.vel.x, s.vel.z);
     geodesy(s.pos.x, s.pos.y, s.pos.z, GEO); s.alt = GEO.h; s.g = GEO.g; s.agl = s.pos.y - ground(s.pos.x, s.pos.z).h - (CG.y);
   }
 

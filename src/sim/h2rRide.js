@@ -18,6 +18,7 @@
 import * as THREE from 'three';
 import { createH2rBike, BIKE } from './h2rBike.js';
 import { createH2rSound } from './h2rSound.js';
+import { windAt } from '../core/wind.js';
 import { createSkidMarks, createTyreSmoke, createSpray } from './gt3Drive.js';
 import { createEffects } from '../core/effects.js';
 import { STEER_AXIS, AXLE_F, AXLE_R } from '../vehicles/h2r.js';
@@ -46,7 +47,8 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
   const spray = createSpray(scene, 800);
   const fx = createEffects(scene);
   const sound = createH2rSound();
-  const sim = createH2rBike({ ground, obstacles });
+  // In the site's wind (core/wind.js).
+  const sim = createH2rBike({ ground, obstacles, wind: windAt });
   const s = sim.state;
   const state = { running: false, paused: false, camera: 'chase', readout: null, messages: [], lap: null, best: null, laps: 0 };
   const saved = { parent: null, position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), near: 0, fov: 0 };

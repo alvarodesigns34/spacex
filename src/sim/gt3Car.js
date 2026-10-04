@@ -166,7 +166,9 @@ const WATER = {
 };
 const TYRE_W = [WHEELS.front.width, WHEELS.front.width, WHEELS.rear.width, WHEELS.rear.width];
 
-export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'track' }), obstacles = () => [] } = {}) {
+export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'track' }), obstacles = () => [], wind = null } = {}) {
+  // The wind (core/wind.js), at ≈0.6 m (the body's centre of pressure, ≈); none in the checks unless given.
+  const AIR = { x: 0, y: 0, z: 0 };
   // Every integrated or filtered quantity starts from here, at creation and at each reset, so a
   // reset car is the same car as a new one (only PSM, the visitor's choice, survives a reset).
   const fresh = () => ({
@@ -270,8 +272,13 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     s.aero = s.drs ? 'drs' : airbrake ? 'airbrake' : 'normal';
     const cdA = lerp(AERO.cdAHigh * (airbrake ? AERO.airbrakeCdFactor : 1), AERO.cdA, s.drsT);
     const clA = AERO.clA * lerp(1, AERO.drsClFactor, s.drsT);
-    const kD = 0.5 * AERO.rho * cdA * V;
-    const dragX = kD * s.u, dragY = kD * s.v, down = 0.5 * AERO.rho * s.u * s.u * clA;
+    // Through the air, not over the ground: the wind in the car's axes (forward (cos ψ, −sin ψ),
+    // left (−sin ψ, −cos ψ) in x, z) taken off its velocity. A headwind costs top speed and adds
+    // downforce; a crosswind pushes the car sideways (≈ with the frontal CdA, as the drag in a slide).
+    if (wind) wind(s.x, 0.6, s.z, s.t, AIR); else { AIR.x = 0; AIR.z = 0; }
+    const ua = s.u - (AIR.x * c - AIR.z * sn), va = s.v - (-AIR.x * sn - AIR.z * c);
+    const kD = 0.5 * AERO.rho * cdA * Math.hypot(ua, va);
+    const dragX = kD * ua, dragY = kD * va, down = 0.5 * AERO.rho * ua * ua * clA;
     // ---- The ground, and the body on its springs (SUSPENSION): heave, pitch and roll follow the
     // plane through the four contact patches, through springs and dampers that can only push —
     // over a crest taken fast the car goes light, and leaves the ground.

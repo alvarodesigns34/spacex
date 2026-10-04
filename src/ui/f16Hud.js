@@ -41,7 +41,7 @@ export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause, onAssi
   // The same numbers as text, for a screen reader (H25): the HUD is a canvas it cannot see.
   const telemetry = createTelemetryList(bar, 'F-16 telemetry', [
     ['cas', 'Calibrated airspeed'], ['mach', 'Mach'], ['alt', 'Altitude'], ['vs', 'Vertical speed'], ['hdg', 'Heading'],
-    ['g', 'Load factor'], ['aoa', 'Angle of attack'], ['power', 'Engine'], ['fuel', 'Fuel'], ['gear', 'Gear'], ['data', 'Model'],
+    ['gs', 'Ground speed'], ['wind', 'Wind'], ['g', 'Load factor'], ['aoa', 'Angle of attack'], ['power', 'Engine'], ['fuel', 'Fuel'], ['gear', 'Gear'], ['data', 'Model'],
   ]);
   const $ = (id) => bar.querySelector(id);
   $('#f16-end').addEventListener('click', () => onEnd?.());
@@ -72,7 +72,7 @@ export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause, onAssi
   function update(r, camera) {
     if (r) telemetry.update({
       cas: `${fmt(r.kcas)} knots`, mach: fmt(r.mach, 2), alt: `${fmt(r.altFt)} feet`, vs: `${fmt(r.vsFpm)} feet per minute`,
-      hdg: `${fmt(Math.round(r.heading) % 360)} degrees`, g: `${fmt(r.nz, 1)} g`, aoa: `${fmt(r.alpha, 1)} degrees`,
+      hdg: `${fmt(Math.round(r.heading) % 360)} degrees`, gs: `${fmt(r.gsKt)} knots`, wind: `from ${fmt(Math.round(r.windFrom) % 360)} degrees at ${fmt(r.windKt)} knots`, g: `${fmt(r.nz, 1)} g`, aoa: `${fmt(r.alpha, 1)} degrees`,
       power: `${fmt(r.power)} percent${r.ab ? ', afterburner' : ''}${r.flameout ? ', flamed out' : ''}`, fuel: `${fmt(r.fuel)} kg`,
       gear: r.gear > 0.98 ? 'down' : r.gear < 0.02 ? 'up' : 'moving', data: r.outside ? `extrapolated beyond the wind-tunnel data (${r.outside.join(', ')})` : 'within the wind-tunnel data',
     });
@@ -205,6 +205,9 @@ export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause, onAssi
     g.fillText(pwr, rx, ly + 40);
     // The autothrottle's held speed (the simple controls).
     if (Number.isFinite(r.vHold)) { g.textAlign = 'left'; g.fillText(`A/T ${fmt(r.vHold)}`, lx, ly + 60); g.textAlign = 'right'; }
+    // Ground speed, and the wind where the airplane is (from, true / knots), as the HUD's data block gives them (≈ its layout).
+    if (Number.isFinite(r.gsKt)) g.fillText(`GS ${fmt(r.gsKt)}`, rx, ly + 60);
+    if (Number.isFinite(r.windKt)) g.fillText(`W ${String(Math.round(r.windFrom) % 360).padStart(3, '0')}/${fmt(r.windKt)}`, rx, ly + 80);
     // Configuration and warnings, bottom centre.
     g.textAlign = 'center';
     const cfg = [];

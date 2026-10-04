@@ -14,7 +14,8 @@ registerHooks({ resolve(specifier, context, next) {
 } });
 
 const THREE = await import('three');
-const { createF16Flight, thrust, atmosphere, CG } = await import('../src/sim/f16Flight.js');
+const { createF16Flight, thrust, atmosphere, CG, groundEffect } = await import('../src/sim/f16Flight.js');
+const { windAt } = await import('../src/core/wind.js');
 const { createF16Assist, calibrated, attitude } = await import('../src/sim/f16Assist.js');
 const { morelli, MORELLI, THRUST } = await import('../src/data/f16Aero.js');
 const { MASS } = await import('../src/data/f16.js');
@@ -29,7 +30,7 @@ const W = MASS.weight * 9.80665;
 
 // A flat world: pavement everywhere, at height 0.
 const flat = () => ({ h: 0, hard: true, water: false });
-const make = () => { const f = createF16Flight({ ground: flat }); return { f, s: f.state, i: f.input }; };
+const make = (wind = null) => { const f = createF16Flight({ ground: flat, wind }); return { f, s: f.state, i: f.input }; };
 const pitchOf = (s) => new THREE.Euler().setFromQuaternion(s.q, 'YZX').z * R2D;
 const rollOf = (s) => new THREE.Euler().setFromQuaternion(s.q, 'YZX').x * R2D;
 /** Airborne, level along +x at h, speed V, attitude a (deg), gear and power set. */
@@ -213,8 +214,8 @@ function land({ sinkTarget = null } = {}) {
 }
 
 // ---- The simple controls, flown with the visitor's keys ----------------------------------------
-function assisted({ setup, plan, T }) {
-  const { f, s } = make();
+function assisted({ setup, plan, T, wind = null, watch = null }) {
+  const { f, s } = make(wind);
   f.reset({ x: 0, z: 0 });
   const pilot = { pitch: 0, roll: 0, yaw: 0, throttle: 0, brake: 1, parking: true, speedBrake: false, gearDown: true };
   const notes = [], A = createF16Assist({ sim: f, pilot, note: (t) => notes.push(t) });
@@ -230,7 +231,8 @@ function assisted({ setup, plan, T }) {
     if (!s.wow && s.agl > 5) r.airborne = true;
     if (r.airborne && s.wow && !r.td) r.td = { sink: -vy, kt: kc };
     if (r.airborne && !s.wow) { r.maxAgl = Math.max(r.maxAgl, s.agl); if (t > 25) r.minAgl = Math.min(r.minAgl, s.agl); }
-    if (r.td && s.tas < 0.5) { r.stopped = true; break; }
+    watch?.(s, r);
+    if (r.td && Math.hypot(s.vel.x, s.vel.z) < 0.5) { r.stopped = true; break; }
   }
   r.crashed = s.crashed; r.s = s; r.A = A; return r;
 }
@@ -360,6 +362,52 @@ function assisted({ setup, plan, T }) {
   const mono = [0, 5e3, 11e3, 2e4, 3e4, 5e4, 8e4, 1e5].map(h => atmosphere(h).rho).every((r, i, arr) => i === 0 || r < arr[i - 1]);
   report(worst < 0.002 && mono, 'atmósfera: capas de la estándar de 1976 hasta 86 km (antes, todo por encima de 20 km era 20 km)',
     `error máx. ${(worst * 100).toFixed(3)} % · 30 km ${atmosphere(30000).P.toFixed(0)} Pa`);
+}
+// ---- Wind and ground effect (Phase 4) -------------------------------------------------------------
+{
+  // Ground effect: the function on the runway and a span up, and in flight the same airplane in
+  // the same state a metre over the ground and 500 m up: more lift near the ground.
+  const onRwy = groundEffect(CG.y), high = groundEffect(9.96);
+  const lift = (h) => {
+    const { f, s } = make();
+    airborne(f, s, { h, V: 75, a: 10, power: 20 });
+    f.advance(1 / 240);
+    return s.nz;
+  };
+  const near = lift(CG.y + 1.0), far = lift(500);
+  report(onRwy.lift > 1.04 && onRwy.lift < 1.10 && onRwy.induced > 0.84 && onRwy.induced < 0.93 && high.lift === 1 && high.induced === 1 && near / far > 1.03,
+    'efecto suelo: más sustentación y menos resistencia inducida cerca del suelo (McCormick y Helmbold), nada a una envergadura',
+    `en pista sustentación ×${onRwy.lift.toFixed(3)} e inducida ×${onRwy.induced.toFixed(3)} · a 1 m del suelo nz ${near.toFixed(3)} frente a ${far.toFixed(3)} a 500 m`);
+}
+{
+  // The wind: parked on the runway with 6 m/s blowing, the airspeed reads the wind and the
+  // ground speed nothing.
+  const { f, s } = make((x, h, z, t, out) => { out.x = 6; out.y = 0; out.z = 0; return out; });
+  f.reset({ x: 0, z: 0 });
+  for (let k = 0; k < 24; k++) f.advance(1 / 240);
+  report(Math.abs(s.tas - 6) < 0.3 && s.gs < 0.05, 'viento: aparcado con 6 m/s de viento, la velocidad aerodinámica es la del viento y la de suelo, cero',
+    `velocidad aerodinámica ${s.tas.toFixed(2)} m/s · sobre el suelo ${s.gs.toFixed(3)} m/s`);
+  // The site's wind (core/wind.js: SSE, 6.2 m/s at 10 m, gusting) across the hands-off approach
+  // of the simple controls: the airplane crabs into it (its nose off its track) and still lands
+  // and stops.
+  const setup = (f2, s2, pilot, A) => {
+    const V = 150 * KT, g = 3 * D2R;
+    s2.pos.set(-2200, CG.y + 2200 * Math.tan(g), 0); s2.vel.set(V * Math.cos(g), -V * Math.sin(g), 0);
+    s2.q.setFromAxisAngle(new THREE.Vector3(0, 0, 1), 5 * D2R); s2.wow = false; s2.gear = 1; s2.agl = 115;
+    s2.power = 35; pilot.throttle = 0.55; pilot.parking = false; pilot.brake = 0;
+    A.state.gearAuto = true; A.state.gammaCmd = -3;
+  };
+  let crab = 0;
+  const watch = (s2) => {
+    if (s2.wow || s2.agl > 60 || s2.agl < 20) return;
+    const nose = new THREE.Vector3(1, 0, 0).applyQuaternion(s2.q);
+    const d = (Math.atan2(-nose.z, nose.x) - Math.atan2(-s2.vel.z, s2.vel.x)) * R2D;
+    crab = Math.max(crab, Math.abs(((d + 540) % 360) - 180));
+  };
+  const r = assisted({ setup, plan: () => ({}), T: 140, wind: (x, h, z, t, out) => windAt(x, h, z, t, out), watch });
+  report(!r.crashed && r.td && r.td.sink < 3 && r.stopped && crab > 1.5,
+    'viento del sitio en la aproximación con los mandos simples: el avión vuela cangrejeado y aun así toma y se para',
+    `cangrejeo ${crab.toFixed(1)}° · toma con ${r.td?.sink.toFixed(2)} m/s${r.crashed ? ', ' + r.crashed.what : ''}${r.stopped ? ', parado' : ''}`);
 }
 {
   // A reset airplane is a new airplane (H22): fly, brake to an anchor, reset, compare.
