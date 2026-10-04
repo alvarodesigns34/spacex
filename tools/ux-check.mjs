@@ -721,14 +721,20 @@ try {
         Object.defineProperty(navigator, 'getGamepads', { value: () => [g], configurable: true });
         for (let k = 0; k < 4 * 30; k++) F.update(1 / 30);
         const r = { assist: F.state.assist, throttle: +F.pilot.throttle.toFixed(2), parking: F.pilot.parking, kt: +(s.tas / 0.514444).toFixed(1) };
+        // The stick to the right: on the ground it steers the nose wheel (the pedals' channel; the
+        // ailerons stay centred, Phase 1), and the heading turns to the right: at full power it is
+        // past 80 kt within the 2 s, where a turn asks only ≈0.15 g of the tyres (≈2°/s).
+        const hdg = () => Math.atan2(-s.vel.z, s.vel.x);
+        const h0 = hdg();
         g.axes[0] = 0.8;
-        for (let k = 0; k < 15; k++) F.update(1 / 30);
-        r.steer = +F.pilot.roll.toFixed(2);
+        for (let k = 0; k < 2 * 30; k++) F.update(1 / 30);
+        r.steer = +F.pilot.yaw.toFixed(3); r.roll = +F.pilot.roll.toFixed(2);
+        r.turned = +(((h0 - hdg()) * 180 / Math.PI + 540) % 360 - 180).toFixed(2);
         delete navigator.getGamepads;
         F.restart();
         return r;
       });
-      report(pad.assist && pad.throttle > 0.5 && !pad.parking && pad.kt > 5 && pad.steer > 0.3,
+      report(pad.assist && pad.throttle > 0.5 && !pad.parking && pad.kt > 5 && pad.steer > 0 && Math.abs(pad.roll) < 0.05 && pad.turned > 0.5,
         'A gamepad drives the simple controls: RT opens the throttle and it rolls, the stick steers on the ground', pad);
     }
     await page.keyboard.press('c');
