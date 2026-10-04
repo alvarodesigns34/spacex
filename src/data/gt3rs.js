@@ -160,9 +160,17 @@ export const CLUTCH = { tag: 'ESTIMATE', capacity: 620, dragCap: 90, launchRpm: 
 export const TYRES = {
   tag: 'ESTIMATE',
   mu: 1.48, muLoadSens: 0.08,             // peak μ at the static load, and its fall per extra static load
-  B: 11, C: 1.5, E: 0.4,                  // lateral magic-formula shape (slip angle, rad)
-  Bx: 14, Cx: 1.6, Ex: 0.4,               // longitudinal (slip ratio)
-  relaxation: 0.35,                       // relaxation length, m
+  // The shape, one "magic formula" on the combined slip normalised to its peak (1 at the peak):
+  // sin(C·atan(B·s)). B and C set how fast the force builds and how much it falls past the peak.
+  mfB: 2.36, mfC: 1.35,
+  slipPeak: 0.10,                         // the slip ratio at peak grip
+  // The slip angle at peak grip (rad), front and rear: the 335 mm rears, more rubber and a stiffer
+  // carcass, peak a little sooner than the 275 fronts.
+  alphaPeak: [0.13, 0.115],
+  // The relaxation length: the distance a tyre rolls before its side force builds to a new slip
+  // angle, at its static load; it grows with the load (≈ as the square root: a longer contact
+  // patch, a carcass deflected further). 0.5 m ≈ for a tyre of this size.
+  relaxation: 0.5,
   kUs: 0.0029,                            // the model's understeer: rad of lock per m/s² of lateral acceleration (measured on it)
   downGain: 0.5,                          // the share of the downforce's load the four tyres turn into lateral grip (measured on the model: 1.7 g at 240 km/h)
   rolling: 0.012,

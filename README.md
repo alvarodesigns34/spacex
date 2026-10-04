@@ -74,7 +74,7 @@ y abrir la URL que indique. `npm run serve` es un servidor en Node (`tools/serve
     - por debajo de 180 kt con el tren arriba, potencia máxima;
     - si va hacia el suelo, nivela las alas y tira hasta subir.
   - **C** cámara (persecución, cabina con HUD, torre, tu órbita) y **Esc** termina y devuelve el avión a su sitio.
-- **B** (o el botón *Porsche · Drive*) **conduce el Porsche 911 GT3 RS** desde su explanada: **W** gas, **S** freno (parado, marcha atrás), **A/D** volante, **Espacio** freno de mano, **T** PSM (control de tracción y de estabilidad, encendido de serie), **C** cámara, **M** sonido (apagado hasta que se enciende), **Enter** vuelve a la explanada, **Esc** termina. Con el PSM el coche va por donde se le dirige y frena recto. Para derrapar, un toque de **Espacio** al entrar en la curva cruza la zaga, y el gas y el contravolante la sostienen; el PSM se aparta mientras el coche va de lado y vuelve al enderezarlo. Los neumáticos dejan marcas.
+- **B** (o el botón *Porsche · Drive*) **conduce el Porsche 911 GT3 RS** desde su explanada: **W** gas, **S** freno (parado, marcha atrás), **A/D** volante, **Espacio** freno de mano, **T** PSM en tres etapas (encendido de serie; ESC OFF, con el control de tracción; ESC+TC OFF), **C** cámara, **M** sonido (apagado hasta que se enciende), **Enter** vuelve a la explanada, **Esc** termina. Con el PSM el coche va por donde se le dirige y frena recto. Para derrapar, un toque de **Espacio** al entrar en la curva cruza la zaga, y el gas y el contravolante la sostienen; el PSM se aparta mientras el coche va de lado y vuelve al enderezarlo. Los neumáticos dejan marcas.
 - **N** (o el botón *H2R · Ride*) **pilota la Kawasaki Ninja H2R** desde su explanada:
   - **W** gas, **S** freno delantero, **Espacio** freno trasero.
   - **A/D** inclinan: la moto contravira sola para tumbarse.
@@ -833,6 +833,22 @@ El usuario pidió una pasada decisiva sobre la H2R, el Porsche y el F-16: modelo
 - **Sonido:** las explosiones se redondean a muestras enteras (≈ −25 dB de ruido), el silbido de alivio de la H2R se rompe a los 30 s y no hay modelo espacial. El F-16 no tiene sonido.
 - **No se llegó a hacer:** la auditoría del detalle de los modelos y el presupuesto de rendimiento, y la del entorno y las físicas.
 
+### Pasada decisiva, bloque 3 (segunda parte): PSM en tres etapas, cámaras, pianos, neumáticos y vuelta de referencia (4 de octubre de 2026)
+
+Lo que quedaba de `conduccion-porsche.json`, más un dato del dossier de Porsche que el modelo no respetaba. Cada punto tiene su prueba en `tools/gt3rs-check.mjs` (o en `ux-check`), y cada prueba nueva se comprobó contra el código anterior.
+- **PSM en tres etapas (P2-14)**, como en los GT de Porsche («desactivación opcional en dos etapas (ESC OFF y ESC+TC OFF)», dossier del 911 GT3; el del GT3 RS: ESC y TC «se pueden desactivar por completo»). **T** (o el botón, o X en el mando) recorre PSM → ESC OFF → ESC+TC OFF. Con ESC OFF solo trabaja el control de tracción: a la salida de una curva a fondo, el ESC no frena ninguna rueda y la tracción recorta el gas hasta el 36 %. El modo elegido se conserva al volver a la explanada. (La regulación del TC en varias posiciones del coche real no se modela.)
+- **Testigos nuevos en el HUD:** TC (trabajando), PTV (freno de la trasera interior), la etapa del PSM en ámbar cuando no está entera, y una barra con el par que retiene el bloqueo del diferencial (escala ≈ de 2.000 N·m).
+- **Cámaras independientes de los fotogramas (P2-12),** en `src/sim/gt3Camera.js`:
+  - la de persecución sigue el rumbo con un filtro de 0,17 s (antes recalculaba una mezcla fija cada fotograma y saltaba con cada coletazo: la aceleración angular máxima en un eslalon baja de 6,3 a 2,7 rad/s²);
+  - el cuello del piloto se integra en subpasos fijos (la diferencia entre 30 y 144 fps baja de 1,03 a 0,13 mm);
+  - el piloto conserva ≈la mitad de la inclinación de la carrocería y la cámara del capó, toda (antes ninguna de las dos se inclinaba);
+  - en marcha atrás la cámara ya no se da la vuelta.
+- **Vibración de la carretera y de los pianos (P2-13),** determinista: un perfil fijo a lo largo de la distancia recorrida (ruido de dos octavas, ≈0,9 y 0,3 m), con un tamaño según lo que hay bajo las ruedas (piano 4,3 mm en el ojo a 80 km/h, asfalto 0,3 mm; ≈). Lo usan la cámara, el mando (más vibración con más ruedas en el piano) y el sonido: un retumbar cuya altura sube con la velocidad (≈ textura de 25 cm) y un golpe cada vez que una rueda pisa o deja el borde del piano. El piano sigue siendo el plano de 3 cm de antes: no se ha inventado geometría.
+- **Neumáticos (P2-10):** las constantes de la fórmula mágica pasan a `TYRES` (`mfB`, `mfC`, `slipPeak`, `alphaPeak`) y se quitan seis campos que nadie leía. La longitud de relajación crece con la raíz de la carga (0,5 m a la carga estática, ≈) y el término de baja velocidad desaparece por encima de 3 m/s. Escalón de 3° a 100 km/h: guiñada al 90 % en 112 ms, sobreoscilación del 9,6 %.
+- **Dirección del eje trasero según el dossier:** 2,0° en contra de las delanteras hasta ≈50 km/h y 2,0° a favor desde 80 km/h (antes pasaba por cero a 50 km/h y no llegaba al máximo hasta 100). El diámetro de giro sigue en 10,51 m.
+- **Vuelta de referencia (P3):** `tools/gt3rs-lap.mjs` da una vuelta al circuito (2.505,5 m) con un conductor automático (persecución pura y un perfil de velocidad por curvatura), con el PSM puesto: 1:26,421 sin salirse, y 1,36 / 1,46 / 0,64 g de aceleración lateral máxima a 60 / 100 / 150 km/h. Va en `check:static` y falla si algo se mueve más de un 1 %. No es la vuelta más rápida posible (no es una trazada de carreras). La de Nordschleife (6:49,328) no se puede comprobar: no hay trazado con licencia.
+- **Revisión adversarial** (hecha a mano; `docs/diagnostico-2026-10-04/revisiones/bloque3-porsche.json`): 150 recorridos aleatorios de 20 s con el teclado sobre el circuito por cada etapa del PSM. Con PSM: ningún trompo, ningún NaN, ningún despegue y el ABS cambia de sentido ≤2 veces por segundo. Con ESC OFF, un trompo (hierba, a fondo). Sin nada, 24 (casi todos con gas a fondo en hierba o grava). Encontró la cámara de marcha atrás y la etiqueta del HUD que se solapaba; las dos están corregidas.
+
 ### CI en rojo tras el bloque 3 (primera parte), arreglado (4 de octubre de 2026)
 
 El check completo de `501d6f3` y de `9917115` falló en `tools/ux-check.mjs`, en «A restored WebGL context keeps the ground lit» (luminancia 111 antes y 125 después), y Pages no se actualizó. **No era el contexto WebGL.** La prueba nueva de la H2R mandaba sus teclas como eventos sintéticos sobre `window`; ahí el evento está en su destino y los atajos de la página, registrados antes, se ejecutan antes que el manejador de captura de la moto. La **G** (caja automática) arrancaba también el lanzamiento de Starship, cuya cámara se llevaba la vista entre las dos medidas. Con una tecla real el evento llega a `document.body` y la moto se lo queda (comprobado en el navegador). Arreglo, solo en la prueba:
@@ -866,14 +882,6 @@ Aplicado del diagnóstico `docs/diagnostico-2026-10-04/conduccion-porsche.json` 
 - **Ruedas descargadas:** la delantera interior en el aire ya no da deslizamientos falsos (marcas, humo y chirrido van ponderados por la carga).
 - **ABS proporcional-integral** sobre un deslizamiento objetivo: 8 cambios de sentido por segundo (antes ≈50) y la presión nunca baja del 56 %. Frena 100–0 en 27,5 m y 200–0 en 100,6 m (auto motor und sport: 28,0 y 97,0).
 - **Diámetro de giro:** 10,53 m con el volante a tope (publicado: 10,5). El ángulo máximo pasa de 30° a 32° (≈).
-
-**Pendiente del bloque 3:**
-- cámaras independientes de los fotogramas por segundo;
-- vibración de los pianos;
-- modos del PSM (encendido / ESC fuera / fuera) con sus testigos;
-- relajación del neumático según la carga;
-- regresión de tiempo por vuelta;
-- revisión adversarial de este bloque.
 
 ### Pasada decisiva, bloque 2: la H2R ya no se cae al girar (4 de octubre de 2026)
 
@@ -1486,6 +1494,7 @@ src/data/verify.js         comprobación de coherencia entre lo declarado y lo c
 src/sim/missionClock.js    reloj de misión independiente de los fotogramas
 src/sim/mission.js         Flight 14 como una sola misión: corte, órbita, salida de órbita, entrada
 src/sim/gt3Damage.js       daños del Porsche en un choque: abolladuras, piezas que se sueltan, chispas
+src/sim/gt3Camera.js       cámaras de la conducción del Porsche y vibración de la carretera, independientes de los fps
 src/sim/f16Flcs.js         leyes de control de vuelo del F-16 (FLCS), en su propio módulo
 src/data/h2r.js            ficha de la Kawasaki Ninja H2R con la procedencia de cada cifra
 src/vehicles/h2r.js        modelo de la H2R ajustado a las fotos de Kawasaki con cámaras calibradas

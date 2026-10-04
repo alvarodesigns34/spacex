@@ -57,13 +57,15 @@ export function fullTorque(rpm) {
   // Past the cut: the limiter.
   return 0;
 }
-/** The tyres' shape: a magic formula on the normalised combined slip, 1 at its peak (s = 1). */
-const MF_B = 2.36, MF_C = 1.35;
+/** The tyres' shape: a magic formula on the normalised combined slip, 1 at its peak (s = 1) (TYRES). */
+const MF_B = TYRES.mfB, MF_C = TYRES.mfC;
 const magic = (s) => Math.sin(MF_C * Math.atan(MF_B * s));
-const SLIP_PEAK = 0.10, ALPHA_PEAK = 0.13;   // ≈ the slip ratio and angle (rad) at peak grip
+const SLIP_PEAK = TYRES.slipPeak;
 // The rears are 335 mm wide against the fronts' 275: more rubber on the road, a stiffer carcass —
-// a little more grip and their peak at a smaller slip angle (≈).
-const AXLE_ALPHA = [ALPHA_PEAK, ALPHA_PEAK, 0.115, 0.115];
+// a little more grip (BAL.rearMu) and their peak at a smaller slip angle.
+const AXLE_ALPHA = [TYRES.alphaPeak[0], TYRES.alphaPeak[0], TYRES.alphaPeak[1], TYRES.alphaPeak[1]];
+/** A tyre's relaxation length (m) at a load, against its static load Fz0: TYRES.relaxation there, as the square root of the load about it. */
+export const relaxationLength = (load, Fz0) => TYRES.relaxation * Math.sqrt(clamp(load / Fz0, 0.3, 2));
 /**
  * The balance (≈): the rears' grip over the fronts', the share of the lateral load transfer the
  * front takes (its roll stiffness), and the load sensitivity taken about each axle's own static
@@ -82,9 +84,19 @@ export const CAR = (() => {
     rf: WHEELS.front.dia / 2 * 0.975, rr: WHEELS.rear.dia / 2 * 0.975,   // ≈ rolling radius, 2.5 % under the free radius
     Iw: [1.1, 1.1, 1.6, 1.6],         // ≈ wheel, tyre and disc, kg·m² (FL, FR, RL, RR)
     maxSteer: 32 * Math.PI / 180,     // ≈ fitted to the published 10.5 m turning circle (the outer front tyre's contact centre, with the rear-axle steering): 10.53 m
-    rearSteer: 2 * Math.PI / 180,     // ≈
+    rearSteer: 2 * Math.PI / 180,     // the rear-axle steering's most, either way (Porsche, 911 GT3 press kit: 2.0°)
   };
 })();
+
+/**
+ * The rear-axle steering's share of its angle, by the road speed: the rears steer against the
+ * fronts up to ≈50 km/h and with them above 80 km/h (Porsche, 911 GT3 press kit: "up to a speed
+ * of approximately 50 km/h, it turns the rear wheels by a maximum of 2.0 degrees in the opposite
+ * direction"; "at speeds above 80 km/h the rear wheels steer in the same direction as the fronts
+ * by up to 2.0 degrees"; the GT3 RS's is "re-tuned", its figures not published). Between the
+ * two, a straight change through zero (≈).
+ */
+export const rearSteerShare = (u) => clamp((u - 50 / 3.6) / ((80 - 50) / 3.6), 0, 1) * 2 - 1;
 
 /**
  * How much of the steering lock a keyboard (or a full stick) should ask for at this speed: the
@@ -109,7 +121,7 @@ export function steerReach(s, dir = 0) {
   const down = 0.5 * AERO.rho * AERO.clA * u * u * lerp(1, AERO.drsClFactor, s.drsT ?? 0);
   const ayMax = 0.95 * TYRES.mu * (s.muF ?? 1) * G * (1 + TYRES.downGain * down / (CAR.m * G)) * lat;
   const dEff = CAR.L * ayMax / (u * u) + TYRES.kUs * ayMax;
-  const kR = clamp((s.u - 14) / 14, -1, 1);
+  const kR = rearSteerShare(s.u);
   const dF = dEff / (1 - kR * CAR.rearSteer / CAR.maxSteer);
   const fb = clamp(1.25 - 0.5 * (s.slipF ?? 0.5), 0.6, 1.1);
   // The tail out to the right (β < 0) is caught by steering right (dir < 0), and vice versa;
@@ -167,6 +179,7 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     load: [0, 0, 0, 0],
     rpm: ENGINE.idle, gear: 1, shift: 0, clutch: 0, reverse: false,
     steer: 0, drs: false, drsT: 0, abs: false, t: 0, muF: 1, slipF: 0, thrF: 0, slipShown: [0, 0, 0, 0],
+    odo: 0,                           // m travelled over the ground (the road's texture under the tyres: gt3Camera.js, gt3Sound.js)
     steerPrev: 0, diffLock: 0, ptv: 0, pitch: 0, roll: 0, pitchV: 0, rollV: 0,
     surface: ['track', 'track', 'track', 'track'],
     tcCut: 1,                         // traction control's share of the drive
@@ -195,14 +208,22 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     damage: 0,                        // how badly the car is hurt, 0..1: power lost, then the engine dead (≈)
     dead: false,
   });
-  // PSM (traction and stability control): on by default; the PDK in its automatic mode by default
-  // (paddles: the manual mode). Both are the visitor's choices, kept through a reset.
-  const s = Object.assign(fresh(), { tc: true, paddles: false });
+  // PSM: on by default, and switched off, as on Porsche's GT cars, in two stages: 'escOff'
+  // (ESC OFF: the stability control off, the traction control still working) and 'off' (ESC+TC
+  // OFF). The PDK in its automatic mode by default (paddles: the manual mode). Both are the
+  // visitor's choices, kept through a reset. `tc` reads true unless the PSM is fully off, and
+  // set, switches it fully on or fully off (the simple toggle the checks and older code use).
+  const s = Object.assign(fresh(), { psm: 'on', paddles: false });
+  Object.defineProperty(s, 'tc', {
+    get() { return this.psm !== 'off'; },
+    set(on) { this.psm = on ? 'on' : 'off'; },
+    enumerable: true,
+  });
   const input = { throttle: 0, brake: 0, steer: 0, handbrake: 0, reverse: false, shiftUp: false, shiftDown: false };
   let acc = 0;                        // real time not yet stepped, s (under one step)
 
   function reset({ x = 0, z = 0, psi = 0 } = {}) {
-    Object.assign(s, fresh(), { x, z, psi, tc: s.tc, paddles: s.paddles });
+    Object.assign(s, fresh(), { x, z, psi, psm: s.psm, paddles: s.paddles });
     Object.assign(input, { throttle: 0, brake: 0, steer: 0, handbrake: 0, reverse: false, shiftUp: false, shiftDown: false });
     acc = 0;
     // The body settled on the ground where it stands.
@@ -321,7 +342,7 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     // ---- Steering: the fronts, and the rears a little (opposite slow, with them fast).
     const ds = input.steer * CAR.maxSteer - s.steer;
     s.steer += clamp(ds, -2.2 * dt, 2.2 * dt);   // ≈ the rack's rate, rad/s at the wheels
-    const kRear = clamp((s.u - 14) / 14, -1, 1);  // −1 below 50 km/h, +1 above 100
+    const kRear = rearSteerShare(s.u);            // −1 up to 50 km/h, +1 from 80
     const rearAngle = kRear * CAR.rearSteer * Math.abs(s.steer) / CAR.maxSteer * Math.sign(s.steer);
     const steerAt = [s.steer, s.steer, rearAngle, rearAngle];
     // Ackermann: the inner front wheel turns tighter than the outer (a share of the full geometry).
@@ -429,7 +450,7 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     const beta = Math.atan2(s.v, Math.max(1, Math.abs(s.u)));
     const psm = psmActive(s, input, dt, beta);
     driveT *= tractionControl(s, psm, SLIP_PEAK, dt);
-    const aid = stability(s, input, psm, beta, GEO);
+    const aid = stability(s, input, psm && s.psm === 'on', beta, GEO);
     driveT *= aid.drive;
     s.r += aid.yaw / CAR.Iz * dt;
     const escBrake = aid.brake, escKeep = aid.keep;
@@ -452,7 +473,7 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     // the other — is opened.
     const rRef = s.u * s.steer / (CAR.L * (1 + 0.0012 * s.u * s.u));
     const yawErr = s.r - rRef;
-    if (s.tc && Math.abs(yawErr) > 0.015) lockCap *= clamp(1 - (Math.abs(yawErr) - 0.015) / 0.04, 0, 1);
+    if (s.psm === 'on' && Math.abs(yawErr) > 0.015) lockCap *= clamp(1 - (Math.abs(yawErr) - 0.015) / 0.04, 0, 1);
     // ---- Brakes: the pedal's force split front/rear by the hydraulics (≈ 66/34), the rears' share
     // trimmed to the load they carry (electronic brake-force distribution: as the weight comes
     // forward the rears would lock first and the tail come round), the stability control's, and
@@ -498,9 +519,13 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
       }
       const R = RAD[i];
       const denom = Math.max(Math.abs(wx), 3);
-      // Slip angle with a relaxation length: it builds over the first ≈0.35 m rolled.
+      // Slip angle with a relaxation length (TYRES.relaxation at the static load, growing as the
+      // square root of the load): it builds over the distance rolled. Below ≈3 m/s a creeping
+      // term keeps it from freezing at a standstill, gone at speed.
       const aT = Math.atan2(wy, denom);
-      s.alpha[i] += (aT - s.alpha[i]) * Math.min(1, (Math.abs(wx) + 2) * dt / TYRES.relaxation);
+      const sigma = relaxationLength(load[i], Fz0);
+      const rolled = (Math.abs(wx) + 2 * clamp(1 - Math.abs(wx) / 3, 0, 1)) * dt;
+      s.alpha[i] += (aT - s.alpha[i]) * Math.min(1, rolled / sigma);
       const sy = Math.tan(s.alpha[i]) / AXLE_ALPHA[i];
       const Fmax = mu * load[i];
       const tyre = (w) => {
@@ -593,6 +618,7 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     s.ay += (ayB - s.ay) * Math.min(1, dt * 12);
     // Heading and position (ψ from +x towards −z: forward is (cos ψ, −sin ψ) in x, z; left is (−sin ψ, −cos ψ)).
     s.psi += s.r * dt;
+    s.odo += V * dt;
     // The move, and the contacts along it: in steps of 10 cm at most, so a fast car meets a thin
     // fence instead of stepping over it between two checks.
     const dxm = (s.u * c - s.v * sn) * dt, dzm = (-s.u * sn - s.v * c) * dt;

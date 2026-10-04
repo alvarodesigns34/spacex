@@ -2,13 +2,14 @@
  * The Porsche's instruments while it drives, and the drive's controls. In the manner of the
  * 992's own cluster (≈, not a copy of it): a rev counter to 9,000 rpm with its shift light,
  * the gear in the middle, the speed in km/h; and the drive's own readouts — DRS, ABS,
- * PSM, the slide angle, the lateral g, the lap time. Beside them, live telemetry: the last
+ * the traction control, the PSM's stage, the torque vectoring and the differential's lock, the slide angle, the lateral g, the lap time. Beside them, live telemetry: the last
  * twenty seconds of speed, throttle and brake as traces, and the friction circle (the g the
  * tyres are giving, longitudinal against lateral, with its trail); and the same readings as text
  * for a screen reader (telemetryList.js).
  */
 import { createTelemetryList } from './telemetryList.js';
 const fmt = (x, d = 0) => (Number.isFinite(x) ? x.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
+const PSM_LABEL = { on: 'PSM', escOff: 'ESC OFF', off: 'ESC+TC OFF' };
 const lapTime = (t) => (t === null || t === undefined ? '—' : `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`);
 
 export function createGt3Hud({ root, onEnd, onCamera, onRestart, onPause, onTraction, onSound }) {
@@ -24,7 +25,7 @@ export function createGt3Hud({ root, onEnd, onCamera, onRestart, onPause, onTrac
   bar.innerHTML = `
     <span class="eyebrow">Porsche 911 GT3 RS · 386 kW, seven-speed PDK, Porsche's published figures</span>
     <button type="button" class="f16-btn" id="gt3-cam" title="Camera: chase, driver, bonnet, trackside, your own orbit (C)">Chase <kbd>C</kbd></button>
-    <button type="button" class="f16-btn" id="gt3-tc" aria-pressed="true" title="PSM (T): traction and stability control, on as on the road; off, the car is all yours">PSM <kbd>T</kbd></button>
+    <button type="button" class="f16-btn" id="gt3-tc" aria-pressed="true" title="PSM (T): on as on the road; ESC OFF, the traction control still working; ESC+TC OFF, the car is all yours">PSM <kbd>T</kbd></button>
     <button type="button" class="f16-btn" id="gt3-pause" aria-pressed="false" title="Pause (K)">Pause <kbd>K</kbd></button>
     <button type="button" class="f16-btn" id="gt3-sound" aria-pressed="false" title="Sound (M): the flat six, the tyres and the wind, synthesised; off until you turn it on">Sound <kbd>M</kbd></button>
     <button type="button" class="f16-btn" id="gt3-restart" title="Back to the skid pad (Enter)">Pad <kbd>Enter</kbd></button>
@@ -69,11 +70,12 @@ export function createGt3Hud({ root, onEnd, onCamera, onRestart, onPause, onTrac
     }
     telemetry.update({
       speed: `${fmt(Math.abs(r.kmh))} km/h`, gear: String(r.gear), rpm: `${fmt(r.rpm)} rpm`, g: `${fmt(r.g, 2)} g`,
-      slide: `${fmt(Math.abs(r.slide))} degrees`, aids: [r.tc ? 'PSM on' : 'PSM off', r.paddles ? 'gearbox manual' : 'gearbox automatic', r.abs && 'ABS working', r.drs && 'DRS open'].filter(Boolean).join(', '),
+      slide: `${fmt(Math.abs(r.slide))} degrees`, aids: [{ on: 'PSM on', escOff: 'ESC off, traction control on', off: 'ESC and traction control off' }[r.psm ?? (r.tc ? 'on' : 'off')], r.paddles ? 'gearbox manual' : 'gearbox automatic', r.abs && 'ABS working', r.drs && 'DRS open'].filter(Boolean).join(', '),
       lap: lapTime(r.lap), best: lapTime(r.best),
     });
     $('#gt3-cam').firstChild.textContent = `${r.camera[0].toUpperCase()}${r.camera.slice(1)} `;
-    $('#gt3-tc').setAttribute('aria-pressed', String(!!r.tc));
+    $('#gt3-tc').setAttribute('aria-pressed', String(r.psm ? r.psm === 'on' : !!r.tc));
+    $('#gt3-tc').firstChild.textContent = `${PSM_LABEL[r.psm] ?? 'PSM'} `;
     $('#gt3-pause').setAttribute('aria-pressed', String(!!r.paused));
     $('#gt3-sound').setAttribute('aria-pressed', String(!!r.sound));
     const m = r.messages.join('|');
@@ -120,15 +122,27 @@ export function createGt3Hud({ root, onEnd, onCamera, onRestart, onPause, onTrac
     g.fillText(`${fmt(Math.abs(r.kmh))} km/h`, cx, cy + R * 0.38);
     g.font = '500 11px system-ui, sans-serif'; g.fillStyle = 'rgba(255,255,255,0.7)';
     g.fillText(`${fmt(r.rpm)} rpm`, cx, cy + R * 0.62);
-    // The lamps: DRS, ABS, TC, parking brake.
-    // PSM: lit while on; amber while it is working (braking a wheel), dimmed while it stands back for a drift.
-    const lamps = [['DRS', r.drs, '#4ad07a'], ['ABS', r.abs, '#ffb340'], ['PSM', r.tc, r.esc ? '#ffb340' : r.drift ? '#7fbfff' : '#4aa8ff'], ['P', r.handbrake, '#ff4a3c']];
+    // The lamps: DRS, ABS, the traction control working, the parking brake, the torque vectoring's
+    // brake on the inner rear.
+    const lamps = [['DRS', r.drs, '#4ad07a'], ['ABS', r.abs, '#ffb340'], ['TC', r.tcWorking, '#ffb340'], ['P', r.handbrake, '#ff4a3c'], ['PTV', r.ptv, '#4aa8ff']];
     lamps.forEach(([t, on, c], i) => {
-      const x = cx - R - 70 + (i % 2) * 34, y = cy - 18 + Math.floor(i / 2) * 26;
+      const x = cx - R - 70 + (i % 2) * 34, y = cy - 44 + Math.floor(i / 2) * 22;
       g.fillStyle = on ? c : 'rgba(255,255,255,0.18)';
       g.font = '700 12px system-ui, sans-serif';
       g.fillText(t, x, y);
     });
+    // The PSM's stage: PSM lit while on (amber while it brakes a wheel, pale while it stands back
+    // for a drift); ESC OFF and ESC+TC OFF in amber, as the warning lamps are.
+    const mode = r.psm ?? (r.tc ? 'on' : 'off');
+    g.font = '700 11px system-ui, sans-serif';
+    g.fillStyle = mode !== 'on' ? '#ffb340' : r.esc ? '#ffb340' : r.drift ? '#7fbfff' : '#4aa8ff';
+    g.fillText(PSM_LABEL[mode], cx - R - 53, cy + 20);
+    // The differential's lock: the torque it holds between the rears, to 2,000 N·m (≈ a scale).
+    const lockK = Math.min(1, (r.diffLock ?? 0) / 2000), bw = 52, bx = cx - R - 79, by = cy + 46;
+    g.fillStyle = 'rgba(255,255,255,0.55)'; g.font = '600 9px system-ui, sans-serif';
+    g.fillText('LOCK', cx - R - 53, by - 8);
+    g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(bx, by, bw, 4);
+    g.fillStyle = '#ffd24a'; g.fillRect(bx, by, bw * lockK, 4);
     // Right of the cluster: the slide, the g, the lap.
     g.textAlign = 'left'; g.fillStyle = 'rgba(255,255,255,0.85)'; g.font = '500 12px system-ui, sans-serif';
     const lx = cx + R + 26;

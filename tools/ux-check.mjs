@@ -799,6 +799,22 @@ try {
     });
     report(drive.kmh > 50 && drive.gear >= 2 && drive.grip < 8 && drive.slide > 15 && drive.marks > 20 && drive.stopped && drive.finite,
       'W pulls away and shifts, W with A turns without sliding, Space with A drifts and leaves tyre marks, S stops it', drive);
+    // T steps the PSM through its three stages, as Porsche's GT cars switch it off (ESC OFF, then
+    // ESC+TC OFF), and the bar's button says which.
+    {
+      const stages = await page.evaluate(() => {
+        const D = window.__vc.gt3drive, out = [];
+        for (let k = 0; k < 3; k++) {
+          document.body.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyT', key: 't', bubbles: true }));
+          document.body.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyT', key: 't', bubbles: true }));
+          D.update(1 / 30);
+          out.push([D.sim.state.psm, document.getElementById('gt3-tc').textContent.trim()]);
+        }
+        return out;
+      });
+      report(JSON.stringify(stages.map(x => x[0])) === '["escOff","off","on"]' && /ESC OFF/.test(stages[0][1]) && /ESC\+TC OFF/.test(stages[1][1]) && /^PSM/.test(stages[2][1]),
+        'T steps the PSM through ESC OFF, ESC+TC OFF and back on, and the bar says which', stages);
+    }
     // The drive's readings as text for a screen reader (audit of 2 Oct 2026, H25): a list that is
     // there, hidden from sight but not from the reader, not a live region, and up to date within
     // its half-second throttle.

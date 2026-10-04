@@ -777,7 +777,7 @@ async function main() {
     onCamera: () => gt3drive.cycleCamera(),
     onRestart: () => gt3drive.restart(),
     onPause: () => gt3drive.setPaused(!gt3drive.state.paused),
-    onTraction: () => gt3drive.setTraction(!gt3drive.sim.state.tc),
+    onTraction: () => gt3drive.cyclePsm(),
     onSound: () => gt3drive.setSound(!gt3drive.sound.enabled),
   });
   const gt3drive = createGt3Drive({

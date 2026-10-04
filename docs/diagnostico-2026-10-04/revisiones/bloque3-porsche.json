@@ -1,0 +1,24 @@
+{
+  "summary": "Adversarial review of block 3 (Porsche handling), done by hand in the session of 4 Oct 2026 (third), after the user asked not to use multi-agent workflows. Three lenses: code (the diff read line by line), realism (each new figure against Porsche's press kits), and a spin hunter (headless fuzzing with the keyboard's ramps on the circuit's real surfaces).",
+  "method": {
+    "code": "git diff of src/sim/gt3*.js, src/data/gt3rs.js, src/ui/gt3Hud.js, src/main.js read line by line; HUD checked on a browser screenshot.",
+    "realism": "PSM stages: 911 GT3 press kit (newsroom.porsche.com, PAG-911-GT3-RS-EN.pdf, in fact the 992 GT3's): 'Porsche Stability Management (PSM) incl. ABS, with optional deactivation in two stages (ESC OFF and ESC+TC OFF)'; 'the PSM of the new 911 GT3 can be switched off either fully or with the exception of the traction control (TC) system'. 992 GT3 RS press kit: 'Stability Control (ESC) and Traction Control (TC) are multi-stage, adjustable from the steering wheel and can be completely deactivated'. Rear-axle steering: GT3 press kit, opposite up to ~50 km/h by up to 2.0 deg, same direction above 80 km/h by up to 2.0 deg.",
+    "spin": "150 random 20 s drives per PSM stage, keys changed every 0.3-1.8 s among W, S, A, D, their pairs, Space with a turn and W+S, with the same ramps as gt3Drive.readControls, started on a random station of the circuit with circuitSurface as the ground (track, kerb, verge, gravel, grass off it). Script: /tmp (lost with the session); its logic is in this file's 'spin' entry."
+  },
+  "spin": {
+    "on": { "nan": 0, "spins_without_handbrake": 0, "airborne": 0, "abs_reversals_per_wheel_per_s_max": 1.9 },
+    "escOff": { "nan": 0, "spins_without_handbrake": 1, "note": "on grass, full throttle, 45 km/h" },
+    "off": { "nan": 0, "spins_without_handbrake": 24, "note": "almost all full throttle on grass or gravel at 30-40 km/h; one on asphalt with full throttle and full lock at 29 km/h (power oversteer, expected with no aids)" }
+  },
+  "findings": [
+    { "title": "Chase camera flips round in reverse", "severity": "medium", "file": "src/sim/gt3Camera.js", "evidence": "Above 4 m/s the heading mixes the nose (0.45) with the velocity (0.55); in reverse the velocity points backwards and the mix is -0.1 x the nose: the camera swings in front of the car. Pre-existing in gt3Drive.js.", "fix": "Use the velocity only while going forward (s.u > 1).", "status": "fixed" },
+    { "title": "HUD: the LOCK label overlapped the PSM stage", "severity": "low", "file": "src/ui/gt3Hud.js", "evidence": "Screenshot at 1280x720: 'LOCK' drawn over 'ESC OFF'.", "fix": "Stage label at cy+20, LOCK at cy+38, its bar at cy+46.", "status": "fixed" },
+    { "title": "A first test of the load-dependent relaxation was a tautology", "severity": "medium", "file": "tools/gt3rs-check.mjs", "evidence": "It recomputed the formula in the test instead of reading the model; it could not fail.", "fix": "The model exports relaxationLength() and uses it; the test reads that. The yaw step test (t90 112 ms, 100 ms before) is kept only as a regression guard (0.10-0.22 s), not as proof of the change.", "status": "fixed" },
+    { "title": "Neither the driver's nor the bonnet camera rolled with the body", "severity": "low", "file": "src/sim/gt3Drive.js", "evidence": "lookAt with the world's up: the horizon stayed level whatever the car did (the diagnosis assumed the opposite).", "fix": "Up from the sprung body's quaternion: the bonnet camera takes all of it, the driver about half (≈).", "status": "fixed" }
+  ],
+  "not_done": [
+    "The GT3 RS's multi-stage TC rotary (stages not published by Porsche; forum figures only).",
+    "The manual DRS button the GT3 RS has ('the DRS can also be operated manually using the DRS button', press kit): the model keeps the automatic DRS.",
+    "The circuit has no corner taken at 200 km/h or more, so the g-g-V guard covers 60/100/150 km/h only."
+  ]
+}

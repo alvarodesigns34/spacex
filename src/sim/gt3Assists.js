@@ -15,8 +15,10 @@
  *    car is sideways and the driver holds it there, and a yaw moment keeps the slide short of a
  *    spin (≈ this simulation's aid, PSM on only).
  *
- * PSM (traction and stability control together) is on by default, as on the road car. The
- * thresholds and gains are ≈: Porsche does not publish them.
+ * PSM (traction and stability control together) is on by default, as on the road car, and
+ * switched off in two stages, as on Porsche's GT cars (press kit: "optional deactivation in two
+ * stages (ESC OFF and ESC+TC OFF)"): s.psm 'on', 'escOff' or 'off'. The thresholds and gains
+ * are ≈: Porsche does not publish them.
  */
 const G = 9.80665;
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -31,15 +33,16 @@ export const ASSISTS = {
 };
 
 /**
- * Updates the drift timer and says whether PSM is working this step (on, and not standing back
- * for a drift).
+ * Updates the drift timer and says whether PSM is working this step (not fully off, and not
+ * standing back for a drift). With ESC OFF it is the traction control alone that works; the
+ * stability control and the drift aid need the PSM fully on (s.psm 'on').
  */
 export function psmActive(s, input, dt, beta) {
   const D = ASSISTS.drift;
   if (input.handbrake > 0.5 && s.u > 8) s.drift = Math.max(s.drift, D.start);
   else if (Math.abs(beta) > D.betaHold && s.u > 4 && s.drift > 0) s.drift = Math.max(s.drift, D.hold);
   s.drift = Math.max(0, s.drift - dt);
-  return s.tc && s.drift <= 0;
+  return s.psm !== 'off' && s.drift <= 0;
 }
 
 /**
@@ -87,7 +90,7 @@ export function stability(s, input, active, beta, geo) {
     }
   }
   // The drift aid: holds the slide short of a spin, with PSM on.
-  if (s.tc && s.drift > 0 && Math.abs(beta) > D.betaCap) {
+  if (s.psm === 'on' && s.drift > 0 && Math.abs(beta) > D.betaCap) {
     const M = clamp(D.kCap * (beta - Math.sign(beta) * D.betaCap), -D.maxCap, D.maxCap);
     const i = M > 0 ? 0 : 1;
     out.brake[i] += Math.abs(M) / (geo.tf / 2) * geo.R[i] * 0.4;

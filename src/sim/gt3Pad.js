@@ -9,6 +9,7 @@
  *  - Buttons, on the press only: LB/RB the paddles, X the PSM, Y the camera, Start the pause.
  */
 import { steerReach, steerRate } from './gt3Car.js';
+import { underWheels } from './gt3Camera.js';
 
 const DEAD = 0.06;
 const BUTTONS = { 4: 'down', 5: 'up', 2: 'psm', 3: 'camera', 9: 'pause' };
@@ -42,11 +43,14 @@ export function readPad(g, s, d, dt, prev = {}) {
 
 /**
  * Rumble for what the tyres and the road are doing (where the pad has an actuator): the strong
- * motor for the tyres past their grip, the weak one for a kerb under a wheel or the ABS.
+ * motor for the tyres past their grip, the weak one for the kerbs (harder the more wheels are on
+ * them), gravel or grass at speed, or the ABS.
  */
 export function rumbleFor(s) {
   let over = 0;
   for (let i = 0; i < 4; i++) over = Math.max(over, ((s.slip?.[i] ?? 0) - 1) * Math.min(1, (s.load?.[i] ?? 0) / 3000));
-  const kerb = (s.surface ?? []).some(k => k === 'kerb');
-  return { strong: Math.max(0, Math.min(1, over)), weak: kerb ? 0.6 : s.abs ? 0.35 : 0 };
+  // The road: more wheels on a kerb, harder; gravel and grass too; none of it standing still.
+  const { kerb, rough } = underWheels(s), V = Math.hypot(s.u ?? 0, s.v ?? 0), moving = Math.min(1, V / 8);
+  const road = kerb ? (0.3 + 0.13 * kerb) * moving : rough >= 0.5 ? 0.3 * moving : 0;
+  return { strong: Math.max(0, Math.min(1, over)), weak: Math.min(1, Math.max(road, s.abs ? 0.35 : 0)) };
 }

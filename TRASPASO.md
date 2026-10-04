@@ -44,16 +44,8 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 - **Bloque 3, Porsche, PRIMERA PARTE HECHA** (README, *Pasada decisiva, bloque 3 (primera parte)*).
   - Hecho: P0-1 (DRS), P0-2 (`steerReach`/`steerRate`), P0-3 (`gt3Pad.js`), P1-4/5 (PDK sin hueco, mapa, *kickdown*), P1-6 (equilibrio: `BAL.perAxle`), P1-7 (`s.slipShown`), P1-8 (`DIFF`, PTV Plus implícito), P2-9 (ABS PI), P2-11 (giro de 10,53 m, `maxSteer` de 32°).
   - El control de tracción también lee el deslizamiento combinado.
-- **Lo que falta del bloque 3**, en este orden y con su detalle en `conduccion-porsche.json`:
-  - P2-12: cámaras independientes de los fps, sacudida determinista y horizonte medio nivelado;
-  - P2-13: vibración de los pianos (fase de la franja desde `circuitSurface` → `gt3Ground` → `gt3Sound`/cámara/mando);
-  - P2-14: modos del PSM `on` / `escOff` / `off`, con T y testigos en el HUD;
-  - P2-10: relajación del neumático según la carga, y pasar `MF_B`, `MF_C` y compañía a `TYRES`;
-  - P3: `tools/gt3rs-lap.mjs`, una vuelta al circuito con un conductor de persecución pura;
-  - HUD: testigo del bloqueo del diferencial (`s.diffLock`) y de la vectorización (`s.ptv`);
-  - una revisión adversarial con agentes (código, realismo y alguien que busque trompos o comportamientos raros), como en los bloques 1 y 2;
-  - el `npm run check` completo del bloque.
-- **Bloques 4 y 5, sin empezar:**
+- **Bloque 3, SEGUNDA PARTE HECHA** (README, *bloque 3 (segunda parte)*): PSM en tres etapas (`s.psm` 'on' | 'escOff' | 'off'; `s.tc` queda como accesor: lee «no del todo apagado» y, al asignarlo, enciende o apaga entero), testigos TC/PTV/LOCK y etapa en el HUD, `src/sim/gt3Camera.js` (cámaras por tiempo y vibración por distancia, `s.odo`), sonido y mando en los pianos, relajación según la carga (`relaxationLength`), constantes del neumático en `TYRES`, dirección trasera del dossier (`rearSteerShare`), `tools/gt3rs-lap.mjs` en `check:static` (referencia `REF` en el archivo: si un cambio de la física la mueve a propósito, actualízala con `--update` y explícalo). Revisión adversarial hecha a mano (el usuario pidió no usar flujos de varios agentes): `revisiones/bloque3-porsche.json`.
+- **Bloques 4 y 5, sin empezar** (el usuario, el 04-10: «no utilices flujo de trabajo multiagente, hazlo tú mismo poco a poco»):
   - 4, sonido: `sonido.json` y `f16.json` (explosiones en tiempo fraccionario, silbido de la H2R, modelo espacial con Doppler, sonido y botón del F-16);
   - 5: auditar primero los modelos de H2R, Porsche y F-16, y el entorno y las físicas, con renders cercanos y evidencia; guardar los diagnósticos en `docs/`; y luego implementar.
 - **Revisiones de los agentes guardadas:** `docs/diagnostico-2026-10-04/revisiones/` (bloques 1 y 2; todo lo encontrado está corregido, salvo la moto parada que no rueda hacia atrás en una cuesta).

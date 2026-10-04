@@ -18,10 +18,12 @@
  *    the hot pipes — the crackle; the limiter cuts the fuel in a stutter; the PDK's upshift cuts
  *    the ignition for the shift's ≈0.1 s.
  *  - Mechanical: the valve train's tick (order 12) and the gearbox's whine, on top.
- *  - The tyres, gravel and the wind are mixed in on top, as before.
+ *  - The tyres, gravel and the wind are mixed in on top, as before; and the kerbs' rumble, with a
+ *    thump as a wheel goes over their edge.
  * Off the worklet (an old browser), it falls back to a few oscillators on the firing orders.
  */
 import { GEARBOX } from '../data/gt3rs.js';
+import { underWheels } from './gt3Camera.js';
 const WORKLET = `
 class Gt3Flat6 extends AudioWorkletProcessor {
   constructor() {
@@ -128,7 +130,7 @@ registerProcessor('gt3-flat6', Gt3Flat6);
 function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
 
 export function createGt3Sound() {
-  let ctx = null, enabled = false, N = null, building = null;
+  let ctx = null, enabled = false, N = null, building = null, lastKerb = 0;
 
   async function build() {
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -163,7 +165,14 @@ export function createGt3Sound() {
     const grG = gain(0); loopNoise().connect(gr); gr.connect(grG); grG.connect(master);
     const wd = ctx.createBiquadFilter(); wd.type = 'lowpass'; wd.frequency.value = 700;
     const wdG = gain(0); loopNoise().connect(wd); wd.connect(wdG); wdG.connect(master);
-    N = { master, engine, fallback, cabinLp, sq, sqG, grG, wd, wdG, r };
+    // The kerbs: their coarse surface drummed through the tyres and the body, a low rumble whose
+    // pitch follows the speed over a ≈25 cm texture (≈), and a thump each time a wheel goes over
+    // the kerb's ≈3 cm edge.
+    const kb = ctx.createBiquadFilter(); kb.type = 'bandpass'; kb.frequency.value = 60; kb.Q.value = 2.2;
+    const kbG = gain(0); loopNoise().connect(kb); kb.connect(kbG); kbG.connect(master);
+    const th = ctx.createBiquadFilter(); th.type = 'lowpass'; th.frequency.value = 90;
+    const thG = gain(0); loopNoise().connect(th); th.connect(thG); thG.connect(master);
+    N = { master, engine, fallback, cabinLp, sq, sqG, grG, wd, wdG, kb, kbG, thG, r };
     return true;
   }
 
@@ -220,6 +229,15 @@ export function createGt3Sound() {
       set(N.sq.frequency, 1050 + 180 * Math.sin(t * 7.3) + 120 * N.r(), 0.05);
       set(N.grG.gain, hard ? 0 : Math.min(0.5, speed / 25), 0.08);
       set(N.wdG.gain, Math.min(0.35, (speed / 80) ** 2 * 0.35) * (inside ? 0.6 : 1), 0.1);
+      const { kerb } = underWheels(s);
+      set(N.kbG.gain, kerb ? Math.min(0.45, (0.12 + 0.07 * kerb) * Math.min(1, speed / 6)) : 0, 0.03);
+      set(N.kb.frequency, Math.max(35, Math.min(420, speed / 0.25)), 0.03);
+      if (kerb !== lastKerb && speed > 2) {
+        // A wheel onto or off the edge: a short low thump, harder the faster.
+        const p = N.thG.gain, a = Math.min(0.6, 0.15 + speed / 60);
+        p.cancelScheduledValues(t); p.setValueAtTime(a, t); p.setTargetAtTime(0, t + 0.01, 0.035);
+      }
+      lastKerb = kerb;
     },
     stop() { if (ctx && N) set(N.master.gain, 0, 0.05); },
   };

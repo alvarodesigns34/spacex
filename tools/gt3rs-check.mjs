@@ -15,7 +15,7 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 
-const { createGt3Car, CAR, fullTorque, steerReach, steerRate, OUTLINE } = await import('../src/sim/gt3Car.js');
+const { createGt3Car, CAR, fullTorque, steerReach, steerRate, OUTLINE, relaxationLength } = await import('../src/sim/gt3Car.js');
 const { ENGINE, GEARBOX, PERFORMANCE, AERO, BODY } = await import('../src/data/gt3rs.js');
 const { circuitSurface } = await import('../src/core/circuit.js');
 const { toWorld, LAP, CENTRE } = await import('../src/core/circuitPlan.js');
@@ -445,6 +445,33 @@ function drive({ v0 = 0, gear = 1, psm = true, keys, T = 5 }) {
   report(ua === ub, 'reset: 1 s de gas a fondo da lo mismo que en un coche nuevo', `${ua.toFixed(6)} y ${ub.toFixed(6)} m/s`);
   const p = make(); p.s.tc = false; p.c.reset();
   report(p.s.tc === false, 'reset: el PSM, que es una preferencia del visitante, se conserva', `tc ${p.s.tc}`);
+  const q = make(); q.s.psm = 'escOff'; q.c.reset();
+  report(q.s.psm === 'escOff' && q.s.tc === true, 'reset: también la etapa ESC OFF del PSM se conserva', `${q.s.psm}`);
+}
+{
+  // The PSM's three stages (Porsche's GT cars: "optional deactivation in two stages (ESC OFF and
+  // ESC+TC OFF)"). Powering out of a corner at 60 km/h in second, flat out: fully on, the
+  // stability control brakes a wheel and the tail stays in line; ESC OFF, the stability control
+  // does nothing but the traction control still cuts the drive while the rears slip; ESC+TC
+  // OFF, neither.
+  const F = 1 / 60;
+  const stage = (mode) => {
+    const { c, s, i } = make(); s.psm = mode; rolling(s, 60 * KMH, 2);
+    i.steer = 9 * Math.PI / 180 / CAR.maxSteer; i.throttle = 0.3;
+    for (let t = 0; t < 1.5; t += F) c.advance(F);
+    i.throttle = 1;
+    let esc = 0, cut = 1, b = 0;
+    for (let t = 0; t < 1.5; t += F) {
+      c.advance(F);
+      esc = Math.max(esc, Math.abs(s.esc)); cut = Math.min(cut, s.tcCut);
+      b = Math.max(b, Math.abs(Math.atan2(s.v, Math.max(1, s.u))) * 180 / Math.PI);
+    }
+    return { esc, cut, b };
+  };
+  const on = stage('on'), escOff = stage('escOff'), off = stage('off');
+  report(on.esc > 800 && on.b < 8 && escOff.esc === 0 && escOff.cut < 0.9 && off.esc === 0 && off.cut === 1 && off.b > escOff.b,
+    'PSM en tres etapas: con todo, el ESC frena una rueda; ESC OFF, solo el control de tracción corta el gas; ESC+TC OFF, nada',
+    `on: ESC ${on.esc.toFixed(0)} N·m, ${on.b.toFixed(1)}° · ESC OFF: ESC ${escOff.esc.toFixed(0)}, corte ${escOff.cut.toFixed(2)}, ${escOff.b.toFixed(1)}° · OFF: corte ${off.cut.toFixed(2)}, ${off.b.toFixed(1)}°`);
 }
 {
   // The loads add up to the weight and the downforce, whatever the transfer asks (H04).
@@ -707,6 +734,102 @@ function drive({ v0 = 0, gear = 1, psm = true, keys, T = 5 }) {
   const dented = count(car);
   report(splitter.n === 0 && built.n === 0 && dented.n === 0, 'ningún triángulo del coche con normal nula: ni el splitter, ni tras sanear, ni abollado',
     `splitter ${splitter.n} · saneados ${fixed.triangles} en ${fixed.meshes} geometrías, quedan ${built.n} · tras 18 golpes ${dented.n}${dented.names ? ` (${dented.names})` : ''}`);
+}
+
+// ---- The rear-axle steering, by the speed (Porsche's figures) -----------------------------------
+{
+  // Against the fronts up to ≈50 km/h, with them above 80 km/h, 2.0° at most either way.
+  const rearAt = (kmh) => {
+    const { c, s, i } = make(); s.tc = false; rolling(s, kmh * KMH, 2); i.steer = 1; i.throttle = 0.2;
+    for (let t = 0; t < 0.6; t += DT) { c.step(DT); s.u = kmh * KMH; }
+    return s.steerW[2] / CAR.rearSteer * Math.sign(s.steer);
+  };
+  const r = [20, 45, 65, 85, 120].map(rearAt);
+  report(r[0] < -0.98 && r[1] < -0.98 && Math.abs(r[2]) < 0.05 && r[3] > 0.98 && r[4] > 0.98,
+    'dirección trasera: 2,0° en contra hasta 50 km/h y 2,0° a favor desde 80 km/h (dossier de Porsche)',
+    [20, 45, 65, 85, 120].map((k, j) => `${k} km/h ${(r[j] * 2).toFixed(2)}°`).join(' · '));
+}
+
+// ---- The tyres' relaxation (TYRES.relaxation, by the load) ------------------------------------
+{
+  // A step of 3° at the wheels at 100 km/h, the speed held: the yaw rate's 90 % time and overshoot
+  // (ISO 7401's measures; ≈0.1–0.2 s is a sports car's).
+  const step = () => {
+    const { c, s, i } = make(); s.tc = false; rolling(s, 100 * KMH, 3);
+    i.throttle = 0.25;
+    for (let t = 0; t < 1; t += DT) c.step(DT);
+    i.steer = 3 * Math.PI / 180 / CAR.maxSteer;
+    const tr = [];
+    for (let t = 0; t < 2; t += DT) { c.step(DT); tr.push([t, s.r]); }
+    const end = tr.slice(-120).reduce((a, [, r]) => a + r, 0) / 120;
+    const t90 = tr.find(([, r]) => r >= 0.9 * end)?.[0] ?? null;
+    const peak = Math.max(...tr.map(([, r]) => r));
+    return { t90, over: (peak / end - 1) * 100, end };
+  };
+  const r = step();
+  const sig = (k) => relaxationLength(k * 4000, 4000);
+  report(r.t90 !== null && r.t90 > 0.10 && r.t90 < 0.22 && r.over < 15 && sig(2) > 1.8 * sig(0.5) && Math.abs(sig(1) - 0.5) < 1e-9,
+    'neumáticos: escalón de volante de 3° a 100 km/h, respuesta de guiñada al 90 % en 0,10–0,22 s y sobreoscilación < 15 %; la relajación del modelo crece con la carga (0,5 m a la estática)',
+    `t90 ${(r.t90 * 1000).toFixed(0)} ms · sobreoscilación ${r.over.toFixed(1)} % · relajación ${sig(0.5).toFixed(2)}, ${sig(1).toFixed(2)} y ${sig(2).toFixed(2)} m a media carga, la estática y el doble`);
+}
+
+// ---- The drive's cameras and the kerbs (gt3Camera.js, gt3Pad.js) --------------------------------
+{
+  const { createGt3Cameras, roadShake, underWheels } = await import('../src/sim/gt3Camera.js');
+  const { rumbleFor } = await import('../src/sim/gt3Pad.js');
+  // A slalom at 120 km/h, PSM off, the steering flicked every 0.6 s: the same drive seen at 30 and
+  // at 144 frames a second.
+  const ride = (fps) => {
+    const { c, s, i } = make(); s.tc = false; rolling(s, 120 * KMH, 4); i.throttle = 0.5;
+    const cam = createGt3Cameras(), F = 1 / fps;
+    let rawRate = 0, camRate = 0, prevRaw = null, prevCam = null, pRawR = null, pCamR = null;
+    for (let t = 0; t < 2.4 - 1e-9; t += F) {
+      i.steer = Math.floor(t / 0.6) % 2 ? -0.12 : 0.12;
+      c.advance(F);
+      // The heading the chase camera used to take, recomputed each frame, against the filtered one.
+      const C = Math.cos(s.psi), S = Math.sin(s.psi), V = Math.hypot(s.u, s.v);
+      const rx = 0.45 * C + 0.55 * (s.u * C - s.v * S) / V, rz = 0.45 * -S + 0.55 * (-s.u * S - s.v * C) / V, raw = Math.atan2(-rz, rx);
+      const d = cam.chaseDir(s, F), h = Math.atan2(-d.z, d.x);
+      cam.headStep(s, F);
+      if (prevRaw !== null && t > 0.6) {
+        const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+        // The heading's angular acceleration: a jump is a spike in it.
+        const rr = wrap(raw - prevRaw) / F, cr = wrap(h - prevCam) / F;
+        if (pRawR !== null) { rawRate = Math.max(rawRate, Math.abs(rr - pRawR) / F); camRate = Math.max(camRate, Math.abs(cr - pCamR) / F); }
+        pRawR = rr; pCamR = cr;
+      }
+      prevRaw = raw; prevCam = h;
+    }
+    return { h: prevCam, head: { ...cam.head }, rawRate, camRate, s };
+  };
+  const a = ride(30), b = ride(144);
+  const dh = Math.abs(Math.atan2(Math.sin(a.h - b.h), Math.cos(a.h - b.h))) * 180 / Math.PI;
+  const dz = Math.abs(a.head.z - b.head.z);
+  // The control: the neck's spring as it was stepped, once per frame.
+  const oldHead = (fps) => {
+    const { c, s, i } = make(); s.tc = false; rolling(s, 120 * KMH, 4); i.throttle = 0.5;
+    const hd = { z: 0, vz: 0 }, wn = 2 * Math.PI * 2.5, F = 1 / fps;
+    for (let t = 0; t < 2.4 - 1e-9; t += F) {
+      i.steer = Math.floor(t / 0.6) % 2 ? -0.12 : 0.12; c.advance(F);
+      const k = Math.min(0.1, Math.max(F, 1 / 120)), tz = Math.max(-0.06, Math.min(0.06, s.ay * 0.0045));
+      hd.vz += (wn * wn * (tz - hd.z) - 1.6 * wn * hd.vz) * k; hd.z += hd.vz * k;
+    }
+    return hd.z;
+  };
+  const dzOld = Math.abs(oldHead(30) - oldHead(144));
+  report(dh < 1 && dz < 0.002 && a.camRate < 0.5 * a.rawRate && dzOld > 2 * dz,
+    'cámaras: la de persecución filtra el rumbo en el tiempo (no salta con cada coletazo) y la cabeza del piloto da lo mismo a 30 que a 144 fps',
+    `rumbo ${dh.toFixed(2)}° de diferencia · aceleración angular máx. de la cámara ${a.camRate.toFixed(2)} frente a ${a.rawRate.toFixed(2)} rad/s² sin filtro · cabeza ${(dz * 1000).toFixed(2)} mm (paso por fotograma: ${(dzOld * 1000).toFixed(2)} mm)`);
+  // The road under the tyres: the same place shakes the same; a kerb much more than the asphalt; nothing standing.
+  const st = (surface, kmh, odo) => ({ u: kmh * KMH, v: 0, surface: Array(4).fill(surface), odo });
+  const amp = (surface, kmh) => { let m = 0; for (let d = 0; d < 20; d += 0.05) m = Math.max(m, Math.abs(roadShake(st(surface, kmh, d)).y)); return m; };
+  const shakeA = roadShake(st('kerb', 80, 123.4)).y, shakeB = roadShake(st('kerb', 80, 123.4)).y, same = shakeA === shakeB && shakeA !== 0;
+  const kerbA = amp('kerb', 80), trackA = amp('track', 80), stillA = amp('kerb', 0);
+  const two = rumbleFor({ ...st('track', 80, 0), surface: ['kerb', 'track', 'kerb', 'track'] }).weak, one = rumbleFor({ ...st('track', 80, 0), surface: ['kerb', 'track', 'track', 'track'] }).weak;
+  const none = rumbleFor(st('track', 80, 0)).weak, parked = rumbleFor(st('kerb', 0, 0)).weak;
+  report(same && kerbA > 0.002 && trackA < 0.4 * kerbA && stillA < 1e-4 && two > one && one > 0.3 && none === 0 && parked === 0 && underWheels(st('kerb', 0, 0)).kerb === 4,
+    'pianos: la vibración sale de la textura del suelo bajo las ruedas (la misma en el mismo sitio), mucho más en el piano que en el asfalto, y el mando vibra más con más ruedas encima',
+    `piano ${(kerbA * 1000).toFixed(1)} mm · asfalto ${(trackA * 1000).toFixed(2)} mm · parado ${(stillA * 1000).toFixed(2)} mm · mando ${one.toFixed(2)} con una rueda, ${two.toFixed(2)} con dos`);
 }
 
 void GEARBOX;
