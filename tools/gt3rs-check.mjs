@@ -78,8 +78,20 @@ const rolling = (s, v, g) => { s.u = v; s.gear = g; s.w = s.w.map((_, k) => v / 
   let t = 0;
   while (s.u > 0.05 && t < 10) { c.step(DT); t += DT; }
   const d = s.x - x0;
-  // Not published by Porsche: a modern track car on its tyres stops from 100 km/h in 29–33 m.
-  report(d > 25 && d < 34, 'frenada 100–0 km/h con ABS: 25–34 m (≈, no publicada)', `${d.toFixed(1)} m en ${t.toFixed(2)} s`);
+  // Not published by Porsche; auto motor und sport's Supertest measured 28.0 m warm (13.8 m/s²) and
+  // 97.0 m from 200 km/h (15.9 m/s²) (read in the search engine's summary of its data table, which
+  // is behind the paywall): within ≈5 %.
+  report(Math.abs(d / 28.0 - 1) < 0.05, 'frenada 100–0 km/h con ABS: la de auto motor und sport en caliente, 28,0 m (±5 %)', `${d.toFixed(1)} m en ${t.toFixed(2)} s`);
+}
+{
+  const { c, s, i } = make();
+  rolling(s, 200 * KMH, 6);
+  i.brake = 1;
+  const x0 = s.x;
+  let t = 0;
+  while (s.u > 0.05 && t < 15) { c.step(DT); t += DT; }
+  const d = s.x - x0;
+  report(Math.abs(d / 97.0 - 1) < 0.05, 'frenada 200–0 km/h: la de auto motor und sport, 97,0 m (±5 %), con la carga aerodinámica', `${d.toFixed(1)} m en ${t.toFixed(2)} s`);
 }
 {
   const { c, s, i } = make();

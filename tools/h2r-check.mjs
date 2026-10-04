@@ -32,7 +32,8 @@ const flat = (mu = 1, kind = 'track') => () => ({ h: 0, mu, roll: 0, kind });
   root.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(root);
   const L = box.max.x - box.min.x, H = box.max.y, W = box.max.z - box.min.z;
-  report(Math.abs(L - BODY.length) < 0.012 && Math.abs(H - BODY.height) < 0.008 && Math.abs(W - BODY.width) < 0.01 && box.min.y > -0.01,
+  // (The width to verify.js's tolerance for a grade-A figure, ±0.5 %, so check:static catches it.)
+  report(Math.abs(L - BODY.length) < 0.012 && Math.abs(H - BODY.height) < 0.008 && Math.abs(W - BODY.width) / BODY.width < 0.005 && box.min.y > -0.01,
     'el modelo mide lo publicado: 2,070 × 0,850 × 1,160 m, sobre sus ruedas', `${L.toFixed(3)} × ${W.toFixed(3)} × ${H.toFixed(3)} m, lo más bajo a ${(box.min.y * 1000).toFixed(0)} mm`);
   // (The decals are drawn on a canvas: in the browser only, checked there by ux-check.)
   const names = ['h2r-steer', 'h2r-wheel-f-spin', 'h2r-wheel-r-spin', 'h2r-swingarm', 'h2r-trellis', 'h2r-tank', 'h2r-cowl', 'h2r-screen'];

@@ -534,7 +534,7 @@ export function buildWings(M) {
     return g;
   };
   const rootLE = V(0.773, 0.886, 0.19), rootTE = V(0.674, 0.922, 0.19);
-  const tipLE = V(0.672, 0.948, 0.421), tipTE = V(0.594, 0.988, 0.421);
+  const tipLE = V(0.672, 0.948, 0.4245), tipTE = V(0.594, 0.988, 0.4245);
   const parts = [];
   // The blade.
   parts.push(plate([rootLE, tipLE, tipTE, rootTE], 0.009));

@@ -845,6 +845,16 @@ Las fotos oficiales de Kawasaki no se pudieron volver a descargar en esta sesió
   - El depósito del amortiguador queda tras la tapa, como en la foto.
   - El colín tiene aristas vivas y el rótulo «Ninja» de fábrica en su panel.
 
+### Porsche 911 GT3 RS: frenada contra auto motor und sport y revisión con fotos libres (4 de octubre de 2026)
+
+- **Frenada.** Porsche no publica distancias de frenada. El Supertest de auto motor und sport (septiembre de 2023) midió 28,0 m de 100 a 0 km/h en caliente (41,4 m en frío) y 97,0 m de 200 a 0 km/h. Las cifras se leyeron en el resumen del buscador, porque la tabla está tras el muro de pago: se marcan como ≈.
+  - El modelo da 27,7 m y 99,7 m sin tocar nada.
+  - `tools/gt3rs-check.mjs` lo comprueba ahora contra esas cifras (±5 %) en vez de un intervalo genérico.
+- **Revisión con 18 fotos libres de Wikimedia Commons** (traseras y frontales de tres cuartos de varios coches; solo como referencia, no están en el repositorio).
+  - La parte baja negra de la trasera es correcta: en los coches blanco, azul claro y gris oscuro el panel alrededor de la matrícula es negro y las esquinas son del color de la carrocería. Solo un coche gris la lleva pintada.
+  - El difusor tiene tres aletas a cada lado de la caja de los escapes, como el modelo.
+- **Habitáculo.** No hay fotos libres del interior del 992 GT3 RS en Commons, así que el salpicadero no se ha podido contrastar en esta sesión.
+
 ### La conducción de la H2R contra la prueba de MOTORRAD (3 de octubre de 2026)
 
 Se contrastó con una prueba de prensa publicada: la revista alemana MOTORRAD cronometró con GPS la H2R en el óvalo de Dekra en el Lausitzring (julio de 2015; la misma potencia publicada de 228/240 kW).

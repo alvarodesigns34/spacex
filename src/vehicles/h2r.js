@@ -79,8 +79,7 @@ function buildSteer(M) {
     const tubeOut = new THREE.LatheGeometry(prof, 28); tubeOut.applyQuaternion(q);
     const pOut = along(base, 0.255); tubeOut.translate(pOut.x, pOut.y, pOut.z);
     // (Its outer tubes are bright, as in every photograph; the axle brackets stay black.)
-    M.h2rForkTube ??= new THREE.MeshStandardMaterial({ name: 'h2r-fork-tube', color: 0xc4c1ba, metalness: 1, roughness: 0.16 });
-    inner.add(mesh(tubeOut, M.h2rForkTube, { name: 'h2r-fork-outer' }));
+    inner.add(mesh(tubeOut, M.h2rMachined, { name: 'h2r-fork-outer' }));
     const cap = new THREE.CylinderGeometry(0.019, 0.022, 0.016, 20); cap.applyQuaternion(q);
     const pCap = along(base, 0.795); cap.translate(pCap.x, pCap.y, pCap.z);
     M.h2rGreenAnod ??= new THREE.MeshStandardMaterial({ name: 'h2r-green-anodised', color: 0x1f9a2c, metalness: 0.8, roughness: 0.3 });
@@ -103,8 +102,7 @@ function buildSteer(M) {
   // Triple clamps, machined aluminium (the photographs without the fairing), joining the legs at the steering head. The
   // top one sits on the head tube, above where the frame's upper rails meet it, the clip-ons
   // ≈4 cm under it (the photographs without the fairing).
-  M.h2rClamp ??= new THREE.MeshStandardMaterial({ name: 'h2r-triple-clamp', color: 0x9da0a5, metalness: 0.85, roughness: 0.38 });
-  for (const [d, mat, h] of [[0.47, M.h2rClamp, 0.04], [TOP_CLAMP, M.h2rClamp, 0.024]]) {
+  for (const [d, mat, h] of [[0.47, M.h2rAlu, 0.04], [TOP_CLAMP, M.h2rAlu, 0.024]]) {
     const c = slab([[-0.04, -0.13], [0.03, -0.13], [0.05, -0.105], [0.05, 0.105], [0.03, 0.13], [-0.04, 0.13], [-0.075, 0.05], [-0.075, -0.05]], h, 0.003);
     c.rotateX(-Math.PI / 2); c.translate(0, -h / 2, 0);
     const cm = mesh(c, mat, { name: 'h2r-triple-clamp' });
@@ -383,7 +381,6 @@ function carbonMaterial() {
 function buildExhaust(M) {
   // The headers' titanium has the bronze-gold heat tint of the photographs; the silencer is polished.
   M.h2rTi ??= new THREE.MeshStandardMaterial({ name: 'h2r-titanium', color: 0xb38d58, metalness: 1, roughness: 0.25 });
-  M.h2rCan ??= new THREE.MeshStandardMaterial({ name: 'h2r-silencer', color: 0xd6d7d9, metalness: 1, roughness: 0.14 });
   const P = (u, v, z) => new THREE.Vector3(...PXY(u, v), z);
   const g = new THREE.Group(); g.name = 'h2r-exhaust';
   const items = [];
@@ -400,7 +397,7 @@ function buildExhaust(M) {
   const L = B.distanceTo(C), q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), C.clone().sub(B).normalize());
   const can = lathe([[0.034, 0], [0.042, L * 0.2], [0.05, L * 0.55], [0.058, L * 0.85], [0.06, L * 0.97], [0.064, L], [0.054, L + 0.003], [0.0, L + 0.003]], 36);
   can.applyQuaternion(q); can.translate(B.x, B.y, B.z);
-  g.add(mesh(can, M.h2rCan, { name: 'h2r-silencer' }));
+  g.add(mesh(can, M.h2rMachined, { name: 'h2r-silencer' }));
   return g;
 }
 
@@ -437,8 +434,8 @@ function buildDetails(M) {
     const L = geo.clone(); L.scale(1, 1, -1); const ix = L.attributes.position;
     for (let i = 0; i < ix.count; i += 3) { const t = [ix.getX(i + 1), ix.getY(i + 1), ix.getZ(i + 1)]; ix.setXYZ(i + 1, ix.getX(i + 2), ix.getY(i + 2), ix.getZ(i + 2)); ix.setXYZ(i + 2, ...t); }
     L.computeVertexNormals();
-    M.h2rChrome2s ??= Object.assign(M.h2rChrome.clone(), { side: THREE.DoubleSide, name: 'h2r-mirror-coat-shroud' });
-    g.add(mesh(mergeAll([{ geometry: geo }, { geometry: L }]), M.h2rChrome2s, { name: 'h2r-radiator-shroud' }));
+    M.h2rChrome2 ??= Object.assign(M.h2rChrome.clone(), { side: THREE.DoubleSide, name: 'h2r-mirror-coat-2s' });
+    g.add(mesh(mergeAll([{ geometry: geo }, { geometry: L }]), M.h2rChrome2, { name: 'h2r-radiator-shroud' }));
     for (const s of [-1, 1]) { const b = new THREE.CylinderGeometry(0.008, 0.008, 0.006, 12); b.rotateX(Math.PI / 2); b.translate(0.252, 0.535, s * 0.229); g.add(mesh(b, M.h2rAlu, { name: 'h2r-shroud-bolt' })); }
   }
   // Rearsets: aluminium heel plates and pegs (the side photograph), the right one with the brake pedal.
