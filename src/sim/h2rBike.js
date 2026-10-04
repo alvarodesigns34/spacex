@@ -12,11 +12,16 @@
  *    speed). Below ≈3 m/s the feet hold it up and the bars steer it, up to the published 27°.
  *  - Turning. The yaw rate is the steer's, v·tan δ / L (≈, the trail's and the tyres' compliance
  *    left out); the lateral acceleration v·r then balances the lean at g·tan φ.
- *  - Tyres. Each has a friction circle (a slick ≈1.35 × the surface's μ, ≈); the rear wheel has its
+ *  - Tyres. Each has a friction circle (a slick ≈1.5 × the surface's μ, ≈); the rear wheel has its
  *    own speed, coupled to the engine through the gearbox and the clutch, and drives with a
  *    magic-formula-like curve of its slip, so it spins up under too much throttle — which the
- *    traction control (aids, T) holds near the peak. The front brakes up to its grip (cornering
- *    ABS with the aids); past it the front locks: upright it skids, leant over it tucks.
+ *    traction control (aids, T) holds near the peak. The grip is shared with the lean first: the
+ *    lateral share the lean needs, then what is left for drive and brake (the published KCMF/KIBS
+ *    and KTRC work from the IMU's lean the same way). Past it, without the aids, the front locks
+ *    and skids or the rear spins — a longer stop, a wider line — never a fall.
+ *  - The lean limit, and nothing else, keeps a turn on its wheels: the lean the rider can ask for
+ *    is what the tyres can hold (atan of the grip left, ≈) and never past where the pegs and the
+ *    fairing touch; past the tyres' grip the bike runs wide instead of going down.
  *  - Load transfer on the springs: the 120 mm fork and the 135 mm shock (published travel), their
  *    rates ≈, carry the weight and the inertia; when one wheel unloads the bike pitches about the
  *    other contact (wheelies and stoppies, which the aids' wheelie control and rear-lift mitigation
@@ -24,8 +29,9 @@
  *  - Engine: the published 228 kW at 14,000 rpm (240 kW with ram air, its share growing with the
  *    square of the speed, ≈) and 165 Nm at 12,500 rpm, the published primary, six gears and final
  *    drive, a quick-shifter's ≈60 ms cut; automatic shifting, or manual (Q down, E up).
- *  - Falls: a lowside when the tyres let go, over the bars or over backwards past the balance point,
- *    into deep water, against anything standing on the ground.
+ *  - Falls: none from leaning, braking or accelerating in a turn. It still goes down over the bars
+ *    or over backwards past the balance point (without the aids), into water too deep to ride
+ *    through, and into anything standing on the ground hit hard and square (a graze scrapes along).
  */
 import { ENGINE, GEARBOX, WHEELS, CHASSIS, BODY, MASS } from '../data/h2r.js';
 
@@ -45,6 +51,10 @@ export const BIKE = {
 BIKE.lr = BIKE.b; BIKE.lf = BIKE.L - BIKE.b;
 BIKE.Ip = BIKE.m * (BIKE.b ** 2 + BIKE.h ** 2) + 60;           // pitch inertia about the rear contact (≈)
 const RATIO = (g) => GEARBOX.primary * GEARBOX.ratios[g] * GEARBOX.final;
+const STAND_UP = 0.9;                                           // rad/s the lean limit comes down at (≈)
+// The steer at the ground is the bars' angle foreshortened by the rake (≈ δ·cos λ): what turns
+// the bike. The published 27° are at the bars.
+const GS = Math.cos(CHASSIS.rake * D2R);
 
 export function engineTorque(rpm) {
   const c = ENGINE.torqueCurve;
@@ -56,7 +66,7 @@ export function engineTorque(rpm) {
 const tyreLong = (k) => Math.sin(1.6 * Math.atan(18 * k - 0.4 * (18 * k - Math.atan(18 * k))));
 
 export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'track' }), obstacles = () => [] } = {}) {
-  const input = { throttle: 0, brake: 0, rearBrake: 0, lean: 0, shiftUp: false, shiftDown: false };
+  const input = { throttle: 0, brake: 0, rearBrake: 0, lean: 0, shiftUp: false, shiftDown: false, auto: false };
   const s = {};
   function reset({ x = 0, z = 0, psi = 0 } = {}) {
     Object.assign(s, {
@@ -65,12 +75,14 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
       aids: true, wheelie: false, stoppie: false, slide: 0, slip: 0, crashed: null, down: 0, fallSide: 1,
       vx: 0, vz: 0, spinDown: 0, water: 0, immersion: 0, impact: 0, hits: [],
       susF: 0, susR: 0, vF: 0, vR: 0, NF: 0, NR: 0, t: 0, ramShare: 0, gradePitch: 0, grip: 1, fuelCut: false,
-      surface: 'track', abs: false, tc: false, lock: 0,
+      surface: 'track', abs: false, tc: false, lock: 0, budget: 1, leanCap: 0, sliding: false, axTyre: 0, axF: 0, stop: BIKE.maxLean, slideCap: BIKE.maxLean,
+      vy: NaN, air: false,             // vertical speed (NaN until the first step reads the slope)
+      shiftRefused: -10, scrape: -10,
     });
     // Settled on its springs.
     const Wf = BIKE.m * G * BIKE.b / BIKE.L, Wr = BIKE.m * G - Wf;
     s.susF = Wf / BIKE.kF; s.susR = Wr / BIKE.kR; s.NF = Wf; s.NR = Wr;
-    Object.assign(input, { throttle: 0, brake: 0, rearBrake: 0, lean: 0, shiftUp: false, shiftDown: false });
+    Object.assign(input, { throttle: 0, brake: 0, rearBrake: 0, lean: 0, shiftUp: false, shiftDown: false, auto: false });
   }
   reset();
 
@@ -92,12 +104,13 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
     const mu = g.water !== undefined ? 0.9 : (['grass', 'gravel', 'sand', 'mud'].includes(g.kind) ? 0.7 : 0.42);
     const dv = Math.min(v, mu * G * dt);
     if (v > 1e-6) { s.vx -= s.vx / v * dv; s.vz -= s.vz / v * dv; }
-    s.x += s.vx * dt; s.z += s.vz * dt;
+    s.impact = 0;
+    const n = Math.max(1, Math.ceil(v * dt / 0.1));
+    for (let k = 0; k < n; k++) { s.x += s.vx * dt / n; s.z += s.vz * dt / n; collide(dt, true); }
     s.psi += s.spinDown * dt; s.spinDown *= Math.exp(-dt * 0.8);
     s.u = v; s.y = g.h; s.down = Math.min(1, s.down + dt * 3);
     s.rpm += (0 - s.rpm) * Math.min(1, dt * 2);
     s.wR *= Math.exp(-dt * 2);
-    collide(dt, true);
   }
 
   function step(dt) {
@@ -115,41 +128,67 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
     let Nf = Math.max(0, BIKE.kF * s.susF + BIKE.cF * s.vF), Nr = Math.max(0, BIKE.kR * s.susR + BIKE.cR * s.vR);
     if (s.theta > 0.002) Nf = 0;
     if (s.theta < -0.002) Nr = 0;
+    if (s.air) { Nf = 0; Nr = 0; }          // over a crest, off the ground: no tyre force at all
     s.NF = Nf; s.NR = Nr;
+    // Leant over, the centre of mass stands h·cos φ above the ground: that is the height the
+    // pitch works on (a stoppie needs more braking, a wheelie more drive, the more it leans).
+    const hE = BIKE.h * Math.cos(Math.min(Math.abs(s.phi), 1.2));
+    const IpE = BIKE.m * (BIKE.b ** 2 + hE ** 2) + 60;
+
+    // ---- The grip, shared with the lean first. Its lateral share is tan φ (in g); what is left
+    // of the friction circle is what drive and brake may use with the aids (the published
+    // cornering management reads the lean from the IMU the same way). 0.95 of the peak (≈).
+    const leanTan = Math.tan(Math.min(Math.abs(s.phi), 1.3));
+    const axBudget = G * Math.sqrt(Math.max(0, (0.95 * mu) ** 2 - leanTan ** 2));
+    s.budget = axBudget / G;
 
     // ---- Engine, clutch, gearbox, rear wheel.
     s.shift = Math.max(0, s.shift - dt);
-    if (input.shiftUp || input.shiftDown) s.manual = true;
-    if (input.shiftUp && s.gear < 5 && !s.shift) { s.gear++; s.shift = GEARBOX.shiftTime; }
-    if (input.shiftDown && s.gear > 0 && !s.shift) { s.gear--; s.shift = GEARBOX.shiftTime; }
-    input.shiftUp = input.shiftDown = false;
-    const total = RATIO(s.gear);
     const wheelRpm = s.wR * 60 / (2 * Math.PI);
+    if (input.shiftUp || input.shiftDown) s.manual = true;
+    if (input.auto) s.manual = false;
+    if (input.shiftUp && s.gear < 5 && !s.shift) { s.gear++; s.shift = GEARBOX.shiftTime; }
+    if (input.shiftDown && s.gear > 0 && !s.shift) {
+      // Refused where it would over-rev the engine (as the quick-shifter's ECU refuses it).
+      if (wheelRpm * RATIO(s.gear - 1) > ENGINE.maxRpm - 300) s.shiftRefused = s.t;
+      else { s.gear--; s.shift = GEARBOX.shiftTime; }
+    }
+    input.shiftUp = input.shiftDown = input.auto = false;
     if (!s.manual && !s.shift) {
       if (s.rpm > GEARBOX.upshiftRpm && s.gear < 5 && !s.wheelie) { s.gear++; s.shift = GEARBOX.shiftTime; }
-      else if (s.gear > 0 && wheelRpm * RATIO(s.gear - 1) < GEARBOX.upshiftRpm - 1500 && (input.throttle < 0.2 ? s.rpm < 7500 : s.rpm < 6000)) { s.gear--; s.shift = GEARBOX.shiftTime; }
+      else if (s.gear > 0 && wheelRpm * RATIO(s.gear - 1) < GEARBOX.upshiftRpm - 1500
+        && s.rpm < GEARBOX.downshiftRpm - (input.throttle < 0.2 ? 1000 : 2500)) { s.gear--; s.shift = GEARBOX.shiftTime; }
     }
+    const total = RATIO(s.gear);
     const geared = wheelRpm * total;
     // Moving off the clutch slips (as a rider, or launch control, slips it): the engine held at a
-    // speed of its own, ≈9,000 rpm at full throttle, until the wheel's speed catches it up; a slipping
-    // clutch passes the engine's torque.
-    const launchRpm = Math.max(2500, ENGINE.idle + input.throttle * 7700);
-    const slipClutch = s.gear === 0 && geared < launchRpm;
-    s.ramShare = Math.min(1, (V / (300 / 3.6)) ** 2);
+    // speed of its own, ≈9,000 rpm at full throttle in first, until the wheel's speed catches it
+    // up. In a higher gear the clutch slips only to keep the engine from stalling (≈2,500 rpm).
+    const launchRpm = s.gear === 0 ? Math.max(2500, ENGINE.idle + input.throttle * 7700) : 2500;
+    const slipClutch = geared < launchRpm;
+    s.ramShare = Math.min(1, (V / (337 / 3.6)) ** 2);
     const ram = 1 + (ENGINE.powerRam / ENGINE.power - 1) * s.ramShare;
     let thr = input.throttle;
-    // Wheelie control: the throttle eased as the front comes up (≈ its logic).
-    if (s.aids && s.theta > 2 * D2R) thr *= Math.max(0, 1 - (s.theta - 2 * D2R) / (4 * D2R)) * (s.thetaDot > 0 ? 0.6 : 1);
-    // Traction control: eased as the rear's slip passes its peak.
+    // Wheelie control: the throttle eased from 1° of lift and shut by 4° (≈ its logic).
+    if (s.aids && s.theta > 1 * D2R) thr *= Math.max(0, 1 - (s.theta - 1 * D2R) / (3 * D2R)) * (s.thetaDot > 0 ? 0.6 : 1);
+    // Traction control: eased as the rear's slip passes its peak, and the drive held within what
+    // the lean leaves of the grip.
     s.tc = false;
     if (s.aids && s.slip > 0.1) { thr *= Math.max(0, 1 - (s.slip - 0.1) * 10); s.tc = true; }
+    if (s.aids && V > 3) {
+      const fxNow = engineTorque(Math.max(ENGINE.idle, s.rpm)) * ram * total * GEARBOX.efficiency / BIKE.RR;
+      if (thr * fxNow > BIKE.m * axBudget) { thr = BIKE.m * axBudget / fxNow; s.tc = true; }
+    }
     s.fuelCut = s.rpm >= ENGINE.maxRpm;
     if (s.shift || s.fuelCut) thr = 0;
     if (slipClutch) s.rpm += (Math.max(geared, launchRpm) - s.rpm) * Math.min(1, dt * 10);
     else s.rpm = geared;
     let Te = engineTorque(Math.max(ENGINE.idle, s.rpm)) * thr * ram;
-    // Engine braking, eased by the aids (≈ KEBC's light setting).
-    if (thr < 0.05 && !slipClutch) Te -= (ENGINE.friction[0] + ENGINE.friction[1] * s.rpm) * (s.aids ? 0.6 : 1);
+    // A slipping clutch passes part of the engine's torque (ESTIMATE, fitted to the 0–100 km/h).
+    if (slipClutch) Te *= ENGINE.launchClutch;
+    // Engine braking, eased by the aids (≈ KEBC's light setting) — when the rider shuts the
+    // throttle, not during the quick-shifter's cut or at the limiter.
+    if (input.throttle < 0.05 && !slipClutch) Te -= (ENGINE.friction[0] + ENGINE.friction[1] * s.rpm) * (s.aids ? 0.6 : 1);
     if (slipClutch && thr < 0.05) Te = 0;
     const Tw = Te * total * GEARBOX.efficiency;
     // The rear tyre's force against its slip, and the wheel's spin under the drive, the tyre and
@@ -165,38 +204,61 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
     s.wR = Math.max(0, s.wR + dt * f0 / (1 + dt * Math.max(0, dFdw)));
     s.slip = (s.wR * BIKE.RR - V) / Math.max(3, V);
     const Fx = FxOf(s.wR);
-    // The front brake, its force limited by the tyre (ABS with the aids; locked past it without).
+    // Water pushed aside by the front tyre (≈ Cd 0.9 on the tyre's width and the depth, up to
+    // 0.3 m), capped at 0.6 g (≈): it slows the bike, it is not the tyres' grip.
+    const Fwater = depth > 0 ? Math.min(0.6 * BIKE.m * G, 0.5 * 1000 * 0.9 * WHEELS.front.width * Math.min(depth, 0.3) * V * V) : 0;
+    const waterDrag = Fwater;
+    // The front brake, its force limited by the tyre (KIBS with the aids; locked past it without).
     const latF = Math.abs(s.u * s.r) * BIKE.m * BIKE.lr / BIKE.L;
     const capF = Math.sqrt(Math.max(0, (mu * Nf) ** 2 - latF ** 2));
     let Fbf = input.brake * 1.3 * BIKE.m * G;
     s.abs = false;
     if (s.aids) {
       if (Fbf > capF * 0.95) { Fbf = capF * 0.95; s.abs = true; }
-      // Held short of the deceleration that lifts the rear (a > g·lf/h, ≈1.1 g with the rider).
-      const lift = Math.max(0, 0.96 * BIKE.m * G * BIKE.lf / BIKE.h - 0.5 * RHO * MASS.cdA * V * V);
+      // Held short of the deceleration that lifts the rear (a > g·lf/h, ≈1.1 g with the rider,
+      // more leant over), counting what the air and the water already take.
+      const lift = Math.max(0, 0.96 * BIKE.m * G * BIKE.lf / hE - 0.5 * RHO * MASS.cdA * V * V - waterDrag);
       if (Fbf > lift) { Fbf = lift; s.abs = true; }
-      // Rear-lift mitigation: the brake eased as the rear rises.
-      if (s.theta < -1 * D2R) Fbf *= Math.max(0.5, 1 + (s.theta + 1 * D2R) / (3 * D2R));
-    } else if (Fbf > capF && V > 2) {
-      Fbf = capF * 0.85;               // locked: sliding friction
-      s.lock += dt;
-      if (Math.abs(s.phi) > 12 * D2R) fall('The front tucked under the brake, leant over.');
-    } else s.lock = 0;
+      // Rear-lift mitigation: the brake eased as the rear rises, let off entirely by 4° of it.
+      if (s.theta < -1 * D2R) Fbf *= Math.max(0, 1 + (s.theta + 1 * D2R) / (3 * D2R));
+      // Cornering (KCMF): both tyres' braking within what the lean leaves (Fx < 0 when the rear brakes).
+      const room = Math.max(0, BIKE.m * axBudget + Fx);
+      if (Fbf > room) { Fbf = room; s.abs = true; }
+      // And slow, leant over: no harder than lets the bike come up as fast as the lean the bars
+      // can balance falls with the speed (≈0.5 g at walking pace; nothing above ≈30 km/h).
+      const k = Math.tan(Math.min(BIKE.steerMax, 0.6 / Math.max(1, V / 4))) / (G * BIKE.L);
+      if (V > 1 && Math.abs(s.phi) > Math.atan(V * V * k) - 8 * D2R) {
+        const aUp = 0.75 * STAND_UP * (1 + V ** 4 * k * k) / (2 * V * k);
+        if (Fbf > BIKE.m * aUp + Fx) { Fbf = Math.max(0, BIKE.m * aUp + Fx); s.abs = true; }
+      }
+      s.lock = 0;
+    } else {
+      // Without the aids the brake is the rider's, but the friction circle is still the tyres':
+      // past what the lean leaves of it (the lateral share first) or past the front's own grip,
+      // the front locks and skids on its sliding friction — a longer stop, not a fall.
+      const roomPhys = Math.max(0, BIKE.m * G * Math.sqrt(Math.max(0, mu * mu - leanTan * leanTan)) + Fx);
+      if ((Fbf > capF || Fbf > roomPhys) && V > 2) { Fbf = Math.min(capF, roomPhys) * 0.7; s.lock += dt; }
+      else s.lock = 0;
+    }
     const Faero = 0.5 * RHO * MASS.cdA * V * V;
     const Froll = BIKE.m * G * (0.015 + (g.roll ?? 0)) * (V > 0.3 ? 1 : V / 0.3);
-    const Fwater = depth > 0 ? 0.5 * 1000 * 0.9 * (0.12 + 0.19) * Math.min(depth, 0.3) * V * V : 0;
+    // The grade: gravity along the slope (the pitch of the last step).
+    const Fgrade = s.air ? 0 : BIKE.m * G * Math.sin(s.gradePitch);
     const Fres = (V > 0.05 ? 1 : 0) * (Fbf + Faero + Froll + Fwater);
-    const F = Fx - Fres;
+    const F = Fx - Fres - Fgrade;
     s.ax = F / BIKE.m;
+    s.axTyre = (Fx - Fbf) / BIKE.m;      // what the tyres carry: neither the air nor the water
     s.u = Math.max(0, s.u + s.ax * dt);
-    if (V < 0.05 && Fx <= 0) s.u = 0;
+    if (V < 0.05 && Fx <= 0 && Fgrade >= 0) s.u = 0;
 
     // ---- Springs and pitch. The load transfer m·a·h/L moves weight between the axles through
     // the springs; when an axle unloads the bike rotates about the other contact.
     {
       // (And the air's drag, acting about the centre of mass's height (≈ the centre of pressure's),
-      // loads the rear and lifts the front even at a steady speed: ≈800 N at 330 km/h.)
-      const transfer = (BIKE.m * s.ax * BIKE.h + Faero * BIKE.h) / BIKE.L;
+      // loads the rear and lifts the front even at a steady speed: ≈800 N at 330 km/h. The water
+      // pushes at half its depth, not at the centre of mass.)
+      const hw = depth / 2;
+      const transfer = (BIKE.m * s.ax * hE + Faero * hE + Fwater * (hE - hw)) / BIKE.L;
       const wantF = BIKE.m * G * BIKE.b / BIKE.L - transfer, wantR = BIKE.m * G * BIKE.lf / BIKE.L + transfer;
       // Each axle's spring–damper driven towards the load it must carry (≈ a quarter-bike each).
       const mF = 0.45 * BIKE.m * BIKE.b / BIKE.L, mR = 0.45 * BIKE.m * BIKE.lf / BIKE.L;
@@ -208,104 +270,191 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
       if (s.susR <= 0 || s.susR >= BIKE.travelR) s.vR = 0;
       const a = s.ax;
       if (s.theta >= 0) {
-        const lr = BIKE.b * Math.cos(s.theta) - BIKE.h * Math.sin(s.theta), hh = BIKE.b * Math.sin(s.theta) + BIKE.h * Math.cos(s.theta);
-        const M = (BIKE.m * a + Faero) * hh - BIKE.m * G * lr;
+        const lr = BIKE.b * Math.cos(s.theta) - hE * Math.sin(s.theta), hh = BIKE.b * Math.sin(s.theta) + hE * Math.cos(s.theta);
+        const M = (BIKE.m * a + Faero + Fwater) * hh - Fwater * hw - BIKE.m * G * lr;
         if (s.theta > 0 || M > 0) {
-          s.thetaDot += M / BIKE.Ip * dt; s.thetaDot *= Math.exp(-dt * 0.8); s.theta += s.thetaDot * dt;
+          s.thetaDot += M / IpE * dt; s.thetaDot *= Math.exp(-dt * 0.8); s.theta += s.thetaDot * dt;
           if (s.theta < 0) { s.theta = 0; s.thetaDot = Math.max(0, -s.thetaDot * 0.15); s.vF -= 0.6; }
         }
       }
       if (s.theta <= 0) {
-        const lf = BIKE.lf * Math.cos(-s.theta) - BIKE.h * Math.sin(-s.theta), hh = BIKE.lf * Math.sin(-s.theta) + BIKE.h * Math.cos(-s.theta);
-        const M = -BIKE.m * a * hh - BIKE.m * G * lf;
+        const lf = BIKE.lf * Math.cos(-s.theta) - hE * Math.sin(-s.theta), hh = BIKE.lf * Math.sin(-s.theta) + hE * Math.cos(-s.theta);
+        const M = -(BIKE.m * a + Fwater) * hh + Fwater * hw - BIKE.m * G * lf;
         if (s.theta < 0 || M > 0) {
-          s.thetaDot -= M / (BIKE.m * (BIKE.lf ** 2 + BIKE.h ** 2) + 60) * dt; s.thetaDot *= Math.exp(-dt * 0.8); s.theta += s.thetaDot * dt;
+          s.thetaDot -= M / (BIKE.m * (BIKE.lf ** 2 + hE ** 2) + 60) * dt; s.thetaDot *= Math.exp(-dt * 0.8); s.theta += s.thetaDot * dt;
           if (s.theta > 0) { s.theta = 0; s.thetaDot = Math.min(0, -s.thetaDot * 0.15); s.vR -= 0.6; }
         }
       }
       s.wheelie = s.theta > 0.5 * D2R; s.stoppie = s.theta < -0.5 * D2R;
-      if (s.theta > Math.atan2(BIKE.b, BIKE.h)) fall('Looped it: the wheelie went past the balance point.', s.phi >= 0 ? 1 : -1);
-      if (-s.theta > Math.atan2(BIKE.lf, BIKE.h)) fall('Over the bars: the stoppie went past the balance point.', s.phi >= 0 ? 1 : -1);
+      if (s.theta > Math.atan2(BIKE.b, hE)) fall('Looped it: the wheelie went past the balance point.', s.phi >= 0 ? 1 : -1);
+      if (-s.theta > Math.atan2(BIKE.lf, hE)) fall('Over the bars: the stoppie went past the balance point.', s.phi >= 0 ? 1 : -1);
     }
 
     // ---- Balance and steering.
-    const grip = Math.sqrt(Math.max(0, mu * mu - (s.ax / G) ** 2));
+    // The grip left for the lean: the friction circle less what drive or brake take of it (their
+    // share filtered over ≈0.17 s, as the tyres' loads and slips build; ≈), 0.92 of the peak.
+    s.axF = (s.axF ?? 0) + ((s.axTyre ?? 0) - (s.axF ?? 0)) * Math.min(1, dt * 6);
+    const grip = Math.sqrt(Math.max(0, (0.92 * mu) ** 2 - (Math.min(Math.abs(s.axF), 0.5 * 0.92 * mu * G) / G) ** 2));
     s.grip = grip;
-    const reach = Math.min(BIKE.maxLean, s.aids ? Math.atan(grip * 0.9) : BIKE.maxLean);
+    // The lean limit: what the tyres can hold, and never past where the pegs touch.
+    const reach = Math.min(BIKE.maxLean, Math.atan(grip));
+    // Slow, the lean is what the bars' lock allows at this speed (≈0.9 of it).
+    const lowCap = Math.atan(V * V * Math.tan(0.9 * BIKE.steerMax * GS) / (G * BIKE.L));
+    s.leanCap = Math.min(reach, lowCap);
+    s.sliding = false;
+    const rPrev = s.r;
     if (V < 3) {
-      // Walking pace: the feet hold it up, the bars steer it.
-      const want = input.lean * BIKE.steerMax * (1 - V / 6);
+      // Walking pace: the feet hold it up, the bars steer it (to the lock: the tightest turn is
+      // made slowest), and it leans only as much as the turn.
+      const want = input.lean * BIKE.steerMax;
       s.steerDot = (want - s.steer) * 6; s.steer += s.steerDot * dt;
-      s.phi += (0 - s.phi) * Math.min(1, dt * 4); s.phiDot = 0;
-      s.r = V * Math.tan(s.steer) / BIKE.L;
+      s.r = V * Math.tan(s.steer * GS) / BIKE.L;
+      s.phi += (Math.atan(V * s.r / G) - s.phi) * Math.min(1, dt * 4); s.phiDot = 0;
+      s.stop = Math.max(Math.abs(s.phi), 2 * D2R);
     } else {
       // The rider's hands: a lean asked for, reached by steering — first away (counter-steering),
       // then into the turn. Their bandwidth falls with speed (≈ the gyroscopic stiffness).
-      const target = input.lean * reach * Math.min(1, (V - 3) / 8);
+      const target = input.lean * s.leanCap;
       const wn = Math.max(2.2, 6.5 - V / 20), zeta = 0.9;
       const phiDdWant = wn * wn * (target - s.phi) - 2 * zeta * wn * s.phiDot;
       const c = Math.cos(s.phi);
-      let delta = ((G / BIKE.h) * Math.sin(s.phi) - phiDdWant) * BIKE.h * BIKE.L / (V * V * Math.max(0.3, c));
-      const lim = Math.min(BIKE.steerMax, 0.6 / Math.max(1, V / 4));
+      let delta = ((G / BIKE.h) * Math.sin(s.phi) - phiDdWant) * BIKE.h * BIKE.L / (V * V * Math.max(0.3, c)) / GS;
+      // The bars: no more than the tyres can turn with (the steer whose turn their full grip
+      // holds — a margin over the lean's own share, so the hands can still correct at the limit).
+      const lim = Math.min(BIKE.steerMax, 0.6 / Math.max(1, V / 4), Math.atan(mu * G * BIKE.L / (V * V)) / GS);
       delta = Math.max(-lim, Math.min(lim, delta));
       const rate = 3.5;                // rad/s the hands turn the bars (≈)
       const dd = Math.max(-rate * dt, Math.min(rate * dt, delta - s.steer));
       s.steerDot = dd / dt; s.steer += dd;
       // The lean, from the bicycle's equation.
-      const phiDd = (G * Math.sin(s.phi) - (V * V / BIKE.L) * s.steer * c - (BIKE.b * V / BIKE.L) * s.steerDot * c) / BIKE.h;
+      const phiDd = (G * Math.sin(s.phi) - (V * V / BIKE.L) * s.steer * GS * c - (BIKE.b * V / BIKE.L) * s.steerDot * GS * c) / BIKE.h;
       s.phiDot += phiDd * dt;
       s.phi += s.phiDot * dt;
-      s.r = V * Math.tan(s.steer) / BIKE.L;
-      if (Math.abs(s.phi) > BIKE.maxLean + 4 * D2R) fall('Leant past the clearance: a peg and the fairing dug in.');
-      if (Math.abs(s.phi) > 75 * D2R) fall('It fell over.');
+      // The lean limit: never past where the pegs and the fairing touch, nor (by more than 2°)
+      // past what the tyres hold or the bars' lock can balance at this speed. When either falls
+      // — slowing down, onto grass — the limit follows at ≈50°/s, so the bike is brought up, not
+      // let down. This is what keeps a turn on its wheels.
+      const balance = Math.atan(V * V * Math.tan(Math.min(BIKE.steerMax, 0.6 / Math.max(1, V / 4)) * GS) / (G * BIKE.L));
+      const want = Math.min(BIKE.maxLean, Math.min(reach, balance) + 2 * D2R, s.slideCap);
+      s.stop = want >= s.stop ? want : Math.max(want, s.stop - STAND_UP * dt);
+      if (Math.abs(s.phi) > s.stop) { s.phi = Math.sign(s.phi) * s.stop; if (s.phi * s.phiDot > 0) s.phiDot = 0; }
+      s.r = V * Math.tan(s.steer * GS) / BIKE.L;
     }
-    const ay = s.u * s.r;
+    // The front wheel in the air (a wheelie) or both off the ground: the bars turn nothing, the
+    // bike keeps the yaw it had.
+    if (Nf === 0 && (s.theta > 0.002 || s.air)) s.r = rPrev;
+    // Past the grip the tyres slide and the bike runs wide: the turn saturates, it does not fall.
+    // A front skidding locked has its sliding friction only (≈0.8 of its grip).
+    let ay = s.u * s.r;
+    const ayMax = G * Math.sqrt(Math.max(0, mu * mu - (s.axTyre / G) ** 2)) * (s.lock > 0 ? 0.8 : 1);
+    if (Math.abs(ay) > ayMax && V > 0.5) { ay = Math.sign(ay) * ayMax; s.r = ay / V; s.sliding = true; }
     s.ay = ay;
-    // Past the grip: the tyres slide, and a slide held for a moment is a lowside.
-    const demand = Math.hypot(s.ax, ay) / G;
-    if (demand > mu * 1.02 && V > 6) s.slide += (demand - mu) * dt * 8;
-    else s.slide = Math.max(0, s.slide - dt * 2);
-    if (!s.aids && s.slip > 0.6 && Math.abs(s.phi) > 25 * D2R && V > 8) s.slide += dt * 2;     // spinning the rear leant over: a highside's start
-    if (s.slide > 0.25) fall(g.kind === 'grass' || g.kind === 'gravel' ? `Lost the front on the ${g.kind}.` : 'Lowside: the tyres let go.');
+    // Running wide, the bike comes up to the lean its turn balances (atan of the lateral
+    // acceleration) at the same pace as the lean limit, instead of hanging leant over a straight line.
+    if (s.sliding && V >= 3) s.slideCap = Math.max(Math.atan(Math.abs(ay) / G) + 2 * D2R, Math.min(s.slideCap, Math.abs(s.phi)) - STAND_UP * dt);
+    else s.slideCap = Math.min(BIKE.maxLean, s.slideCap + 1.5 * dt);
+    // How hard the tyres are working past their grip, for the marks, the smoke and the sound
+    // (spinning the rear without the aids counts too).
+    const demand = Math.hypot(s.axTyre, ay) / G;
+    const over = Math.max(0, demand / mu - 0.98) * 6 + (s.sliding ? 0.3 : 0) + (!s.aids && s.slip > 0.3 ? Math.min(1, s.slip - 0.3) : 0);
+    s.slide += (Math.min(1, over) - s.slide) * Math.min(1, dt * 8);
     if (depth > 0.45) fall('Into the water: too deep to ride through.');
 
-    // ---- Move. + r turns right: the heading ψ (anticlockwise from above) decreases.
+    // ---- Move. + r turns right: the heading ψ (anticlockwise from above) decreases. In steps of
+    // 10 cm at most, each checked against what stands on the ground: at 255 km/h a whole step
+    // (0.3 m) was more than a wall of posts is thick, and the bike went through.
     s.psi -= s.r * dt;
     const c2 = Math.cos(s.psi), sn2 = Math.sin(s.psi);
-    s.x += s.u * c2 * dt; s.z -= s.u * sn2 * dt;
-    const hf = ground(s.x + (BIKE.L / 2) * c2, s.z - (BIKE.L / 2) * sn2).h, hr = ground(s.x - (BIKE.L / 2) * c2, s.z + (BIKE.L / 2) * sn2).h;
-    s.y = (hf + hr) / 2;
-    s.gradePitch = Math.atan2(hf - hr, BIKE.L);
+    const n = Math.max(1, Math.ceil(s.u * dt / 0.1));
+    s.impact = 0;
+    for (let k = 0; k < n && !s.crashed; k++) {
+      s.x += s.u * Math.cos(s.psi) * dt / n; s.z -= s.u * Math.sin(s.psi) * dt / n;
+      collide(dt, false);
+    }
+    const c3 = Math.cos(s.psi), sn3 = Math.sin(s.psi);
+    void c2; void sn2;
+    const hf = ground(s.x + (BIKE.L / 2) * c3, s.z - (BIKE.L / 2) * sn3).h, hr = ground(s.x - (BIKE.L / 2) * c3, s.z + (BIKE.L / 2) * sn3).h;
+    const gy = (hf + hr) / 2, pitch = Math.atan2(hf - hr, BIKE.L);
+    // Over a crest taken fast the ground falls away faster than gravity can pull the bike down
+    // after it: it flies, keeping its pitch, and lands on its springs. (The vertical speed along
+    // the slope, u·sin(pitch), so a kerb's step is ridden over, not launched from.)
+    const vSlope = s.u * Math.sin(pitch);
+    if (!Number.isFinite(s.vy)) s.vy = vSlope;
+    if (!s.air) {
+      if ((vSlope - s.vy) / dt < -G && s.u > 8) { s.air = true; s.vy -= G * dt; s.y += s.vy * dt; }
+      else { s.vy = vSlope; s.y = gy; s.gradePitch = pitch; }
+    } else {
+      s.vy -= G * dt; s.y += s.vy * dt;
+      if (s.y <= gy) {
+        // Landing: what the slope does not take of the fall goes into the springs.
+        const hit = Math.max(0, vSlope - s.vy);
+        s.vF += hit * 0.5; s.vR += hit * 0.5;
+        s.air = false; s.y = gy; s.vy = vSlope; s.gradePitch = pitch;
+      }
+    }
     s.wheelAngleF += s.u / BIKE.RF * dt; s.wheelAngleR += s.wR * dt;
-    collide(dt, false);
   }
 
-  /** The bike's plan outline against the obstacles: a hard hit brings it down. */
+  /**
+   * The bike's plan outline against the obstacles. Every penetration this step is merged into
+   * one contact: a wall built of small circles has one normal (the line through its posts), not
+   * one per post, which turned a graze into a head-on hit. Hit hard and square it goes down;
+   * a glancing contact scrapes along, losing speed and turned along the wall.
+   */
   function collide(dt, down) {
     const c = Math.cos(s.psi), sn = Math.sin(s.psi);
     const pts = [[BIKE.front, 0], [BIKE.front * 0.6, 0.2], [BIKE.front * 0.6, -0.2], [0, 0.22], [0, -0.22], [BIKE.rear * 0.7, 0.15], [BIKE.rear * 0.7, -0.15], [BIKE.rear, 0]];
-    s.impact = 0;
-    for (const o of obstacles(s.x, s.z)) {
-      for (const [px, py] of pts) {
-        const wx = s.x + px * c - py * sn, wz = s.z - px * sn - py * c;
-        const dx = wx - o.x, dz = wz - o.z, d = Math.hypot(dx, dz);
-        if (d >= o.r || d < 1e-6) continue;
-        const nx = dx / d, nz = dz / d;
-        s.x += nx * (o.r - d); s.z += nz * (o.r - d);
-        const vx = down ? s.vx : s.u * c, vz = down ? s.vz : -s.u * sn;
-        const vn = -(vx * nx + vz * nz);
-        if (vn > 0) {
-          s.impact = Math.max(s.impact, vn);
-          s.hits.push({ px, py, vn, nx, nz });
-          if (down) { s.vx += nx * vn * 1.2; s.vz += nz * vn * 1.2; }
-          else {
-            const along = vx * c - vz * sn, lost = vn * Math.abs(nx * c - nz * sn);
-            s.u = Math.max(0, along - lost * 1.1); s.wR = s.u / BIKE.RR;
-            if (vn > 3.5) { fall(`Hit it at ${(vn * 3.6).toFixed(0)} km/h.`, py >= 0 ? -1 : 1); s.vx = (s.u * c) + nx * vn * 0.3; s.vz = (-s.u * sn) + nz * vn * 0.3; }
-          }
-        }
+    const near = obstacles(s.x, s.z);
+    let nx = 0, nz = 0, depth = 0, hitPx = 0, hitPy = 0;
+    for (const o of near) for (const [px, py] of pts) {
+      const wx = s.x + px * c - py * sn, wz = s.z - px * sn - py * c;
+      const dx = wx - o.x, dz = wz - o.z, d = Math.hypot(dx, dz);
+      if (d >= o.r || d < 1e-6) continue;
+      const pen = o.r - d;
+      nx += dx / d * pen; nz += dz / d * pen;
+      if (pen > depth) { depth = pen; hitPx = px; hitPy = py; }
+    }
+    const nl = Math.hypot(nx, nz);
+    if (nl < 1e-9) return;
+    nx /= nl; nz /= nl;
+    // A wall of posts: its normal from the line through the posts near the contact (their
+    // principal axis), when they do make a line.
+    {
+      const hx = s.x + hitPx * c - hitPy * sn, hz = s.z - hitPx * sn - hitPy * c;
+      const line = near.filter(o => Math.hypot(o.x - hx, o.z - hz) < 0.8);
+      if (line.length >= 3) {
+        let mx = 0, mz = 0;
+        for (const o of line) { mx += o.x; mz += o.z; }
+        mx /= line.length; mz /= line.length;
+        let sxx = 0, szz = 0, sxz = 0;
+        for (const o of line) { const dx = o.x - mx, dz = o.z - mz; sxx += dx * dx; szz += dz * dz; sxz += dx * dz; }
+        const ang = 0.5 * Math.atan2(2 * sxz, sxx - szz), ex = Math.cos(ang), ez = Math.sin(ang);
+        const l1 = (sxx + szz) / 2 + Math.hypot((sxx - szz) / 2, sxz), l2 = (sxx + szz) - l1;
+        if (l1 > 4 * l2) { let wx = -ez, wz = ex; if (wx * nx + wz * nz < 0) { wx = -wx; wz = -wz; } nx = wx; nz = wz; }
       }
     }
+    // Out against the motion, never along it: a point that has crossed a post's centre gives a
+    // normal pointing on, which pushed the bike through the wall.
+    const vx = down ? s.vx : s.u * c, vz = down ? s.vz : -s.u * sn;
+    if (vx * nx + vz * nz > 0 && Math.hypot(vx, vz) > 0.5) { nx = -nx; nz = -nz; }
+    s.x += nx * depth; s.z += nz * depth;
+    const vn = -(vx * nx + vz * nz);
+    if (vn <= 0) return;
+    s.impact = Math.max(s.impact, vn);
+    s.hits.push({ px: hitPx, py: hitPy, vn, nx, nz });
+    if (down) { s.vx += nx * vn * 1.2; s.vz += nz * vn * 1.2; return; }
+    const speed = Math.hypot(vx, vz), angle = Math.asin(Math.min(1, vn / Math.max(1e-6, speed)));
+    if (vn > 7 && angle > 20 * D2R) {
+      fall(`Hit it at ${(vn * 3.6).toFixed(0)} km/h.`, hitPy >= 0 ? -1 : 1);
+      s.vx = vx + nx * vn * 1.3; s.vz = vz + nz * vn * 1.3;
+      return;
+    }
+    // Glancing: the normal speed is lost, the bike is turned along the wall and scrubs speed.
+    const tx = vx + nx * vn, tz = vz + nz * vn, vt = Math.hypot(tx, tz);
+    s.u = vt * Math.max(0.6, 1 - vn / 20); s.wR = s.u / BIKE.RR;
+    if (vt > 0.5) s.psi = Math.atan2(-tz, tx);
+    s.phiDot *= 0.5;
+    s.scrape = s.t;
   }
 
   let acc = 0;

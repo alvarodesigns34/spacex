@@ -31,7 +31,12 @@ export const ENGINE = {
   maxRpm: 14500,                          // ESTIMATE: the limiter just past peak power
   idle: 1300,                             // ESTIMATE
   inertia: 0.035,                         // ESTIMATE, kg·m²: crank, clutch and the supercharger's impeller
-  friction: [8, 0.0012],                  // ESTIMATE: engine braking, N·m and N·m per rpm
+  // ESTIMATE: engine braking, N·m and N·m per rpm: ≈0.45 g in first at 12,000 rpm, ≈0.3 g with
+  // the aids' lighter setting (KEBC), as a supercharged litre four's friction and pumping give.
+  friction: [12, 0.0028],
+  // ESTIMATE, fitted to MOTORRAD's 0–100 km/h: the share of the engine's torque a slipping clutch
+  // passes while the bike moves off (the rider's hand, or launch control, feeding it in).
+  launchClutch: 0.7,
 };
 
 export const GEARBOX = {
@@ -71,8 +76,9 @@ export const BODY = {
  * ESTIMATE: centre of mass with a 75 kg rider tucked in (≈ a superbike's 52 % on the front), its
  * height and the drag area fitted to MOTORRAD's GPS-timed acceleration test (Dekra oval, Lausitzring,
  * July 2015): 0–100 km/h 3.1 s, 0–200 km/h 6.5 s in 184 m, 0–300 km/h 13.4 s in 660 m, 337 km/h by
- * GPS (357 on the display). The model gives 2.87 s, 6.51 s / 196 m, 13.06 s / 670 m and 338 km/h
- * (tools/h2r-check.mjs). The centre of mass's height sets where the front lifts (≈1.1 g), which
+ * GPS (357 on the display). The model gives 3.08 s, 6.50 s / 187 m, 13.15 s / 669 m and 338 km/h
+ * (tools/h2r-check.mjs), with the launch clutch (ENGINE.launchClutch) and the ram air's share
+ * reaching its full at 337 km/h. The centre of mass's height sets where the front lifts (≈1.1 g), which
  * holds the launch; the drag area, with the wings and the rider tucked, sets the top speed.
  */
 export const MASS = {

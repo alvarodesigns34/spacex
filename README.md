@@ -75,6 +75,14 @@ y abrir la URL que indique. `npm run serve` es un servidor en Node (`tools/serve
     - si va hacia el suelo, nivela las alas y tira hasta subir.
   - **C** cámara (persecución, cabina con HUD, torre, tu órbita) y **Esc** termina y devuelve el avión a su sitio.
 - **B** (o el botón *Porsche · Drive*) **conduce el Porsche 911 GT3 RS** desde su explanada: **W** gas, **S** freno (parado, marcha atrás), **A/D** volante, **Espacio** freno de mano, **T** PSM (control de tracción y de estabilidad, encendido de serie), **C** cámara, **M** sonido (apagado hasta que se enciende), **Enter** vuelve a la explanada, **Esc** termina. Con el PSM el coche va por donde se le dirige y frena recto. Para derrapar, un toque de **Espacio** al entrar en la curva cruza la zaga, y el gas y el contravolante la sostienen; el PSM se aparta mientras el coche va de lado y vuelve al enderezarlo. Los neumáticos dejan marcas.
+- **N** (o el botón *H2R · Ride*) **pilota la Kawasaki Ninja H2R** desde su explanada:
+  - **W** gas, **S** freno delantero, **Espacio** freno trasero.
+  - **A/D** inclinan: la moto contravira sola para tumbarse.
+  - **Q/E** bajan y suben de marcha (manual desde la primera pulsación) y **G** vuelve al cambio automático.
+  - **T** ayudas: ABS y control de tracción en curva, control de caballito y de elevación de la rueda trasera.
+  - **C** cámara (ojos del piloto, persecución, pista, tu órbita), **K** pausa, **M** sonido, **Enter** vuelve a la explanada y **Esc** termina.
+  - **La moto no se cae por inclinarse.** Hay un límite de inclinación: lo que agarran los neumáticos, hasta donde tocan las estriberas. El indicador lo marca y se enciende **LEAN** al llegar.
+  - Solo se cae sin ayudas al pasarse del punto de equilibrio (caballito o vuelco por delante), en agua de más de 0,45 m o contra algo, de frente y fuerte.
   - El botón *Simple* de la barra quita la ayuda y da todos los mandos del avión: `R`/`F` gases, `Q`/`E` pedales, `Espacio` frenos, `B` aerofrenos, `Shift` palanca a fondo.
 - **Vista general en una ventana alta** (un monitor en vertical): la cámara retrocede por su propia línea de visión hasta que los extremos de la fila caben en el campo horizontal. En una ventana apaisada no cambia nada.
 - **`?perf`** en la URL muestra un medidor pequeño: fotogramas por segundo, tiempo medio y percentil 95 de los dos últimos segundos, llamadas de dibujo y triángulos de todo el fotograma (todas las pasadas del compositor), el nivel de calidad y la GPU que declara el navegador. Es la forma de tener cifras de una GPU real: la puerta de CI corre sobre un rasterizador por software.
@@ -820,10 +828,70 @@ El usuario juzgó la primera versión «horrible» y pidió una copia idéntica 
 El usuario pidió una pasada decisiva sobre la H2R, el Porsche y el F-16: modelos hiperrealistas sin simplificar, mejor sonido (el F-16 no tiene ninguno), arreglar un cuadrado negro intermitente en la zona de la H2R y el Porsche, conducción mucho más profunda (la moto no debe caerse al girar) y una pasada por el entorno y las físicas. Se hicieron seis auditorías de solo lectura; los resultados completos están en `docs/diagnostico-2026-10-04/` (índice en su `LEEME.md`). La aplicación va por bloques, cada uno con su sección (la primera, *Pasada decisiva, bloque 1*).
 
 - **Cuadrado negro: causa confirmada, era el Porsche.** El splitter delantero tiene triángulos de área cero con normales nulas; dan un píxel NaN, el filtro de luciérnagas anterior al bloom lo deja pasar y el bloom lo convierte en un rectángulo negro que parpadea. Arreglo probado en la página: filtro a prueba de NaN, quitar los puntos colineales y un saneador de normales.
-- **H2R:** con las ayudas, 193 de 200 recorridos aleatorios acaban en caída. Hay un prototipo con 0 caídas (presupuesto de agarre con prioridad lateral y tope de inclinación a 59,9°, donde toca la estribera).
+- **H2R:** con las ayudas, 193 de 200 recorridos aleatorios acababan en caída. Hay un prototipo con 0 caídas (presupuesto de agarre con prioridad lateral y tope de inclinación a 59,9°, donde toca la estribera). Aplicado en el bloque 2.
 - **Porsche:** el volante con teclado pide el doble del ángulo útil, el DRS se abre en plena curva, el PDK corta el empuje 0,1 s, subvira en el límite y el diferencial no es el autoblocante del coche.
 - **Sonido:** las explosiones se redondean a muestras enteras (≈ −25 dB de ruido), el silbido de alivio de la H2R se rompe a los 30 s y no hay modelo espacial. El F-16 no tiene sonido.
 - **No se llegó a hacer:** la auditoría del detalle de los modelos y el presupuesto de rendimiento, y la del entorno y las físicas.
+
+### Pasada decisiva, bloque 2: la H2R ya no se cae al girar (4 de octubre de 2026)
+
+**El fallo:** la moto se caía con muchísima facilidad. Con las ayudas puestas, 193 de 200 recorridos aleatorios de 30 s acababan en el suelo. Bastaba con soltar la tecla tras una curva a fondo, frenar o acelerar inclinado, pisar la hierba o entrar en un charco. El usuario pidió que no se pudiera caer al girar: «solo un límite de inclinación y ya está».
+
+**El modelo nuevo** (`src/sim/h2rBike.js`):
+- **Agarre compartido, con prioridad para la inclinación.** La parte lateral que pide la inclinación va primero, y lo que queda del círculo de fricción es lo que pueden usar el freno y el gas.
+  - Con las ayudas, el ABS y el control de tracción en curva limitan freno y gas a ese resto, como hacen los sistemas publicados de la H2R (KCMF, KIBS y KTRC, que leen la inclinación de la IMU; verificado en la ficha del modelo 2026 de Kawasaki).
+  - Sin ayudas, el círculo de fricción sigue siendo de los neumáticos: la delantera se bloquea y desliza (≈0,7 del agarre) o la trasera patina. Frena menos o abre la trazada, pero no se cae.
+- **El límite de inclinación es lo único que sostiene la curva.** Es lo que agarran los neumáticos (atan del agarre que queda, a 0,92 del máximo, ≈) y nunca pasa de donde tocan las estriberas y el carenado (58°, ≈).
+  - A baja velocidad también se limita a lo que el manillar puede equilibrar.
+  - Si alguno de esos límites baja (al frenar hasta pararse, al pisar la hierba), el tope baja a ≈50°/s y la moto se levanta.
+  - Más allá del agarre la moto se abre en vez de caerse, y la inclinación baja a la que equilibra su giro.
+- **El cabeceo, con la altura real del centro de masas:** inclinada a φ está a h·cos φ del suelo, así que hace falta más freno para levantar la rueda trasera y más gas para el caballito.
+- **Agua:** su arrastre (≈ del ancho del neumático delantero y la profundidad, como mucho 0,6 g) frena la moto, pero no cuenta contra el agarre. El tope de frenada de las ayudas lo descuenta, y la elevación de la trasera suelta el freno del todo a 4°.
+- **Vallas:** los postes contiguos se tratan como una sola pared, con su normal. Al rozar, la moto se arrastra a lo largo, pierde velocidad y salen chispas. Solo se cae con un golpe de frente y fuerte (más de 7 m/s contra la valla y más de 20°). La moto avanza en pasos de 10 cm como máximo: a 255 km/h atravesaba una valla de postes.
+- **Cambios de rasante:** si el suelo cae más deprisa de lo que la gravedad la lleva, vuela y aterriza sobre los muelles. Con la rueda delantera en el aire (caballito), el manillar no gira la moto.
+- **Pendientes:** la gravedad tira a lo largo de la cuesta. Cuesta arriba sin gas se para donde dice la energía. Todavía no rueda hacia atrás.
+- **Caja:**
+  - rechaza una reducción que pasaría de vueltas;
+  - el embrague patina para no calarse en cualquier marcha;
+  - **G** vuelve al cambio automático;
+  - sin freno motor durante el corte del cambio rápido (daba tirones de 0,3 g).
+- **Dirección:** el giro en el suelo es el del manillar acortado por el avance (δ·cos 25,1°). Con los 27° publicados, el giro más cerrado es de ≈3,2 m, a paso de peatón.
+- **Aceleración contra MOTORRAD:** un embrague que pasa el 70 % del par mientras patina en la salida (`ENGINE.launchClutch`, ≈, ajustado) y el aire forzado completo a 337 km/h.
+
+| MOTORRAD (GPS, Lausitzring 2015) | Antes | Ahora |
+|---|---|---|
+| 0–100 km/h 3,1 s | 2,87 s | 3,08 s |
+| 0–200 km/h 6,5 s (184 m) | 6,51 s (196 m) | 6,50 s (187 m) |
+| 0–300 km/h 13,4 s (660 m) | 13,06 s (670 m) | 13,15 s (669 m) |
+| 337 km/h | 338 km/h | 338 km/h |
+
+**Pilotaje** (`h2rRide.js`, `h2rHud.js`):
+- Cámara del piloto: se descuelga hacia dentro de la curva (≈0,22 m a 45°), mantiene la cabeza más nivelada que la moto (la mitad de la inclinación, filtrada), mira hacia la salida y se mueve un poco con las g.
+- El freno delantero entra en ≈0,2 s.
+- El indicador de inclinación marca el límite, y hay testigos **ABS**, **TC** y **LEAN**.
+- Avisos: reducción rechazada, límite de inclinación y roce con la valla.
+- El cabeceo de la suspensión se cuenta desde su reposo.
+
+**Pruebas nuevas** (`tools/h2r-check.mjs`, con las rampas del teclado de la app):
+- soltar la inclinación de 50 a 250 km/h;
+- frenar y acelerar a fondo inclinada (frena más de 0,3 g);
+- 200 recorridos aleatorios de 20 s con y sin ayudas, con cambios de superficie: 0 caídas no permitidas;
+- baja velocidad;
+- agua de hasta 0,44 m a 337 km/h;
+- roce a 10°;
+- valla de postes a 260–340 km/h;
+- cambio de rasante;
+- cuesta;
+- caja;
+- delantera bloqueada dentro del círculo de fricción;
+- inclinación al patinar;
+- radio mínimo.
+
+En `ux-check.mjs`, una prueba en el navegador: con N y D a fondo, la moto llega al límite, se levanta al soltar y no se cae.
+
+**Revisión adversarial:** tres agentes (cazador de caídas, realismo y código) encontraron 18 defectos en la primera versión de este bloque, todos corregidos. Entre ellos: la valla atravesada, el vuelco en agua frenando, el cabeceo sin la inclinación, el bloqueo de la delantera y las pruebas que medían poco.
+
+**Pendiente:** sin ayudas, la moto vuelca por delante con frenadas fuertes en recta. Es físico, pero con un teclado que solo frena a fondo es fácil; se podría añadir una red de seguridad si el usuario la quiere. Tampoco rueda hacia atrás en una cuesta.
 
 ### Pasada decisiva, bloque 1: el cuadrado negro, arreglado (4 de octubre de 2026)
 

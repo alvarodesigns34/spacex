@@ -24,7 +24,23 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
   - `computeVertexNormals` en una geometría no indexada vuelve a dar (0, 0, 0) en los triángulos de área cero: sanea después.
   - Una prueba de regresión necesita un control positivo. La primera versión de la prueba del NaN pasaba también con el código roto: el cuadrado forzado quedaba dentro del plano cercano (a 2 m en esa vista) y no se dibujaba.
   - El multimuestreo de SwiftShader se traga el NaN: para verlo, pon `samples = 0` en los render targets del compositor y haz `dispose()`.
-- **Siguiente:** bloque 2, la conducción de la H2R (ver «Orden para continuar»).
+- **Bloque 2, H2R: HECHO.** README, *Pasada decisiva, bloque 2*.
+  - `h2rBike.js`:
+    - agarre compartido con prioridad lateral (`axBudget`, `s.budget`);
+    - límite de inclinación (`s.stop`, que baja a `STAND_UP` = 0,9 rad/s; `s.slideCap` al abrirse de trazada);
+    - `hE` = h·cos φ en el cabeceo;
+    - agua fuera del agarre;
+    - colisión por sub-pasos de 10 cm, con normal contraria al movimiento;
+    - vuelo en los cambios de rasante (`s.air`, `s.vy`);
+    - `GS` = cos(avance);
+    - caja con `input.auto` (G) y reducción rechazada (`s.shiftRefused`);
+    - `ENGINE.launchClutch` y `ENGINE.friction` nuevos (ESTIMATE).
+  - `h2rRide.js`: G, avisos, cámara del piloto (`head`), cabeceo desde el reposo (`SAG`) y chispas al rozar.
+  - `h2rHud.js`: marcas del límite y testigos ABS, TC y LEAN.
+  - `specs.js`: ficha actualizada.
+  - Pruebas: `h2r-check.mjs` (sección «Ridden as the keyboard rides it» y siguientes) y `ux-check.mjs` (la moto en la pista, z = 490).
+- **Decisión pendiente del usuario:** sin ayudas la moto vuelca por delante con el freno a fondo en recta (en los recorridos aleatorios, 199 vuelcos y 54 caballitos, todos permitidos). ¿Red de seguridad?
+- **Siguiente:** bloque 3, el Porsche. Ya hay trabajo hecho en la copia de trabajo `wip-b3`, que no se ha empujado. Si se pierde, rehacer desde `conduccion-porsche.json`.
 
 ### Estado al 03-10-2026 (léelo primero)
 

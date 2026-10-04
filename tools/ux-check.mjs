@@ -851,6 +851,39 @@ try {
     report(!back.running && same && back.children === base.children && !back.cls && back.fov === base.fov && !back.external,
       'Esc puts the Porsche back on its spot and gives the camera back', { base, back });
   }
+  // ---- The H2R's ride: a full-lean turn and letting it go, as the keys ride it (October 2026) ----
+  // The bike must never go down from leaning: N starts it, it is set rolling at 50 km/h on the
+  // runway, D held for 3 s leans it to its limit round a circle of ≈15 m that stays on the
+  // runway (its edge lights are 25.9 m either side of the centreline), and let go, with S, it
+  // stands up and stops. G hands the gearbox back to the automatic after a manual shift.
+  {
+    await page.evaluate(() => { window.__vc.jump('h2r', 'overview'); });
+    await page.waitForTimeout(1200);
+    await page.keyboard.press('n');
+    await page.waitForFunction(() => window.__vc.h2rRide.sim.state.t > 0.05, null, { timeout: 5000 }).catch(() => {});
+    const lean = await page.evaluate(() => {
+      const D = window.__vc.h2rRide, s = D.sim.state;
+      const key = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code, key: code.startsWith('Key') ? code.slice(3).toLowerCase() : code, bubbles: true }));
+      D.sim.reset({ x: -1300, z: 490, psi: 0 });
+      s.u = 50 / 3.6; s.wR = s.u / 0.325; s.gear = 1;
+      let max = 0, cap = 0, off = 0;
+      key('keydown', 'KeyD');
+      for (let k = 0; k < 3 * 30; k++) { D.update(1 / 30); max = Math.max(max, Math.abs(s.phi) * 57.3); cap = Math.max(cap, D.state.readout.leanCap); off = Math.max(off, Math.abs(s.z - 500)); }
+      key('keyup', 'KeyD'); key('keydown', 'KeyS');
+      for (let k = 0; k < 2 * 30; k++) { D.update(1 / 30); off = Math.max(off, Math.abs(s.z - 500)); }
+      key('keyup', 'KeyS');
+      const after = { down: !!s.crashed, why: s.crashed?.why ?? null, final: Math.abs(s.phi) * 57.3, kmh: s.u * 3.6, off: +off.toFixed(1) };
+      key('keydown', 'KeyE'); D.update(1 / 30); key('keyup', 'KeyE');
+      const manual = s.manual;
+      key('keydown', 'KeyG'); D.update(1 / 30); key('keyup', 'KeyG'); D.update(1 / 30);
+      return { max: +max.toFixed(1), cap: +cap.toFixed(1), ...after, manual, auto: !s.manual };
+    });
+    report(lean.max > 45 && lean.max <= lean.cap + 2.5 && !lean.down && lean.final < 10 && lean.off < 24 && lean.manual && lean.auto,
+      'N rides the H2R: D held leans it to its limit and let go it stands up, never down; G gives the gearbox back to the automatic', lean);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(1500);
+    report(await page.evaluate(() => !window.__vc.h2rRide.running), 'Esc ends the ride');
+  }
   const lumaAfterRestore = (sabotage) => page.evaluate(async (sabotage) => {
     const v = window.__vc; const c = v.renderer.domElement;
     v.jump('falcon9', 'overview');

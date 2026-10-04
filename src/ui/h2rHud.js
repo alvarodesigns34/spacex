@@ -22,12 +22,12 @@ export function createH2rHud({ root, onEnd, onCamera, onRestart, onPause, onTrac
   bar.innerHTML = `
     <span class="eyebrow">Kawasaki Ninja H2R · 228 kW supercharged, six speeds, Kawasaki's published figures</span>
     <button type="button" class="f16-btn" id="h2r-cam" title="Camera: the rider's eyes, chase, trackside, your own orbit (C)">Rider <kbd>C</kbd></button>
-    <button type="button" class="f16-btn" id="h2r-tc" aria-pressed="true" title="Aids (T): wheelie, traction and rear-lift control; off, the bike is all yours">Aids <kbd>T</kbd></button>
+    <button type="button" class="f16-btn" id="h2r-tc" aria-pressed="true" title="Aids (T): cornering ABS, traction, wheelie and rear-lift control; off, the brakes and the wheelies are yours. The lean limit is always on">Aids <kbd>T</kbd></button>
     <button type="button" class="f16-btn" id="h2r-pause" aria-pressed="false" title="Pause (K)">Pause <kbd>K</kbd></button>
     <button type="button" class="f16-btn" id="h2r-sound" aria-pressed="false" title="Sound (M): the four, the supercharger and the wind, synthesised; off until you turn it on">Sound <kbd>M</kbd></button>
     <button type="button" class="f16-btn" id="h2r-restart" title="Back to the skid pad (Enter)">Pad <kbd>Enter</kbd></button>
     <button type="button" class="f16-btn f16-end" id="h2r-end" title="Back to the exhibit (Esc)">End <kbd>Esc</kbd></button>
-    <p class="f16-keys"><kbd>W</kbd> throttle · <kbd>S</kbd> brake · <kbd>A</kbd><kbd>D</kbd> lean: the bike counter-steers into it · <kbd>Space</kbd> rear brake · <kbd>Q</kbd><kbd>E</kbd> gear down / up (manual from the first press) · <kbd>T</kbd> aids · <kbd>C</kbd> camera · <kbd>M</kbd> sound</p>
+    <p class="f16-keys"><kbd>W</kbd> throttle · <kbd>S</kbd> brake · <kbd>A</kbd><kbd>D</kbd> lean: the bike counter-steers into it · <kbd>Space</kbd> rear brake · <kbd>Q</kbd><kbd>E</kbd> gear down / up (manual from the first press) · <kbd>G</kbd> automatic again · <kbd>T</kbd> aids · <kbd>C</kbd> camera · <kbd>M</kbd> sound</p>
     <ul class="f16-msgs" id="h2r-msgs" aria-live="polite"></ul>
   `;
   root.appendChild(bar);
@@ -115,8 +115,10 @@ export function createH2rHud({ root, onEnd, onCamera, onRestart, onPause, onTrac
     g.fillText(`${fmt(Math.abs(r.kmh))} km/h`, cx, cy + R * 0.38);
     g.font = '500 11px system-ui, sans-serif'; g.fillStyle = 'rgba(255,255,255,0.7)';
     g.fillText(`${fmt(r.rpm)} rpm`, cx, cy + R * 0.62);
-    // The lamps: the aids, the wheelie, ram air, the limiter.
-    const lamps = [['AIDS', r.aids, '#4aa8ff'], ['WHL', r.wheelie || r.stoppie, '#ffb340'], ['RAM', r.ram > 0.5, '#4ad07a'], ['LIM', r.limiter, '#ff4a3c']];
+    // The lamps: the aids, the wheelie, ram air, the limiter; the aids at work (ABS, TC) and the
+    // lean held at its limit.
+    const lamps = [['AIDS', r.aids, '#4aa8ff'], ['WHL', r.wheelie || r.stoppie, '#ffb340'], ['RAM', r.ram > 0.5, '#4ad07a'], ['LIM', r.limiter, '#ff4a3c'],
+      ['ABS', r.abs, '#ffb340'], ['TC', r.tc, '#ffb340'], ['LEAN', r.leanHeld, '#ffb340']];
     lamps.forEach(([t, on, c], i) => {
       const x = cx - R - 70 + (i % 2) * 38, y = cy - 18 + Math.floor(i / 2) * 26;
       g.fillStyle = on ? c : 'rgba(255,255,255,0.18)';
@@ -128,8 +130,16 @@ export function createH2rHud({ root, onEnd, onCamera, onRestart, onPause, onTrac
       const ly = cy - R - 34, LR = R * 0.62;
       g.strokeStyle = 'rgba(255,255,255,0.25)'; g.lineWidth = 3;
       g.beginPath(); g.arc(cx, ly, LR, Math.PI * 1.1, Math.PI * 1.9); g.stroke();
+      // Ticks at the lean limit on either side: what the tyres hold here, or the lock slow.
+      if (r.leanCap > 0) {
+        g.strokeStyle = 'rgba(255,179,64,0.85)'; g.lineWidth = 2;
+        for (const sd of [-1, 1]) {
+          const t = -Math.PI / 2 + sd * r.leanCap / 57.3;
+          g.beginPath(); g.moveTo(cx + Math.cos(t) * (LR - 7), ly + Math.sin(t) * (LR - 7)); g.lineTo(cx + Math.cos(t) * (LR + 7), ly + Math.sin(t) * (LR + 7)); g.stroke();
+        }
+      }
       const a = -Math.PI / 2 + (r.lean || 0) / 57.3;
-      g.strokeStyle = Math.abs(r.lean) > 50 ? '#ffb340' : '#fff'; g.lineWidth = 3;
+      g.strokeStyle = r.leanHeld ? '#ffb340' : '#fff'; g.lineWidth = 3;
       g.beginPath(); g.moveTo(cx, ly); g.lineTo(cx + Math.cos(a) * LR, ly + Math.sin(a) * LR); g.stroke();
       g.fillStyle = '#fff'; g.font = `700 ${Math.round(R * 0.2)}px system-ui, sans-serif`;
       g.fillText(`${fmt(Math.abs(r.lean))}°`, cx, ly + 12);

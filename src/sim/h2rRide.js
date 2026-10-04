@@ -21,7 +21,7 @@ import { createH2rSound } from './h2rSound.js';
 import { createSkidMarks, createTyreSmoke, createSpray } from './gt3Drive.js';
 import { createEffects } from '../core/effects.js';
 import { STEER_AXIS, AXLE_F, AXLE_R } from '../vehicles/h2r.js';
-import { WHEELS } from '../data/h2r.js';
+import { WHEELS, CHASSIS } from '../data/h2r.js';
 import { trackCoords, toLocal, LAP, START } from '../core/circuitPlan.js';
 
 const R2D = 180 / Math.PI;
@@ -55,7 +55,7 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
   const keys = new Set();
   const rider_ = { throttle: 0, brake: 0, rear: 0, lean: 0 };
   const typing = (t) => t.tagName === 'TEXTAREA' || t.isContentEditable || (t.tagName === 'INPUT' && t.type !== 'range');
-  const CODES = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyC', 'KeyT', 'KeyK', 'KeyM', 'KeyQ', 'KeyE', 'Escape', 'Enter']);
+  const CODES = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyC', 'KeyT', 'KeyK', 'KeyM', 'KeyQ', 'KeyE', 'KeyG', 'Escape', 'Enter']);
   const modalOpen = () => typeof document !== 'undefined' && !!document.querySelector('[role="dialog"][aria-modal="true"]:not(.hidden)');
   function onKeyDown(e) {
     if (!state.running || typing(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -73,6 +73,7 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
       case 'KeyM': setSound(!sound.enabled); break;
       case 'KeyE': sim.input.shiftUp = true; break;
       case 'KeyQ': sim.input.shiftDown = true; break;
+      case 'KeyG': if (s.manual) { sim.input.auto = true; note('Gearbox: automatic again'); } break;
       case 'Enter': restart(); break;
       case 'Escape': reset(); break;
       default: break;
@@ -81,14 +82,15 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
   function onKeyUp(e) { keys.delete(e.code); }
   function onBlur() { keys.clear(); }
   function note(text) { state.messages.push({ text, t: performance.now() }); if (state.messages.length > 4) state.messages.shift(); }
-  function setAids(on) { s.aids = !!on; note(s.aids ? 'Aids on: wheelie, traction and rear-lift control' : 'Aids off: the wheelies and the grip are yours'); }
+  function setAids(on) { s.aids = !!on; note(s.aids ? 'Aids on: cornering ABS, traction, wheelie and rear-lift control' : 'Aids off: the brakes and the wheelies are yours; the lean limit stays'); }
   function setSound(on) { sound.setEnabled(on); note(sound.enabled ? 'Sound on: the four, the supercharger, the wind (synthesised)' : 'Sound off'); }
   function readControls(dt) {
     if (keys.size && modalOpen()) keys.clear();
     const k = (...c) => (c.some(x => keys.has(x)) ? 1 : 0);
     const ramp = (cur, target, rate) => cur + THREE.MathUtils.clamp(target - cur, -rate * dt, rate * dt);
     rider_.throttle = ramp(rider_.throttle, k('KeyW', 'ArrowUp'), 6);
-    rider_.brake = ramp(rider_.brake, k('KeyS', 'ArrowDown'), 7);
+    // The brake squeezed on over ≈0.2 s (a rider does not snatch it; the ABS does the rest).
+    rider_.brake = ramp(rider_.brake, k('KeyS', 'ArrowDown'), 5);
     rider_.rear = ramp(rider_.rear, k('Space'), 7);
     // The lean asked for: in at a rider's pace, back up a little quicker.
     const want = k('KeyD', 'ArrowRight') - k('KeyA', 'ArrowLeft');
@@ -98,6 +100,9 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
 
   // ---- Cameras --------------------------------------------------------------------------------
   let chase = null, ridePrev = null, trackside = null;
+  const head = { roll: 0, g: 0 };
+  // The springs' compression at rest (the bike settled on them), the zero of the visual pitch.
+  const SAG = (() => { const b = createH2rBike(); return { f: b.state.susF, r: b.state.susR }; })();
   const _cam = new THREE.Vector3(), _look = new THREE.Vector3(), _f = new THREE.Vector3(), _off = new THREE.Vector3();
   function cycleCamera() { setCamera(CAMERAS[(CAMERAS.indexOf(state.camera) + 1) % CAMERAS.length]); }
   function setCamera(name) {
@@ -120,15 +125,22 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
     _f.set(Math.cos(s.psi), 0, -Math.sin(s.psi));
     if (state.camera === 'rider' && !s.crashed) {
       // The rider's eyes: tucked in behind the screen at speed, sitting up when slow (≈ a 1.78 m
-      // rider on the published 830 mm seat); the head leans with the bike but holds itself nearer
-      // level (≈ 60 % of the lean), as onboard cameras on helmets show.
+      // rider on the published 830 mm seat). Leant over, the rider hangs off into the turn (the
+      // eye ≈0.22 m in and 0.06 m down at 45°), holds the head nearer level than the bike (≈ half
+      // the lean, as helmet cameras show, smoothed over ≈0.12 s), looks through the turn (≈0.5 s
+      // of the yaw ahead, up to 20°), and is pushed back and forth a little by the g (≈).
       const tuck = Math.min(1, Math.max(0, (s.u - 8) / 25));
-      _cam.set(-0.12 + 0.22 * tuck, 1.36 - 0.2 * tuck, 0);
+      const k = Math.min(1, dt / 0.12);
+      head.roll += (s.phi * 0.5 - head.roll) * k;
+      head.g += (s.ax / 9.81 - head.g) * k;
+      const hang = Math.sign(s.phi) * Math.min(1, Math.abs(s.phi) / (45 / R2D));
+      _cam.set(-0.12 + 0.22 * tuck - 0.03 * head.g, 1.36 - 0.2 * tuck - 0.06 * Math.abs(hang), 0.22 * hang);
       leanIn.localToWorld(_cam);
-      _look.set(30, 1.0 - 0.5 * tuck, 0); pitchIn.localToWorld(_look);
+      const yaw = THREE.MathUtils.clamp(-s.r * 0.5, -20 / R2D, 20 / R2D);
+      _look.set(30 * Math.cos(yaw), 1.0 - 0.5 * tuck, -30 * Math.sin(yaw)); pitchIn.localToWorld(_look);
       camera.position.copy(_cam); camera.up.set(0, 1, 0);
       camera.lookAt(_look);
-      camera.rotateZ(-s.phi * 0.6);
+      camera.rotateZ(-head.roll);
       camera.fov = 75; camera.near = 0.03; camera.updateProjectionMatrix();
       return;
     }
@@ -166,8 +178,11 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
     const pivot = s.theta >= 0 ? AXLE_R.x : AXLE_F.x;
     pitchG.position.set(pivot, 0, 0); pitchIn.position.set(-pivot, 0, 0);
     pitchG.rotation.set(0, 0, s.theta + s.gradePitch);
-    // The suspension's dive and squat, as a small pitch of the whole (≈).
-    leanG.rotation.set(s.phi, 0, (s.susR - s.susF) * 0.3);
+    // The suspension's dive and squat, as a small pitch of the whole: the fork compresses along
+    // its rake, the shock at the rear axle, over the wheelbase, from where they sit at rest. The
+    // wheels pitch with it (the model is one piece), so half of it (≈), which keeps them within
+    // ≈25 mm of the ground at full braking.
+    leanG.rotation.set(s.phi, 0, 0.5 * Math.atan(((s.susR - SAG.r) - (s.susF - SAG.f) * Math.cos(CHASSIS.rake / R2D)) / BIKE.L));
     // The bars: at speed the steering is a degree or two; slow, up to the lock.
     if (steer) steer.quaternion.copy(steerBase).multiply(new THREE.Quaternion().setFromAxisAngle(STEER_AXIS, -s.steer));
     if (spinF) spinF.rotation.z = -(s.wheelAngleF % (Math.PI * 2));
@@ -244,7 +259,8 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
     sim.reset(home());
     Object.assign(rider_, { throttle: 0, brake: 0, rear: 0, lean: 0 });
     Object.assign(state, { paused: false, lap: null });
-    lastS = null; fell = false; wheelieNoted = false;
+    lastS = null; fell = false; wheelieNoted = false; lastRefused = -10; leanNoted = false; lastHit = -10; splashed = false;
+    head.roll = 0; head.g = 0;
     if (state.camera === 'chase' && fellCam) { setCamera('rider'); fellCam = false; }
   }
   function start() {
@@ -296,7 +312,9 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
   function setPaused(on) { if (state.running) state.paused = !!on; }
 
   let fellCam = false;
-  let fell = false, wheelieNoted = false, lastHit = -10, splashed = false;
+  let fell = false, wheelieNoted = false, lastHit = -10, splashed = false, lastRefused = -10, leanNoted = false;
+  /** The rider asking for more lean than the limit gives. */
+  const leanHeld = () => !s.crashed && s.u > 3 && Math.abs(sim.input.lean) > 0.95 && Math.abs(s.phi) > s.leanCap - 2 / R2D;
   function events() {
     if (s.crashed && !fell) {
       fell = true;
@@ -306,9 +324,17 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
     }
     if (s.theta > 10 / R2D && !wheelieNoted) { wheelieNoted = true; note(`Wheelie${s.aids ? ' · the control holds it' : ''}`); }
     if (s.theta < 2 / R2D) wheelieNoted = false;
-    if (s.impact > 2 && s.t - lastHit > 1) { lastHit = s.t; note(`Contact at ${Math.round(s.impact * 3.6)} km/h`); }
+    if (s.impact > 2 && s.t - lastHit > 1) { lastHit = s.t; note(s.crashed ? `Contact at ${Math.round(s.impact * 3.6)} km/h` : `Scraped along it at ${Math.round(s.impact * 3.6)} km/h`); }
+    if (s.shiftRefused > lastRefused) { lastRefused = s.shiftRefused; note('Downshift refused: it would over-rev'); }
+    if (leanHeld() && !leanNoted) { leanNoted = true; note(`Lean limit: the tyres hold ${Math.round(s.leanCap * R2D)}° here`); }
     if (s.water > 0.02 && !splashed) { splashed = true; note('Into the water'); }
     if (s.water <= 0.02) splashed = false;
+    // Scraping along a wall: sparks where the bike touches it.
+    if (!s.crashed && s.hits.length && s.u > 3) {
+      const h = s.hits[0], c = Math.cos(s.psi), sn = Math.sin(s.psi);
+      const x = s.x + h.px * c - h.py * sn, z = s.z - h.px * sn - h.py * c, gh = ground(x, z).h;
+      fx.burst('spark', new THREE.Vector3(x, gh + 0.35, z), Math.min(25, Math.round(4 + h.vn * 4)), { vel: new THREE.Vector3(s.u * c, 0, -s.u * sn), spread: 1.5 + s.u * 0.1, up: 1, floor: gh });
+    }
     s.hits.length = 0;
   }
   function apply(dt) {
@@ -334,6 +360,7 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
     state.readout = {
       kmh: s.u * 3.6, rpm: Math.min(s.rpm, 14600), gear: s.gear + 1, lean: s.phi * R2D, pitch: s.theta * R2D,
       aids: s.aids, wheelie: s.wheelie, stoppie: s.stoppie, ram: s.ramShare, limiter: s.fuelCut, down: !!s.crashed,
+      abs: s.abs, tc: s.tc, leanCap: s.leanCap * R2D, leanHeld: leanHeld(), manual: s.manual,
       g: Math.hypot(s.ax, s.ay) / 9.81, gLong: s.ax / 9.81, gLat: s.ay / 9.81, t: s.t,
       throttle: rider_.throttle, brake: Math.max(rider_.brake, rider_.rear * 0.5), surface: s.surface,
       lap: state.lap !== null ? s.t - state.lap : null, best: state.best, laps: state.laps,
