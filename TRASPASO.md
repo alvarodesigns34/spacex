@@ -4,7 +4,18 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ---
 
-## ⭐ Empieza aquí (estado real al cierre del 04-10-2026: lee primero «Cierre de la sesión del 04-10-2026 (tercera)»)
+## ⭐ Empieza aquí (estado real al cierre del 04-10-2026: lee primero «Sesión del 04-10-2026 (cuarta)» y después «Cierre de la sesión del 04-10-2026 (tercera)»)
+
+### Sesión del 04-10-2026 (cuarta, rama `claude/youthful-noether-0ihafx`): encargo nuevo, solo F-16, Porsche y H2R
+
+- **Decisión del usuario:** NO a la «red de seguridad» de la H2R sin ayudas. Queda como está.
+- **Errata corregida:** en el README (*Controles*), la línea del botón *Simple* estaba en la lista de la H2R; es del F-16 (`src/ui/f16Hud.js`).
+- **Encargo (ambición máxima; nada de SpaceX ni del Roadster):**
+  1. modelos 3D de F-16, Porsche y H2R mucho mejores, como un proyecto de Blender (mallas, texturas, reflejos, piezas), sin simplificar; si el presupuesto limita, se amplía;
+  2. realismo de conducción y vuelo: velocidades y aceleraciones reales, bugs;
+  3. entorno y realismo, a fondo;
+  4. pasada final de bugs y mejora amplia de las físicas.
+- El usuario pidió un despertador a 1 h 47 min para seguir (programado para las 00:23 UTC del 05-10).
 
 ### Cierre de la sesión del 04-10-2026 (tercera, rama `claude/pensive-ride-5sjdza`): LAS CUATRO FASES HECHAS
 
