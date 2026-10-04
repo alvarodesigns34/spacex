@@ -232,13 +232,37 @@ function assisted({ setup, plan, T }) {
     if (r.airborne && !s.wow) { r.maxAgl = Math.max(r.maxAgl, s.agl); if (t > 25) r.minAgl = Math.min(r.minAgl, s.agl); }
     if (r.td && s.tas < 0.5) { r.stopped = true; break; }
   }
-  r.crashed = s.crashed; r.s = s; return r;
+  r.crashed = s.crashed; r.s = s; r.A = A; return r;
 }
 {
   const r = assisted({ plan: () => ({ gas: 1 }), T: 40 });
   report(!r.crashed && r.lift > 140 && r.lift < 195 && r.maxAgl > 300 && r.s.gear < 0.1,
     'mandos simples: W mantenida desde la cabecera despega sola (rota, se va al aire, sube y recoge el tren), sin estrellarse',
     `despega a ${r.lift?.toFixed(0)} kt, sube a ${(r.maxAgl / 0.3048).toFixed(0)} ft, tren ${r.s.gear.toFixed(2)}${r.crashed ? ', ' + r.crashed.what : ''}`);
+}
+{
+  // On the ground, D held for 10 s from 5 to 100 kt (the throttle holding the speed): it turns, and
+  // never rolls onto a wing (every case crashed before, even at 5 kt).
+  const rows = [];
+  for (const kt0 of [5, 15, 30, 60, 100]) {
+    const r = assisted({
+      setup: (f, s, pilot) => { pilot.parking = false; pilot.brake = 0; s.vel.set(kt0 * KT, 0, 0); },
+      plan: (t, s, kc) => ({ gas: kc < kt0 - 2 ? 1 : 0, cut: kc > kt0 + 4 ? 1 : 0, turn: 1 }), T: 10,
+    });
+    const head = Math.atan2(-r.s.vel.z, r.s.vel.x) * 180 / Math.PI;
+    rows.push({ kt0, crashed: r.crashed ? `${r.crashed.what} a los ${r.crashed.t.toFixed(1)} s, ${(r.crashed.speed / KT).toFixed(0)} kt` : null, turned: Math.abs(head), wow: r.s.wow });
+  }
+  report(rows.every(x => !x.crashed && x.wow),
+    'mandos simples en tierra: D mantenida 10 s de 5 a 100 kt gira sin tumbar el avión sobre un ala',
+    rows.map(x => `${x.kt0} kt: ${x.crashed ?? `rumbo ${x.turned.toFixed(0)}°`}`).join(' · '));
+  // W held 25 s from the threshold, then nothing: the climb levels off at 4–5,000 ft and the
+  // autothrottle holds ≈350 kt without the afterburner (it went on to Mach 1.65 and 83,000 ft).
+  const c = assisted({ plan: (t) => ({ gas: t < 25 ? 1 : 0 }), T: 240 });
+  const kc = calibrated(c.s.mach, atmosphere(c.s.alt).P) / KT, ft = c.s.agl / 0.3048;
+  const hold = c.A.state.vHold;
+  report(!c.crashed && ft > 3500 && ft < 6000 && hold >= 200 && hold <= 600 && Math.abs(kc - hold) < 15 && c.s.mach < 0.9 && c.s.power <= 100,
+    'mandos simples: tras el despegue, sin tocar nada, se nivela a 4.000–5.000 ft y el autoacelerador mantiene la velocidad a la que se soltó W, sin postcombustión',
+    `${ft.toFixed(0)} ft, ${kc.toFixed(0)} kt (mantiene ${hold?.toFixed(0)}), Mach ${c.s.mach.toFixed(2)}, potencia ${c.s.power?.toFixed(0)}${c.crashed ? ', ' + c.crashed.what : ''}`);
 }
 {
   const r = assisted({ plan: (t) => (t < 25 ? { gas: 1 } : t < 45 ? { down: 1 } : {}), T: 70 });
@@ -262,6 +286,39 @@ function assisted({ setup, plan, T }) {
   report(!r.crashed && r.td && r.td.sink < 2.5 && r.td.kt > 125 && r.td.kt < 165 && r.stopped,
     'mandos simples: en la senda de 3° con el tren abajo y sin tocar nada, mantiene 150 kt, recoge, toma y se para',
     r.td ? `toma a ${r.td.kt.toFixed(0)} kt con ${r.td.sink.toFixed(2)} m/s de descenso${r.stopped ? ', parado' : ''}` : (r.crashed?.what ?? 'sin toma'));
+}
+{
+  // The same approach with S held for 30 s: the speed brakes open but the speed stays over 130 kt
+  // and it lands on its wheels (it stalled onto them at 25 m/s before).
+  const setup = (f, s, pilot, A) => {
+    const V = 150 * KT, g = 3 * D2R;
+    s.pos.set(-2200, CG.y + 2200 * Math.tan(g), 0); s.vel.set(V * Math.cos(g), -V * Math.sin(g), 0);
+    s.q.setFromAxisAngle(new THREE.Vector3(0, 0, 1), 5 * D2R); s.wow = false; s.gear = 1; s.agl = 115;
+    s.power = 35; pilot.throttle = 0.55; pilot.parking = false; pilot.brake = 0;
+    A.state.gearAuto = true; A.state.gammaCmd = -3;
+  };
+  let minKt = Infinity;
+  const r = assisted({ setup, plan: (t, s, kc) => { if (t > 1 && s.agl > 6) minKt = Math.min(minKt, kc); return t < 30 ? { cut: 1 } : {}; }, T: 120 });
+  report(!r.crashed && r.td && r.td.sink < 4 && minKt > 138,
+    'mandos simples: S mantenida en la aproximación con el tren abajo no deja bajar de 145 kt (aerofrenos solo por encima de 150); toma sin romper nada',
+    `mínimo ${minKt.toFixed(0)} kt · ${r.td ? `toma con ${r.td.sink.toFixed(2)} m/s` : 'sin toma'}${r.crashed ? ` · ${JSON.stringify(r.crashed)}` : ''}`);
+}
+
+// ---- Runway 28 in the HUD (f16Cue.js) ----------------------------------------------------------
+{
+  const { runwayCue, RW28 } = await import('../src/sim/f16Cue.js');
+  const { RUNWAY, fromRunway } = await import('../src/core/terrain.js');
+  const L2 = RUNWAY.length / 2, NM = 1852, ft = 0.3048;
+  // 5 NM out on the extended centre line, on the 3° path to a point 300 m past the threshold.
+  const d = 5 * NM, [x, z] = fromRunway(L2 - 300 + d, 0), h = Math.tan(3 * D2R) * d;
+  const on = runwayCue(x, z, h, RW28.heading), high = runwayCue(x, z, h + 100 * ft, RW28.heading);
+  // 200 m right of the line (looking along the approach, right is −c), and flying the other way.
+  const [xr, zr] = fromRunway(L2 - 300 + d, -200), right = runwayCue(xr, zr, h, RW28.heading);
+  const away = runwayCue(x, z, h, (RW28.heading + 180) % 360);
+  const brg = ((on.bearing - RW28.heading + 540) % 360) - 180;
+  report(on.onFinal && Math.abs(on.gsDevFt) < 1 && Math.abs(on.locDeg) < 0.01 && Math.abs(high.gsDevFt - 100) < 1 && right.locDeg > 1 && !away.onFinal && Math.abs(brg) < 0.5 && Math.abs(on.distNm - (d - 300) / NM) < 0.01,
+    'HUD: la pista 28, su rumbo y distancia desde cualquier sitio, y en final la senda de 3° y el eje',
+    `a 5 NM: senda ${on.gsDevFt.toFixed(1)} ft, eje ${on.locDeg.toFixed(2)}°, rumbo al umbral ${on.bearing.toFixed(1)}° (pista ${RW28.heading.toFixed(1)}°) · 100 ft alto: ${high.gsDevFt.toFixed(0)} ft · 200 m a la derecha: ${right.locDeg.toFixed(2)}°`);
 }
 
 // ---- Audit of 2 Oct 2026: bank, ground, atmosphere, reset ------------------------------------

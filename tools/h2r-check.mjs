@@ -71,7 +71,17 @@ const flat = (mu = 1, kind = 'track') => () => ({ h: 0, mu, roll: 0, kind });
   report(max > 0.5 && max < 8 && !s.crashed, 'con el control de caballito la rueda delantera apenas se levanta', `máx. ${max.toFixed(1)}°`);
   b.reset(); s.aids = false; b.input.throttle = 1; max = 0;
   for (let k = 0; k < 240 * 4 && !s.crashed; k++) { b.step(DT); max = Math.max(max, s.theta * D); }
-  report(!!s.crashed && /wheelie/.test(s.crashed.why), 'sin ayudas, gas a fondo en primera: el caballito pasa del punto de equilibrio', `${max.toFixed(0)}° · ${s.crashed?.why}`);
+  const bal = Math.atan2(BIKE.b, BIKE.h) * D;
+  report(!s.crashed && max > 20 && max < 0.95 * bal, 'sin ayudas, gas a fondo en primera: caballito de verdad, pero el piloto corta antes del punto de equilibrio y no da la vuelta',
+    `máx. ${max.toFixed(0)}° (equilibrio a ${bal.toFixed(0)}°) · ${s.crashed?.why ?? 'de pie'}`);
+  // Without the aids, the front brake grabbed at 200 km/h on a straight: the rear lifts, the rider
+  // eases off, it stops on both wheels (it used to go over the bars).
+  b.reset(); s.aids = false; s.u = 200 / 3.6; s.wR = s.u / BIKE.RR; s.gear = 4; b.input.brake = 1;
+  let minT = 0, t = 0;
+  while (s.u > 0.1 && t < 20 && !s.crashed) { b.step(DT); t += DT; minT = Math.min(minT, s.theta * D); }
+  const balS = Math.atan2(BIKE.lf, BIKE.h) * D;
+  report(!s.crashed && s.u < 0.2 && -minT < 0.95 * balS, 'sin ayudas, freno delantero a fondo a 200 km/h en recta: levanta la trasera pero no vuelca por delante',
+    `para en ${t.toFixed(1)} s · trasera hasta ${(-minT).toFixed(0)}° (equilibrio a ${balS.toFixed(0)}°) · ${s.crashed?.why ?? 'de pie'}`);
 }
 
 // ---- Leaning.
@@ -132,8 +142,12 @@ const flat = (mu = 1, kind = 'track') => () => ({ h: 0, mu, roll: 0, kind });
   const deep = (x) => ({ h: 0, mu: 1, roll: 0, kind: x > 20 ? 'mud' : 'track', water: x > 20 ? 0.6 : undefined });
   const b = createH2rBike({ ground: (x) => deep(x) }); const s = b.state;
   b.reset(); s.u = 60 / 3.6; s.wR = s.u / BIKE.RR; s.gear = 1; b.input.throttle = 0.3;
-  for (let k = 0; k < 240 * 4 && !s.crashed; k++) b.step(DT);
-  report(!!s.crashed && /water/.test(s.crashed.why), 'en 0,6 m de agua no se puede seguir: cae al agua', s.crashed?.why ?? `sigue a ${(s.u * 3.6).toFixed(0)} km/h`);
+  for (let k = 0; k < 240 * 8 && !s.crashed; k++) b.step(DT);
+  const drowned = s.drowned, upright = !s.crashed, stopped = s.u < 1;
+  b.pickUp();
+  report(drowned && upright && stopped && !s.drowned && !s.crashed && s.x < 20 && s.u === 0,
+    'en 0,6 m de agua el motor se ahoga y la moto se para de pie; R la levanta en el último sitio seco',
+    `ahogada ${drowned} · de pie ${upright} · ${stopped ? 'parada' : 'sigue'} · levantada en x ${s.x.toFixed(1)} m`);
   const posts = [];
   for (let z = -4; z <= 4; z += 0.5) posts.push({ x: 30, z, r: 0.15 });
   const w = createH2rBike({ ground: flat(), obstacles: () => posts }); const t = w.state;
@@ -141,6 +155,17 @@ const flat = (mu = 1, kind = 'track') => () => ({ h: 0, mu, roll: 0, kind });
   let maxX = -1e9;
   for (let k = 0; k < 240 * 4; k++) { w.step(DT); maxX = Math.max(maxX, t.x + BIKE.front); }
   report(!!t.crashed && maxX < 30.3, 'contra una valla a 80 km/h: no la atraviesa y cae', `morro hasta x ${maxX.toFixed(2)} m · ${t.crashed?.why}`);
+  // R after that crash: upright, stopped, clear of the posts.
+  for (let k = 0; k < 240 * 3; k++) w.step(DT);
+  w.pickUp();
+  const clearOf = posts.every(o => Math.hypot(o.x - t.x, o.z - t.z) > o.r + 0.5);
+  for (let k = 0; k < 240; k++) w.step(DT);
+  report(!t.crashed && clearOf && Math.abs(t.phi) < 0.05 && t.u < 0.5, 'R levanta la moto tras un choque: de pie, parada y lejos de lo que golpeó', `a ${Math.min(...posts.map(o => Math.hypot(o.x - t.x, o.z - t.z))).toFixed(1)} m del poste más cercano`);
+  // Square on at 30 km/h: it stops against the posts and bounces, the rider stays on.
+  w.reset(); t.u = 30 / 3.6; t.wR = t.u / BIKE.RR; t.gear = 0; w.input.throttle = 0.2;
+  maxX = -1e9;
+  for (let k = 0; k < 240 * 3; k++) { w.step(DT); maxX = Math.max(maxX, t.x + BIKE.front); }
+  report(!t.crashed && maxX < 30.3, 'contra la misma valla a 30 km/h: se para contra ella y rebota, sin caerse (solo los golpes fuertes tiran la moto)', `morro hasta x ${maxX.toFixed(2)} m · ${t.crashed?.why ?? 'de pie'}`);
 }
 
 // ---- Ridden as the keyboard rides it: never down from leaning ---------------------------------
@@ -224,8 +249,8 @@ function ride({ v0 = 0, gear, aids = true, ground = flat(), obstacles, keys, T =
       for (const w of o.falls) { pitchFalls++; why[w] = (why[w] ?? 0) + 1; }
       if (o.s.crashed) { falls++; const w = o.s.crashed.why.replace(/\d+/g, '#'); why[w] = (why[w] ?? 0) + 1; }
     }
-    report(falls === 0 && maxPhi <= BIKE.maxLean * D + 0.01,
-      aids ? '200 recorridos aleatorios de 20 s con las ayudas: ninguna caída' : '200 recorridos aleatorios de 20 s sin ayudas: ninguna caída por inclinarse (los caballitos y vuelcos por delante, permitidos sin ayudas, se levantan y el recorrido sigue)',
+    report(falls === 0 && pitchFalls === 0 && maxPhi <= BIKE.maxLean * D + 0.01,
+      aids ? '200 recorridos aleatorios de 20 s con las ayudas: ninguna caída' : '200 recorridos aleatorios de 20 s sin ayudas: ninguna caída, ni por inclinarse ni por caballitos o frenadas',
       `${falls} caídas no permitidas${aids ? '' : ` · ${pitchFalls} caballitos o vuelcos`}${Object.keys(why).length ? ` (${Object.entries(why).map(([w, n]) => `${n} × ${w}`).join('; ')})` : ''} · inclinación máx. ${maxPhi.toFixed(1)}° (tope ${(BIKE.maxLean * D).toFixed(0)}°)`);
   }
 }

@@ -6,8 +6,8 @@
  * turns by leaning, so the keys ask for a lean and the bike rolls into it; Space the rear brake
  * alone; T the aids (wheelie, traction and rear-lift control, on by default); C the camera
  * (the rider's eyes, chase, trackside, your own orbit); Q / E gears down / up (manual from the
- * first press; the gearbox shifts by itself until then); K pause; M sound; Enter back to the
- * pad; Esc the end. The gearbox shifts by itself, with a quick-shifter's cut.
+ * first press; the gearbox shifts by itself until then); K pause; M sound; R picks the bike up
+ * where it lies (it goes down only in a hard crash); Enter back to the pad; Esc the end. The gearbox shifts by itself, with a quick-shifter's cut.
  *
  * The dynamics are h2rBike.js's; this poses the model on them — yaw, then the wheelie or stoppie
  * about the contact on the ground, then the lean about the tyres' crowns — turns the bars and
@@ -55,7 +55,7 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
   const keys = new Set();
   const rider_ = { throttle: 0, brake: 0, rear: 0, lean: 0 };
   const typing = (t) => t.tagName === 'TEXTAREA' || t.isContentEditable || (t.tagName === 'INPUT' && t.type !== 'range');
-  const CODES = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyC', 'KeyT', 'KeyK', 'KeyM', 'KeyQ', 'KeyE', 'KeyG', 'Escape', 'Enter']);
+  const CODES = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyC', 'KeyT', 'KeyK', 'KeyM', 'KeyQ', 'KeyE', 'KeyG', 'KeyR', 'Escape', 'Enter']);
   const modalOpen = () => typeof document !== 'undefined' && !!document.querySelector('[role="dialog"][aria-modal="true"]:not(.hidden)');
   function onKeyDown(e) {
     if (!state.running || typing(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -74,6 +74,7 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
       case 'KeyE': sim.input.shiftUp = true; break;
       case 'KeyQ': sim.input.shiftDown = true; break;
       case 'KeyG': if (s.manual) { sim.input.auto = true; note('Gearbox: automatic again'); } break;
+      case 'KeyR': pickUp(); break;
       case 'Enter': restart(); break;
       case 'Escape': reset(); break;
       default: break;
@@ -259,7 +260,7 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
     sim.reset(home());
     Object.assign(rider_, { throttle: 0, brake: 0, rear: 0, lean: 0 });
     Object.assign(state, { paused: false, lap: null });
-    lastS = null; fell = false; wheelieNoted = false; lastRefused = -10; leanNoted = false; lastHit = -10; splashed = false;
+    lastS = null; fell = false; drownNoted = false; wheelieNoted = false; lastRefused = -10; leanNoted = false; lastHit = -10; splashed = false;
     head.roll = 0; head.g = 0;
     if (state.camera === 'chase' && fellCam) { setCamera('rider'); fellCam = false; }
   }
@@ -286,6 +287,16 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
     apply(0);
   }
   function restart() { if (state.running) { placeHome(); note('Back on the skid pad'); } }
+  /** R: the bike picked up where it lies (or on the last dry, clear spot), upright and stopped. */
+  function pickUp() {
+    if (!state.running) return;
+    sim.pickUp();
+    Object.assign(rider_, { throttle: 0, brake: 0, rear: 0, lean: 0 });
+    fell = false; drownNoted = false; splashed = false; wheelieNoted = false;
+    head.roll = 0; head.g = 0;
+    if (state.camera === 'chase' && fellCam) { setCamera('rider'); fellCam = false; }
+    note('Picked up: back on its wheels');
+  }
   function reset(returnCamera = true) {
     if (!state.running) return;
     state.running = false;
@@ -312,13 +323,14 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
   function setPaused(on) { if (state.running) state.paused = !!on; }
 
   let fellCam = false;
+  let drownNoted = false;
   let fell = false, wheelieNoted = false, lastHit = -10, splashed = false, lastRefused = -10, leanNoted = false;
   /** The rider asking for more lean than the limit gives. */
   const leanHeld = () => !s.crashed && s.u > 3 && Math.abs(sim.input.lean) > 0.95 && Math.abs(s.phi) > s.leanCap - 2 / R2D;
   function events() {
     if (s.crashed && !fell) {
       fell = true;
-      note(`${s.crashed.why} · Enter: back on the pad`);
+      note(`${s.crashed.why} · R: pick it up · Enter: back on the pad`);
       // Thrown clear: the view goes to the chase camera to watch the bike slide.
       if (state.camera === 'rider') { setCamera('chase'); fellCam = true; }
     }
@@ -328,6 +340,7 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
     if (s.shiftRefused > lastRefused) { lastRefused = s.shiftRefused; note('Downshift refused: it would over-rev'); }
     if (leanHeld() && !leanNoted) { leanNoted = true; note(`Lean limit: the tyres hold ${Math.round(s.leanCap * R2D)}° here`); }
     if (s.water > 0.02 && !splashed) { splashed = true; note('Into the water'); }
+    if (s.drowned && !drownNoted) { drownNoted = true; note('Too deep: the water reached the intake and the engine drowned · R: pick it up on dry ground'); }
     if (s.water <= 0.02) splashed = false;
     // Scraping along a wall: sparks where the bike touches it.
     if (!s.crashed && s.hits.length && s.u > 3) {
@@ -374,7 +387,7 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
     get state() { return state; },
     get running() { return state.running; },
     get position() { return holder.position; },
-    sim, marks, sound, fx, start, reset, restart, setPaused, setCamera, cycleCamera, setAids, setSound, fmtTime,
+    sim, marks, sound, fx, start, reset, restart, pickUp, setPaused, setCamera, cycleCamera, setAids, setSound, fmtTime,
     update(dt) { if (state.running) apply(dt); },
   };
 }

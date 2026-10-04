@@ -900,6 +900,18 @@ try {
     });
     report(lean.max > 45 && lean.max <= lean.cap + 2.5 && !lean.down && lean.final < 10 && lean.off < 24 && lean.manual && lean.auto && !lean.launch,
       'N rides the H2R: D held leans it to its limit and let go it stands up, never down; G gives the gearbox back to the automatic and does not start the launch', lean);
+    // Down in a hard crash, R picks the bike up where it lies, upright, and the ride goes on.
+    const picked = await page.evaluate(() => {
+      const D = window.__vc.h2rRide, s = D.sim.state;
+      D.sim.fall('A test crash.');
+      for (let k = 0; k < 30; k++) D.update(1 / 30);
+      const down = !!s.crashed;
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyR', key: 'r', bubbles: true }));
+      document.body.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyR', key: 'r', bubbles: true }));
+      for (let k = 0; k < 10; k++) D.update(1 / 30);
+      return { down, up: !s.crashed, lean: +(Math.abs(s.phi) * 57.3).toFixed(1), running: D.running, ruler: window.__vc.state?.ruler ?? null };
+    });
+    report(picked.down && picked.up && picked.lean < 3 && picked.running, 'R picks the H2R up after a crash and the ride goes on', picked);
     await page.keyboard.press('Escape');
     await page.waitForTimeout(1500);
     report(await page.evaluate(() => !window.__vc.h2rRide.running), 'Esc ends the ride');

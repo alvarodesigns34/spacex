@@ -80,9 +80,9 @@ y abrir la URL que indique. `npm run serve` es un servidor en Node (`tools/serve
   - **A/D** inclinan: la moto contravira sola para tumbarse.
   - **Q/E** bajan y suben de marcha (manual desde la primera pulsación) y **G** vuelve al cambio automático.
   - **T** ayudas: ABS y control de tracción en curva, control de caballito y de elevación de la rueda trasera.
-  - **C** cámara (ojos del piloto, persecución, pista, tu órbita), **K** pausa, **M** sonido, **Enter** vuelve a la explanada y **Esc** termina.
+  - **C** cámara (ojos del piloto, persecución, pista, tu órbita), **K** pausa, **M** sonido, **R** levanta la moto, **Enter** vuelve a la explanada y **Esc** termina.
   - **La moto no se cae por inclinarse.** Hay un límite de inclinación: lo que agarran los neumáticos, hasta donde tocan las estriberas. El indicador lo marca y se enciende **LEAN** al llegar.
-  - Solo se cae sin ayudas al pasarse del punto de equilibrio (caballito o vuelco por delante), en agua de más de 0,45 m o contra algo, de frente y fuerte.
+  - Solo se cae en un choque fuerte y de frente (≈45 km/h de cierre). El piloto nunca deja pasar un caballito ni una frenada del punto de equilibrio, y en agua profunda el motor se ahoga y la moto se queda de pie. **R** (o *Pick up*) la levanta donde está, o en el último sitio seco y libre.
   - El botón *Simple* de la barra quita la ayuda y da todos los mandos del avión: `R`/`F` gases, `Q`/`E` pedales, `Espacio` frenos, `B` aerofrenos, `Shift` palanca a fondo.
 - **Vista general en una ventana alta** (un monitor en vertical): la cámara retrocede por su propia línea de visión hasta que los extremos de la fila caben en el campo horizontal. En una ventana apaisada no cambia nada.
 - **`?perf`** en la URL muestra un medidor pequeño: fotogramas por segundo, tiempo medio y percentil 95 de los dos últimos segundos, llamadas de dibujo y triángulos de todo el fotograma (todas las pasadas del compositor), el nivel de calidad y la GPU que declara el navegador. Es la forma de tener cifras de una GPU real: la puerta de CI corre sobre un rasterizador por software.
@@ -832,6 +832,40 @@ El usuario pidió una pasada decisiva sobre la H2R, el Porsche y el F-16: modelo
 - **Porsche:** el volante con teclado pide el doble del ángulo útil, el DRS se abre en plena curva, el PDK corta el empuje 0,1 s, subvira en el límite y el diferencial no es el autoblocante del coche.
 - **Sonido:** las explosiones se redondean a muestras enteras (≈ −25 dB de ruido), el silbido de alivio de la H2R se rompe a los 30 s y no hay modelo espacial. El F-16 no tiene sonido.
 - **No se llegó a hacer:** la auditoría del detalle de los modelos y el presupuesto de rendimiento, y la del entorno y las físicas.
+
+### Fase 1 del encargo: conducción de la H2R y del F-16 (4 de octubre de 2026)
+
+El usuario reordenó el trabajo en cuatro fases (conducción, modelos 3D, sonido, físicas y entorno), con un commit por fase y el check completo solo al final. Esta es la conducción; la del Porsche ya se hizo (bloque 3, dos partes).
+
+**Ninja H2R: ya no se cae por nada.** Antes caía al pasar el caballito o la invertida del punto de equilibrio (sin ayudas, cualquier frenada fuerte en recta la volcaba por delante), al meterse en agua de más de 0,45 m y con cualquier golpe de más de 25 km/h. Ahora:
+- **solo se cae en un choque fuerte:** de frente (más de 30°) y a más de ≈45 km/h de velocidad de cierre (`CRASH`, ≈). Un golpe más lento la para contra el obstáculo y rebota; uno de refilón la arrastra a lo largo;
+- **el piloto se salva siempre**, con ayudas o sin ellas (un reflejo del piloto de la simulación, ≈):
+  - si la trasera se levanta frenando, suelta la maneta: empieza a soltar a 3° y del todo a 10°, leyendo 0,15 s por delante;
+  - sin ABS, no frena más de lo que levanta la trasera (≈5 % por encima). De 200 a 0 sin ayudas: 6,4 s, con la trasera a ≈5° como mucho;
+  - en un caballito corta el gas antes del punto de equilibrio. Sin ayudas llega a 44° (el equilibrio está a 48°). Además hay un tope de seguridad;
+- **agua profunda:** el motor se ahoga y la moto frena y se queda de pie;
+- **R (o el botón «Pick up») levanta la moto** donde está, de pie y parada. Si ese sitio está mojado o dentro de lo que golpeó, la pone en el último punto seco y libre por el que pasó de pie. El motor arranca y se conservan las ayudas y el modo de la caja;
+- **el límite de inclinación sigue igual:** nunca se cae al girar.
+
+Pruebas (`tools/h2r-check.mjs`): caballito sin ayudas, frenada a fondo sin ayudas a 200 km/h, agua de 0,6 m con R, golpe a 30 km/h sin caída, R tras un choque a 80 km/h, y 200 recorridos aleatorios sin ninguna caída, ni por inclinación ni por cabeceo. En el navegador (`ux-check`): R levanta la moto tras una caída.
+
+**F-16** (de `docs/diagnostico-2026-10-04/f16.json`):
+- **En tierra ya no se tumba sobre un ala al girar.** Antes lo hacía a cualquier velocidad, incluso a 5 kt.
+  - El recorrido de la rueda de morro (32°) se limita con la velocidad para pedir como mucho ≈0,15 g. El centro de gravedad está a 1,85 m de altura sobre una vía de 2,36 m, y los amortiguadores lo inclinan antes de los 0,54 g del vuelco estático.
+  - Las ruedas tienen una fuerza lateral por ángulo de deriva, con círculo de fricción (μ ≈0,55 en pista, 0,35 en tierra, ≈).
+  - Con mandos simples, A/D piden un ritmo de giro, el pedal es pequeño a velocidad (el timón casi no se mueve) y la palanca se queda centrada. A fondo 10 s, de 5 a 100 kt: gira sin volcar.
+- **Autoacelerador:** al soltar W o S, el gas mantiene la velocidad que había (200–600 kt), sin postcombustión salvo que haga falta; tras el despegue, 350 kt. Antes se quedaba en postcombustión a fondo y el avión subía a Mach 1,65 y 83.000 ft.
+- **Nivelado automático:** si no se tocan ↑/↓ desde el despegue, la subida se nivela entre 4.000 y 5.000 ft.
+- **Aproximación con el tren abajo:**
+  - nunca baja de 145 kt por encima de la pista; los aerofrenos solo se abren por encima de 150 kt;
+  - en la recogida, por debajo de 20 m, S no cuenta;
+  - el cabeceo se limita a 12° (la tobera toca a ≈14,5°);
+  - el Auto-GCAS salta antes (bajando a más de 6 m/s a menos de 4 s del suelo).
+  - Antes, S mantenida acababa en una caída sobre el tren a 25 m/s; ahora toma a 1,65 m/s.
+- **El HUD indica la pista 28** (`src/sim/f16Cue.js`): un triángulo bajo el rumbo hacia el umbral y su distancia en millas. En final (a menos de 10 NM y alineado a menos de 30°), las desviaciones de la senda de 3° y del eje, como un ILS. También muestra la velocidad del autoacelerador («A/T»).
+- **La cámara de persecución** suaviza su desplazamiento y no su posición: se queda a la misma distancia a cualquier velocidad (antes, 49 m a 80 m/s y 107 m a 350 m/s, frente a 26 m de diseño). Su «arriba» es el del avión mezclado con el del mundo, y no se tuerce en una subida vertical.
+- Las ayudas leen la altitud geodésica y no la `y` de la escena.
+- Pruebas nuevas en `tools/f16-check.mjs`: rodaje girando, nivelado y autoacelerador, aproximación con S mantenida e indicación de la pista.
 
 ### Pasada decisiva, bloque 4 (primera parte): el sonido de los motores, sin arenilla ni clics (4 de octubre de 2026)
 

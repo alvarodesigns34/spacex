@@ -169,6 +169,26 @@ export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause, onAssi
     g.textAlign = 'center';
     g.fillText(String(Math.round(r.heading / 1) % 360).padStart(3, '0'), cx, cy - half * 0.92);
     g.beginPath(); g.moveTo(cx, cy - half * 0.92 + 11); g.lineTo(cx, cy - half * 0.92 + 18); g.stroke();
+    // Runway 28: a caret under the heading at its bearing (±40° across), its distance; on
+    // the final approach the glide path's and the centre line's deviations, as an ILS shows them.
+    if (r.cue && !r.wow) {
+      const q = r.cue, rel = ((q.bearing - r.heading + 540) % 360) - 180, hy = cy - half * 0.92;
+      const px = cx + Math.max(-1, Math.min(1, rel / 40)) * half * 0.9;
+      g.beginPath(); g.moveTo(px, hy + 21); g.lineTo(px - 6, hy + 30); g.lineTo(px + 6, hy + 30); g.closePath(); g.stroke();
+      g.textAlign = 'right';
+      g.fillText(`RWY ${q.name} ${fmt(q.distNm, 1)} NM`, cx + half * 1.38, cy + half * 0.25 + 60);
+      g.textAlign = 'center';
+      if (q.onFinal) {
+        // ±2 dots: 150 ft above or below the path, 2.5° off the centre line.
+        const gy = cy + Math.max(-2, Math.min(2, -q.gsDevFt / 75)) * half * 0.18, lx2 = cx + half * 1.1;
+        g.beginPath(); for (let k = -2; k <= 2; k++) { g.moveTo(lx2 - 3, cy + k * half * 0.18); g.lineTo(lx2 + 3, cy + k * half * 0.18); } g.stroke();
+        g.beginPath(); g.moveTo(lx2 - 8, gy); g.lineTo(lx2, gy - 6); g.lineTo(lx2 + 8, gy); g.lineTo(lx2, gy + 6); g.closePath(); g.stroke();
+        const lxx = cx + Math.max(-2, Math.min(2, -q.locDeg / 1.25)) * half * 0.18, ly2 = cy + half * 1.0;
+        g.beginPath(); for (let k = -2; k <= 2; k++) { g.moveTo(cx + k * half * 0.18, ly2 - 3); g.lineTo(cx + k * half * 0.18, ly2 + 3); } g.stroke();
+        g.beginPath(); g.moveTo(lxx, ly2 - 8); g.lineTo(lxx + 6, ly2); g.lineTo(lxx, ly2 + 8); g.lineTo(lxx - 6, ly2); g.closePath(); g.stroke();
+      }
+      g.font = '600 15px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+    }
     g.textAlign = 'left';
     const lx = cx - half * 1.38, ly = cy + half * 0.25;
     g.fillText(`G ${fmt(r.nz, 1)}`, lx, ly);
@@ -180,6 +200,8 @@ export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause, onAssi
     g.fillText(`R ${fmt(r.aglFt)}`, rx, cy + 46);
     const pwr = r.power >= 50 ? `AB ${fmt((r.power - 50) * 2)}%` : `PWR ${fmt(r.power * 2)}%`;
     g.fillText(pwr, rx, ly + 40);
+    // The autothrottle's held speed (the simple controls).
+    if (Number.isFinite(r.vHold)) { g.textAlign = 'left'; g.fillText(`A/T ${fmt(r.vHold)}`, lx, ly + 60); g.textAlign = 'right'; }
     // Configuration and warnings, bottom centre.
     g.textAlign = 'center';
     const cfg = [];

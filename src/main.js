@@ -833,6 +833,7 @@ async function main() {
     onEnd: () => h2rRide.reset(),
     onCamera: () => h2rRide.cycleCamera(),
     onRestart: () => h2rRide.restart(),
+    onPickUp: () => h2rRide.pickUp(),
     onPause: () => h2rRide.setPaused(!h2rRide.state.paused),
     onTraction: () => h2rRide.setAids(!h2rRide.sim.state.aids),
     onSound: () => h2rRide.setSound(!h2rRide.sound.enabled),

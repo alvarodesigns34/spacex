@@ -52,6 +52,12 @@ BIKE.lr = BIKE.b; BIKE.lf = BIKE.L - BIKE.b;
 BIKE.Ip = BIKE.m * (BIKE.b ** 2 + BIKE.h ** 2) + 60;           // pitch inertia about the rear contact (≈)
 const RATIO = (g) => GEARBOX.primary * GEARBOX.ratios[g] * GEARBOX.final;
 const STAND_UP = 0.9;                                           // rad/s the lean limit comes down at (≈)
+/**
+ * What puts the rider down against something: a hit square on (more than CRASH.angle) at more than
+ * CRASH.vn of closing speed (≈45 km/h); anything less bounces off or scrapes along (≈, this
+ * simulation's choice: a ride that ends only in a real crash).
+ */
+export const CRASH = { vn: 12.5, angle: 30 * Math.PI / 180 };
 // The steer at the ground is the bars' angle foreshortened by the rake (≈ δ·cos λ): what turns
 // the bike. The published 27° are at the bars.
 const GS = Math.cos(CHASSIS.rake * D2R);
@@ -77,7 +83,8 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
       susF: 0, susR: 0, vF: 0, vR: 0, NF: 0, NR: 0, t: 0, ramShare: 0, gradePitch: 0, grip: 1, fuelCut: false, engThr: 0, engLoad: 0,
       surface: 'track', abs: false, tc: false, lock: 0, budget: 1, leanCap: 0, sliding: false, axTyre: 0, axF: 0, stop: BIKE.maxLean, slideCap: BIKE.maxLean,
       vy: NaN, air: false,             // vertical speed (NaN until the first step reads the slope)
-      shiftRefused: -10, scrape: -10,
+      shiftRefused: -10, scrape: -10, drowned: false, drownedAt: 0,
+      safe: { x, z, psi },             // the last spot it stood on dry, clear ground, upright (R picks it up there)
     });
     // Settled on its springs.
     const Wf = BIKE.m * G * BIKE.b / BIKE.L, Wr = BIKE.m * G - Wf;
@@ -171,6 +178,12 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
     let thr = input.throttle;
     // Wheelie control: the throttle eased from 1° of lift and shut by 4° (≈ its logic).
     if (s.aids && s.theta > 1 * D2R) thr *= Math.max(0, 1 - (s.theta - 1 * D2R) / (3 * D2R)) * (s.thetaDot > 0 ? 0.6 : 1);
+    // Without the aids, the rider's own reflex (this simulation's, as any rider does it): past ≈60 %
+    // of the balance point (read ≈0.15 s ahead) the throttle comes off, shut by ≈85 %, so a
+    // wheelie never loops.
+    const balW = Math.atan2(BIKE.b, hE);
+    const upAhead = s.theta + 0.15 * s.thetaDot;
+    if (upAhead > 0.6 * balW) thr *= Math.max(0, 1 - (upAhead - 0.6 * balW) / (0.25 * balW));
     // Traction control: eased as the rear's slip passes its peak, and the drive held within what
     // the lean leaves of the grip.
     s.tc = false;
@@ -180,7 +193,7 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
       if (thr * fxNow > BIKE.m * axBudget) { thr = BIKE.m * axBudget / fxNow; s.tc = true; }
     }
     s.fuelCut = s.rpm >= ENGINE.maxRpm;
-    if (s.shift || s.fuelCut) thr = 0;
+    if (s.shift || s.fuelCut || s.drowned) thr = 0;
     if (slipClutch) s.rpm += (Math.max(geared, launchRpm) - s.rpm) * Math.min(1, dt * 10);
     else s.rpm = geared;
     let Te = engineTorque(Math.max(ENGINE.idle, s.rpm)) * thr * ram;
@@ -213,7 +226,8 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
     // The front brake, its force limited by the tyre (KIBS with the aids; locked past it without).
     const latF = Math.abs(s.u * s.r) * BIKE.m * BIKE.lr / BIKE.L;
     const capF = Math.sqrt(Math.max(0, (mu * Nf) ** 2 - latF ** 2));
-    let Fbf = input.brake * 1.3 * BIKE.m * G;
+    // Drowned, the rider brakes to a stop in the water (≈0.3 g).
+    let Fbf = Math.max(input.brake * 1.3 * BIKE.m * G, s.drowned ? 0.3 * BIKE.m * G : 0);
     s.abs = false;
     if (s.aids) {
       if (Fbf > capF * 0.95) { Fbf = capF * 0.95; s.abs = true; }
@@ -238,10 +252,20 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
       // Without the aids the brake is the rider's, but the friction circle is still the tyres':
       // past what the lean leaves of it (the lateral share first) or past the front's own grip,
       // the front locks and skids on its sliding friction — a longer stop, not a fall.
+      // The rider's hand: no harder than just lifts the rear (≈5 % past it, a light rear), as a
+      // rider brakes without ABS; it is the aids' hold (0.96) that keeps it planted.
+      const feel = Math.max(0, 1.05 * BIKE.m * G * BIKE.lf / hE - 0.5 * RHO * MASS.cdA * V * V - waterDrag);
+      if (Fbf > feel) Fbf = feel;
       const roomPhys = Math.max(0, BIKE.m * G * Math.sqrt(Math.max(0, mu * mu - leanTan * leanTan)) + Fx);
       if ((Fbf > capF || Fbf > roomPhys) && V > 2) { Fbf = Math.min(capF, roomPhys) * 0.7; s.lock += dt; }
       else s.lock = 0;
     }
+    // The rider's reflex on the front brake (with or without the aids): the rear lifting past ≈3°,
+    // the lever is eased, let off by ≈10°: hard braking lifts the rear a little, it never throws
+    // the rider over the bars nor rides a long stoppie (≈, this simulation's rider).
+    // (Read ≈0.15 s ahead from the pitch rate, as a rider feels the rear going light before it rises.)
+    const liftAhead = -s.theta - 0.15 * s.thetaDot;
+    if (liftAhead > 3 * D2R) Fbf *= Math.max(0, 1 - (liftAhead - 3 * D2R) / (7 * D2R));
     const Faero = 0.5 * RHO * MASS.cdA * V * V;
     const Froll = BIKE.m * G * (0.015 + (g.roll ?? 0)) * (V > 0.3 ? 1 : V / 0.3);
     // The grade: gravity along the slope (the pitch of the last step).
@@ -288,8 +312,10 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
         }
       }
       s.wheelie = s.theta > 0.5 * D2R; s.stoppie = s.theta < -0.5 * D2R;
-      if (s.theta > Math.atan2(BIKE.b, hE)) fall('Looped it: the wheelie went past the balance point.', s.phi >= 0 ? 1 : -1);
-      if (-s.theta > Math.atan2(BIKE.lf, hE)) fall('Over the bars: the stoppie went past the balance point.', s.phi >= 0 ? 1 : -1);
+      // Never past the balance point (the reflexes above keep it there; this is the backstop).
+      const thMax = 0.9 * Math.atan2(BIKE.b, hE), thMin = -0.8 * Math.atan2(BIKE.lf, hE);
+      if (s.theta > thMax) { s.theta = thMax; s.thetaDot = Math.min(0, s.thetaDot); }
+      if (s.theta < thMin) { s.theta = thMin; s.thetaDot = Math.max(0, s.thetaDot); }
     }
 
     // ---- Balance and steering.
@@ -360,7 +386,11 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
     const demand = Math.hypot(s.axTyre, ay) / G;
     const over = Math.max(0, demand / mu - 0.98) * 6 + (s.sliding ? 0.3 : 0) + (!s.aids && s.slip > 0.3 ? Math.min(1, s.slip - 0.3) : 0);
     s.slide += (Math.min(1, over) - s.slide) * Math.min(1, dt * 8);
-    if (depth > 0.45) fall('Into the water: too deep to ride through.');
+    // Too deep: the water reaches the intake and the engine drowns; the bike stays up (the rider's
+    // feet), stopped by the water (R picks it up out of it).
+    if (depth > 0.45 && !s.drowned) { s.drowned = true; s.drownedAt = s.t; }
+    // Where to pick it up if it goes down: the last dry, clear spot it stood upright on (every 0.5 s).
+    if (!s.drowned && depth < 0.05 && Math.abs(s.phi) < 0.35 && s.t - s.scrape > 1.5 && s.t - (s.safeT ?? -1) > 0.5) { s.safe = { x: s.x, z: s.z, psi: s.psi }; s.safeT = s.t; }
 
     // ---- Move. + r turns right: the heading ψ (anticlockwise from above) decreases. In steps of
     // 10 cm at most, each checked against what stands on the ground: at 255 km/h a whole step
@@ -446,9 +476,19 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
     s.hits.push({ px: hitPx, py: hitPy, vn, nx, nz });
     if (down) { s.vx += nx * vn * 1.2; s.vz += nz * vn * 1.2; return; }
     const speed = Math.hypot(vx, vz), angle = Math.asin(Math.min(1, vn / Math.max(1e-6, speed)));
-    if (vn > 7 && angle > 20 * D2R) {
+    // Down only from a hard, square hit (≈45 km/h of closing speed, more than 30° on); anything
+    // less bounces off or scrapes along, the rider staying on.
+    if (vn > CRASH.vn && angle > CRASH.angle) {
       fall(`Hit it at ${(vn * 3.6).toFixed(0)} km/h.`, hitPy >= 0 ? -1 : 1);
       s.vx = vx + nx * vn * 1.3; s.vz = vz + nz * vn * 1.3;
+      return;
+    }
+    // Square on but slow: it stops against it and bounces back a little.
+    if (angle > CRASH.angle) {
+      const tx = vx + nx * vn, tz = vz + nz * vn, vt = Math.hypot(tx, tz);
+      s.u = Math.max(0, vt * 0.5); s.wR = s.u / BIKE.RR; s.phiDot *= 0.3;
+      s.x += nx * 0.05; s.z += nz * 0.05; s.scrape = s.t;
+      if (vt > 0.5) s.psi = Math.atan2(-tz, tx);
       return;
     }
     // Glancing: the normal speed is lost, the bike is turned along the wall and scrubs speed.
@@ -459,11 +499,27 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
     s.scrape = s.t;
   }
 
+  /**
+   * Picks the bike up (R): upright and stopped, where it lies if that spot is dry and clear of
+   * what it hit, else on the last such spot it stood on, facing the way it went. The engine runs
+   * again (a drowned one too: ≈ this simulation's kindness). The gear back to neutral.
+   */
+  function pickUp() {
+    const clear = (x, z) => {
+      const g = ground(x, z), wet = g.water !== undefined && g.water - g.h > 0.05;
+      return !wet && !obstacles(x, z).some(o => Math.hypot(o.x - x, o.z - z) < o.r + 0.6);
+    };
+    const here = clear(s.x, s.z) ? { x: s.x, z: s.z, psi: s.psi } : s.safe;
+    const aids = s.aids, manual = s.manual;
+    reset(here);
+    s.aids = aids; s.manual = manual;
+  }
+
   let acc = 0;
   function advance(dt) {
     acc = Math.min(acc + dt, 0.25);
     const h = 1 / 240;
     while (acc >= h) { step(h); acc -= h; }
   }
-  return { state: s, input, reset, advance, step, fall };
+  return { state: s, input, reset, advance, step, fall, pickUp };
 }

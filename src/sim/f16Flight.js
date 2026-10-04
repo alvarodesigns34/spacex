@@ -367,8 +367,16 @@ export function createF16Flight({ ground, solid = null }) {
         // the F-16's gear is designed for about 3, with the usual margin above it).
         if (Fn > 8 * wh.load) { hit = 'gear'; return; }
         // Rolling direction: the airframe's x on the ground, turned by the nose-wheel steering.
+        // The steering's reach falls with the speed so a turn asks at most ≈0.15 g of the tyres
+        // (≈ a nose-wheel steering's own schedule): the jet's CG is 1.85 m up on a 2.36 m track,
+        // statically it tips at ≈0.54 g, and its soft struts let it lean towards that well before
+        // (at 0.3 g and 60 kt it went over).
         const fwd = X.fwd.set(1, 0, 0);
-        if (wh.steer) fwd.applyAxisAngle(X.Y, -input.yaw * clamp(32 - air.V * 0.6, 5, 32) * D2R);
+        const vGround = Math.hypot(s.vel.x, s.vel.z);
+        const steerMax = Math.min(32 * D2R, Math.atan(0.15 * G0 * GEAR.wheelbase / Math.max(1, vGround * vGround)));
+        // The pedals' full travel is 32° of the nose wheel, clipped by that reach: fast, a touch of
+        // pedal steers (and the rudder, on the same pedals, barely moves).
+        if (wh.steer) fwd.applyAxisAngle(X.Y, -clamp(input.yaw * 32 * D2R, -steerMax, steerMax));
         toWorld(fwd); fwd.y = 0; fwd.normalize();
         const side = X.side.set(-fwd.z, 0, fwd.x);
         const vl = vp.dot(fwd), vs = vp.dot(side);
@@ -386,7 +394,13 @@ export function createF16Flight({ ground, solid = null }) {
           ws.anchor = null;
           Fl = -lim * Math.tanh(vl / 0.3);
         }
-        const Fs = -clamp(vs * 8 * Fn / Math.max(1, Math.abs(vl) * 0.2 + 1), -0.7 * Fn, 0.7 * Fn);
+        // The side force from the tyre's slip angle, saturating at its grip (≈0.55 on a hard
+        // surface, 0.35 on soft ground), and the two forces within the friction circle together.
+        const muY = gnd.hard ? 0.55 : 0.35;
+        const slipA = Math.atan2(vs, Math.max(Math.abs(vl), 0.5));
+        let Fs = -muY * Fn * Math.tanh(slipA / (6 * D2R));
+        const muT = Math.max(muY, mu + brake), Ft = Math.hypot(Fl, Fs);
+        if (Ft > muT * Fn) { const k = muT * Fn / Ft; Fl *= k; Fs *= k; }
         const F = X.F.set(0, Fn, 0).addScaledVector(fwd, Fl).addScaledVector(side, Fs);
         Fw.add(F);
         Mw.add(X.M.crossVectors(rw, F));

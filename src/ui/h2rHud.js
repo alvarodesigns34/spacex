@@ -9,7 +9,7 @@ import { createTelemetryList } from './telemetryList.js';
 const fmt = (x, d = 0) => (Number.isFinite(x) ? x.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
 const lapTime = (t) => (t === null || t === undefined ? '—' : `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`);
 
-export function createH2rHud({ root, onEnd, onCamera, onRestart, onPause, onTraction, onSound }) {
+export function createH2rHud({ root, onEnd, onCamera, onRestart, onPickUp, onPause, onTraction, onSound }) {
   const canvas = document.createElement('canvas');
   canvas.className = 'f16-hud gt3-hud h2r-hud hidden';
   canvas.setAttribute('aria-hidden', 'true');
@@ -25,9 +25,10 @@ export function createH2rHud({ root, onEnd, onCamera, onRestart, onPause, onTrac
     <button type="button" class="f16-btn" id="h2r-tc" aria-pressed="true" title="Aids (T): cornering ABS, traction, wheelie and rear-lift control; off, the brakes and the wheelies are yours. The lean limit is always on">Aids <kbd>T</kbd></button>
     <button type="button" class="f16-btn" id="h2r-pause" aria-pressed="false" title="Pause (K)">Pause <kbd>K</kbd></button>
     <button type="button" class="f16-btn" id="h2r-sound" aria-pressed="false" title="Sound (M): the four, the supercharger and the wind, synthesised; off until you turn it on">Sound <kbd>M</kbd></button>
+    <button type="button" class="f16-btn" id="h2r-pickup" title="Pick the bike up where it lies, upright (R)">Pick up <kbd>R</kbd></button>
     <button type="button" class="f16-btn" id="h2r-restart" title="Back to the skid pad (Enter)">Pad <kbd>Enter</kbd></button>
     <button type="button" class="f16-btn f16-end" id="h2r-end" title="Back to the exhibit (Esc)">End <kbd>Esc</kbd></button>
-    <p class="f16-keys"><kbd>W</kbd> throttle · <kbd>S</kbd> brake · <kbd>A</kbd><kbd>D</kbd> lean: the bike counter-steers into it · <kbd>Space</kbd> rear brake · <kbd>Q</kbd><kbd>E</kbd> gear down / up (manual from the first press) · <kbd>G</kbd> automatic again · <kbd>T</kbd> aids · <kbd>C</kbd> camera · <kbd>M</kbd> sound</p>
+    <p class="f16-keys"><kbd>W</kbd> throttle · <kbd>S</kbd> brake · <kbd>A</kbd><kbd>D</kbd> lean: the bike counter-steers into it · <kbd>Space</kbd> rear brake · <kbd>Q</kbd><kbd>E</kbd> gear down / up (manual from the first press) · <kbd>G</kbd> automatic again · <kbd>T</kbd> aids · <kbd>C</kbd> camera · <kbd>M</kbd> sound · <kbd>R</kbd> pick it up</p>
     <ul class="f16-msgs" id="h2r-msgs" aria-live="polite"></ul>
   `;
   root.appendChild(bar);
@@ -41,6 +42,7 @@ export function createH2rHud({ root, onEnd, onCamera, onRestart, onPause, onTrac
   $('#h2r-end').addEventListener('click', () => onEnd?.());
   $('#h2r-cam').addEventListener('click', () => onCamera?.());
   $('#h2r-restart').addEventListener('click', () => onRestart?.());
+  $('#h2r-pickup').addEventListener('click', () => onPickUp?.());
   $('#h2r-pause').addEventListener('click', () => onPause?.());
   $('#h2r-tc').addEventListener('click', () => onTraction?.());
   $('#h2r-sound').addEventListener('click', () => onSound?.());

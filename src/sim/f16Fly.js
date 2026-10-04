@@ -14,6 +14,7 @@
 import * as THREE from 'three';
 import { createF16Flight, CG, atmosphere } from './f16Flight.js';
 import { createF16Assist, calibrated, attitude } from './f16Assist.js';
+import { runwayCue } from './f16Cue.js';
 import { createEffects } from '../core/effects.js';
 
 export { calibrated };
@@ -232,10 +233,11 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
   // ---- Cameras ----------------------------------------------------------------------------------
   let chase = null, ridePrev = null;
   const _cam = new THREE.Vector3(), _look = new THREE.Vector3(), _v = new THREE.Vector3(), _u = new THREE.Vector3(), _off = new THREE.Vector3();
+  const _Y = new THREE.Vector3(0, 1, 0), camUp = new THREE.Vector3(0, 1, 0);
   function cycleCamera() { setCamera(CAMERAS[(CAMERAS.indexOf(state.camera) + 1) % CAMERAS.length]); }
   function setCamera(name) {
     state.camera = name;
-    chase = null;
+    chase = null; camUp.set(0, 1, 0);
     if (name === 'orbit') {
       rig.releaseExternal?.();
       rig.external = false;
@@ -282,18 +284,24 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
       camera.updateProjectionMatrix();
       return;
     }
-    // Chase: behind along the flight path and a little above, trailing the turns. Along the
-    // nose when nearly stopped.
+    // Chase: behind along the flight path and a little above, trailing the turns (along the nose
+    // when nearly stopped). The OFFSET from the airplane is what is smoothed, not the camera's
+    // position: smoothing the position left it v/4 behind (49 m at 80 m/s, 107 m at 350, for 26
+    // designed). Up is the airframe's, 70 % of the way back to the world's, so a vertical climb
+    // has a defined up and a roll shows a little.
     if (s.tas > 25) _v.copy(s.vel).normalize(); else _v.set(1, 0, 0).applyQuaternion(holder.quaternion);
-    _v.y = Math.max(-0.6, _v.y); _v.normalize();
-    _cam.copy(s.pos).addScaledVector(_v, -26);
-    _cam.y += 5.5;
-    if (!chase || chase.distanceTo(_cam) > 300) chase = _cam.clone();
+    _u.set(0, 1, 0).applyQuaternion(holder.quaternion).lerp(_Y, 0.7).normalize();
+    _cam.copy(_v).multiplyScalar(-26).addScaledVector(_u, 5.5);
+    if (!chase) chase = _cam.clone();
     chase.lerp(_cam, 1 - Math.exp(-dt * 4));
-    const g = ground(chase.x, chase.z).h;
-    chase.y = Math.max(chase.y, g + 1.5);
-    camera.position.copy(chase);
+    camUp.lerp(_u, 1 - Math.exp(-dt * 4)).normalize();
+    _look.copy(s.pos).add(chase);
+    const g = ground(_look.x, _look.z).h;
+    _look.y = Math.max(_look.y, g + 1.5);
+    camera.position.copy(_look);
+    camera.up.copy(camUp);
     camera.lookAt(s.pos);
+    camera.up.set(0, 1, 0);
     camera.fov = saved.fov; camera.updateProjectionMatrix();
   }
 
@@ -508,6 +516,8 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
       // Where the model runs beyond its data (H16): α or β outside Morelli's fit, Mach above 0.6.
       outside: s.domain.out ? [s.domain.alpha && 'α', s.domain.beta && 'β', s.domain.mach && 'M>0.6'].filter(Boolean) : null,
       runway: { along: L2 - a, across: c, heading: RW_HEADING, name: RW_NAME },
+      // Where runway 28 is (f16Cue.js), and the speed the simple controls' autothrottle holds.
+      cue: runwayCue(s.pos.x, s.pos.z, s.agl, hdg), vHold: state.assist && !pilot.gearDown ? assist.state.vHold : null,
       camera: state.camera, paused: state.paused, assist: state.assist, outcome: state.outcome, touchdown: state.touchdown,
       messages: state.messages.filter(m => performance.now() - m.t < 5000).map(m => m.text),
       velocity: s.vel, position: s.pos, quaternion: s.q,

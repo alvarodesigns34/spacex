@@ -13,7 +13,10 @@
  *  - The take-off rotates by itself at 120 kt to 11° of pitch (never past 12°: the nozzle strikes
  *    at ≈14.5°), ↑/↓ trimming it by 1°; climbing away the gear comes up.
  *  - Gear down (G) and neither W nor S held, the throttle and the speed brakes hold the approach
- *    speed, 150 kt.
+ *    speed, 150 kt, and never let it fall under 145 kt above the runway.
+ *  - Gear up, W or S let go: the throttle holds the speed they left (an autothrottle, 200–600 kt;
+ *    350 kt after the take-off). Climbing away untouched, the path levels off at 4–5,000 ft.
+ *  - On the ground A/D ask for a turn rate the nose wheel gives within ≈0.15 g: never onto a wing.
  *  - Protections: below 180 kt with the gear up, full power; heading for the ground (under 3 s,
  *    plus one for every 60 m/s, to impact; or below 300 ft with the gear up and coming down) the
  *    wings level and it pulls to a climb (Auto-GCAS, on F-16s since 2014; with the gear down only
@@ -73,13 +76,16 @@ export function attitude(s) {
  */
 export function createF16Assist({ sim, pilot, note = () => {} }) {
   const s = sim.state;
-  const st = { rolling: false, gearAuto: false, bankCmd: 0, gammaCmd: 0, gcas: false, lowSpeed: false, pI: 0, gPrev: null, gRate: 0, atI: 0 };
-  function reset() { Object.assign(st, { rolling: false, gearAuto: false, bankCmd: 0, gammaCmd: 0, gcas: false, lowSpeed: false, pI: 0, gPrev: null, gRate: 0, atI: 0 }); }
+  const fresh = () => ({ rolling: false, gearAuto: false, bankCmd: 0, gammaCmd: 0, gcas: false, lowSpeed: false, pI: 0, gPrev: null, gRate: 0, atI: 0, vHold: null, holdI: 0, pathTouched: false, wasThr: false });
+  const st = fresh();
+  function reset() { Object.assign(st, fresh()); }
 
   /** keys: { gas, cut, up, down, turn (−1 left … +1 right), shift }; touchdown: a landing is under way. */
   function step(keys, dt, { touchdown = false } = {}) {
     const ramp = (cur, target, rate) => cur + clamp(target - cur, -rate * dt, rate * dt);
-    const { gas, cut, up, down, turn: tr, shift } = keys;
+    const { gas, up, down, turn: tr, shift } = keys;
+    // In the flare (gear down, airborne, under 20 m) S is the second pilot's to ignore: the touchdown is his.
+    const cut = keys.cut && !(pilot.gearDown && !s.wow && s.agl < 20);
     const { pitch, bank, gamma, V } = attitude(s);
     // Throttle: 60 % of the lever a second either way.
     const before = pilot.throttle;
@@ -92,21 +98,34 @@ export function createF16Assist({ sim, pilot, note = () => {} }) {
       if (touchdown && !gas) { pilot.throttle = 0; st.rolling = false; }
       pilot.brake = pilot.parking || (cut && pilot.throttle < 0.02) || (touchdown && !gas) ? 1 : 0;
       pilot.speedBrake = touchdown && !gas;
-      pilot.roll = ramp(pilot.roll, tr, tr ? 2.5 : 5);
-      pilot.yaw = pilot.roll;
+      // The stick centred on the ground: rolling, the flaperons would lift a wing (at 60 kt A/D
+      // held tipped the jet onto the other).
+      pilot.roll = ramp(pilot.roll, 0, 5);
+      // A/D ask for a turn rate (≈20°/s slow, no more than 0.15 g fast), which the nose wheel's
+      // angle gives: the jet turns as tightly as it safely can at any speed, never onto a wing.
+      const vg = Math.max(0.5, Math.hypot(s.vel.x, s.vel.z));
+      const rCmd = Math.min(20 * D2R, 0.15 * 9.81 / vg);
+      // (The pedals' travel is 32° of the nose wheel; fast, the turn needs only a touch of them.)
+      const steerWant = Math.min(1, Math.atan(4.0 * rCmd / vg) / (32 * D2R));
+      pilot.yaw = ramp(pilot.yaw, tr * steerWant, tr ? 2.5 : 5);
       // Rotation: from 120 kt the nose comes up to 11°, ↑/↓ trimming it by 1°, never past 12°.
       const kt = s.tas / KT, want = clamp(11 + (up ? 1 : 0) - (down ? 1 : 0), 0, 12);
       pilot.pitch = st.rolling && kt > 120 ? clamp(0.12 * (want - pitch) - 0.02 * s.w.y * R2D, -0.3, 0.9) : 0;
       if (pitch > 12) pilot.pitch = Math.min(pilot.pitch, -0.1);
       st.bankCmd = 0; st.gammaCmd = Math.max(8, gamma); st.gcas = false; st.pI = 0; st.gPrev = null; st.gRate = 0;
+      st.pathTouched = false; st.vHold = null;
       return;
     }
     st.rolling = false;
     pilot.yaw = 0;
     pilot.brake = 0;
-    const kcas = calibrated(s.mach, atmosphere(s.pos.y).P) / KT;
+    // (At the geodesic altitude: the scene's y drifts from it with the Earth's curvature.)
+    const kcas = calibrated(s.mach, atmosphere(s.alt ?? s.pos.y).P) / KT;
     // The flight path asked for: ↑/↓ move it 15°/s, and it holds when let go.
-    if (up || down) st.gammaCmd = clamp(st.gammaCmd + ((up ? 1 : 0) - (down ? 1 : 0)) * 15 * dt, -40, 40);
+    if (up || down) { st.gammaCmd = clamp(st.gammaCmd + ((up ? 1 : 0) - (down ? 1 : 0)) * 15 * dt, -40, 40); st.pathTouched = true; }
+    // Climbing away from the take-off untouched, the path levels off between 4,000 and 5,000 ft
+    // above the ground (it used to hold its 8° climb up to 83,000 ft).
+    if (!st.pathTouched && !pilot.gearDown) st.gammaCmd = Math.min(st.gammaCmd, 8 * clamp(1 - (s.agl / 0.3048 - 4000) / 1000, 0, 1));
     // Bank: held, the wings roll to 60° (80° with Shift); let go and they come level.
     const maxBank = shift ? 80 : 60;
     st.bankCmd = tr ? clamp(st.bankCmd + tr * 90 * dt, -maxBank, maxBank) : ramp(st.bankCmd, 0, 45);
@@ -114,7 +133,9 @@ export function createF16Assist({ sim, pilot, note = () => {} }) {
     // and a pull to a climb until safe; the pilot then has the airplane back.
     const sink = -s.vel.y, tti = sink > 1 ? s.agl / sink : Infinity;
     // Gear down and landing, only a descent far too steep for the wheels counts.
-    const threat = pilot.gearDown ? tti < 2.5 && sink > 7 : tti < 3 + V / 60 || (s.agl < 90 && sink > 0.5);
+    // With the gear down, a descent past 6 m/s under 4 s from the ground (a 3° approach at 150 kt
+    // sinks ≈4 m/s; the gear fails at ≈5 m/s at the wheels, which the flare keeps it under).
+    const threat = pilot.gearDown ? tti < 4 && sink > 6 : tti < 3 + V / 60 || (s.agl < 90 && sink > 0.5);
     if (threat && !st.gcas) { st.gcas = true; note('Auto-GCAS: pull up'); }
     if (st.gcas) {
       st.bankCmd = 0; st.gammaCmd = Math.max(st.gammaCmd, 10);
@@ -138,14 +159,32 @@ export function createF16Assist({ sim, pilot, note = () => {} }) {
     const n = clamp(cstar, -1.5, 7.5);
     const cmd = n >= 1 ? (n - 1) / 8 : (n - 1) / 4;
     pilot.pitch = ramp(pilot.pitch, Math.abs(bank) > 100 ? 0.1 : cmd, 3);
+    // Near the runway with the gear down, never past 12° of pitch: the nozzle strikes at ≈14.5°
+    // (a slow flare with the speed brakes out reached it): a firmer touchdown instead.
+    if (pilot.gearDown && s.agl < 20 && pitch > 11) pilot.pitch = Math.min(pilot.pitch, -0.15 * (pitch - 11));
     pilot.roll = clamp(0.035 * (st.bankCmd - bank) - 0.004 * s.w.x * R2D, -0.8, 0.8);
     // The gear comes up by itself once, climbing away from the take-off.
-    if (pilot.gearDown && !st.gearAuto && s.agl > 60 && s.vel.y > 2) { pilot.gearDown = false; st.gearAuto = true; note('Gear up · G lowers it to land'); }
+    if (pilot.gearDown && !st.gearAuto && s.agl > 60 && s.vel.y > 2) { pilot.gearDown = false; st.gearAuto = true; st.vHold ??= 350; note('Gear up · G lowers it to land · the throttle holds 350 kt'); }
+    // The gear raised in the air by G too: the approach's autothrottle is armed for when it comes down.
+    if (!pilot.gearDown) { st.gearAuto = true; st.vHold ??= Math.max(250, Math.min(600, kcas)); }
     // Low-speed protection: full power below 180 kt with the gear up.
     const slow = !pilot.gearDown && kcas < 180;
     if (slow && !st.lowSpeed) note('Low speed: full power');
     st.lowSpeed = slow;
     if (slow) pilot.throttle = 1;
+    // The speed hold (autothrottle): W or S let go, the throttle holds the speed they left
+    // (200–600 kt), in military power unless the speed needs the afterburner. It used to stay
+    // where W left it: full afterburner after the take-off, to Mach 1.65 and 83,000 ft.
+    if (!pilot.gearDown) {
+      if (gas || cut) st.wasThr = true;
+      else if (st.wasThr) { st.wasThr = false; st.vHold = clamp(kcas, 200, 600); st.holdI = 0; }
+      if (!gas && !cut && !slow && st.vHold !== null) {
+        const e = st.vHold - kcas;
+        st.holdI = clamp(st.holdI + e * 0.004 * dt, -0.4, 0.4);
+        const cap = st.vHold > 520 ? 1 : 0.77;
+        pilot.throttle = ramp(pilot.throttle, clamp(0.55 + st.holdI + e * 0.02, 0, cap), 0.5);
+      }
+    }
     pilot.speedBrake = !!cut && pilot.throttle < 0.02;
     // Gear down and neither W nor S held: the approach speed, 150 kt, held on the throttle and the
     // speed brakes; over the runway, in the flare, the throttle comes back to idle.
@@ -154,6 +193,13 @@ export function createF16Assist({ sim, pilot, note = () => {} }) {
       st.atI = clamp(st.atI + e * 0.01 * dt, -0.3, 0.3);
       pilot.throttle = s.agl < 6 ? 0 : clamp(0.45 + st.atI + e * 0.03, 0, 0.76);
       pilot.speedBrake = e < -12;
+    }
+    // Gear down, never slower than 145 kt above the runway, and the speed brakes only above 150 kt
+    // (S held on a gear-down approach used to stall the jet onto its wheels at 25 m/s; slower than
+    // ≈145 kt the flare needs more than the 12° of pitch the nozzle allows).
+    if (pilot.gearDown && s.agl > 6) {
+      if (kcas < 145) pilot.throttle = Math.max(pilot.throttle, clamp(0.5 + (145 - kcas) * 0.04, 0, 0.76));
+      if (cut && kcas < 150) pilot.speedBrake = false;
     }
   }
   return { step, reset, state: st };
