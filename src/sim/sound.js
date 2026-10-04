@@ -30,6 +30,7 @@
  * published launch and catch videos, and the booms' timing is the model's, not a flight's.
  */
 import { EVENTS, boosterSpeedAt, boosterAltAt, soundSpeedAt, derivedEvents } from './launch.js';
+import { audio, claim } from './audioBus.js';
 
 const C_SOUND = 343;
 const REF_D = 160;                       // full level inside this distance
@@ -61,9 +62,10 @@ export function createLaunchSound({ launch, camera }) {
   let oneShots = {};
 
   function build() {
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return false;
-    ctx = new AC();
+    // The centre's one audio context (audioBus.js): its bus, its hidden-tab policy.
+    const A = audio();
+    if (!A) return false;
+    ctx = A.ctx;
     const r = rng(7);
     // Noise beds, generated once and looped.
     const white = buffer(ctx, 4, (d) => { for (let i = 0; i < d.length; i++) d[i] = r() * 2 - 1; });
@@ -98,7 +100,7 @@ export function createLaunchSound({ launch, camera }) {
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -16; comp.knee.value = 12; comp.ratio.value = 4; comp.attack.value = 0.01; comp.release.value = 0.4;
     master = ctx.createGain(); master.gain.value = 0.85;
-    master.connect(comp); comp.connect(ctx.destination);
+    master.connect(comp); comp.connect(A.bus);
     const verb = ctx.createConvolver();
     verb.buffer = buffer(ctx, 3.6, (d, sr, c) => {
       const rr = rng(31 + c);
@@ -186,7 +188,8 @@ export function createLaunchSound({ launch, camera }) {
 
   function setEnabled(on) {
     enabled = on;
-    if (on && !ctx && !build()) { enabled = false; return; }
+    claim('launch', !!on);
+    if (on && !ctx && !build()) { enabled = false; claim('launch', false); return; }
     if (!ctx) return;
     if (on) ctx.resume?.();
     else {
@@ -284,15 +287,9 @@ export function createLaunchSound({ launch, camera }) {
     deluge.gain.setTargetAtTime(0.35 * water * g, tc, 0.4);
   }
 
-  // A hidden tab stops requestAnimationFrame, so update() stops too and every gain stayed
-  // where the last frame left it: switch tabs during the ascent and the roar went on at full
-  // level behind the other page. The context is suspended while hidden and resumed on return.
-  const onVisibility = () => {
-    if (!ctx) return;
-    if (document.hidden) ctx.suspend?.();
-    else if (enabled) ctx.resume?.();
-  };
-  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisibility);
+  // (A hidden tab stops requestAnimationFrame, so update() stops too and every gain stayed where
+  // the last frame left it: the roar went on behind another page. The shared context is
+  // suspended while the tab is hidden and resumed on return while a sound is on: audioBus.js.)
 
   return { setEnabled, update, get enabled() { return enabled; }, get contextState() { return ctx?.state ?? 'none'; } };
 }

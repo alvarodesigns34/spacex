@@ -23,9 +23,16 @@
  * Each firing lands at its exact time between two samples, and the controls are audio parameters
  * read sample by sample (tools/sound-check.mjs renders the worklet offline and checks it). The
  * load is the engine's own (the PDK's blips and cuts, the traction control's trim).
+ *  - The tyres' rolling roar on the road, which grows with the speed (≈ as the 1.5th power of
+ *    it in pressure) and is most of what a car makes at a steady 100 km/h, outside as well as in.
+ *  - From outside, the car is heard where it is (audioBus.js): late by d/343 s, its pitch moved by
+ *    the Doppler shift as it passes, panned, quieter and duller with distance; the wind is the
+ *    listener's own, so only in the cabin. In the cabin the exhaust is muffled and the induction,
+ *    right behind the seats, comes forward.
  * Off the worklet (an old browser), it falls back to a few oscillators on the firing orders.
  */
 import { underWheels } from './gt3Camera.js';
+import { audio, claim, createSpatial, placeListener } from './audioBus.js';
 const WORKLET = `
 class Gt3Flat6 extends AudioWorkletProcessor {
   // The controls arrive as audio parameters, read sample by sample (glided on the main thread).
@@ -149,18 +156,19 @@ export function createGt3Sound() {
   let ctx = null, enabled = false, N = null, building = null, lastKerb = 0;
 
   async function build() {
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return false;
-    ctx = new AC();
+    const A = audio();
+    if (!A) return false;
+    ctx = A.ctx;
     const r = rng(911);
     const noise = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate);
     { const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = r() * 2 - 1; }
     const loopNoise = () => { const s = ctx.createBufferSource(); s.buffer = noise; s.loop = true; s.start(); return s; };
     const gain = (v = 0) => { const g = ctx.createGain(); g.gain.value = v; return g; };
-    const comp = ctx.createDynamicsCompressor();
-    comp.threshold.value = -12; comp.ratio.value = 3; comp.attack.value = 0.004; comp.release.value = 0.2;
-    const master = gain(0.7);
-    master.connect(comp); comp.connect(ctx.destination);
+    // The car's sound goes out through its place in the world (the level set at the chase
+    // camera's ≈7 m); the wind, the listener's own, straight to the bus.
+    const master = gain(0), place = createSpatial(7), direct = gain(0);
+    master.connect(place.input); place.out.connect(direct); direct.connect(A.bus);
+    const own = gain(0); own.connect(A.bus);
     // The cabin: closed in, the exhaust is muffled and the induction behind the seats comes forward.
     const cabinLp = ctx.createBiquadFilter(); cabinLp.type = 'lowpass'; cabinLp.frequency.value = 18000; cabinLp.Q.value = 0.5;
     cabinLp.connect(master);
@@ -180,7 +188,10 @@ export function createGt3Sound() {
     const gr = ctx.createBiquadFilter(); gr.type = 'lowpass'; gr.frequency.value = 260;
     const grG = gain(0); loopNoise().connect(gr); gr.connect(grG); grG.connect(master);
     const wd = ctx.createBiquadFilter(); wd.type = 'lowpass'; wd.frequency.value = 700;
-    const wdG = gain(0); loopNoise().connect(wd); wd.connect(wdG); wdG.connect(master);
+    const wdG = gain(0); loopNoise().connect(wd); wd.connect(wdG); wdG.connect(own);
+    // The tyres rolling on the road: broadband round ≈1 kHz (≈), through the cabin's filter.
+    const rl = ctx.createBiquadFilter(); rl.type = 'bandpass'; rl.frequency.value = 900; rl.Q.value = 0.7;
+    const rlG = gain(0); loopNoise().connect(rl); rl.connect(rlG); rlG.connect(cabinLp);
     // The kerbs: their coarse surface drummed through the tyres and the body, a low rumble whose
     // pitch follows the speed over a ≈25 cm texture (≈), and a thump each time a wheel goes over
     // the kerb's ≈3 cm edge.
@@ -188,41 +199,33 @@ export function createGt3Sound() {
     const kbG = gain(0); loopNoise().connect(kb); kb.connect(kbG); kbG.connect(master);
     const th = ctx.createBiquadFilter(); th.type = 'lowpass'; th.frequency.value = 90;
     const thG = gain(0); loopNoise().connect(th); th.connect(thG); thG.connect(master);
-    N = { master, engine, fallback, cabinLp, sq, sqG, grG, wd, wdG, kb, kbG, thG, r };
+    N = { master, place, direct, own, engine, fallback, cabinLp, sq, sqG, grG, wd, wdG, rl, rlG, kb, kbG, thG, r };
     return true;
   }
 
   const set = (p, v, tc = 0.04) => p.setTargetAtTime(v, ctx.currentTime, tc);
-
-  // A hidden tab stops requestAnimationFrame and with it update(): the engine would go on at the
-  // last frame's note behind another page. Suspended while hidden, resumed on return if still on
-  // (the same policy as the launch's sound, sim/sound.js).
-  if (typeof document !== 'undefined') {
-    document.addEventListener('visibilitychange', () => {
-      if (!ctx) return;
-      if (document.hidden) ctx.suspend?.();
-      else if (enabled) ctx.resume?.();
-    });
-  }
+  const LEVEL = 0.7;
 
   return {
     get enabled() { return enabled; },
     get contextState() { return ctx?.state ?? 'none'; },
     setEnabled(on) {
       enabled = !!on;
-      if (enabled && !ctx && !building) building = build().then(ok => { if (!ok) enabled = false; });
-      if (!ctx) return;
-      if (enabled) ctx.resume?.();
-      if (N) set(N.master.gain, enabled ? 0.7 : 0, 0.08);
+      claim('gt3', enabled);
+      if (enabled && !ctx && !building) building = build().then(ok => { if (!ok) { enabled = false; claim('gt3', false); } });
+      if (N) { set(N.direct.gain, enabled ? 1 : 0, 0.08); set(N.own.gain, enabled ? 1 : 0, 0.08); }
     },
     /**
      * Per frame while driving: `s` the car's state (rpm, u, v, slip[4], gear, shift), `i` its
      * input (throttle), `surface` the kind under the rear tyres ('track', 'gravel', …), `inside`
-     * true with the camera in the cabin.
+     * true with the camera in the cabin; `where` the car's position and the camera (from outside,
+     * the car is heard where it is), `dt` the frame's time.
      */
-    update(s, i, surface = 'track', inside = false) {
+    update(s, i, surface = 'track', inside = false, where = null, dt = 1 / 60) {
       if (!enabled || !ctx || !N) return;
-      set(N.master.gain, 0.7, 0.08);
+      set(N.master.gain, LEVEL, 0.08); set(N.direct.gain, 1, 0.08); set(N.own.gain, 1, 0.08);
+      if (where) { placeListener(where.camera); N.place.update(where.pos, where.camera, inside, 1, dt); }
+      else N.place.update({ x: 0, y: 0, z: 0 }, { position: { x: 0, y: 0, z: 0 } }, true, 1, dt);
       const dead = !!(s.dead || s.drowned);
       // The throttle the engine gets: the PDK's blips on a downshift, Launch Control's hold.
       const rpm = dead ? 0 : Math.max(600, s.rpm), thr = dead ? 0 : Math.max(0, Math.min(1, s.engThr ?? i.throttle));
@@ -250,7 +253,11 @@ export function createGt3Sound() {
       set(N.sqG.gain, hard ? Math.min(0.28, 0.5 * over) * Math.min(1, speed / 4) : 0, 0.05);
       set(N.sq.frequency, 1050 + 180 * Math.sin(t * 7.3) + 120 * N.r(), 0.05);
       set(N.grG.gain, hard ? 0 : Math.min(0.5, speed / 25), 0.08);
-      set(N.wdG.gain, Math.min(0.35, (speed / 80) ** 2 * 0.35) * (inside ? 0.6 : 1), 0.1);
+      // The wind is the listener's: in the cabin, a hiss round the glass; outside, the camera
+      // flies with the car only in the chase view, and a microphone there would hear it too (≈).
+      set(N.wdG.gain, Math.min(0.35, (speed / 80) ** 2 * 0.35) * (inside ? 0.6 : 0.5), 0.1);
+      set(N.rlG.gain, hard ? Math.min(0.32, 0.05 * (speed / 10) ** 1.5) : 0, 0.08);
+      set(N.rl.frequency, 700 + 6 * speed, 0.1);
       const { kerb } = underWheels(s);
       set(N.kbG.gain, kerb ? Math.min(0.45, (0.12 + 0.07 * kerb) * Math.min(1, speed / 6)) : 0, 0.03);
       set(N.kb.frequency, Math.max(35, Math.min(420, speed / 0.25)), 0.03);
@@ -261,6 +268,6 @@ export function createGt3Sound() {
       }
       lastKerb = kerb;
     },
-    stop() { if (ctx && N) set(N.master.gain, 0, 0.05); },
+    stop() { if (ctx && N) { set(N.master.gain, 0, 0.05); set(N.own.gain, 0, 0.05); } },
   };
 }

@@ -14,7 +14,7 @@ import { createTelemetryList } from './telemetryList.js';
 const GREEN = 'rgba(80, 255, 140, 0.95)', DIM = 'rgba(80, 255, 140, 0.55)';
 const fmt = (x, d = 0) => (Number.isFinite(x) ? x.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
 
-export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause, onAssist }) {
+export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause, onAssist, onSound }) {
   const canvas = document.createElement('canvas');
   canvas.className = 'f16-hud hidden';
   canvas.setAttribute('aria-hidden', 'true');
@@ -28,11 +28,12 @@ export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause, onAssi
     <span class="eyebrow">F-16A Block 15 · flight model from NASA wind-tunnel data</span>
     <button type="button" class="f16-btn" id="f16-cam" title="Camera: chase, cockpit, tower, your own orbit (C)">Chase <kbd>C</kbd></button>
     <button type="button" class="f16-btn" id="f16-assist" aria-pressed="true" title="Simple controls (W S power, ↑ ↓ climb, A D turn, G gear); off gives every control of the airplane">Simple</button>
+    <button type="button" class="f16-btn" id="f16-sound" aria-pressed="false" title="Sound (M): the F100's fan, jet and afterburner, the air and the wheels, synthesised; off until you turn it on">Sound <kbd>M</kbd></button>
     <button type="button" class="f16-btn" id="f16-pause" aria-pressed="false" title="Pause (K)">Pause <kbd>K</kbd></button>
     <button type="button" class="f16-btn" id="f16-restart" title="Back to the runway's threshold (Enter)">Runway <kbd>Enter</kbd></button>
     <button type="button" class="f16-btn f16-end" id="f16-end" title="Back to the exhibit (Esc)">End <kbd>Esc</kbd></button>
-    <p class="f16-keys f16-easy"><kbd>W</kbd><kbd>S</kbd> power (hold W to take off) · <kbd>↑</kbd><kbd>↓</kbd> climb, descend · <kbd>A</kbd><kbd>D</kbd> turn (<kbd>Shift</kbd> harder) · <kbd>G</kbd> gear: it holds 150 kt and flares for you · <kbd>C</kbd> camera</p>
-    <p class="f16-keys f16-full"><kbd>W</kbd><kbd>S</kbd> stick fore/aft (<kbd>Shift</kbd> full) · <kbd>A</kbd><kbd>D</kbd> roll · <kbd>Q</kbd><kbd>E</kbd> rudder and nose wheel · <kbd>R</kbd><kbd>F</kbd> throttle · <kbd>Space</kbd> brakes · <kbd>B</kbd> speed brakes · <kbd>G</kbd> gear</p>
+    <p class="f16-keys f16-easy"><kbd>W</kbd><kbd>S</kbd> power (hold W to take off) · <kbd>↑</kbd><kbd>↓</kbd> climb, descend · <kbd>A</kbd><kbd>D</kbd> turn (<kbd>Shift</kbd> harder) · <kbd>G</kbd> gear: it holds 150 kt and flares for you · <kbd>C</kbd> camera · <kbd>M</kbd> sound</p>
+    <p class="f16-keys f16-full"><kbd>W</kbd><kbd>S</kbd> stick fore/aft (<kbd>Shift</kbd> full) · <kbd>A</kbd><kbd>D</kbd> roll · <kbd>Q</kbd><kbd>E</kbd> rudder and nose wheel · <kbd>R</kbd><kbd>F</kbd> throttle · <kbd>Space</kbd> brakes · <kbd>B</kbd> speed brakes · <kbd>G</kbd> gear · <kbd>M</kbd> sound</p>
     <ul class="f16-msgs" id="f16-msgs" aria-live="polite"></ul>
     <div class="f16-result hidden" id="f16-result" role="status"></div>
   `;
@@ -48,6 +49,7 @@ export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause, onAssi
   $('#f16-restart').addEventListener('click', () => onRestart?.());
   $('#f16-pause').addEventListener('click', () => onPause?.());
   $('#f16-assist').addEventListener('click', () => onAssist?.());
+  $('#f16-sound').addEventListener('click', () => onSound?.());
 
   function resize() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -80,6 +82,7 @@ export function createF16Hud({ root, onEnd, onCamera, onRestart, onPause, onAssi
     $('#f16-cam').firstChild.textContent = `${r.camera[0].toUpperCase()}${r.camera.slice(1)} `;
     $('#f16-pause').setAttribute('aria-pressed', String(!!r.paused));
     $('#f16-assist').setAttribute('aria-pressed', String(!!r.assist));
+    $('#f16-sound').setAttribute('aria-pressed', String(!!r.sound));
     bar.classList.toggle('is-assist', !!r.assist);
     const msgs = r.messages.join('|');
     if (msgs !== lastMsgs) { lastMsgs = msgs; $('#f16-msgs').innerHTML = r.messages.map(m => `<li>${m}</li>`).join(''); }

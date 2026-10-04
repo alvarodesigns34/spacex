@@ -366,7 +366,8 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
     pose(Math.min(dt, 0.25));
     placeCamera(Math.max(dt, 1 / 120));
     if (rig.external) rig.target.copy(holder.position);
-    if (state.paused) sound.stop(); else sound.update(s, sim.input, s.surface);
+    camera.updateMatrixWorld();
+    if (state.paused) sound.stop(); else sound.update(s, sim.input, s.surface, state.camera === 'rider', { pos: holder.position, camera }, Math.max(dt, 1 / 240));
     publish();
   }
   function publish() {

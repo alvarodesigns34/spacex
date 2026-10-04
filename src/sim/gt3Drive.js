@@ -574,7 +574,8 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
     pose(Math.min(dt, 0.25));
     placeCamera(state.paused ? 0 : Math.min(dt, 0.25));
     if (rig.external) rig.target.copy(holder.position);
-    if (state.paused) sound.stop(); else sound.update(s, sim.input, s.surface[2], state.camera === 'driver');
+    camera.updateMatrixWorld();
+    if (state.paused) sound.stop(); else sound.update(s, sim.input, s.surface[2], state.camera === 'driver', { pos: holder.position, camera }, Math.max(dt, 1 / 240));
     publish();
   }
 

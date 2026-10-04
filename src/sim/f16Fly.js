@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { createF16Flight, CG, atmosphere } from './f16Flight.js';
 import { createF16Assist, calibrated, attitude } from './f16Assist.js';
 import { runwayCue } from './f16Cue.js';
+import { createF16Sound } from './f16Sound.js';
 import { createEffects } from '../core/effects.js';
 
 export { calibrated };
@@ -95,6 +96,9 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
 
   const sim = createF16Flight({ ground, solid: (a, b) => solid?.(a, b) ?? false });
   const s = sim.state;
+  // The sound (f16Sound.js): off until the visitor turns it on (M, the bar's button).
+  const sound = createF16Sound();
+  function setSound(on) { sound.setEnabled(on); note(sound.enabled ? 'Sound on: the F100, the air, the wheels (synthesised)' : 'Sound off'); }
   // `manual`: the checks set `pilot` themselves and the keyboard is not read.
   const state = { running: false, paused: false, camera: 'chase', outcome: null, touchdown: null, messages: [], readout: null, flown: false, manual: false, assist: true };
   const saved = { parent: null, position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), near: 0, far: 0, fov: 0 };
@@ -104,7 +108,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
   const pilot = { pitch: 0, roll: 0, yaw: 0, throttle: 0, brake: 1, parking: true, speedBrake: false, gearDown: true };
   const typing = (t) => t.tagName === 'TEXTAREA' || t.isContentEditable || (t.tagName === 'INPUT' && t.type !== 'range');
   const CODES = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-    'KeyR', 'KeyF', 'PageUp', 'PageDown', 'Space', 'KeyB', 'KeyG', 'KeyC', 'KeyK', 'Escape', 'Enter', 'ShiftLeft', 'ShiftRight']);
+    'KeyR', 'KeyF', 'PageUp', 'PageDown', 'Space', 'KeyB', 'KeyG', 'KeyC', 'KeyK', 'KeyM', 'Escape', 'Enter', 'ShiftLeft', 'ShiftRight']);
   // An open modal dialog (the guide) owns the keyboard: Tab and Shift+Tab stay inside it and
   // Escape closes it, not the flight; and the keys held when it opened are let go.
   const modalOpen = () => typeof document !== 'undefined' && !!document.querySelector('[role="dialog"][aria-modal="true"]:not(.hidden)');
@@ -124,6 +128,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
       case 'KeyG': toggleGear(); break;
       case 'KeyC': cycleCamera(); break;
       case 'KeyK': setPaused(!state.paused); break;
+      case 'KeyM': setSound(!sound.enabled); break;
       case 'Enter': restart(); break;
       case 'Escape': reset(); break;
       default: break;
@@ -460,6 +465,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
     window.removeEventListener('keyup', onKeyUp, true);
     window.removeEventListener('blur', onBlur);
     keys.clear();
+    sound.stop();
     for (const h of [surf.stabL, surf.stabR, surf.rudder, surf.flapL, surf.flapR, surf.lefL, surf.lefR, ...surf.sb]) if (h) h.o.quaternion.copy(h.base);
     if (gearGroup) gearGroup.visible = true;
     flame.removeFromParent();
@@ -493,6 +499,9 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
     updateFlame(s);
     placeCamera(Math.max(dt, 1 / 120));
     updateWorld();
+    camera.updateMatrixWorld();
+    if (state.paused || state.outcome?.kind?.startsWith('crash')) sound.stop();
+    else sound.update(s, camera, state.camera === 'cockpit', Math.max(dt, 1 / 240));
     publish();
   }
 
@@ -518,7 +527,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
       runway: { along: L2 - a, across: c, heading: RW_HEADING, name: RW_NAME },
       // Where runway 28 is (f16Cue.js), and the speed the simple controls' autothrottle holds.
       cue: runwayCue(s.pos.x, s.pos.z, s.agl, hdg), vHold: state.assist && !pilot.gearDown ? assist.state.vHold : null,
-      camera: state.camera, paused: state.paused, assist: state.assist, outcome: state.outcome, touchdown: state.touchdown,
+      camera: state.camera, paused: state.paused, assist: state.assist, outcome: state.outcome, touchdown: state.touchdown, sound: sound.enabled,
       messages: state.messages.filter(m => performance.now() - m.t < 5000).map(m => m.text),
       velocity: s.vel, position: s.pos, quaternion: s.q,
     };
@@ -529,7 +538,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
     get state() { return state; },
     get running() { return state.running; },
     get position() { return holder.position; },
-    sim, start, reset, restart, setPaused, setCamera, cycleCamera, setAssist,
+    sim, sound, start, reset, restart, setPaused, setCamera, cycleCamera, setAssist, setSound,
     update(dt) { if (state.running) apply(dt); },
     /** For the checks: the pilot's controls, set directly (the keyboard is read over them). */
     pilot,

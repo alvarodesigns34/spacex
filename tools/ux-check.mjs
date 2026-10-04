@@ -740,6 +740,22 @@ try {
     await page.keyboard.press('c');
     await page.waitForTimeout(200);
     report(await page.evaluate(() => window.__vc.f16fly.state.camera === 'cockpit'), 'C goes to the cockpit');
+    // M turns the F-16's sound on (Phase 3): the bar's button follows, the centre's one audio
+    // context runs, and something reaches its bus (the F100 at idle and the cockpit's air).
+    await page.keyboard.press('m');
+    await page.waitForTimeout(1500);
+    const snd = await page.evaluate(async () => {
+      const F = window.__vc.f16fly, bus = await import('/src/sim/audioBus.js'), A = bus.audio();
+      const an = A.ctx.createAnalyser(); an.fftSize = 4096; A.bus.connect(an);
+      // (The checks drive the flight by hand: frames for the sound to follow.)
+      for (let k = 0; k < 25; k++) { F.update(1 / 30); await new Promise(r => setTimeout(r, 30)); }
+      const x = new Float32Array(an.fftSize); an.getFloatTimeDomainData(x);
+      A.bus.disconnect(an);
+      return { on: F.sound.enabled, state: A.ctx.state, pressed: document.getElementById('f16-sound').getAttribute('aria-pressed'), rms: +Math.sqrt(x.reduce((a, b) => a + b * b, 0) / x.length).toFixed(5) };
+    });
+    await page.keyboard.press('m');
+    report(snd.on && snd.state === 'running' && snd.pressed === 'true' && snd.rms > 1e-4,
+      "M turns the F-16's sound on: the button follows and the engine reaches the centre's audio bus", snd);
     await page.keyboard.press('Escape');
     await page.waitForTimeout(2500);
     const back = await page.evaluate(() => {

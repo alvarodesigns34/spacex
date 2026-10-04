@@ -21,8 +21,13 @@
  *  - The primary gears' whine (49 teeth on the crank) under load, the intake's roar through the ram
  *    air, the quick-shifter's cut and the limiter's stutter come from the engine's own state; the
  *    tyres sliding and the wind (most of what a rider hears at speed) are mixed in on top.
+ *  - The tyres rolling on the road, growing with the speed.
+ *  - From outside the bike is heard where it is (audioBus.js): late by d/343 s, Doppler-shifted
+ *    as it passes, panned, quieter and duller with distance. The wind round the helmet is the
+ *    rider's: heard on the rider's camera, and only a little on the others.
  * Off the worklet (an old browser), it falls back to a few oscillators.
  */
+import { audio, claim, createSpatial, placeListener } from './audioBus.js';
 const WORKLET = `
 class H2RExhaust extends AudioWorkletProcessor {
   // The controls arrive as audio parameters, read sample by sample (the main thread glides them
@@ -151,18 +156,19 @@ export function createH2rSound() {
   let ctx = null, enabled = false, N = null, building = null;
 
   async function build() {
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return false;
-    ctx = new AC();
+    const A = audio();
+    if (!A) return false;
+    ctx = A.ctx;
     const r = rng(1000);
     const noise = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate);
     { const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = r() * 2 - 1; }
     const loopNoise = () => { const s = ctx.createBufferSource(); s.buffer = noise; s.loop = true; s.start(); return s; };
     const gain = (v = 0) => { const g = ctx.createGain(); g.gain.value = v; return g; };
-    const comp = ctx.createDynamicsCompressor();
-    comp.threshold.value = -12; comp.ratio.value = 3; comp.attack.value = 0.004; comp.release.value = 0.2;
-    const master = gain(0.8);
-    master.connect(comp); comp.connect(ctx.destination);
+    // The bike's sound goes out through its place in the world (the level set at the chase
+    // camera's ≈5 m); the wind, the rider's own, straight to the bus.
+    const master = gain(0), place = createSpatial(5), direct = gain(0);
+    master.connect(place.input); place.out.connect(direct); direct.connect(A.bus);
+    const own = gain(0); own.connect(A.bus);
     let engine = null, fallback = null;
     try {
       const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
@@ -181,35 +187,35 @@ export function createH2rSound() {
     const grG = gain(0); loopNoise().connect(gr); gr.connect(grG); grG.connect(master);
     // The wind round the helmet: broadband, low-passed, rising with the square of the speed.
     const wd = ctx.createBiquadFilter(); wd.type = 'lowpass'; wd.frequency.value = 900;
-    const wdG = gain(0); loopNoise().connect(wd); wd.connect(wdG); wdG.connect(master);
-    N = { master, engine, fallback, sq, sqG, grG, wd, wdG, r };
+    const wdG = gain(0); loopNoise().connect(wd); wd.connect(wdG); wdG.connect(own);
+    // The tyres rolling on the road (≈).
+    const rl = ctx.createBiquadFilter(); rl.type = 'bandpass'; rl.frequency.value = 1000; rl.Q.value = 0.7;
+    const rlG = gain(0); loopNoise().connect(rl); rl.connect(rlG); rlG.connect(master);
+    N = { master, place, direct, own, engine, fallback, sq, sqG, grG, wd, wdG, rl, rlG, r };
     return true;
   }
 
   const set = (p, v, tc = 0.04) => p.setTargetAtTime(v, ctx.currentTime, tc);
-
-  if (typeof document !== 'undefined') {
-    document.addEventListener('visibilitychange', () => {
-      if (!ctx) return;
-      if (document.hidden) ctx.suspend?.();
-      else if (enabled) ctx.resume?.();
-    });
-  }
 
   return {
     get enabled() { return enabled; },
     get contextState() { return ctx?.state ?? 'none'; },
     setEnabled(on) {
       enabled = !!on;
-      if (enabled && !ctx && !building) building = build().then(ok => { if (!ok) enabled = false; });
-      if (!ctx) return;
-      if (enabled) ctx.resume?.();
-      if (N) set(N.master.gain, enabled ? 0.8 : 0, 0.08);
+      claim('h2r', enabled);
+      if (enabled && !ctx && !building) building = build().then(ok => { if (!ok) { enabled = false; claim('h2r', false); } });
+      if (N) { set(N.direct.gain, enabled ? 1 : 0, 0.08); set(N.own.gain, enabled ? 1 : 0, 0.08); }
     },
-    /** Per frame while riding: `s` the bike's state, `i` its input, `surface` what is underneath. */
-    update(s, i, surface = 'track') {
+    /**
+     * Per frame while riding: `s` the bike's state, `i` its input, `surface` what is underneath,
+     * `inside` true on the rider's camera, `where` the bike's position and the camera, `dt` the
+     * frame's time.
+     */
+    update(s, i, surface = 'track', inside = true, where = null, dt = 1 / 60) {
       if (!enabled || !ctx || !N) return;
-      set(N.master.gain, 0.8, 0.08);
+      set(N.master.gain, 0.8, 0.08); set(N.direct.gain, 1, 0.08); set(N.own.gain, 1, 0.08);
+      if (where) { placeListener(where.camera); N.place.update(where.pos, where.camera, inside, 1, dt); }
+      else N.place.update({ x: 0, y: 0, z: 0 }, { position: { x: 0, y: 0, z: 0 } }, true, 1, dt);
       const dead = !!s.crashed;
       // The throttle the engine gets (the aids' and the quick-shifter's cuts in it) and its load.
       const thr = dead ? 0 : Math.max(0, Math.min(1, s.engThr ?? i.throttle));
@@ -229,9 +235,11 @@ export function createH2rSound() {
       set(N.sqG.gain, hard ? Math.min(0.3, sliding * 1.2) * Math.min(1, speed / 4) : 0, 0.05);
       set(N.sq.frequency, 1150 + 180 * Math.sin(t * 7.3) + 120 * N.r(), 0.05);
       set(N.grG.gain, (hard && !dead) ? 0 : Math.min(0.5, speed / 20), 0.08);
-      set(N.wdG.gain, Math.min(0.6, (speed / 70) ** 2 * 0.5), 0.1);
+      set(N.wdG.gain, Math.min(0.6, (speed / 70) ** 2 * 0.5) * (inside ? 1 : 0.35), 0.1);
+      set(N.rlG.gain, hard && !dead ? Math.min(0.25, 0.04 * (speed / 10) ** 1.5) : 0, 0.08);
+      set(N.rl.frequency, 800 + 6 * speed, 0.1);
       set(N.wd.frequency, 500 + speed * 12, 0.1);
     },
-    stop() { if (ctx && N) set(N.master.gain, 0, 0.05); },
+    stop() { if (ctx && N) { set(N.master.gain, 0, 0.05); set(N.own.gain, 0, 0.05); } },
   };
 }

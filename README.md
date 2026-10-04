@@ -833,6 +833,39 @@ El usuario pidió una pasada decisiva sobre la H2R, el Porsche y el F-16: modelo
 - **Sonido:** las explosiones se redondean a muestras enteras (≈ −25 dB de ruido), el silbido de alivio de la H2R se rompe a los 30 s y no hay modelo espacial. El F-16 no tiene sonido.
 - **No se llegó a hacer:** la auditoría del detalle de los modelos y el presupuesto de rendimiento, y la del entorno y las físicas.
 
+### Fase 3 del encargo: sonido (4 de octubre de 2026)
+
+**El F-16 ya suena** (`src/sim/f16Sound.js`). Se activa con **M** o con el botón **Sound** de la barra de vuelo, y está apagado hasta que lo enciendes, como los coches. Es un motor F100 sintetizado muestra a muestra en un AudioWorklet con dos salidas: la toma (por delante) y el chorro (≈5 m por detrás de la tobera).
+- **El fan:** el tono de paso de álabes y, cuando la punta del fan se acerca a supersónica (hacia potencia militar), el «buzz-saw»: todos los múltiplos de la velocidad del eje. Se genera como surge en realidad, con un diente de sierra por álabe, cada álabe con su propia intensidad (fija, aleatoria) y limitado en banda en cada salto (PolyBLEP). Debajo va el ruido de banda ancha del fan.
+- **El núcleo:** el silbido agudo y débil del compresor.
+- **El chorro:** el ruido de mezcla, con el pico en Strouhal ≈0,2 sobre el diámetro de salida. Crece muy deprisa con la velocidad del chorro (la potencia 8 de Lighthill, comprimida para que el ralentí se siga oyendo) y tiene su vaivén turbulento lento.
+- **El poscombustor:** el chorro más rápido y ancho, el retumbo de la combustión, el crepitar (frentes de choque en ráfagas, como en el cohete) y un golpe sordo al encenderse.
+- **En la cabina:** el motor llega apagado y grave a través del avión. Encima, el aire del sistema de climatización y el flujo sobre la cúpula, que crece con la presión dinámica.
+- **Las ruedas:** la rodadura en la pista y el chirrido de la toma. La hidráulica del tren mientras se mueve.
+- **Fuera de la cabina** se oye donde está (ver abajo). Por encima de Mach 1 no se oye nada por delante del cono de Mach. Si el cono te alcanza (desde la torre o tu propia vista), suena el estampido: una doble onda N.
+- **Datos usados:** regímenes ≈ (núcleo ≈68 % al ralentí y ≈94 % en militar, las cifras habituales del indicador del F100); número de álabes ≈; velocidades del chorro ≈.
+- **Pruebas** (`tools/sound-check.mjs`):
+  - tono de paso de álabes +31 dB sobre su ruido;
+  - los órdenes del eje pasan de −26 dB al 18 % de potencia a −9 dB en militar;
+  - el chorro sube 20 dB del ralentí a militar y 10 dB más con poscombustión, que además añade +11 dB entre 20 y 70 Hz;
+  - el golpe del encendido: +20 dB;
+  - en cabina, el silbido del fan baja 23 dB y el aire sube 12 dB con la presión dinámica;
+  - sin continua, sin saturación, la geometría del cono de Mach y el coste (1,8 % de un núcleo).
+- **Prueba en el navegador** (`ux-check`): M enciende el sonido, el botón lo refleja y el motor llega al bus de audio.
+
+**Un solo contexto de audio para todo** (`src/sim/audioBus.js`): el lanzamiento, el Porsche, la H2R y el F-16 comparten AudioContext y bus maestro. Antes había uno por vehículo: los navegadores permiten pocos y cada uno gasta un hilo. La política de pestaña oculta (suspender y reanudar si hay algún sonido encendido) está ahora en un solo sitio.
+
+**Sonido espacial para los vehículos vistos desde fuera** (`createSpatial`):
+- **El retraso de la distancia:** el sonido pasa por una línea de retardo de d/343 s. Al variar d, la velocidad de cambio del retardo desplaza el tono exactamente el factor Doppler de una fuente en movimiento (a primer orden), en las notas del motor y en el ruido por igual: el «ñiiiaaau» al pasar junto a la cámara de pista.
+- **Posición, distancia y aire:** el sonido sale de donde está el vehículo (HRTF), baja como 1/d a partir de la distancia a la que se equilibró la síntesis (la de la cámara de persecución), y el aire le quita los agudos con la distancia (≈).
+- **Cambios de cámara:** un salto de cámara no se oye como una fuente supersónica; el sonido baja, se recoloca y vuelve.
+- **Desde dentro** (cabina, puesto del piloto, casco) no se aplica nada de esto.
+- **El viento es del que escucha:** sobre todo dentro; en las vistas exteriores, poco.
+
+**Porsche y H2R:**
+- **Rodadura de los neumáticos:** un rumor de banda ancha que crece con la velocidad (≈ la potencia 1,5). Antes no existía, y es casi todo lo que hace un coche a 100 km/h constantes.
+- **Sonido espacial** como el del F-16, con su efecto Doppler al pasar.
+
 ### Fase 2 del encargo, segunda parte: Porsche y F-16 (4 de octubre de 2026)
 
 **CI en rojo tras la Fase 1, arreglado.** La prueba del mando en `ux-check` leía los alerones (`pilot.roll`), que en tierra ahora quedan centrados porque la dirección va por los pedales (rueda de morro). La prueba lee la dirección, exige alerones a 0 y mide el rumbo girado en 2 s. A plena potencia el avión pasa de 40 a 80 kt en ese tiempo y el giro está limitado a ≈0,15 g (≈2°/s): en 1 s solo giraba 0,3°, por eso el umbral anterior fallaba.

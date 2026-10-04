@@ -682,6 +682,7 @@ async function main() {
     onRestart: () => f16fly.restart(),
     onPause: () => f16fly.setPaused(!f16fly.state.paused),
     onAssist: () => f16fly.setAssist(!f16fly.state.assist),
+    onSound: () => f16fly.setSound(!f16fly.sound.enabled),
   });
   // What the F-16 can fly into (core/colliders.js): the scene's solid geometry, roofs and decks
   // included, built once when it first flies, the airplane itself left out.
