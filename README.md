@@ -73,7 +73,8 @@ y abrir la URL que indique. `npm run serve` es un servidor en Node (`tools/serve
   - **Protecciones** (las de un segundo piloto, y el Auto-GCAS que llevan los F-16 desde 2014):
     - por debajo de 180 kt con el tren arriba, potencia máxima;
     - si va hacia el suelo, nivela las alas y tira hasta subir.
-  - **C** cámara (persecución, cabina con HUD, torre, tu órbita) y **Esc** termina y devuelve el avión a su sitio.
+  - **C** cámara (persecución, cabina con HUD, torre, tu órbita), **M** (o el botón *Sound*) sonido, apagado hasta que se enciende, y **Esc** termina y devuelve el avión a su sitio.
+  - **Viento:** sopla la brisa del mar del sitio, del SSE, ≈12 kt con ráfagas. El HUD muestra la velocidad sobre el suelo (GS) y el viento (W). En tierra, los mandos simples mantienen el eje de la pista con los pedales.
 - **B** (o el botón *Porsche · Drive*) **conduce el Porsche 911 GT3 RS** desde su explanada: **W** gas, **S** freno (parado, marcha atrás), **A/D** volante, **Espacio** freno de mano, **T** PSM en tres etapas (encendido de serie; ESC OFF, con el control de tracción; ESC+TC OFF), **C** cámara, **M** sonido (apagado hasta que se enciende), **Enter** vuelve a la explanada, **Esc** termina. Con el PSM el coche va por donde se le dirige y frena recto. Para derrapar, un toque de **Espacio** al entrar en la curva cruza la zaga, y el gas y el contravolante la sostienen; el PSM se aparta mientras el coche va de lado y vuelve al enderezarlo. Los neumáticos dejan marcas.
 - **N** (o el botón *H2R · Ride*) **pilota la Kawasaki Ninja H2R** desde su explanada:
   - **W** gas, **S** freno delantero, **Espacio** freno trasero.

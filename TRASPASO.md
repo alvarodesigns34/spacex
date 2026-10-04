@@ -4,7 +4,42 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ---
 
-## ⭐ Empieza aquí (estado real al 04-10-2026; mira primero «Encargo del usuario del 04-10» y «Orden para continuar»)
+## ⭐ Empieza aquí (estado real al cierre del 04-10-2026: lee primero «Cierre de la sesión del 04-10-2026 (tercera)»)
+
+### Cierre de la sesión del 04-10-2026 (tercera, rama `claude/pensive-ride-5sjdza`): LAS CUATRO FASES HECHAS
+
+- **Último commit:** `8751a7c`, en las seis ramas: `claude/pensive-ride-5sjdza`, `claude/spacex-vehicle-center-3d-48zlkm`, `claude/dreamy-bell-qn1eth`, `grok/sun18-audit-10c9929`, `claude/elegant-ptolemy-l99qgo` y `claude/affectionate-euler-o447rh`. El `npm run check` completo pasó en local (303 PASS, 0 FAIL), y el CI y el despliegue de Pages salieron en verde en las seis.
+- **Commits de la sesión, en orden:**
+  - `dc4563e`: arreglo del CI;
+  - Fase 1: conducción;
+  - `9f544cd`: sonido sin rugosidad;
+  - `09d340f`: Fase 2, primera parte (motor, escape y basculante de la H2R; `detail.js`);
+  - `a996ce9`: arreglo del CI de la prueba del mando;
+  - `e808102`: Fase 2, segunda parte (Porsche y F-16 Hill Gray);
+  - `d240bb6`: Fase 3, sonido (`f16Sound.js`, `audioBus.js`);
+  - `64f40da`: Fase 4, viento y efecto suelo;
+  - `8751a7c`: el F-16 rueda recto con viento cruzado.
+- **El detalle de cada fase** está en el README: *Fase 1…*, *Fase 2 del encargo, primera/segunda parte*, *Fase 3 del encargo: sonido*, *Fase 4 del encargo: física y entorno*.
+- **Pendiente de decisión del usuario:** si quiere una «red de seguridad» para la H2R sin ayudas. Hoy, sin ayudas, solo se cae en choques fuertes gracias a los reflejos del piloto simulado. La alternativa es un tope invisible de inclinación y de caballito también sin ayudas. No se ha tocado.
+- **Aproximaciones y huecos conocidos (dichos al usuario):**
+  - el empuje lateral del viento sobre la moto inclinada no está modelado;
+  - el cambio de cabeceo del F-16 en efecto suelo, tampoco;
+  - el número de álabes y los regímenes del F100 son ≈;
+  - en el Porsche quedan algún diente pequeño en el borde trasero de la ventanilla y unas aletas negras algo cuadradas;
+  - las líneas de separación del Hill Gray son ≈ (fuentes de modelismo).
+- **La galería de capturas NO se ha regenerado**: necesita la aprobación del usuario.
+- **Multiagente:** el usuario pidió expresamente NO usar flujos multiagente («hazlo tú mismo, poco a poco»). Esa orden manda aunque `ultracode` esté activo en `.claude/settings.json`.
+- **Herramientas locales nuevas** (excluidas en `.git/info/exclude`, se pierden con el contenedor; ver el Anexo):
+  - `tools/_uxtail.mjs`: solo el bloque del F-16 de `ux-check`, una copia que hay que sincronizar a mano;
+  - `tools/_f16snd.mjs` y `tools/_f16wav.mjs`: miden el worklet del F-16 y renderizan WAV de muestra;
+  - `tools/_wl.mjs`, `tools/_xw*.mjs` y `tools/_gp.mjs`: sondas de aterrizaje y despegue con viento y del mando.
+  - Al usar `_frames.mjs` o `_probe.mjs`, no lances dos a la vez en el mismo puerto (`--port`).
+- **Lecciones de esta sesión**, además de las de cada fase:
+  - prueba los automatismos con el viento puesto;
+  - las pruebas que miden un mando, hazlas diferenciales;
+  - en `ux-check` el bucle de animación no corre: avanza la simulación a mano (`F.update`);
+  - `Material.clone()` no copia `onBeforeCompile`;
+  - para importar módulos en Node, `registerHooks` necesita también la rama `three/addons/`.
 
 ### Sesión del 04-10-2026 (segunda): aplicando la pasada decisiva
 
@@ -812,6 +847,12 @@ c5b86c6 Close the tank-farm domes; carbon louvre panel on the Roadster bonnet
 ---
 
 ## Anexo: herramientas locales (no están en el repo; recréalas)
+
+**Añadidas el 04-10 (tercera sesión):** son scripts pequeños que se rehacen fácilmente.
+- `_uxtail.mjs`: una copia del bloque del F-16 de `ux-check.mjs` con su arranque, para probarlo en ≈3 min. Hay que sincronizarla a mano con `ux-check`.
+- `_f16snd.mjs` y `_f16wav.mjs`: extraen el WORKLET de `f16Sound.js` como hace `sound-check.mjs`, miden niveles y escriben WAV (16 bit, 48 kHz) en el scratchpad.
+- `_wl.mjs`, `_xw.mjs`, `_xw2.mjs`, `_xw3.mjs` y `_gp.mjs`: vuelan `createF16Flight` y `createF16Assist` sin navegador, con viento constante o el del sitio, y escriben por consola el rumbo, la deriva y el pedal.
+- **Lo que necesitan:** importar módulos de `src` con el hook de `registerHooks` de `f16-check.mjs`, que resuelve `three` y `three/addons/`.
 
 Están excluidas en `.git/info/exclude` (`tools/_frames.mjs`, `tools/_probe.mjs`, `tools/_web.mjs`…). En un contenedor nuevo no existen: créalas con este contenido y añádelas a `.git/info/exclude`.
 
