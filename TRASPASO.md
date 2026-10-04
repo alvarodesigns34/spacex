@@ -28,6 +28,41 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
   - **Error cometido:** `033eaae` rompió CI (`check:scene`): 292 materiales (límite 290 en `check.mjs`) y anchura de la H2R a 0,843 m (verify exige ±0,5 %). `h2r-check` aceptaba ±1 cm y por eso `check:static` no lo vio. Corregido reutilizando materiales (288) y con las puntas de las alas a ±0,4245 m; `h2r-check` usa ya la tolerancia de verify. **Lección:** un material nuevo cuenta para el presupuesto de 290; reutiliza los existentes.
   - Porsche revisado con 18 fotos libres de Commons: la parte baja negra trasera es correcta (no tocar); no hay fotos libres del interior.
   - Banco (carpeta temporal, se pierde): `bench/server.mjs`, `page.html` (render con `K`/`Rt` de OpenCV), `shoot.mjs`, `frames.mjs` (la app real); `cal/solve2.py` (PnP con punto principal y un grupo de puntos con desplazamiento libre, para la rueda en el caballete), `cal/tri.py` (`fuse`: x, y de la lateral; z de la frontal), `cal/overlay.py`.
+- **Encargo del usuario del 04-10 (pasada decisiva; detenido por el usuario a las 08:30 UTC tras el diagnóstico):**
+  1) Modelos 3D hiperrealistas de H2R, Porsche y F-16 («como un proyecto de Blender, con texturas en cada pieza, nada simplificado»; se pueden subir los límites de rendimiento si hace falta).
+  2) Sonido de los tres (el F-16 no tiene ni botón de sonido en su HUD).
+  3) Bug del cuadrado negro intermitente en la zona H2R/Porsche.
+  4) Conducción muy profunda de los tres; la moto no debe poder caerse al girar (límite de inclinación).
+  5) Pasada profunda por el entorno y las físicas.
+- **Diagnósticos hechos (solo lectura; resultados completos en la carpeta de la sesión `diag-backup/`, que se pierde con el contenedor):**
+  - **Cuadrado negro, causa confirmada:**
+    - Triángulos de área cero con normales (0,0,0) en el splitter del Porsche (`buildSplitter`, `gt3rs.js` ≈1655-1665: el contorno se recorta con `Math.min(halfW(x)*0.97, W)` y deja puntos colineales en z = ±0,825 m) dan píxeles NaN (`normalize(vec3(0))`).
+    - El filtro de luciérnagas antes del bloom (`main.js` ≈330-340) deja pasar el NaN (`m > uPeak` es falso con NaN) y convierte Inf en NaN.
+    - El bloom extiende ese píxel a un rectángulo negro que parpadea al moverse la cámara.
+    - Arreglo: un filtro a prueba de NaN/Inf, y quitar los triángulos degenerados (splitter, habitáculo, aberturas, volante, pianos y el Roadster tienen más).
+  - **H2R:** con ayudas, 193 de 200 recorridos aleatorios de 30 s acababan en caída. Causas:
+    - guiñada cinemática del contramanillar contada como demanda del neumático;
+    - ABS y control de tracción que no respetan el presupuesto de agarre en inclinación;
+    - cambios de superficie;
+    - vallas hechas de círculos que dan choques frontales falsos al rozar.
+    - Hay un prototipo con 0 caídas (`diag/h2rBike2.js`): presupuesto de agarre con prioridad lateral, tope de inclinación (estribera a 59,9°) y la moto se abre en vez de caerse.
+    - Otros: en parado y en marcha alta arranca en sexta; `downshiftRpm` sin usar; la «ABS» es una ayuda del simulador (la H2R no lleva KIBS: verificar).
+  - **Porsche:**
+    - volante con teclado que pide el doble del ángulo útil;
+    - DRS que se abre en mitad de curva;
+    - PDK con corte total de 0,1 s, sin kickdown y sin mapa por carga;
+    - subviraje fuerte en el límite;
+    - diferencial viscoso en vez del autoblocante electrónico, con la inercia del motor sumada a cada rueda;
+    - mando sin suavizar;
+    - ABS que vibra a ≈22 Hz;
+    - diámetro de giro de 11,1 m (publicado: 10,5).
+  - **Sonido:**
+    - explosiones redondeadas a muestras enteras (≈ −25 dB de ruido, la principal fuente de «arenilla digital»);
+    - silbido de la válvula de alivio de la H2R roto tras ≈30 s;
+    - sin modelo espacial (Doppler, distancia, reverberación) y la H2R ignora la cámara;
+    - controles a frecuencia de fotograma que dan clics.
+  - **F-16:** diagnóstico guardado en `diag-backup/f16-*.json`.
+  - **Sin hacer:** modelos (detalle y presupuestos) y entorno/físicas.
 - **Peticiones del usuario aún abiertas (ambición máxima, «me da igual el tiempo»):**
   - Que la H2R y el Porsche sean idénticos a los reales en modelo, conducción y sonido. Ambos están muy mejorados, pero se puede afinar más.
   - H2R: alas, cúpula, cuernos, morro, tija y tapas del motor hechos (tercera sesión). Quedan: lado izquierdo del motor (compresor, tapas), basculante, tapa lateral bajo el asiento con su hueco triangular, chasis con más tubos (foto cenital sin carenado).
