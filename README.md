@@ -833,6 +833,13 @@ El usuario pidió una pasada decisiva sobre la H2R, el Porsche y el F-16: modelo
 - **Sonido:** las explosiones se redondean a muestras enteras (≈ −25 dB de ruido), el silbido de alivio de la H2R se rompe a los 30 s y no hay modelo espacial. El F-16 no tiene sonido.
 - **No se llegó a hacer:** la auditoría del detalle de los modelos y el presupuesto de rendimiento, y la del entorno y las físicas.
 
+### CI en rojo tras el bloque 3 (primera parte), arreglado (4 de octubre de 2026)
+
+El check completo de `501d6f3` y de `9917115` falló en `tools/ux-check.mjs`, en «A restored WebGL context keeps the ground lit» (luminancia 111 antes y 125 después), y Pages no se actualizó. **No era el contexto WebGL.** La prueba nueva de la H2R mandaba sus teclas como eventos sintéticos sobre `window`; ahí el evento está en su destino y los atajos de la página, registrados antes, se ejecutan antes que el manejador de captura de la moto. La **G** (caja automática) arrancaba también el lanzamiento de Starship, cuya cámara se llevaba la vista entre las dos medidas. Con una tecla real el evento llega a `document.body` y la moto se lo queda (comprobado en el navegador). Arreglo, solo en la prueba:
+- los ayudantes de teclado de `ux-check` despachan sobre `document.body`, como una tecla real;
+- la prueba de la H2R exige además que **G** no arranque el lanzamiento (con el despacho viejo, falla);
+- la prueba de la luz exige que no haya ninguna secuencia en marcha entre las dos medidas.
+
 ### Pasada decisiva, bloque 3 (primera parte): la conducción del Porsche (4 de octubre de 2026)
 
 Aplicado del diagnóstico `docs/diagnostico-2026-10-04/conduccion-porsche.json` (P0, P1 y parte de P2). Cada punto tiene su prueba en `tools/gt3rs-check.mjs`.

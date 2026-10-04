@@ -10,6 +10,7 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 - **Rama de la sesión:** `claude/gifted-bohr-7bjkq9`. Se empuja a las cinco ramas y a esa.
 - **Configuración de Claude Code:** `.claude/settings.json` del proyecto lleva `effortLevel: high`, `ultracode: true` y `enableWorkflows: true`, por petición del usuario. Con ultracode activo, cada tarea sustancial se hace con un workflow de varios agentes. El tamaño por defecto en Pro es *small* (menos de 5 agentes).
+- **Sesión del 04-10 (tercera, rama `claude/pensive-ride-5sjdza`):** CI de `9917115` estaba en rojo (ux-check, «A restored WebGL context…»). Causa: la prueba de la H2R despachaba G sobre `window` y arrancaba el lanzamiento (ver README, *CI en rojo tras el bloque 3*). **Lección:** en las pruebas, las teclas sintéticas se despachan sobre `document.body`, nunca sobre `window`.
 - **Bloque 1, cuadrado negro: HECHO.** README, *Pasada decisiva, bloque 1*.
   - Filtro a prueba de NaN e Inf, con `isnan` y con los bits del exponente (`main.js`).
   - `buildSplitter` sin puntos alineados.

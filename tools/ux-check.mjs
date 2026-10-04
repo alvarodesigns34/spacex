@@ -656,8 +656,11 @@ try {
     const easy = await page.evaluate(() => {
       const F = window.__vc.f16fly, s = F.sim.state;
       // The key as a browser names it: 'KeyW' → 'w', 'ArrowDown' → 'ArrowDown' (its last letter, 'n', is
-      // the ride's shortcut, and started the bike in the middle of the flight).
-      const key = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code, key: code.startsWith('Key') ? code.slice(3).toLowerCase() : code, bubbles: true }));
+      // the ride's shortcut, and started the bike in the middle of the flight). Sent to the body,
+      // where a real key lands: dispatched on the window itself, the event is at its target there
+      // and the page's shortcuts, registered first, ran before the ride's capturing handler could
+      // stop it (G during the H2R's ride started the Starship launch, Oct 2026).
+      const key = (type, code) => document.body.dispatchEvent(new KeyboardEvent(type, { code, key: code.startsWith('Key') ? code.slice(3).toLowerCase() : code, bubbles: true }));
       const fly = (sec) => { for (let k = 0; k < sec * 30 && !s.crashed; k++) F.update(1 / 30); };
       key('keydown', 'KeyW'); fly(40); key('keyup', 'KeyW');
       const up = { alt: s.agl, gear: F.pilot.gearDown, crashed: s.crashed?.what ?? null };
@@ -692,7 +695,7 @@ try {
     {
       // On the threshold, idle and parked: W held would open the throttle and roll it.
       await page.evaluate(() => window.__vc.f16fly.restart());
-      await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', key: 'w', bubbles: true })));
+      await page.evaluate(() => document.body.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', key: 'w', bubbles: true })));
       await page.keyboard.press('h');
       await page.waitForTimeout(400);
       const open = await page.evaluate(() => !document.getElementById('help').classList.contains('hidden'));
@@ -704,7 +707,7 @@ try {
       await page.keyboard.press('Escape');
       await page.waitForTimeout(400);
       const after = await page.evaluate(() => ({ helpOpen: !document.getElementById('help').classList.contains('hidden'), running: window.__vc.f16fly.running }));
-      await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW', key: 'w', bubbles: true })));
+      await page.evaluate(() => document.body.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW', key: 'w', bubbles: true })));
       report(open && inHelp && !after.helpOpen && after.running && held < 0.5,
         'With the guide open over the flight, Shift+Tab stays in it, Esc closes the guide and not the flight, and W held is let go', { open, inHelp, held, ...after });
     }
@@ -770,7 +773,7 @@ try {
     // the tyres lay marks on the pad; S stops it.
     const drive = await page.evaluate(() => {
       const D = window.__vc.gt3drive, s = D.sim.state;
-      const key = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code, key: code.startsWith('Key') ? code.slice(3).toLowerCase() : code, bubbles: true }));
+      const key = (type, code) => document.body.dispatchEvent(new KeyboardEvent(type, { code, key: code.startsWith('Key') ? code.slice(3).toLowerCase() : code, bubbles: true }));
       const run = (codes, sec) => { for (const c of codes) key('keydown', c); for (let k = 0; k < sec * 30; k++) D.update(1 / 30); for (const c of codes) key('keyup', c); };
       // 3 s: since the engine has its own inertia and the clutch takes up the drive as it gathers
       // revs (P1 audit, H06), the car pulls away without Launch Control a little later than it did
@@ -821,7 +824,7 @@ try {
     // stays inside it, Escape closes the guide and leaves the drive running, and a key held
     // when it opened does not stay held.
     {
-      await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', key: 'w', bubbles: true })));
+      await page.evaluate(() => document.body.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', key: 'w', bubbles: true })));
       await page.keyboard.press('h');
       await page.waitForTimeout(400);
       const open = await page.evaluate(() => !document.getElementById('help').classList.contains('hidden'));
@@ -833,7 +836,7 @@ try {
       await page.keyboard.press('Escape');
       await page.waitForTimeout(400);
       const after = await page.evaluate(() => ({ helpOpen: !document.getElementById('help').classList.contains('hidden'), running: window.__vc.gt3drive.running }));
-      await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW', key: 'w', bubbles: true })));
+      await page.evaluate(() => document.body.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW', key: 'w', bubbles: true })));
       report(open && inHelp && !after.helpOpen && after.running && held < 0.5,
         'With the guide open over the drive, Shift+Tab stays in it, Esc closes the guide and not the drive, and W held is let go', { open, inHelp, held, ...after });
     }
@@ -863,7 +866,7 @@ try {
     await page.waitForFunction(() => window.__vc.h2rRide.sim.state.t > 0.05, null, { timeout: 5000 }).catch(() => {});
     const lean = await page.evaluate(() => {
       const D = window.__vc.h2rRide, s = D.sim.state;
-      const key = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code, key: code.startsWith('Key') ? code.slice(3).toLowerCase() : code, bubbles: true }));
+      const key = (type, code) => document.body.dispatchEvent(new KeyboardEvent(type, { code, key: code.startsWith('Key') ? code.slice(3).toLowerCase() : code, bubbles: true }));
       D.sim.reset({ x: -1300, z: 490, psi: 0 });
       s.u = 50 / 3.6; s.wR = s.u / 0.325; s.gear = 1;
       let max = 0, cap = 0, off = 0;
@@ -876,10 +879,11 @@ try {
       key('keydown', 'KeyE'); D.update(1 / 30); key('keyup', 'KeyE');
       const manual = s.manual;
       key('keydown', 'KeyG'); D.update(1 / 30); key('keyup', 'KeyG'); D.update(1 / 30);
-      return { max: +max.toFixed(1), cap: +cap.toFixed(1), ...after, manual, auto: !s.manual };
+      // G is also the launch's key outside the ride; the ride keeps it.
+      return { max: +max.toFixed(1), cap: +cap.toFixed(1), ...after, manual, auto: !s.manual, launch: window.__vc.launch.running };
     });
-    report(lean.max > 45 && lean.max <= lean.cap + 2.5 && !lean.down && lean.final < 10 && lean.off < 24 && lean.manual && lean.auto,
-      'N rides the H2R: D held leans it to its limit and let go it stands up, never down; G gives the gearbox back to the automatic', lean);
+    report(lean.max > 45 && lean.max <= lean.cap + 2.5 && !lean.down && lean.final < 10 && lean.off < 24 && lean.manual && lean.auto && !lean.launch,
+      'N rides the H2R: D held leans it to its limit and let go it stands up, never down; G gives the gearbox back to the automatic and does not start the launch', lean);
     await page.keyboard.press('Escape');
     await page.waitForTimeout(1500);
     report(await page.evaluate(() => !window.__vc.h2rRide.running), 'Esc ends the ride');
@@ -901,10 +905,13 @@ try {
     ext.restoreContext(); await new Promise(r => setTimeout(r, 3000));
     const after = luma();
     if (sabotage) { c.addEventListener('webglcontextrestored', v.onContextRestored); v.env.rebuildProbe(); }
-    return { before: +before.toFixed(1), after: +after.toFixed(1) };
+    // Both readings must be of the same still view: a sequence left running (the launch, once)
+    // moves the camera to its vehicle in between, and the test then compares two framings.
+    const still = !v.launch.running && !v.reentry.running && !v.f16fly.running && !v.gt3drive.running && !v.h2rRide.running;
+    return { before: +before.toFixed(1), after: +after.toFixed(1), still };
   }, sabotage);
   const ctxOk = await lumaAfterRestore(false);
-  report(Math.abs(ctxOk.after - ctxOk.before) < 0.08 * ctxOk.before, 'A restored WebGL context keeps the ground lit', ctxOk);
+  report(ctxOk.still && Math.abs(ctxOk.after - ctxOk.before) < 0.08 * ctxOk.before, 'A restored WebGL context keeps the ground lit', ctxOk);
   const ctxBad = await lumaAfterRestore(true);
   report(ctxBad.after < 0.8 * ctxBad.before, 'Negative control: without the probe rebuild the ground goes dark', ctxBad);
   report(!errors.length, 'No uncaught application errors', errors);
