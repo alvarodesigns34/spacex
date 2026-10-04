@@ -833,6 +833,35 @@ El usuario pidió una pasada decisiva sobre la H2R, el Porsche y el F-16: modelo
 - **Sonido:** las explosiones se redondean a muestras enteras (≈ −25 dB de ruido), el silbido de alivio de la H2R se rompe a los 30 s y no hay modelo espacial. El F-16 no tiene sonido.
 - **No se llegó a hacer:** la auditoría del detalle de los modelos y el presupuesto de rendimiento, y la del entorno y las físicas.
 
+### Fase 2 del encargo, segunda parte: Porsche y F-16 (4 de octubre de 2026)
+
+**CI en rojo tras la Fase 1, arreglado.** La prueba del mando en `ux-check` leía los alerones (`pilot.roll`), que en tierra ahora quedan centrados porque la dirección va por los pedales (rueda de morro). La prueba lee la dirección, exige alerones a 0 y mide el rumbo girado en 2 s. A plena potencia el avión pasa de 40 a 80 kt en ese tiempo y el giro está limitado a ≈0,15 g (≈2°/s): en 1 s solo giraba 0,3°, por eso el umbral anterior fallaba.
+
+**Porsche 911 GT3 RS:**
+- **Detalle de superficie en todos sus materiales** (`detailGt3` en `gt3rs.js`, y en `gt3Cabin.js` para el habitáculo):
+  - piel de naranja en la laca de la carrocería y de las llantas;
+  - granulado en los plásticos negros, el barril de la llanta y la pinza negra;
+  - goma en los neumáticos y en los pasos de rueda;
+  - fundición en las pinzas y superficie rectificada en los discos;
+  - en el habitáculo: el pelo fino del Alcantara, el grano del cuero, la trama de los cinturones, el granulado de los plásticos y el cepillado del aluminio.
+  - Escalas ≈.
+- **La piel de naranja va en la laca.** `applyDetail` también perturba ahora la normal del *clearcoat* en los materiales físicos (opción `coat`), que es donde está la piel de naranja de verdad. Antes solo tocaba la capa de debajo, y el reflejo de la laca seguía perfecto.
+- **Juntas de los paneles** (`gapOnBody`). Antes eran una línea negra brillante de 4 mm. Ahora miden ≈6 mm de pintura a pintura: el color pasa de la pintura, por el canto redondeado del panel (normales giradas ≈45° hacia la ranura, para que el canto recoja la luz), a casi negro en el fondo. El contorno de la puerta va por una spline centrípeta a ≈1 cm, así las esquinas son redondas y no poligonales. También se aplica a la tapa del depósito.
+- **Retrovisores:** la carcasa está soldada y con sombreado suave (antes se veían las facetas). La línea entre pintura y negro se resuelve sección a sección, así sale recta (antes salía en dientes).
+- **Lunas laterales:** una banda de pintura justo por fuera del borde inclinado tapa los escalones de la cuadrícula (dientes de ≈1 cm bajo el borde del techo y a lo largo del pilar A). El marco negro va pegado al contorno trazado.
+- **Neumáticos:** reborde protector de llanta, ≈6 mm, y 128 segmentos de torno.
+- **Frenos:** los doce pernos del disco flotante, en acero cincado.
+- **Aletas negras** delante y detrás de las ruedas, con los cantos redondeados (≈3 mm) en vez de cortados en seco.
+
+**F-16A: esquema «Hill Gray» de tres tonos**, el de los F-16A de la USAF desde finales de los setenta hasta principios de los noventa. Antes tenía dos tonos:
+- FS 36118 (gris cañonero) arriba, desde la parte trasera de la cúpula y en el extradós de las alas;
+- FS 36270 (gris medio) arriba, por delante, y encima de la toma;
+- FS 36375 (gris fantasma claro) abajo, en la deriva y en los estabilizadores;
+- el radomo, en su gris propio.
+- Fuentes: referencias de modelismo (foros de FineScale y f-16.net), no un plano técnico; las líneas de separación son ≈.
+- **Desgaste** discreto en el atlas del fuselaje: suciedad en los bordes de los paneles arrastrada hacia atrás por el aire, manchas de fluidos bajo el fuselaje detrás de los pozos del tren y el ahumado del fuselaje trasero junto a la tobera. Todo ≈.
+- **Detalle de superficie:** granulado del poliuretano mate, metal estriado en los pétalos de la tobera y esmalte del tren.
+
 ### Fase 2 del encargo, primera parte: detalle de superficie y la H2R por dentro (4 de octubre de 2026)
 
 - **Detalle de superficie para los vehículos** (`src/materials/detail.js`). Cada clase de superficie tiene un pequeño mapa de relieve y de rugosidad, sin costuras, generado al arrancar y compartido: fundición en arena, metal cepillado o mecanizado, granulado de pintura en polvo o plástico, goma, piel de naranja bajo la laca, grano de cuero y sarga de carbono 2×2 (esta también con color).

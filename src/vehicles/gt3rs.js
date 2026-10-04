@@ -33,6 +33,8 @@ import * as THREE from 'three';
 import { mesh, mergeAll, curve } from '../geometry/utils.js';
 import { BODY, WHEELS, BRAKES, PAINT } from '../data/gt3rs.js';
 import { buildCabin } from './gt3Cabin.js';
+import { applyDetail } from '../materials/detail.js';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const L2 = BODY.length / 2, AX = BODY.wheelbase / 2, D2R = Math.PI / 180, TAU = Math.PI * 2;
 const RF = WHEELS.front.dia / 2, RR = WHEELS.rear.dia / 2;
@@ -386,9 +388,29 @@ function gt3Materials(M) {
   M.gt3Liner = new THREE.MeshStandardMaterial({ name: 'gt3-arch-liner', color: 0x0c0c0d, metalness: 0, roughness: 0.92, side: THREE.DoubleSide });
   M.gt3Amber = new THREE.MeshStandardMaterial({ name: 'gt3-amber', color: 0x8a4a00, emissive: 0xff9a1a, emissiveIntensity: 0.6, roughness: 0.4 });
   M.gt3MirrorGlass = new THREE.MeshStandardMaterial({ name: 'gt3-mirror-glass', color: 0x9aa0a6, metalness: 1, roughness: 0.04 });
+  // Zinc-plated steel: the brake discs' drive pins (≈ the finish).
+  M.gt3Pin = new THREE.MeshStandardMaterial({ name: 'gt3-disc-pins', color: 0x9da2a6, metalness: 0.9, roughness: 0.35 });
   // The bonnet outlets' and the intakes' grille: the centre's honeycomb texture where it is loaded.
   M.gt3Mesh = M.honeycomb ?? new THREE.MeshStandardMaterial({ name: 'gt3-mesh', color: 0x141516, metalness: 0.15, roughness: 0.62 });
+  detailGt3(M);
   return M;
+}
+/**
+ * What each surface is made of, at the scale a close look sees it (detail.js; scales ≈): the
+ * orange peel in the clear coats (paint and wheels), the moulded grain of the black plastics, the
+ * tyres' rubber, the callipers' cast skin, the discs' ground friction faces, the wheel arches'
+ * felt-like liners. The cabin's own materials are dressed in gt3Cabin.js.
+ */
+function detailGt3(M) {
+  const D = (m, kind, o) => m && applyDetail(m, kind, o);
+  D(M.gt3Paint, 'peel', { size: 0.04, normal: 0.04, coat: 0.1, rough: 0.06 });
+  for (const k of ['gt3Wheel', 'gt3WheelDS']) D(M[k], 'peel', { size: 0.03, normal: 0.05, coat: 0.12, rough: 0.08 });
+  for (const k of ['gt3Plastic', 'gt3WheelBarrel', 'gt3CalliperBlack']) D(M[k], 'stipple', { size: 0.006, normal: 0.7, rough: 0.25 });
+  D(M.gt3Tyre, 'rubber', { size: 0.014, normal: 0.9, rough: 0.3 });
+  D(M.gt3Calliper, 'cast', { size: 0.02, normal: 0.5, rough: 0.25 });
+  D(M.gt3Disc, 'brushed', { size: 0.012, normal: 0.7, rough: 0.35 });
+  for (const k of ['gt3Liner', 'gt3Void']) D(M[k], 'rubber', { size: 0.006, normal: 1.2, rough: 0.2 });
+  D(M.gt3Black, 'peel', { size: 0.03, normal: 0.06, rough: 0.08 });
 }
 
 // ---- The ends: reliefs over the front and rear elevations ------------------------------------------
@@ -775,6 +797,63 @@ function lineOnBody(samples, width = 0.004, lift = 0.0012) {
   return g;
 }
 const range = (a, b, n) => Array.from({ length: n + 1 }, (_, i) => a + (b - a) * i / n);
+/**
+ * A panel gap along (x, t) samples, `width` across from paint to paint (≈ 6 mm: the 3–4 mm gap a
+ * production car's panels keep, plus the edges' radii). Not a black line: across it the colour
+ * goes from the paint at the panels' faces, over their rolled edges (whose normals turn ≈45° down
+ * into the gap, so they catch the light as a real edge does), to near black in the gap itself.
+ * Coloured per vertex: drawn with a vertex-coloured copy of the paint (gapPaint).
+ */
+function gapOnBody(samples, width = 0.006, lift = 0.0012) {
+  const ROWS = [[-0.5, 1, 0], [-0.24, 0.55, -1], [0, 0.015, 0], [0.24, 0.55, 1], [0.5, 1, 0]];   // [offset, colour, edge roll]
+  const pos = [], nor = [], col = [], idx = [];
+  const n = new THREE.Vector3(), d = new THREE.Vector3(), s = new THREE.Vector3(), m = new THREE.Vector3();
+  const P = samples.map(([x, t]) => bodyPoint(x, t));
+  P.forEach((p, i) => {
+    const [x, t] = samples[i];
+    bodyNormal(x, t, n);
+    d.subVectors(P[Math.min(P.length - 1, i + 1)], P[Math.max(0, i - 1)]).normalize();
+    s.crossVectors(n, d).normalize();
+    for (const [o, c, roll] of ROWS) {
+      const q = p.clone().addScaledVector(n, lift).addScaledVector(s, o * width);
+      pos.push(q.x, q.y, q.z);
+      // The left panel's edge (roll −1) turns down towards +s, the right one's towards −s.
+      m.copy(n).addScaledVector(s, -roll).normalize();
+      nor.push(m.x, m.y, m.z);
+      col.push(c, c, c);
+    }
+    if (i > 0) {
+      const a = (i - 1) * ROWS.length, b = i * ROWS.length;
+      for (let r = 0; r < ROWS.length - 1; r++) idx.push(a + r, b + r, a + r + 1, a + r + 1, b + r, b + r + 1);
+    }
+  });
+  // Faces out: the first triangle's winding against the body's normal there.
+  const v = (k) => new THREE.Vector3(pos[3 * k], pos[3 * k + 1], pos[3 * k + 2]);
+  if (P.length > 1) {
+    const [a, b, c] = idx.slice(0, 3).map(v), f = new THREE.Vector3().crossVectors(b.clone().sub(a), c.clone().sub(a));
+    bodyNormal(samples[0][0], samples[0][1], n);
+    if (f.dot(n) < 0) for (let k = 0; k < idx.length; k += 3) [idx[k + 1], idx[k + 2]] = [idx[k + 2], idx[k + 1]];
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx);
+  return g;
+}
+/** The paint, coloured per vertex: the panel gaps (gapOnBody) shade from it into the gap. */
+function gapPaint(M) {
+  if (!M.gt3Gap) {
+    M.gt3Gap = M.gt3Paint.clone();
+    M.gt3Gap.name = 'gt3-panel-gaps';
+    M.gt3Gap.vertexColors = true;
+    M.gt3Gap.polygonOffset = true; M.gt3Gap.polygonOffsetFactor = -1; M.gt3Gap.polygonOffsetUnits = -1;
+    // (A clone keeps the userData but not the shader hook: the peel goes on again.)
+    delete M.gt3Gap.userData.detail;
+    applyDetail(M.gt3Gap, 'peel', { size: 0.04, normal: 0.04, coat: 0.1, rough: 0.06 });
+  }
+  return M.gt3Gap;
+}
 
 /**
  * The panels' shut lines: doors, front lid, engine lid, the front bumper's joint. The door's
@@ -789,12 +868,9 @@ function buildShutLines(M) {
     [0.30, 0.270], [0, 0.270], [-0.30, 0.271], [-0.45, 0.276], [-0.515, 0.295], [-0.552, 0.34], [-0.572, 0.42],
     [-0.580, 0.55], [-0.578, 0.66], [-0.566, 0.76], [-0.548, 0.862],
   ];
-  const dense = [];
-  for (let i = 0; i < door.length - 1; i++) {
-    const [x0, y0] = door[i], [x1, y1] = door[i + 1], n = Math.max(2, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 0.02));
-    for (let k = 0; k < n; k++) dense.push([x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n]);
-  }
-  dense.push(door[door.length - 1]);
+  // Through the traced points on a centripetal spline, ≈1 cm apart: the corners round, not polygonal.
+  const spline = new THREE.CatmullRomCurve3(door.map(([x, y]) => new THREE.Vector3(x, y, 0)), false, 'centripetal');
+  const dense = spline.getSpacedPoints(Math.ceil(spline.getLength() / 0.01)).map(p => [p.x, p.y]);
   for (const sd of [-1, 1]) {
     lines.push(dense.map(([x, y]) => [x, tAtY(x, y, sd)]));
     // Front lid: along the fender's inner flank, from the cowl to the bumper.
@@ -809,7 +885,7 @@ function buildShutLines(M) {
   // Across the front lid's leading edge and the engine lid's trailing edge.
   lines.push(range(T.upperL - 0.006, 1 - T.upperL + 0.006, 30).map(t => [2.05, t]));
   lines.push(range(T.upperL - 0.004, 1 - T.upperL + 0.004, 30).map(t => [-2.12, t]));
-  return mesh(mergeAll(lines.map(l => ({ geometry: lineOnBody(l) }))), M.gt3Black, { name: 'gt3-shut-lines', castShadow: false });
+  return mesh(mergeAll(lines.map(l => ({ geometry: gapOnBody(l) }))), gapPaint(M), { name: 'gt3-shut-lines', castShadow: false });
 }
 
 // ---- Lamps and seals: smooth outlines over the surface's grid -------------------------------------
@@ -957,18 +1033,28 @@ function buildLamps(M) {
  * B-pillar's cover.
  */
 function buildGlassSeals(M) {
-  const lines = [], wide = [];
+  const lines = [], wide = [], edge = [];
   const yTop = (x) => DLO.top(x), yBot = (x) => DLO.bottom(x);
   for (const sd of [-1, 1]) {
     const at = (pts) => pts.map(([x, y]) => [x, tAtY(x, y, sd)]);
     const yF = range(0, 1, 24).map(f => 0.886 + (1.228 - 0.886) * f);
-    lines.push(at(yF.map(y => [DLO.front(y) - 0.006, y])));
-    lines.push(at(range(DLO.tail + 0.01, DLO.front(1.228) - 0.004, 60).map(x => [x, yTop(x) - 0.006])));
-    lines.push(at(range(DLO.tail + 0.01, DLO.front(0.886), 50).map(x => [x, yBot(x) + 0.005])));
+    lines.push(at(yF.map(y => [DLO.front(y) - 0.008, y])));
+    lines.push(at(range(DLO.tail + 0.01, DLO.front(1.228) - 0.004, 120).map(x => [x, yTop(x) - 0.008])));
+    lines.push(at(range(DLO.tail + 0.01, DLO.front(0.886), 50).map(x => [x, yBot(x) + 0.007])));
+    // Just outside the slanted edges, a band of paint over the grid's steps: the opening is cut
+    // from the body's grid quad by quad, and its glass stood out past the traced line in teeth
+    // up to a row (≈1 cm) deep, under the roof's edge and along the A-pillar.
+    edge.push(at(yF.map(y => [DLO.front(y) + 0.009, y])));
+    edge.push(at(range(DLO.tail + 0.02, DLO.front(1.228) + 0.004, 120).map(x => [x, yTop(x) + 0.009])));
     const xb = (DLO.bPillar[0] + DLO.bPillar[1]) / 2;
     wide.push(at(range(yBot(xb) + 0.01, yTop(xb) - 0.01, 12).map(y => [xb, y])));
   }
-  return mesh(mergeAll([...lines.map(l => ({ geometry: lineOnBody(l, 0.016) })), ...wide.map(l => ({ geometry: lineOnBody(l, DLO.bPillar[1] - DLO.bPillar[0]) }))]), M.gt3Black, { name: 'gt3-glass-edge-seals', castShadow: false });
+  const g = new THREE.Group();
+  g.name = 'gt3-glass-edges';
+  g.add(mesh(mergeAll([...lines.map(l => ({ geometry: lineOnBody(l, 0.016) })), ...wide.map(l => ({ geometry: lineOnBody(l, DLO.bPillar[1] - DLO.bPillar[0]) }))]), M.gt3Black, { name: 'gt3-glass-edge-seals', castShadow: false }));
+  // (Over the glass, which stands 2 mm proud and would tint the band under it.)
+  g.add(mesh(mergeAll(edge.map(l => ({ geometry: lineOnBody(l, 0.018, 0.0028) }))), M.gt3Paint, { name: 'gt3-glass-edge-paint', castShadow: false }));
+  return g;
 }
 
 // ---- Parts laid on the surface ----------------------------------------------------------------------
@@ -1251,7 +1337,7 @@ function buildBodyDetails(M) {
   // Fuel filler flap on the right front fender (the side photographs show it there): its shut line.
   {
     const loop = range(0, 1, 48).map(f => [0.90 + 0.09 * Math.cos(TAU * f), 0.77 + 0.065 * Math.sin(TAU * f)]);
-    g.add(mesh(lineOnBody(loop.map(([x, y]) => [x, tAtY(x, y, 1)]), 0.0035), M.gt3Black, { name: 'gt3-fuel-flap', castShadow: false }));
+    g.add(mesh(gapOnBody(loop.map(([x, y]) => [x, tAtY(x, y, 1)]), 0.005), gapPaint(M), { name: 'gt3-fuel-flap', castShadow: false }));
   }
   // Wipers: two blades parked along the windscreen's foot (≈).
   {
@@ -1395,6 +1481,16 @@ function buildWheel(M, axle, side, name, brakes) {
   const bell = new THREE.CylinderGeometry(d * 0.56, d * 0.58, 0.05, 40);
   bell.rotateX(Math.PI / 2); bell.translate(0, 0, zDisc + brakes.thickness / 2 + 0.02);
   spin.add(mesh(bell, M.gt3CalliperBlack, { name: `${name}-bell` }));
+  // The floating disc's drive pins, round its inner edge into the bell (≈ twelve, ≈14 mm).
+  {
+    const pins = [];
+    for (let k = 0; k < 12; k++) {
+      const a = (k + 0.5) * TAU / 12, pin = new THREE.CylinderGeometry(0.007, 0.007, brakes.thickness + 0.006, 12);
+      pin.rotateX(Math.PI / 2); pin.translate(d * 0.565 * Math.cos(a), d * 0.565 * Math.sin(a), zDisc);
+      pins.push({ geometry: pin });
+    }
+    spin.add(mesh(mergeAll(pins), M.gt3Pin, { name: `${name}-disc-pins`, castShadow: false }));
+  }
   // The wheel faces out: mirror the frame on the left.
   spin.scale.z = side;
   g.add(spin);
@@ -1418,13 +1514,14 @@ function buildWheel(M, axle, side, name, brakes) {
 function tyreGeo(R, w, rr) {
   const h = w / 2;
   // From the outer bead up the sidewall to the shoulder (z > 0 side), as (r, z).
-  const side = [[rr + 0.010, h * 0.86], [rr + 0.030, h * 0.95], [rr + 0.42 * (R - rr), h * 1.03], [rr + 0.75 * (R - rr), h * 1.01], [R - 0.020, h * 0.96], [R - 0.006, h * 0.90], [R, h * 0.80]];
+  // A rim protector rings the sidewall just over the flange (≈6 mm proud, as on the Cup 2 R).
+  const side = [[rr + 0.010, h * 0.86], [rr + 0.016, h * 0.93], [rr + 0.021, h * 0.95 + 0.006], [rr + 0.027, h * 0.95 + 0.006], [rr + 0.034, h * 0.96], [rr + 0.42 * (R - rr), h * 1.03], [rr + 0.75 * (R - rr), h * 1.01], [R - 0.020, h * 0.96], [R - 0.006, h * 0.90], [R, h * 0.80]];
   // The tread from that shoulder across, the grooves ≈8 mm wide and 6 mm deep.
   const tread = [];
   for (const gz of [0.42, -0.06, -0.50].map(f => f * h)) tread.push([R, gz + 0.004], [R - 0.006, gz + 0.003], [R - 0.006, gz - 0.003], [R, gz - 0.004]);
   // Ordered from the inner bead to the outer one, as the lathe faces outwards.
   const prof = [...side, ...tread, ...side.slice().reverse().map(([r, z]) => [r, -z])].reverse();
-  const geo = new THREE.LatheGeometry(prof.map(([r, z]) => new THREE.Vector2(r, z)), 96);
+  const geo = new THREE.LatheGeometry(prof.map(([r, z]) => new THREE.Vector2(r, z)), 128);
   geo.rotateX(Math.PI / 2);
   geo.computeVertexNormals();
   return geo;
@@ -1557,8 +1654,10 @@ function buildWing(M) {
 /** A flat plate in the XY plane from an outline, `thick` thick along Z (centred). */
 function plateXY(outline, thick) {
   const shape = new THREE.Shape(outline.map(([x, y]) => new THREE.Vector2(x, y)));
-  const geo = new THREE.ExtrudeGeometry(shape, { depth: thick, bevelEnabled: false });
-  geo.translate(0, 0, -thick / 2);
+  // Moulded, so its edges are rounded (≈ 3 mm), not sawn square.
+  const r = Math.min(0.003, thick * 0.3);
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: thick - 2 * r, bevelEnabled: true, bevelThickness: r, bevelSize: r, bevelOffset: -r, bevelSegments: 3 });
+  geo.translate(0, 0, -thick / 2 + r);
   return geo;
 }
 
@@ -1590,18 +1689,40 @@ function buildMirrors(M) {
         pts.push([x, yc + dy + b * Math.sign(s) * Math.abs(s) ** (2 / pe), zc + dz + a * Math.sign(c) * Math.abs(c) ** (2 / pe)]);
       }
     }
-    // Split at a line under the housing's middle: paint above, black below.
+    // Paint above a line under the housing's middle, black below. The housing is whole in paint;
+    // the black is a shell 0.4 mm proud over the part below the line, its edge solved ring by
+    // ring (where each section's superellipse crosses the line), so the line runs straight —
+    // split quad by quad, it was cut in teeth.
     const split = yc - 0.022;
-    const upper = [], lower = [];
-    for (let i = 0; i < NS; i++) for (let j = 0; j < NA; j++) {
-      const k = (i * (NA + 1) + j), q = [pts[k], pts[k + NA + 1], pts[k + NA + 2], pts[k + 1]].map(p => new THREE.Vector3(...p));
-      const mid = q.reduce((m, p) => m.add(p), new THREE.Vector3()).multiplyScalar(0.25);
-      const outv = mid.clone().sub(new THREE.Vector3(mid.x, yc, zc));
-      if (i === NS - 1) outv.x += 0.02;
-      (mid.y > split ? upper : lower).push({ q, out: outv });
+    const quads = (P, nj, out) => {
+      const f = [];
+      for (let i = 0; i < NS; i++) for (let j = 0; j < nj; j++) {
+        const k = i * (nj + 1) + j, q = [P[k], P[k + nj + 1], P[k + nj + 2], P[k + 1]].map(p => new THREE.Vector3(...p));
+        const mid = q.reduce((m, p) => m.add(p), new THREE.Vector3()).multiplyScalar(0.25);
+        const o = out(mid);
+        if (i === NS - 1) o.x += 0.02;
+        f.push({ q, out: o });
+      }
+      return f;
+    };
+    const outOf = (mid) => mid.clone().sub(new THREE.Vector3(mid.x, yc, zc));
+    const NB = 24, base = [];
+    for (let i = 0; i <= NS; i++) {
+      const f = i / NS, x = x0 + (x1 - x0) * f, [a, b] = sect(Math.min(f, 0.999));
+      const dz = -sd * 0.02 * f * f, dy = -0.008 * f * f;
+      // sign(s)|s|^(2/pe) = r on the line: below it, sin θ < s0.
+      const r = b > 1e-6 ? (split - yc - dy) / b : -1;
+      const s0 = Math.abs(r) >= 1 ? -1 : Math.sign(r) * Math.abs(r) ** (pe / 2);
+      const th0 = Math.PI - Math.asin(s0), th1 = TAU + Math.asin(s0);
+      for (let j = 0; j <= NB; j++) {
+        const th = th0 + (th1 - th0) * j / NB, c = Math.cos(th), s = Math.sin(th);
+        const kA = 1 + 0.0004 / Math.max(0.01, Math.min(a, b));
+        base.push([x, yc + dy + kA * b * Math.sign(s) * Math.abs(s) ** (2 / pe), zc + dz + kA * a * Math.sign(c) * Math.abs(c) ** (2 / pe)]);
+      }
     }
-    g.add(mesh(facesGeo(upper), M.gt3Paint, { name: `gt3-mirror-${tag}` }));
-    g.add(mesh(facesGeo(lower), M.gt3Black, { name: `gt3-mirror-base-${tag}` }));
+    const smooth = (f) => { const raw = facesGeo(f); raw.deleteAttribute('normal'); const geo = mergeVertices(raw, 1e-6); geo.computeVertexNormals(); return geo; };
+    g.add(mesh(smooth(quads(pts, NA, outOf)), M.gt3Paint, { name: `gt3-mirror-${tag}` }));
+    g.add(mesh(smooth(quads(base, NB, outOf)), M.gt3Black, { name: `gt3-mirror-base-${tag}` }));
     // The back: a black rim closing the housing and the glass inside it, both flat.
     const back = (k, dx) => {
       const c = new THREE.Vector3(x0 - dx, yc, zc), ring = [];

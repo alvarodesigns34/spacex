@@ -11,7 +11,8 @@
  * OWN SPACE (triplanar, blended by the surface's direction), at a size in metres. The texture is
  * fixed to the part, so it does not slide when the vehicle drives. The detail normal is added to
  * whatever normal the material already has (its own normal map, flat shading), and the roughness
- * and colour are modulated about their own values.
+ * and colour are modulated about their own values. On a material with a clear coat the coat's
+ * normal takes the same detail (orange peel is in the clear coat), unless `coat` is false.
  *
  * Scales and strengths are ≈ (chosen against close photographs of such surfaces, reference only).
  * Headless (no document) it does nothing: the checks build the models without textures.
@@ -139,14 +140,16 @@ function library(kind) {
  * @param normal    how much of the detail normal to add (0..)
  * @param rough     how far the roughness swings about the material's own (0..1)
  * @param color     how far the colour map (twill only) modulates the colour (0..1)
+ * @param coat      how much of the detail normal the clear coat takes (physical materials), 0..
  */
-export function applyDetail(mat, kind, { size = 0.05, normal = 1, rough = 0.3, color = 0 } = {}) {
+export function applyDetail(mat, kind, { size = 0.05, normal = 1, rough = 0.3, color = 0, coat = normal } = {}) {
   if (typeof document === 'undefined' || !mat || mat.userData.detail) return mat;
   const L = library(kind);
   mat.userData.detail = kind;
   const U = {
     uDetN: { value: L.normal }, uDetR: { value: L.rough }, uDetC: { value: L.color ?? L.rough },
     uDetScale: { value: 1 / size }, uDetStrength: { value: normal }, uDetRough: { value: rough }, uDetColor: { value: L.color ? color : 0 },
+    uDetCoat: { value: coat },
   };
   const prev = mat.onBeforeCompile;
   mat.onBeforeCompile = (sh, r) => {
@@ -161,7 +164,7 @@ varying vec3 vDetP;
 varying vec3 vDetN;
 uniform mat3 normalMatrix;
 uniform sampler2D uDetN, uDetR, uDetC;
-uniform float uDetScale, uDetStrength, uDetRough, uDetColor;
+uniform float uDetScale, uDetStrength, uDetRough, uDetColor, uDetCoat;
 vec3 detW(vec3 n) { vec3 w = pow(abs(n), vec3(4.0)); return w / max(1e-5, w.x + w.y + w.z); }
 float detScalar(sampler2D t, vec3 p, vec3 w) {
   return texture2D(t, p.zy).r * w.x + texture2D(t, p.xz).r * w.y + texture2D(t, p.xy).r * w.z;
@@ -186,11 +189,12 @@ vec3 detNormal(vec3 p, vec3 n) {
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
   roughnessFactor = clamp(roughnessFactor * mix(1.0, detScalar(uDetR, detPS, detW(detNS)) * 2.0, uDetRough), 0.02, 1.0);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
-  {
-    vec3 nb = normalize(normalMatrix * detNS) * faceDirection;
-    vec3 nd = normalize(normalMatrix * detNormal(detPS, detNS)) * faceDirection;
-    normal = normalize(normal + (nd - nb) * uDetStrength);
-  }`);
+  vec3 detDelta = normalize(normalMatrix * detNormal(detPS, detNS)) * faceDirection - normalize(normalMatrix * detNS) * faceDirection;
+  normal = normalize(normal + detDelta * uDetStrength);`)
+      .replace('#include <clearcoat_normal_fragment_maps>', `#include <clearcoat_normal_fragment_maps>
+#ifdef USE_CLEARCOAT
+  clearcoatNormal = normalize(clearcoatNormal + detDelta * uDetCoat);
+#endif`);
   };
   const key = mat.customProgramCacheKey?.bind(mat);
   mat.customProgramCacheKey = () => `vc-detail-${kind}${key ? key() : ''}`;

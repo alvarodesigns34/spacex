@@ -19,6 +19,7 @@ import * as THREE from 'three';
 import { mergeAll, curve, mesh, mat4 } from '../geometry/utils.js';
 import { WING, HTAIL, FIN, VENTRAL, LINES, GEAR, NACA_64A006, OVERALL } from '../data/f16.js';
 import { makeF16Skin, makeF16SurfaceTile, FS_COLOURS, SKIN_LEN } from '../materials/f16Textures.js';
+import { applyDetail } from '../materials/detail.js';
 
 const D2R = Math.PI / 180;
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -193,7 +194,8 @@ function f16Materials(M) {
     name: 'f16-skin', map: skin.map, normalMap: skin.normalMap, roughnessMap: skin.roughnessMap,
     normalScale: new THREE.Vector2(0.6, -0.6), metalness: 0.05, roughness: 1, envMapIntensity: 0.7,
   });
-  const up = makeF16SurfaceTile({ tone: FS_COLOURS.fs36270 }), lo = makeF16SurfaceTile({ tone: FS_COLOURS.fs36375 });
+  // Hill Gray (f16Textures.js): the wings' upper surfaces gunship grey, the fin and the tailplanes light ghost grey.
+  const up = makeF16SurfaceTile({ tone: FS_COLOURS.fs36118 }), lo = makeF16SurfaceTile({ tone: FS_COLOURS.fs36375 });
   M.f16Upper = new THREE.MeshStandardMaterial({ name: 'f16-upper', map: up.map, normalMap: up.normalMap, roughnessMap: up.roughnessMap, normalScale: new THREE.Vector2(0.5, 0.5), metalness: 0.05, roughness: 1, envMapIntensity: 0.7 });
   M.f16Lower = new THREE.MeshStandardMaterial({ name: 'f16-lower', map: lo.map, normalMap: lo.normalMap, roughnessMap: lo.roughnessMap, normalScale: new THREE.Vector2(0.5, 0.5), metalness: 0.05, roughness: 1, envMapIntensity: 0.7 });
   // The canopy: one polycarbonate bubble, faintly smoked.
@@ -209,6 +211,12 @@ function f16Materials(M) {
   M.f16NozzleInner = new THREE.MeshStandardMaterial({ name: 'f16-nozzle-inner', color: 0xa69d90, metalness: 0.55, roughness: 0.55, flatShading: true });
   // Gear legs, wheels and the wells' doors' insides: gloss white (≈, as photographed).
   M.f16GearWhite = new THREE.MeshStandardMaterial({ name: 'f16-gear-white', color: 0xd9dad6, metalness: 0.15, roughness: 0.42 });
+  // At a close look (detail.js; scales ≈): the flat polyurethane's fine stipple over the panels,
+  // the nozzle flaps' streaked metal, the gear's gloss enamel.
+  for (const k of ['f16Skin', 'f16Upper', 'f16Lower']) applyDetail(M[k], 'stipple', { size: 0.012, normal: 0.35, rough: 0.12 });
+  for (const k of ['f16NozzleOuter', 'f16NozzleInner']) applyDetail(M[k], 'brushed', { size: 0.05, normal: 0.6, rough: 0.35 });
+  applyDetail(M.f16GearWhite, 'peel', { size: 0.04, normal: 0.06, rough: 0.08 });
+  applyDetail(M.f16Dark, 'stipple', { size: 0.01, normal: 0.6, rough: 0.2 });
   return M;
 }
 
@@ -641,7 +649,7 @@ function buildStab(M, side) {
   grp.position.copy(pivot);
   grp.userData.hinge = { axis: [0, 0, 1], range: [-25, 25] };
   geo.translate(-pivot.x, -pivot.y, -pivot.z);
-  grp.add(mesh(geo, M.f16Upper, { name: `f16-stab-skin-${tag}` }));
+  grp.add(mesh(geo, M.f16Lower, { name: `f16-stab-skin-${tag}` }));
   return grp;
 }
 
@@ -669,7 +677,7 @@ function buildFin(M) {
   const TEat = (z) => leAt(z) + chordAt(z), hingeAt = (z) => TEat(z) - rudderAt(z);
   const b1 = band(FIN.rootZ, rudder.z0, TEat, 3), b2 = band(rudder.z0, rudder.z1, hingeAt, 8), b3 = band(rudder.z1, FIN.rootZ + FIN.span, TEat, 3);
   const tipRows = b3.rows;
-  g.add(mesh(mergeAll([{ geometry: b1.geo }, { geometry: b2.geo }, { geometry: b3.geo }, { geometry: cap(tipRows[tipRows.length - 1], V(0, 1, 0)) }]), M.f16Upper, { name: 'f16-fin-skin' }));
+  g.add(mesh(mergeAll([{ geometry: b1.geo }, { geometry: b2.geo }, { geometry: b3.geo }, { geometry: cap(tipRows[tipRows.length - 1], V(0, 1, 0)) }]), M.f16Lower, { name: 'f16-fin-skin' }));
   // Rudder: ±30° (TP-1538), hinged on its leading edge.
   {
     const rows2 = [];
@@ -690,7 +698,7 @@ function buildFin(M) {
     hinge.position.copy(a);
     hinge.userData.hinge = { axis: b.clone().sub(a).normalize().toArray(), range: [-30, 30] };
     geo.translate(-a.x, -a.y, -a.z);
-    hinge.add(mesh(geo, M.f16Upper, { name: 'f16-rudder-skin' }));
+    hinge.add(mesh(geo, M.f16Lower, { name: 'f16-rudder-skin' }));
     g.add(hinge);
   }
   // The dorsal fillet ahead of the fin's root (TRACED): a thin wedge on the spine.

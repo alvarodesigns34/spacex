@@ -29,6 +29,7 @@
  * right). The group carries userData.instruments.update({ rpm, gear, kmh, steer, reverse }).
  */
 import * as THREE from 'three';
+import { applyDetail } from '../materials/detail.js';
 import { mesh, mergeAll, curve } from '../geometry/utils.js';
 import { BODY } from '../data/gt3rs.js';
 
@@ -297,6 +298,16 @@ function cabinMaterials(M) {
   // The cabin sees a fraction of the sky the environment map assumes (the roof, the pillars, the
   // dash over the footwells): its reflections are turned down to match (≈, an occlusion term).
   for (const k of ['gt3cAlcantara', 'gt3cLeather', 'gt3cSeatRed', 'gt3cDoorMesh', 'gt3cCarbon', 'gt3cGloss', 'gt3cBlack', 'gt3cAlu', 'gt3cRed', 'gt3cYellow']) M[k].envMapIntensity = k === 'gt3cGloss' ? 0.6 : 0.4;
+  // The surfaces at a close look (detail.js; scales ≈): the Alcantara's fine nap, the leather's
+  // grain, the belts' weave, the moulded plastics' stipple, the aluminium's brushing.
+  const D = (m, kind, o) => m && applyDetail(m, kind, o);
+  D(M.gt3cAlcantara, 'stipple', { size: 0.003, normal: 1.0, rough: 0.15 });
+  D(M.gt3cLeather, 'grain', { size: 0.018, normal: 0.9, rough: 0.35 });
+  D(M.gt3cSeatRed, 'stipple', { size: 0.003, normal: 0.8, rough: 0.15 });
+  D(M.gt3cRed, 'twill', { size: 0.012, normal: 0.8, rough: 0.2 });
+  D(M.gt3cBlack, 'stipple', { size: 0.005, normal: 0.7, rough: 0.25 });
+  D(M.gt3cAlu, 'brushed', { size: 0.02, normal: 0.4, rough: 0.3 });
+  D(M.gt3cGloss, 'peel', { size: 0.03, normal: 0.03, coat: 0.08, rough: 0.05 });
   return M;
 }
 
