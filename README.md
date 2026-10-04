@@ -847,6 +847,10 @@ El usuario pidió una auditoría ambiciosa de los tres vehículos conducibles: m
   - el **labio** es un borde redondeado (≈2,5 cm de radio) que da toda la vuelta a la boca, con la parte de arriba algo adelantada (≈6 cm, ≈);
   - **el conducto por dentro es claro**, como en las fotos (antes era negro).
   - El área de captura, medida en el borde de ataque del labio, es 0,531 m² (TP-3355: 0,533 m²); la forma es ≈.
+- **La cabina** (≈, reconstruida; se ve a través de la cúpula). Antes eran tres cajas. Ahora tiene:
+  - el asiento ACES II, reclinado 30°, con sus laterales, cojines, el cabecero con el paracaídas y sus dos tubos pitot, los arneses y la maneta amarilla de eyección entre las rodillas;
+  - las consolas laterales, con la palanca lateral (*side-stick*) a la derecha y el gas a la izquierda, como en el F-16;
+  - el panel, con los biseles y las esferas de los instrumentos, la pantalla del radar y el panel de mando bajo el parasol.
 - **Pruebas nuevas** (`tools/check.mjs`): el área de captura (±2 %) y que ningún vértice de la piel quede dentro de la abertura de la cabina. Con el código anterior, la segunda falla (31 vértices dentro).
 
 ### Fase 4 del encargo: física y entorno: el viento del sitio (4 de octubre de 2026)

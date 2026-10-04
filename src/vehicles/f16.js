@@ -323,6 +323,8 @@ function f16Materials(M) {
   // The inlet duct, the gear wells and the cockpit: flat dark paint (≈).
   // The inlet duct inside: white (≈, as photographed).
   M.f16Duct = new THREE.MeshStandardMaterial({ name: 'f16-duct', color: 0xcfcdc6, metalness: 0.05, roughness: 0.6, envMapIntensity: 0.6 });
+  // The seat's cushions and harness: olive drab (≈).
+  M.f16Seat = new THREE.MeshStandardMaterial({ name: 'f16-seat', color: 0x4b4c3a, metalness: 0, roughness: 0.85 });
   M.f16Dark = new THREE.MeshStandardMaterial({ name: 'f16-dark', color: 0x2a2c2f, metalness: 0.1, roughness: 0.85 });
   // The nozzle (≈ from photographs): the outer flaps' heat-darkened titanium, bluish brown; the
   // divergent flaps inside, pale streaked metal. Facets shaded flat, as the flaps are flat.
@@ -631,8 +633,20 @@ function buildCanopy(M) {
   return g;
 }
 
-/** The cockpit (≈, reconstructed): the tub under the canopy, the ACES II seat, the panel and the HUD. */
+/** The cockpit (≈, reconstructed): the tub under the canopy, the ACES II seat, the side consoles
+ *  with the side-stick and the throttle, the panel and the HUD. */
 export const COCKPIT = { eye: { s: 4.45, z: 0.88 }, panel: 3.55, hud: 3.62 };
+/** A box with rounded edges, centred: w along X, h along Y, d along Z, edge radius r. */
+function softBox(w, h, d, r) {
+  r = Math.min(r, w / 2 - 1e-3, h / 2 - 1e-3, d / 2 - 1e-3);
+  const sh = new THREE.Shape(), x = w / 2 - r, y = h / 2 - r;
+  sh.moveTo(-x, -h / 2); sh.lineTo(x, -h / 2); sh.quadraticCurveTo(w / 2, -h / 2, w / 2, -y);
+  sh.lineTo(w / 2, y); sh.quadraticCurveTo(w / 2, h / 2, x, h / 2); sh.lineTo(-x, h / 2);
+  sh.quadraticCurveTo(-w / 2, h / 2, -w / 2, y); sh.lineTo(-w / 2, -y); sh.quadraticCurveTo(-w / 2, -h / 2, -x, -h / 2);
+  const geo = new THREE.ExtrudeGeometry(sh, { depth: d - 2 * r, bevelEnabled: true, bevelThickness: r, bevelSize: 0, bevelSegments: 3, curveSegments: 4 });
+  geo.translate(0, 0, -(d - 2 * r) / 2);
+  return geo;
+}
 function buildCockpit(M) {
   const g = new THREE.Group();
   g.name = 'f16-cockpit';
@@ -652,21 +666,85 @@ function buildCockpit(M) {
       g.add(mesh(cap(r, V(-d, 0, 0)), M.f16Dark, { name: d > 0 ? 'f16-cockpit-front' : 'f16-cockpit-rear', castShadow: false }));
     }
   }
-  // Instrument panel and its glare shield, the HUD's combiner on top.
+  const at = (geo, x, y, z, rz = 0, rx = 0) => ({ geometry: geo, matrix: mat4([x, y, z], [rx, 0, rz]) });
+  // Instrument panel: the panel and its glare shield, the dials' bezels and faces, the radar's
+  // display; the HUD's combiner on top.
   const pz = top(COCKPIT.panel);
-  g.add(mesh(new THREE.BoxGeometry(0.08, 0.42, 0.6), M.f16Dark, { name: 'f16-instrument-panel', position: [-COCKPIT.panel, GROUND + pz - 0.2, 0], castShadow: false }));
-  g.add(mesh(new THREE.BoxGeometry(0.3, 0.03, 0.5), M.f16Dark, { name: 'f16-glare-shield', position: [-(COCKPIT.panel + 0.1), GROUND + pz + 0.02, 0], castShadow: false }));
+  {
+    const x0 = -COCKPIT.panel, y0 = GROUND + pz - 0.2;
+    g.add(mesh(softBox(0.08, 0.42, 0.6, 0.015), M.f16Dark, { name: 'f16-instrument-panel', position: [x0, y0, 0], castShadow: false }));
+    g.add(mesh(softBox(0.3, 0.03, 0.5, 0.01), M.f16Dark, { name: 'f16-glare-shield', position: [x0 - 0.1, GROUND + pz + 0.02, 0], castShadow: false }));
+    const bezels = [], faces = [];
+    const dials = [[0.09, -0.18], [0.09, 0.18], [-0.02, -0.2], [-0.02, 0.2], [-0.13, -0.17], [-0.13, 0.17], [-0.13, -0.06]];
+    for (const [dy, dz] of dials) {
+      const b = new THREE.TorusGeometry(0.04, 0.008, 6, 24);
+      b.rotateY(Math.PI / 2);
+      bezels.push(at(b, x0 - 0.042, y0 + dy, dz));
+      const f = new THREE.CircleGeometry(0.038, 24);
+      f.rotateY(-Math.PI / 2);
+      faces.push(at(f, x0 - 0.041, y0 + dy, dz));
+    }
+    // The radar's display, centre, and the up-front controls under the glare shield (≈).
+    const scr = new THREE.PlaneGeometry(0.13, 0.13);
+    scr.rotateY(-Math.PI / 2);
+    faces.push(at(scr, x0 - 0.041, y0 - 0.04, 0.0));
+    const ufc = softBox(0.05, 0.08, 0.16, 0.008);
+    bezels.push(at(ufc, x0 - 0.06, y0 + 0.13, 0));
+    g.add(mesh(mergeAll(bezels), M.blackMatte ?? M.f16Dark, { name: 'f16-panel-bezels', castShadow: false }));
+    g.add(mesh(mergeAll(faces), M.glass ?? M.f16Canopy, { name: 'f16-panel-dials', castShadow: false }));
+  }
   const comb = new THREE.PlaneGeometry(0.16, 0.2);
   comb.rotateY(-Math.PI / 2);
   g.add(mesh(comb, M.f16Canopy, { name: 'f16-hud-combiner', position: [-COCKPIT.hud, GROUND + pz + 0.14, 0], rotation: [0, 0, -25 * D2R], castShadow: false }));
-  // ACES II seat (≈): pan, back, headrest, side rails; reclined 30°, as the F-16's is.
+  // Side consoles, the side-stick on the right one and the throttle on the left (≈).
   {
-    const parts = [
-      { geometry: new THREE.BoxGeometry(0.5, 0.1, 0.5), matrix: new THREE.Matrix4().makeTranslation(-4.6, GROUND + top(4.6) - 0.62, 0) },
-      { geometry: new THREE.BoxGeometry(0.12, 0.85, 0.48), matrix: new THREE.Matrix4().makeRotationZ(30 * D2R).premultiply(new THREE.Matrix4().makeTranslation(-4.95, GROUND + top(4.95) - 0.25, 0)) },
-      { geometry: new THREE.BoxGeometry(0.16, 0.26, 0.34), matrix: new THREE.Matrix4().makeRotationZ(30 * D2R).premultiply(new THREE.Matrix4().makeTranslation(-5.18, GROUND + top(5.18) + 0.14, 0)) },
-    ];
-    g.add(mesh(mergeAll(parts), M.f16Dark, { name: 'f16-ejection-seat', castShadow: false }));
+    const zc = GROUND + top(4.6) - 0.36, parts = [], black = [];
+    for (const sd of [-1, 1]) parts.push(at(softBox(0.95, 0.12, 0.13, 0.012), -4.55, zc, sd * 0.31));
+    // The side-stick: a short grip on a base, canted outboard and back, as the F-16's is.
+    const grip = new THREE.LatheGeometry([[0.0, 0], [0.022, 0.0], [0.026, 0.03], [0.028, 0.08], [0.024, 0.11], [0.0, 0.125]].map(([r, y]) => new THREE.Vector2(r, y)), 14);
+    black.push({ geometry: grip, matrix: mat4([-4.2, zc + 0.08, 0.31], [-0.18, 0, 0.12]) });
+    const base = new THREE.CylinderGeometry(0.045, 0.05, 0.03, 16);
+    black.push(at(base, -4.2, zc + 0.07, 0.31));
+    // The throttle: its lever in a slot, the grip on top.
+    black.push({ geometry: new THREE.BoxGeometry(0.03, 0.12, 0.02), matrix: mat4([-4.3, zc + 0.11, -0.31], [0, 0, 0.35]) });
+    black.push(at(softBox(0.09, 0.05, 0.05, 0.015), -4.27, zc + 0.17, -0.31));
+    g.add(mesh(mergeAll(parts), M.f16Dark, { name: 'f16-side-consoles', castShadow: false }));
+    g.add(mesh(mergeAll(black), M.blackMatte ?? M.f16Dark, { name: 'f16-stick-throttle', castShadow: false }));
+  }
+  // ACES II seat (≈): the bucket's sides, the seat and back cushions, the headbox with its pitot
+  // tubes on top, the yellow ejection handle between the knees, the harness; reclined 30°, as the
+  // F-16's is.
+  {
+    const pan = { x: -4.62, y: GROUND + top(4.6) - 0.62 }, R = 30 * D2R;
+    const frame = [], cushion = [], strap = [], yellow = [];
+    cushion.push(at(softBox(0.46, 0.09, 0.42, 0.035), pan.x + 0.02, pan.y + 0.045, 0, 6 * D2R));
+    for (const sd of [-1, 1]) frame.push(at(softBox(0.52, 0.2, 0.03, 0.01), pan.x, pan.y + 0.02, sd * 0.235));
+    frame.push(at(softBox(0.48, 0.05, 0.44, 0.01), pan.x, pan.y - 0.04, 0));
+    // Up the back from its hinge, leaning aft by R.
+    const hinge = V(pan.x - 0.22, pan.y + 0.04, 0);
+    const up = (d, fwd = 0) => hinge.clone().add(V(-Math.sin(R) * d + Math.cos(R) * fwd, Math.cos(R) * d + Math.sin(R) * fwd, 0));
+    const onBack = (geo, d, fwd, z = 0) => { const p = up(d, fwd); return at(geo, p.x, p.y, z, R); };
+    cushion.push(onBack(softBox(0.08, 0.6, 0.4, 0.03), 0.34, 0.03));
+    frame.push(onBack(softBox(0.06, 0.86, 0.46, 0.015), 0.43, -0.04));
+    for (const sd of [-1, 1]) frame.push(onBack(softBox(0.1, 0.8, 0.03, 0.01), 0.4, -0.01, sd * 0.235));
+    frame.push(onBack(softBox(0.24, 0.3, 0.38, 0.05), 0.95, -0.02));                 // the headbox (parachute)
+    cushion.push(onBack(softBox(0.05, 0.17, 0.22, 0.02), 0.86, 0.11));               // the headrest
+    for (const sd of [-1, 1]) {                                                       // the pitot tubes
+      const t = new THREE.CylinderGeometry(0.006, 0.008, 0.14, 8);
+      const p = up(1.11, 0.02);
+      frame.push({ geometry: t, matrix: mat4([p.x, p.y, sd * 0.16], [0, 0, R - 0.5]) });
+    }
+    // The harness: two shoulder straps from the headbox down the back, the lap belt.
+    for (const sd of [-1, 1]) strap.push(onBack(new THREE.BoxGeometry(0.012, 0.52, 0.045), 0.42, 0.078, sd * 0.09));
+    strap.push(at(new THREE.BoxGeometry(0.05, 0.012, 0.4), pan.x - 0.08, pan.y + 0.1, 0));
+    // The ejection handle: a loop at the seat's front, between the knees.
+    const loop = new THREE.TorusGeometry(0.05, 0.011, 8, 18, Math.PI);
+    loop.rotateY(Math.PI / 2);
+    yellow.push(at(loop, pan.x + 0.25, pan.y + 0.03, 0));
+    g.add(mesh(mergeAll(frame), M.f16Dark, { name: 'f16-ejection-seat', castShadow: false }));
+    g.add(mesh(mergeAll(cushion), M.f16Seat, { name: 'f16-seat-cushions', castShadow: false }));
+    g.add(mesh(mergeAll(strap), M.f16Seat, { name: 'f16-seat-harness', castShadow: false }));
+    g.add(mesh(mergeAll(yellow), M.safetyYellow ?? M.f16Dark, { name: 'f16-ejection-handle', castShadow: false }));
   }
   return g;
 }
