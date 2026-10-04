@@ -833,6 +833,41 @@ El usuario pidió una pasada decisiva sobre la H2R, el Porsche y el F-16: modelo
 - **Sonido:** las explosiones se redondean a muestras enteras (≈ −25 dB de ruido), el silbido de alivio de la H2R se rompe a los 30 s y no hay modelo espacial. El F-16 no tiene sonido.
 - **No se llegó a hacer:** la auditoría del detalle de los modelos y el presupuesto de rendimiento, y la del entorno y las físicas.
 
+### Pasada decisiva, bloque 3 (primera parte): la conducción del Porsche (4 de octubre de 2026)
+
+Aplicado del diagnóstico `docs/diagnostico-2026-10-04/conduccion-porsche.json` (P0, P1 y parte de P2). Cada punto tiene su prueba en `tools/gt3rs-check.mjs`.
+
+- **DRS automático solo en recta:** se abre con menos de 0,3 g laterales y menos de 2° de volante en las ruedas, y el alerón tarda 0,3 s en moverse (`AERO.drsLatG`, `drsSteer`, `drsTime`, ≈). Antes se abría en una curva de 1,6 g y quitaba el 55 % de la carga de golpe.
+- **Volante con teclado (`steerReach`):** pide el ángulo con el que las delanteras llegan a su agarre. Tiene en cuenta el μ del suelo, la carga aerodinámica (`TYRES.downGain` = 0,5, medido), el subviraje propio (`TYRES.kUs`, medido) y el eje trasero direccional, y se corrige con el deslizamiento real de las delanteras. Antes pedía el doble. El ritmo del volante es proporcional al alcance: a fondo en ≈0,28 s a cualquier velocidad (`steerRate`).
+- **Mando de juego** (`src/sim/gt3Pad.js`):
+  - zona muerta reescalada y recorrido x^1,6, limitado por el agarre;
+  - gatillos analógicos;
+  - LB/RB levas, X PSM, Y cámara, Start pausa;
+  - vibración según los neumáticos, los pianos y el ABS.
+- **Equilibrio:** la sensibilidad a la carga se toma respecto a la carga estática de cada eje. A 240 km/h en el límite el coche hacía trompo; ahora subvira, como el de calle.
+- **PDK:**
+  - cambio hacia arriba sin hueco de empuje: el embrague nuevo toma el par patinando, con el par del motor recortado al 40 % hasta sincronizar, en 50–120 ms;
+  - mapa según el pedal: sube pronto con poco gas, y no sube en curva con gas;
+  - *kickdown*: varias marchas de golpe;
+  - `GEARBOX.efficiency` = 0,875, reajustado: 0–100 / 160 / 200 en 3,23 / 6,78 / 10,57 s y punta de 295,7 km/h, todo a ±2 % de lo publicado.
+- **Control de tracción:** también corta si una trasera pasa de 1,1 de deslizamiento combinado (se va de lado), no solo si patina.
+- **Diferencial PTV Plus** (`DIFF`, ≈):
+  - las traseras se resuelven juntas, de forma implícita, con la inercia del motor solo en su suma (antes sumada a cada rueda: una rueda sola giraba 11 veces más despacio de lo debido);
+  - bloqueo con mapa electrónico: abierto al entrar en curva, cerrado a la salida con gas y a alta velocidad; con PSM se abre si el coche guiña hacia donde no se le pide;
+  - freno en la trasera interior mientras el coche subvira por debajo de 150 km/h.
+  - Ahora, con gas a la salida y sin PSM, la cola sale (27° en 0,5 s); con agarre desigual sale en 4,2 s (abierto, 5,45 s).
+- **Ruedas descargadas:** la delantera interior en el aire ya no da deslizamientos falsos (marcas, humo y chirrido van ponderados por la carga).
+- **ABS proporcional-integral** sobre un deslizamiento objetivo: 8 cambios de sentido por segundo (antes ≈50) y la presión nunca baja del 56 %. Frena 100–0 en 27,5 m y 200–0 en 100,6 m (auto motor und sport: 28,0 y 97,0).
+- **Diámetro de giro:** 10,53 m con el volante a tope (publicado: 10,5). El ángulo máximo pasa de 30° a 32° (≈).
+
+**Pendiente del bloque 3:**
+- cámaras independientes de los fotogramas por segundo;
+- vibración de los pianos;
+- modos del PSM (encendido / ESC fuera / fuera) con sus testigos;
+- relajación del neumático según la carga;
+- regresión de tiempo por vuelta;
+- revisión adversarial de este bloque.
+
 ### Pasada decisiva, bloque 2: la H2R ya no se cae al girar (4 de octubre de 2026)
 
 **El fallo:** la moto se caía con muchísima facilidad. Con las ayudas puestas, 193 de 200 recorridos aleatorios de 30 s acababan en el suelo. Bastaba con soltar la tecla tras una curva a fondo, frenar o acelerar inclinado, pisar la hierba o entrar en un charco. El usuario pidió que no se pudiera caer al girar: «solo un límite de inclinación y ya está».

@@ -4,13 +4,15 @@ Seis auditorías de solo lectura hechas por agentes. Se guardan aquí porque la 
 
 | Archivo | Frente | Estado |
 |---|---|---|
-| `cuadrado-negro.json` | Cuadrado negro intermitente | **Causa confirmada y arreglo probado en la página; sin aplicar** |
-| `moto-h2r-pasada-1.json`, `moto-h2r-pasada-2.json` | Conducción de la H2R (dos pasadas del mismo agente; la 2.ª es la más reciente) | Prototipo con 0 caídas en `prototipos/h2rBike2.js.txt`; sin aplicar |
-| `conduccion-porsche.json` | Conducción del Porsche | Defectos medidos; sin aplicar |
+| `cuadrado-negro.json` | Cuadrado negro intermitente | **Aplicado (bloque 1)** |
+| `moto-h2r-pasada-1.json`, `moto-h2r-pasada-2.json` | Conducción de la H2R (dos pasadas del mismo agente; la 2.ª es la más reciente) | **Aplicado (bloque 2)** |
+| `conduccion-porsche.json` | Conducción del Porsche | **Aplicado en parte (bloque 3: P0, P1, P2-9, P2-11)** |
 | `f16.json` | Vuelo y sonido del F-16 | Plan de sonido; sin aplicar |
 | `sonido.json` | Sonido de H2R, Porsche y cohete | Defectos medidos; sin aplicar |
 | (falta) | Detalle de los modelos y presupuesto de rendimiento | **No se llegó a hacer** |
 | (falta) | Entorno y físicas | **No se llegó a hacer** |
+
+`revisiones/` guarda lo que encontraron los agentes revisores al aplicar los bloques 1 (cuadrado negro) y 2 (H2R): todo está corregido salvo lo que diga el TRASPASO.
 
 `scripts/` son los scripts de medida de los agentes, con extensión `.txt` (se excluyen del linter y de las pruebas). Para usarlos, copia uno fuera del repositorio, quítale `.txt` y ejecútalo con `node --import <hooks.mjs> script.mjs`, donde `hooks.mjs` resuelve `three` a `vendor/three` (ver TRASPASO, «Lecciones»). Algunos suponen rutas de la carpeta temporal antigua y habrá que ajustarlas.
 

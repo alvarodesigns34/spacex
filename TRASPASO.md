@@ -40,7 +40,27 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
   - `specs.js`: ficha actualizada.
   - Pruebas: `h2r-check.mjs` (sección «Ridden as the keyboard rides it» y siguientes) y `ux-check.mjs` (la moto en la pista, z = 490).
 - **Decisión pendiente del usuario:** sin ayudas la moto vuelca por delante con el freno a fondo en recta (en los recorridos aleatorios, 199 vuelcos y 54 caballitos, todos permitidos). ¿Red de seguridad?
-- **Siguiente:** bloque 3, el Porsche. Ya hay trabajo hecho en la copia de trabajo `wip-b3`, que no se ha empujado. Si se pierde, rehacer desde `conduccion-porsche.json`.
+- **Bloque 3, Porsche, PRIMERA PARTE HECHA** (README, *Pasada decisiva, bloque 3 (primera parte)*).
+  - Hecho: P0-1 (DRS), P0-2 (`steerReach`/`steerRate`), P0-3 (`gt3Pad.js`), P1-4/5 (PDK sin hueco, mapa, *kickdown*), P1-6 (equilibrio: `BAL.perAxle`), P1-7 (`s.slipShown`), P1-8 (`DIFF`, PTV Plus implícito), P2-9 (ABS PI), P2-11 (giro de 10,53 m, `maxSteer` de 32°).
+  - El control de tracción también lee el deslizamiento combinado.
+- **Lo que falta del bloque 3**, en este orden y con su detalle en `conduccion-porsche.json`:
+  - P2-12: cámaras independientes de los fps, sacudida determinista y horizonte medio nivelado;
+  - P2-13: vibración de los pianos (fase de la franja desde `circuitSurface` → `gt3Ground` → `gt3Sound`/cámara/mando);
+  - P2-14: modos del PSM `on` / `escOff` / `off`, con T y testigos en el HUD;
+  - P2-10: relajación del neumático según la carga, y pasar `MF_B`, `MF_C` y compañía a `TYRES`;
+  - P3: `tools/gt3rs-lap.mjs`, una vuelta al circuito con un conductor de persecución pura;
+  - HUD: testigo del bloqueo del diferencial (`s.diffLock`) y de la vectorización (`s.ptv`);
+  - una revisión adversarial con agentes (código, realismo y alguien que busque trompos o comportamientos raros), como en los bloques 1 y 2;
+  - el `npm run check` completo del bloque.
+- **Bloques 4 y 5, sin empezar:**
+  - 4, sonido: `sonido.json` y `f16.json` (explosiones en tiempo fraccionario, silbido de la H2R, modelo espacial con Doppler, sonido y botón del F-16);
+  - 5: auditar primero los modelos de H2R, Porsche y F-16, y el entorno y las físicas, con renders cercanos y evidencia; guardar los diagnósticos en `docs/`; y luego implementar.
+- **Revisiones de los agentes guardadas:** `docs/diagnostico-2026-10-04/revisiones/` (bloques 1 y 2; todo lo encontrado está corregido, salvo la moto parada que no rueda hacia atrás en una cuesta).
+- **Lecciones de esta sesión:**
+  - Una prueba nueva tiene que fallar con el código viejo. Dos pruebas mías pasaban en vacío (el NaN dentro del plano cercano y la moto que no llegaba a patinar). Comprueba siempre que la condición se da.
+  - Trabajar un bloque en un `git worktree` aparte (en el scratchpad) permite verificar y hacer commit del anterior sin mezclar.
+  - **Cuidado:** un worktree con `node_modules` enlazado y `git add -A` mete el enlace en el commit; al fusionar, sustituyó el `node_modules` real. Añade `node_modules` al índice nunca (bórralo con `git rm --cached`) o enlázalo fuera de `git add -A`.
+  - Las revisiones adversariales con 3 agentes encontraron 3 y 18 defectos reales; merecen la pena antes de cada commit grande.
 
 ### Estado al 03-10-2026 (léelo primero)
 

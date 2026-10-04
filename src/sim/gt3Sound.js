@@ -21,6 +21,7 @@
  *  - The tyres, gravel and the wind are mixed in on top, as before.
  * Off the worklet (an old browser), it falls back to a few oscillators on the firing orders.
  */
+import { GEARBOX } from '../data/gt3rs.js';
 const WORKLET = `
 class Gt3Flat6 extends AudioWorkletProcessor {
   constructor() {
@@ -201,7 +202,7 @@ export function createGt3Sound() {
       const rpm = dead ? 0 : Math.max(600, s.rpm), thr = dead ? 0 : Math.max(0, Math.min(1, i.throttle));
       // Load: the throttle as the engine gets it — cut through an upshift, trimmed by the traction control.
       const upshift = s.shift > 0 && s.shiftDir > 0;
-      const load = thr * (s.tcCut ?? 1) * (upshift ? 0.1 : 1);
+      const load = thr * (s.tcCut ?? 1) * (upshift ? GEARBOX.upshiftCut : 1);
       const cut = upshift || rpm >= 9000 ? 1 : 0;
       const gearW = Math.abs((s.w?.[2] ?? 0) + (s.w?.[3] ?? 0)) / 2 * 4.27 / (2 * Math.PI) * 11;   // the pinion's mesh, Hz (4.27 final drive; ≈11 teeth)
       if (N.engine) N.engine.port.postMessage({ rpm, load, thr, cut, on: dead ? 0 : 1, gearW, cabin: inside ? 1 : 0 });
@@ -213,7 +214,7 @@ export function createGt3Sound() {
       set(N.cabinLp.frequency, inside ? 3800 : 18000, 0.1);
       const t = ctx.currentTime;
       // Tyres: how far past the grip's peak (slip ≈1 at the peak, as the drive's marks use it).
-      const over = Math.max(0, ...s.slip.map(k => k - 1)), speed = Math.hypot(s.u, s.v);
+      const over = Math.max(0, ...s.slip.map((k, j) => (k - 1) * Math.min(1, (s.load?.[j] ?? 3000) / 3000))), speed = Math.hypot(s.u, s.v);
       const hard = surface !== 'gravel' && surface !== 'grass';
       set(N.sqG.gain, hard ? Math.min(0.28, 0.5 * over) * Math.min(1, speed / 4) : 0, 0.05);
       set(N.sq.frequency, 1050 + 180 * Math.sin(t * 7.3) + 120 * N.r(), 0.05);

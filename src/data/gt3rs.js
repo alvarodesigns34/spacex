@@ -37,10 +37,18 @@ export const ENGINE = {
 export const GEARBOX = {
   src: 'Porsche technical data 08/2022', tag: 'PUBLISHED',
   ratios: [3.75, 2.38, 1.72, 1.34, 1.11, 0.96, 0.84], reverse: 3.42, final: 4.27,
-  shiftTime: 0.1,                         // ESTIMATE: a dual-clutch shift's torque gap, s
-  efficiency: 0.88,                       // ESTIMATE: gearbox and final drive
+  // ESTIMATE: the longest a shift may take, s. An upshift hands the drive from one clutch to the
+  // other with no gap: the new gear's clutch takes it at once, slipping, the engine's torque cut to
+  // upshiftCut while its speed comes down to the new gear's (≈60–80 ms); a downshift opens the
+  // clutch and blips the engine up to the lower gear's speed.
+  shiftTime: 0.1, upshiftCut: 0.4,
+  efficiency: 0.875,                      // ESTIMATE: gearbox and final drive (fitted with the seamless upshift: 0–100/160/200 within 2 %)
   upshiftRpm: 8800,                       // ESTIMATE: the automatic mode shifts just short of the 9,000 cut
-  downshiftRpm: 4200,                     // ESTIMATE
+  downshiftRpm: 4200,                     // ESTIMATE: braking
+  // ESTIMATE: the automatic mode's map by the pedal (filtered): up early at a light throttle
+  // (upLight) and late at a full one; down pulling at downLight (light) to 5,200 rpm (full);
+  // kickdown, the pedal stamped down, straight to the lowest gear under kickdownRpm.
+  upLight: 2800, downLight: 1300, downFull: 5200, kickdownRpm: 7800,
 };
 
 /** Wheels and tyres (technical data, page 3). Diameters DERIVED from the tyre codes. */
@@ -107,6 +115,9 @@ export const AERO = {
   // Airbrake: hard on the brakes from speed, the wing's flap and the front diffuser's flaps go to
   // their steepest, for more drag (≈ how much: not published).
   airbrakeCdFactor: 1.15, airbrakeSpeed: 100 / 3.6, airbrakePedal: 0.5,   // ESTIMATE ≈
+  // Auto-DRS opens only on a straight: under ≈0.3 g sideways and ≈2° of lock at the wheels, the
+  // flaps travelling in ≈0.3 s (ESTIMATE ≈: Porsche publishes the logic, not its thresholds).
+  drsLatG: 0.3, drsSteer: 2 * Math.PI / 180, drsTime: 0.3,
   rho: RHO,
 };
 
@@ -124,6 +135,20 @@ export const SUSPENSION = {
   bump: 0.055, droop: 0.075,              // m from the static ride height
   ackermann: 0.5,                         // share of full Ackermann steering geometry
 };
+/**
+ * The rear differential: Porsche Torque Vectoring Plus, an electronically controlled locking
+ * differential with brake torque vectoring on the inner rear (Porsche technical data: equipment;
+ * its maps are not published, ESTIMATE ≈ throughout). The lock's capacity is a preload plus a
+ * share of the torque through it, between the lower share (turning in) and the higher (powering
+ * out of a corner, or at speed), on the drive and on the overrun; the coupling's stiffness, N·m
+ * per rad/s of the rears turning apart; the inner rear's brake on turn-in, up to maxBrake N·m
+ * below vMax.
+ */
+export const DIFF = {
+  tag: 'ESTIMATE',
+  preload: 40, drive: [0.25, 0.65], coast: [0.15, 0.45], kStiff: 2500,
+  ptv: { on: true, maxBrake: 350, vMax: 150 / 3.6 },
+};
 /** The clutches of the PDK: their torque capacity when closed, and while launching (≈). */
 export const CLUTCH = { tag: 'ESTIMATE', capacity: 620, dragCap: 90, launchRpm: 5500, slipBand: 6 };
 
@@ -138,6 +163,8 @@ export const TYRES = {
   B: 11, C: 1.5, E: 0.4,                  // lateral magic-formula shape (slip angle, rad)
   Bx: 14, Cx: 1.6, Ex: 0.4,               // longitudinal (slip ratio)
   relaxation: 0.35,                       // relaxation length, m
+  kUs: 0.0029,                            // the model's understeer: rad of lock per m/s² of lateral acceleration (measured on it)
+  downGain: 0.5,                          // the share of the downforce's load the four tyres turn into lateral grip (measured on the model: 1.7 g at 240 km/h)
   rolling: 0.012,
 };
 

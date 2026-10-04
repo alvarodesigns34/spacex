@@ -15,7 +15,7 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 
-const { createGt3Car, CAR, fullTorque, steerReach, OUTLINE } = await import('../src/sim/gt3Car.js');
+const { createGt3Car, CAR, fullTorque, steerReach, steerRate, OUTLINE } = await import('../src/sim/gt3Car.js');
 const { ENGINE, GEARBOX, PERFORMANCE, AERO, BODY } = await import('../src/data/gt3rs.js');
 const { circuitSurface } = await import('../src/core/circuit.js');
 const { toWorld, LAP, CENTRE } = await import('../src/core/circuitPlan.js');
@@ -26,6 +26,7 @@ const report = (ok, name, detail = '') => {
   if (!ok) failed++;
 };
 const KMH = 1 / 3.6, DT = 1 / 240;
+const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const flat = (mu = 1, roll = 0, kind = 'track') => () => ({ h: 0, mu, roll, kind });
 const make = (ground = flat()) => { const c = createGt3Car({ ground }); c.reset(); return { c, s: c.state, i: c.input }; };
 /** Rolling at speed v in gear g, wheels turning with the road. */
@@ -165,11 +166,13 @@ function drive({ v0 = 0, gear = 1, psm = true, keys, T = 5 }) {
     const k = keys(t, s);
     d.throttle = ramp(d.throttle, k.w ? 1 : 0, 7); d.brake = ramp(d.brake, k.s ? 1 : 0, 8);
     const dir = (k.a ? 1 : 0) - (k.d ? 1 : 0);
-    d.steer = ramp(d.steer, dir * steerReach(s, dir), dir ? 1.8 : 3.0);
+    d.steer = ramp(d.steer, dir * steerReach(s, dir), steerRate(s, dir !== 0));
     Object.assign(i, { throttle: d.throttle, brake: d.brake, steer: d.steer, handbrake: k.space ? 1 : 0 });
     c.advance(F);
     const b = Math.abs(Math.atan2(s.v, Math.max(1, Math.abs(s.u)))) * 180 / Math.PI;
-    maxBeta = Math.max(maxBeta, b);
+    // (Above ≈30 km/h: at walking pace on full lock the body's sideslip is the turn's geometry —
+    // the rear axle steering against the fronts — not the tail stepping out.)
+    if (s.u > 8.3) maxBeta = Math.max(maxBeta, b);
     if (b > 15 && s.u > 4) sideways += F;
   }
   return { s, maxBeta, sideways, turned: Math.abs(s.psi - psi0) * 180 / Math.PI };
@@ -188,6 +191,199 @@ function drive({ v0 = 0, gear = 1, psm = true, keys, T = 5 }) {
   const drifter = (t, s) => { const b = Math.atan2(s.v, Math.max(1, Math.abs(s.u))); return t < 0.35 ? { space: true, a: true } : { w: true, d: b < -0.35, a: b > -0.12 }; };
   const r = drive({ v0: 60 * KMH, gear: 2, keys: drifter, T: 6 });
   report(r.sideways > 2 && r.maxBeta < 75 && r.s.u > 5, 'derrape con el freno de mano: un toque de Espacio lo inicia y el gas y el contravolante lo sostienen sin trompo', `${r.sideways.toFixed(1)} s cruzado más de 15°, máx. ${r.maxBeta.toFixed(0)}°, sale a ${(r.s.u * 3.6).toFixed(0)} km/h`);
+}
+
+// ---- Auto-DRS on straights only, and the keyboard's steering at the grip --------------------------
+{
+  // At 230 km/h, a fast corner (≈2° of lock, ≈1.6 g) at full throttle: the flaps stay shut; on a
+  // straight at 200 km/h at full throttle they open within half a second.
+  const { c, s, i } = make();
+  rolling(s, 230 * KMH, 6); i.throttle = 1; i.steer = 0.09;
+  let opened = 0, ayMax = 0;
+  for (let k = 0; k < 240 * 2; k++) { c.step(DT); if (Math.abs(s.ay) > 1.2 * 9.81) opened = Math.max(opened, s.drsT); ayMax = Math.max(ayMax, Math.abs(s.ay)); }
+  const b = make(); rolling(b.s, 200 * KMH, 6); b.i.throttle = 1;
+  let at = null;
+  for (let k = 0; k < 240 * 1.5 && at === null; k++) { b.c.step(DT); if (b.s.drs) at = k * DT; }
+  report(opened === 0 && at !== null && at < 0.5, 'DRS automático: cerrado en una curva rápida a fondo, abierto en recta',
+    `en curva a ${(ayMax / 9.81).toFixed(2)} g: alerón ${(opened * 100).toFixed(0)} % abierto · en recta se abre a los ${at?.toFixed(2) ?? '—'} s`);
+}
+{
+  // A key held into a steady corner, the throttle holding the speed: the front tyres work at
+  // their peak (load-weighted slip 0.85–1.12) instead of scrubbing past it, and PSM has nothing
+  // to do. On gravel the reach follows the ground's grip. At 240 km/h without PSM, no spin.
+  const steady = (kmh, gear, { psm = true, ground = flat() } = {}) => {
+    const { c, s, i } = make(ground); s.tc = psm;
+    rolling(s, kmh * KMH, gear);
+    const F = 1 / 60, ramp = (cur, t, r) => cur + Math.max(-r * F, Math.min(r * F, t - cur));
+    let slip = 0, n = 0, esc = 0, beta = 0;
+    for (let t = 0; t < 4; t += F) {
+      i.steer = ramp(i.steer, steerReach(s, 1), steerRate(s, true));
+      i.throttle = clamp01(0.35 + (kmh * KMH - s.u) * 0.25);
+      c.advance(F);
+      if (t > 3) { slip += s.slipF; n++; esc = Math.max(esc, Math.abs(s.esc)); }
+      beta = Math.max(beta, Math.abs(Math.atan2(s.v, Math.max(1, s.u))) * 180 / Math.PI);
+    }
+    return { slip: slip / n, esc, beta, ay: Math.abs(s.ay) / 9.81 };
+  };
+  const rows = [[60, 2], [100, 3], [160, 4], [220, 6]].map(([v, g]) => ({ v, ...steady(v, g) }));
+  report(rows.every(r => r.slip > 0.55 && r.slip < 1.12 && r.esc < 800),
+    'volante con teclado: la tecla mantenida lleva las delanteras a lo alto de su curva (0,55–1,12: del 94 % del pico al pico) sin pasarse ni hacer frenar al PSM (60–220 km/h)',
+    rows.map(r => `${r.v} km/h: deslizamiento ${r.slip.toFixed(2)}, ${r.ay.toFixed(2)} g, PSM ${r.esc.toFixed(0)} N·m`).join(' · '));
+  const gravel = steady(60, 2, { ground: flat(0.45, 0.22, 'gravel') });
+  report(gravel.slip < 1.2, 'en grava la tecla no frota las delanteras', `deslizamiento ${gravel.slip.toFixed(2)}`);
+}
+
+// ---- A game controller ------------------------------------------------------------------------
+{
+  // At 200 km/h a full stick asks no more than steerReach; out of the dead zone there is no
+  // step; LB and RB pull the paddles once per press.
+  const { readPad } = await import('../src/sim/gt3Pad.js');
+  const { s } = make(); rolling(s, 200 * KMH, 6);
+  const pad = (x, btn = {}) => ({ axes: [x, 0], buttons: Array.from({ length: 12 }, (_, i) => ({ value: btn[i] ?? 0, pressed: (btn[i] ?? 0) > 0.5 })) });
+  const d = { throttle: 0, brake: 0, steer: 0, handbrake: 0 };
+  for (let k = 0; k < 60; k++) readPad(pad(-1), s, d, 1 / 60, {});
+  const full = d.steer, reach = steerReach(s, 1);
+  const edge = [0.07, 0.09].map(x => { const q = { throttle: 0, brake: 0, steer: 0, handbrake: 0 }; for (let k = 0; k < 60; k++) readPad(pad(-x), s, q, 1 / 60, {}); return Math.abs(q.steer); });
+  const prev = {}, got = [];
+  for (const b of [{ 5: 1 }, { 5: 1 }, {}, { 5: 1 }, { 4: 1 }]) got.push(...readPad(pad(0, b), s, d, 1 / 60, prev).actions);
+  report(full <= reach + 1e-9 && full > 0.9 * reach && edge.every(e => e < 0.01) && got.join() === 'up,up,down',
+    'mando de juego: a 200 km/h el stick a fondo pide lo que permite el agarre; sin escalón al salir de la zona muerta; LB/RB cambian una marcha por pulsación',
+    `stick ${full.toFixed(3)} frente a ${reach.toFixed(3)} · a 0,07 y 0,09: ${edge.map(e => e.toFixed(4)).join(', ')} · botones: ${got.join(', ')}`);
+}
+{
+  // The balance at the limit at speed: a key held at 240 km/h without PSM, the throttle holding
+  // the speed, understeers — the load sensitivity taken about each axle's own static load.
+  const { c, s, i } = make(); s.tc = false; rolling(s, 240 * KMH, 6);
+  const F = 1 / 60, ramp = (cur, t, r) => cur + Math.max(-r * F, Math.min(r * F, t - cur));
+  let beta = 0;
+  for (let t = 0; t < 4; t += F) {
+    i.steer = ramp(i.steer, steerReach(s, 1), steerRate(s, true));
+    i.throttle = clamp01(0.35 + (240 * KMH - s.u) * 0.25);
+    c.advance(F); beta = Math.max(beta, Math.abs(Math.atan2(s.v, Math.max(1, s.u))) * 180 / Math.PI);
+  }
+  report(beta < 8, 'a 240 km/h sin PSM, la tecla mantenida y el gas sosteniendo la velocidad: no hace trompo (< 8°)', `deriva máx. ${beta.toFixed(1)}°`);
+}
+
+// ---- The PDK: no gap in the drive on an upshift, a map by the pedal, kickdown ---------------------
+{
+  // Flat out from rest: through each upshift from 1→2 to 4→5 the acceleration keeps at least 60 %
+  // of what it was just before, and the shift is over (the new clutch locked) within 0.15 s.
+  const { c, s, i } = make(); i.throttle = 1;
+  const shifts = [];
+  let gear = s.gear, axBefore = 0, cur = null;
+  for (let k = 0; k < 240 * 12 && shifts.length < 4; k++) {
+    const ax0 = s.ax;
+    c.step(DT);
+    if (s.gear !== gear) { cur = { from: gear, to: s.gear, before: axBefore, min: Infinity, t0: s.t, end: null }; gear = s.gear; }
+    if (cur) {
+      cur.min = Math.min(cur.min, s.ax);
+      if (cur.end === null && s.shift <= 0 && s.clutchLocked) cur.end = s.t - cur.t0;
+      if (s.t - cur.t0 > 0.3) { shifts.push(cur); cur = null; }
+    }
+    axBefore = ax0;
+  }
+  report(shifts.length === 4 && shifts.every(x => x.min > 0.6 * x.before && x.end !== null && x.end < 0.15),
+    'PDK: al subir de marcha a fondo no hay hueco de empuje (la aceleración no baja del 60 %) y el cambio dura menos de 0,15 s',
+    shifts.map(x => `${x.from}→${x.to}: ${(x.before / 9.81).toFixed(2)} → mín. ${(x.min / 9.81).toFixed(2)} g en ${(x.end * 1000).toFixed(0)} ms`).join(' · '));
+}
+{
+  // The automatic mode's map: at 20 % throttle from rest it shifts up early (under 4,000 rpm) and
+  // is in fifth or higher by a minute; at 30 % from 120 km/h it settles in fifth or higher; a
+  // stamp on the pedal at 80 km/h in seventh drops three or more gears at once and pulls to
+  // 120 km/h in under 2.6 s (≈); and with the power on in a 0.6 g corner it holds its gear.
+  const light = make(); light.i.throttle = 0.2;
+  let maxUp = 0, prevGear = light.s.gear, prevRpm = 0;
+  for (let k = 0; k < 240 * 60; k++) { prevRpm = light.s.rpm; light.c.step(DT); if (light.s.gear > prevGear) maxUp = Math.max(maxUp, prevRpm); prevGear = light.s.gear; }
+  const cruise = make(); rolling(cruise.s, 120 * KMH, 3); cruise.i.throttle = 0.3;
+  for (let k = 0; k < 240 * 5; k++) cruise.c.step(DT);
+  const kd = make(); rolling(kd.s, 80 * KMH, 7); kd.s.thrF = 0.2;
+  kd.i.throttle = 1;
+  let kdGear = 7, kdAt = null, t120 = null;
+  for (let k = 0; k < 240 * 5 && t120 === null; k++) { kd.c.step(DT); if (kdAt === null && kd.s.gear < 7) { kdAt = kd.s.t; kdGear = kd.s.gear; } if (kd.s.u >= 120 * KMH) t120 = kd.s.t; }
+  const corner = make(); rolling(corner.s, 70 * KMH, 2); corner.s.thrF = 0.6; corner.i.throttle = 0.6; corner.i.steer = 0.18;
+  let held = true, ayMin = Infinity;
+  for (let k = 0; k < 240 * 3; k++) { corner.c.step(DT); if (k > 240 && Math.abs(corner.s.ay) > 0.6 * 9.81) { ayMin = Math.min(ayMin, Math.abs(corner.s.ay)); if (corner.s.gear !== 2) held = false; } }
+  report(maxUp > 0 && maxUp < 4000 && light.s.gear >= 5 && cruise.s.gear >= 5 && kdAt !== null && kdAt < 0.3 && 7 - kdGear >= 3 && t120 !== null && t120 < 2.6 && held && ayMin < Infinity,
+    'PDK automático: con poco gas cambia pronto, al pisar a fondo reduce varias marchas de golpe y en curva con gas no sube de marcha',
+    `al 20 %: sube a ${maxUp.toFixed(0)} rpm, en ${light.s.gear}.ª al minuto · al 30 % desde 120 km/h: ${cruise.s.gear}.ª · kickdown de 7.ª a ${kdGear}.ª a los ${kdAt?.toFixed(2)} s, 80–120 km/h en ${t120?.toFixed(2) ?? '—'} s · curva a ${(ayMin / 9.81).toFixed(2)} g: ${held ? 'mantiene 2.ª' : 'cambió'}`);
+}
+
+// ---- The rear differential: PTV Plus ----------------------------------------------------------
+{
+  const { DIFF } = await import('../src/data/gt3rs.js');
+  const F = 1 / 60;
+  // Powering out of a corner at 60 km/h in second, PSM off: the lock lets both rears drive, the
+  // tail steps out (> 15° within 1.5 s); with PSM on it stays in line (< 8°).
+  const exit = (psm) => {
+    const { c, s, i } = make(); s.tc = psm; rolling(s, 60 * KMH, 2);
+    i.steer = 9 * Math.PI / 180 / CAR.maxSteer; i.throttle = 0.3;          // 9° at the wheels
+    for (let t = 0; t < 1.5; t += F) c.advance(F);
+    i.throttle = 1;
+    let at = null, b = 0;
+    for (let t = 0; t < 1.5; t += F) { c.advance(F); const x = Math.abs(Math.atan2(s.v, Math.max(1, s.u))) * 180 / Math.PI; b = Math.max(b, x); if (at === null && x > 15) at = t; }
+    return { at, b };
+  };
+  const off = exit(false), on = exit(true);
+  // Split grip at launch (left 1, right 0.5), PSM on, a driver holding the heading: quicker than
+  // an open differential would be, and straight.
+  const split = (open) => {
+    const save = JSON.stringify(DIFF);
+    if (open) Object.assign(DIFF, { preload: 0, drive: [0, 0], coast: [0, 0] });
+    const c = createGt3Car({ ground: (x, z) => ({ h: 0, mu: z > 0 ? 0.5 : 1, roll: 0, kind: 'track' }) }); c.reset();
+    const s = c.state, i = c.input;
+    i.throttle = 1; i.brake = 1; for (let k = 0; k < 360; k++) c.step(DT); i.brake = 0;
+    let t100 = null, psi = 0;
+    for (let k = 0; k < 240 * 8 && t100 === null; k++) { i.steer = clamp01(-2 * s.psi - 0.4 * s.r + 0.3) - 0.3; c.step(DT); psi = Math.max(psi, Math.abs(s.psi)); if (s.u >= 100 * KMH) t100 = k * DT; }
+    Object.assign(DIFF, JSON.parse(save));
+    return { t100, psi: psi * 180 / Math.PI };
+  };
+  const ptv = split(false), opened = split(true);
+  // Turning in at 50 km/h: the inner rear braked while the car turns less than it is steered —
+  // the yaw builds quicker than without it.
+  const turnIn = (on) => {
+    DIFF.ptv.on = on;
+    const { c, s, i } = make(); rolling(s, 50 * KMH, 2); i.throttle = 0.2;
+    for (let t = 0; t < 0.5; t += F) c.advance(F);
+    i.steer = 0.25;
+    for (let k = 0; k < 24; k++) c.step(DT);
+    DIFF.ptv.on = true;
+    return s.r;
+  };
+  const rOn = turnIn(true), rOff = turnIn(false);
+  // Lifting off at 150 km/h in a 1.4 g corner, PSM off: the coast lock keeps it stable (< 6°).
+  const { c, s, i } = make(); s.tc = false; rolling(s, 150 * KMH, 5); i.throttle = 0.6; i.steer = 0.13;
+  for (let t = 0; t < 2; t += F) c.advance(F);
+  const ay = Math.abs(s.ay) / 9.81; i.throttle = 0;
+  let lift = 0;
+  for (let t = 0; t < 2; t += F) { c.advance(F); lift = Math.max(lift, Math.abs(Math.atan2(s.v, Math.max(1, s.u))) * 180 / Math.PI); }
+  report(off.at !== null && off.at < 1.5 && on.b < 8 && ptv.t100 < opened.t100 - 0.5 && ptv.psi < 3 && rOn > rOff * 1.03 && ay > 1.3 && lift < 6,
+    'diferencial PTV Plus: con gas a la salida la cola sale sin PSM y no con él; con agarre desigual arranca antes que abierto y recto; la rueda interior frenada mete el coche; al levantar el pie a 150 km/h, estable',
+    `salida a 60 km/h: ${off.b.toFixed(0)}° a los ${off.at?.toFixed(2) ?? '—'} s sin PSM, ${on.b.toFixed(1)}° con él · agarre desigual: 0–100 en ${ptv.t100?.toFixed(2)} s (abierto ${opened.t100?.toFixed(2)} s), desvío ${ptv.psi.toFixed(1)}° · giro a los 0,1 s: ${rOn.toFixed(3)} frente a ${rOff.toFixed(3)} rad/s · levantar a ${ay.toFixed(2)} g: ${lift.toFixed(1)}°`);
+}
+
+{
+  // The turning circle: at walking pace on full lock, the outer front tyre's contact centre
+  // runs a circle of the published 10.5 m (±3 %), the rear-axle steering helping.
+  const { c, s, i } = make(); i.steer = 1; i.throttle = 0.12;
+  for (let k = 0; k < 240 * 8; k++) c.step(DT);
+  const [px, py] = c.WP[1];
+  const d = 2 * Math.hypot(s.u - s.r * py, s.v + s.r * px) / Math.abs(s.r);
+  report(Math.abs(d / BODY.turningCircle - 1) < 0.03, 'diámetro de giro: el publicado, 10,5 m (±3 %), con el volante a tope y el eje trasero direccional', `${d.toFixed(2)} m`);
+}
+
+{
+  // The ABS holds the slip near the peak smoothly: braking hard from 140 km/h the front-left
+  // wheel's pressure changes direction fewer than 15 times a second (the old one chattered at
+  // ≈22 Hz) and never drops under half.
+  const { c, s, i } = make(); rolling(s, 140 * KMH, 5); i.brake = 1;
+  let rev = 0, prev = null, dir = 0, kmin = 1, t = 0;
+  while (s.u > 1 && t < 10) {
+    c.step(DT); t += DT;
+    const k = s.absK[0];
+    if (prev !== null) { const nd = Math.sign(Math.round((k - prev) * 1e4)); if (nd && dir && nd !== dir) rev++; if (nd) dir = nd; }
+    prev = k; if (s.abs) kmin = Math.min(kmin, k);
+  }
+  report(rev / t < 15 && kmin >= 0.5, 'ABS suave: control del deslizamiento, sin vibrar ni vaciar la presión', `${(rev / t).toFixed(1)} cambios de sentido por segundo · presión mínima ${(kmin * 100).toFixed(0)} %`);
 }
 
 // ---- The circuit's surfaces ----------------------------------------------------------------------
@@ -513,6 +709,6 @@ function drive({ v0 = 0, gear = 1, psm = true, keys, T = 5 }) {
     `splitter ${splitter.n} · saneados ${fixed.triangles} en ${fixed.meshes} geometrías, quedan ${built.n} · tras 18 golpes ${dented.n}${dented.names ? ` (${dented.names})` : ''}`);
 }
 
-void GEARBOX; void BODY;
+void GEARBOX;
 console.log(failed ? `\n${failed} fallo(s) en el modelo del GT3 RS` : '\nModelo del GT3 RS: todo correcto');
 process.exit(failed ? 1 : 0);

@@ -17,7 +17,7 @@
  * 12,000 segments wraps.
  */
 import * as THREE from 'three';
-import { createGt3Car, CAR, steerReach, OUTLINE } from './gt3Car.js';
+import { createGt3Car, CAR, steerReach, steerRate, OUTLINE } from './gt3Car.js';
 import { AXLE_F, AXLE_R } from '../vehicles/gt3rs.js';
 import { EYE } from '../vehicles/gt3Cabin.js';
 import { WHEELS } from '../data/gt3rs.js';
@@ -25,6 +25,7 @@ import { trackCoords, toLocal, LAP, START } from '../core/circuitPlan.js';
 import { createGt3Sound } from './gt3Sound.js';
 import { createEffects } from '../core/effects.js';
 import { createGt3Damage } from './gt3Damage.js';
+import { readPad, rumbleFor } from './gt3Pad.js';
 
 const R2D = 180 / Math.PI;
 const CAMERAS = ['chase', 'driver', 'bonnet', 'trackside', 'orbit'];
@@ -249,6 +250,8 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
   // The paddles: the first pull puts the PDK in its manual mode; G gives it back its automatic one.
   // Pulls made while a shift is still going through wait their turn, as the PDK takes them.
   let pulls = 0;
+  const padPrev = {};
+  let padRumbleT = 0;
   function paddle(dir) {
     if (!s.paddles) setPaddles(true);
     pulls = THREE.MathUtils.clamp(pulls + dir, -3, 3);
@@ -275,16 +278,23 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
     // Steering: as much lock as the grip can use at this speed, more when the tail is out (the
     // counter-steer needs it); it turns in at a hand's pace and centres itself.
     const want = (left - right) * steerReach(s, left - right);
-    driver.steer = ramp(driver.steer, want, want ? 1.8 : 3.0);
+    driver.steer = ramp(driver.steer, want, steerRate(s, want !== 0));
+    // A game controller (gt3Pad.js): when in use it drives; its buttons act on the press.
     const pads = typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
     for (const g of pads) {
       if (!g || !g.connected) continue;
-      const dz = (x) => (Math.abs(x) < 0.08 ? 0 : x);
-      if (g.axes.length && dz(g.axes[0])) driver.steer = -dz(g.axes[0]);
-      const b = (i) => g.buttons[i]?.value ?? 0;
-      if (b(7) > 0.02) driver.throttle = b(7);
-      if (b(6) > 0.02) driver.brake = b(6);
-      if (b(0) > 0.5) driver.handbrake = 1;
+      const { actions } = readPad(g, s, driver, dt, padPrev);
+      for (const a of actions) {
+        if (a === 'up') paddle(1); else if (a === 'down') paddle(-1);
+        else if (a === 'psm') setTraction(!s.tc); else if (a === 'camera') cycleCamera();
+        else if (a === 'pause') setPaused(!state.paused);
+      }
+      // Rumble every ≈50 ms, where the pad has the motors.
+      if ((padRumbleT += dt) > 0.05 && g.vibrationActuator?.playEffect) {
+        padRumbleT = 0;
+        const r = rumbleFor(s);
+        if (r.strong > 0.02 || r.weak > 0.02) g.vibrationActuator.playEffect('dual-rumble', { duration: 60, strongMagnitude: r.strong, weakMagnitude: r.weak }).catch?.(() => {});
+      }
       break;
     }
     toSim();
@@ -398,7 +408,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
       w.position.y = wheelY[i] + s.travel[i];
     }
     // The flap: flat for the DRS, steepest as an airbrake.
-    if (flap && flapBase) flap.quaternion.copy(flapBase).multiply(_q.setFromAxisAngle(new THREE.Vector3(0, 0, 1), (s.aero === 'drs' ? 13 : s.aero === 'airbrake' ? -8 : 0) / R2D));
+    if (flap && flapBase) flap.quaternion.copy(flapBase).multiply(_q.setFromAxisAngle(new THREE.Vector3(0, 0, 1), (13 * (s.drsT ?? (s.aero === 'drs' ? 1 : 0)) + (s.aero === 'airbrake' ? -8 : 0)) / R2D));
     instruments?.update({ rpm: s.rpm, gear: s.reverse ? 'R' : s.gear, kmh: Math.hypot(s.u, s.v) * 3.6, steer: s.steer });
     if (brakeMat) brakeMat.emissiveIntensity = sim.input.brake > 0.05 ? 3.2 : brakeOff;
     void _e;
@@ -409,8 +419,9 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
       const [px, py] = sim.WP[i];
       const [x, z] = sim.worldOf(px, py);
       const hard = HARD.has(s.surface[i]);
-      const slide = s.slip[i];
-      if (!hard || slide < 1.15 || Math.hypot(s.u, s.v) < 1.5) { marks.lift(i); continue; }
+      // (The slip weighted by the tyre's load: an unloaded wheel lays no rubber.)
+      const slide = s.slipShown?.[i] ?? s.slip[i];
+      if (!hard || slide < 1.15 || s.load[i] < 400 || Math.hypot(s.u, s.v) < 1.5) { marks.lift(i); continue; }
       const a = THREE.MathUtils.clamp(0.3 + (slide - 1.15) / 1.4, 0.3, 0.95);
       _c.set(x, ground(x, z).h + 0.004, z);
       _side.set(Math.sin(s.psi), 0, Math.cos(s.psi));

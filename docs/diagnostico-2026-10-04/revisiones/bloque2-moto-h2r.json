@@ -1,0 +1,125 @@
+{
+ "note": "Adversarial review agents' raw findings (all fixed in the block's commit unless the handover says otherwise).",
+ "results": [
+  {
+   "findings": [
+    {
+     "title": "Sin ayudas, frenar en curva a 37–45° de inclinación tira la moto por encima del manillar: el cabeceo no tiene en cuenta la inclinación",
+     "severity": "major",
+     "evidence": "src/sim/h2rBike.js:249, 261-262, 269-272 y 277-278 (y el tope de levantamiento del ABS en :205) usan siempre BIKE.h = 0,68 m, aunque la moto esté inclinada. Inclinada φ, el centro de masas queda a h·cosφ sobre el suelo, así que el umbral del caballito inverso sube de g·lf/h = 1,02 g a 1,45 g a 45°, por encima de lo que le queda al neumático (√(1,5²−1²) ≈ 1,1 g). Medido con las ayudas apagadas, la rampa del freno del teclado (5/s) y el gas mantenido antes de frenar: 60 km/h, lean 0,75 → CAÍDA «Over the bars» a 1,32 s con φ 30°; 100 km/h, 0,75 → CAÍDA a 1,23 s con φ 37°, axTyre −1,08 g y ay 0,70 g; 150 km/h, 0,75 → CAÍDA con φ 37°; 150 km/h, 0,9 → CAÍDA a 2,28 s con φ 45°, axTyre −0,96 g y ay 0,95 g. Con 0,96 g de frenada a 45° es imposible levantar la rueda trasera en una moto real, y además es una caída «por frenar en curva», que el usuario prohíbe. Lo mismo pasa al acelerar: sin ayudas, gas a fondo con φ 51° a 60 km/h → «Looped it» a 1,97 s.",
+     "fix": "Usar hE = BIKE.h·cos(min(|φ|, 1.2)) en lugar de BIKE.h en la transferencia de carga (:249), en los momentos y la inercia de cabeceo (:261-272), en los umbrales de vuelco (:277-278) y en el tope `lift` del ABS (:205). Lo he probado en una copia en /tmp/rev-h2r-dyn/proto: los cuatro casos con φ ≥ 30–45° dejan de caer; con lean 0,75–1 a 40–100 km/h y gas a fondo sin ayudas, el caballito máximo se queda en 0–4°, sin caída; y la recta no cambia (0–100 en 3,08 s, 100–0 en 40,3 m, caballito/stoppie sin ayudas en recta, que sí está permitido). Con φ ≈ 25° todavía puede hacer el stoppie (1,30 g disponibles frente a un umbral de 1,13 g), que físicamente es correcto."
+    },
+    {
+     "title": "Sin ayudas, la rueda delantera bloqueada en plena inclinación frena más que el ABS en curva y conserva todo su agarre lateral",
+     "severity": "major",
+     "evidence": "src/sim/h2rBike.js:224-225: sin ayudas, la rueda bloqueada da Fbf = 0,85·min(capF, roomPhys), con roomPhys calculado sobre el μ completo (1,5), mientras que el KCMF usa 0,95·μ (:132, :210-211). Además, durante el bloqueo, ayMax (:331) no baja. Medido desde un giro estable con la rampa de freno de la app: 100 km/h, φ 54° → con ayudas, 64,1 m; sin ayudas, 54,6 m, con la rueda delantera bloqueada 1,9 s seguidos (s.lock = 1,91), ax −0,84 g y ay 1,10 g a la vez. 150 km/h, φ 54° → 125,0 m con ayudas y 112,8 m sin ellas. 60 km/h, φ 49° → 20,0 m frente a 16,5 m. Una rueda delantera que desliza tiene menos agarre (≈0,7–0,8 del máximo) y no puede sostener 1,1 g laterales. El ABS en curva nunca debería perder contra una rueda bloqueada.",
+     "fix": "Durante el bloqueo, usar el rozamiento de deslizamiento: Fbf = 0,7·min(capF, roomPhys) en :225 y, mientras s.lock > 0, ayMax·0,8 en :331 (así la moto se abre de trazada y no se cae, como pide el usuario). Objetivo: que la frenada en curva sin ayudas salga más larga que con ellas (p. ej., a 100 km/h y 54°, ≥ 70 m frente a los 64 m con ayudas)."
+    },
+    {
+     "title": "Al patinar la rueda trasera en curva, la moto sigue inclinada 51° con solo 0,33 g laterales: la inclinación no corresponde a la aceleración lateral",
+     "severity": "major",
+     "evidence": "src/sim/h2rBike.js:285 limita la parte longitudinal a min(|axF|, 0,5·0,92·μ·G), así que s.grip nunca baja de √(1,38² − 0,69²) = 1,195 y el límite de inclinación nunca baja de atan(1,195) = 50° (+2°, :324), haga lo que haga el neumático. Mientras tanto, :331 recorta ay a G·√(μ² − (axTyre/G)²). Medido sin ayudas, con lean 1 a 60 km/h y gas a fondo: justo antes del caballito, φ 51°, axTyre 1,46 g y ay 0,33 g (en equilibrio serían 18°). Con lean 0,75 a 100 km/h: φ 38° con ay 0,45 g (en equilibrio, 24°). Una moto real que se abre de trazada se levanta hasta atan(ay/g). Ahora, en la vista del piloto, el horizonte se ve muy inclinado mientras la moto va casi recta.",
+     "fix": "Cuando s.sliding sea true (:332), bajar el tope del alabeo con la misma dinámica de STAND_UP: s.stop = max(atan(|ay|/G) + 2°, s.stop − STAND_UP·dt). Otra opción es quitar el min(…, 0,5·…) de :285 para que leanCap siga a la parte longitudinal real. Así la inclinación seguiría a atan(ay/g) en ≈0,5 s sin que la moto llegue a caerse."
+    },
+    {
+     "title": "Por debajo de 3 m/s el giro máximo cae a la mitad: el radio salta de 3,0 m a 5,6 m al bajar de 11 km/h",
+     "severity": "minor",
+     "evidence": "src/sim/h2rBike.js:295 `want = input.lean * BIKE.steerMax * (1 - V / 6)`. Medido con el lean a fondo, manteniendo la velocidad: a 12 km/h, dirección 25,6° y R 3,03 m; a 15 km/h, 26,5° y R 2,91 m; a 10 km/h (rama de paso), dirección 14,5° y R 5,6 m; a 7 km/h, 18,3° y R 4,40 m; a 5 km/h, 20,8° y R 3,83 m. Al frenar con el lean mantenido, la dirección pasa de 27° a 16–20° justo al cruzar 2,98 m/s. En una moto real, el giro más cerrado (la dirección a tope, los 27° publicados, R ≈ 3,2 m con la geometría de dirección) se hace precisamente a paso de peatón. Además, R = L/tan δ usa el ángulo del manillar, no el de la rueda en el suelo (δ·cos 25,1° = 0,905δ), y da 2,91 m en lugar de ≈3,2 m.",
+     "fix": "En :295, quitar el factor (1 − V/6): want = input.lean·BIKE.steerMax, para que la rama de paso sea continua con la de V ≥ 3, donde la dirección ya llega a 27°. Si se quiere un radio fiel, usar el ángulo en el suelo, s.r = V·tan(δ·cos(rake))/L (:297, :327), con lo que el radio mínimo queda en ≈3,2 m."
+    },
+    {
+     "title": "El comentario de src/data/h2r.js todavía da las cifras de aceleración antiguas del modelo",
+     "severity": "minor",
+     "evidence": "src/data/h2r.js:79-80 dice «The model gives 2.87 s, 6.51 s / 196 m, 13.06 s / 670 m and 338 km/h». Con el código actual mido: 0–100 en 3,08 s (41,7 m), 0–200 en 6,48 s y 186 m, 0–300 en 13,02 s y 659 m, y 338,1 km/h (cambios a 152/190/228/271/308 km/h). Las cifras actuales cumplen las de MOTORRAD (3,1 / 6,5 en 184 m / 13,4 en 660 m / 337), pero el 0–300 sale 0,38 s rápido y pasa la tolerancia de 0,4 s de tools/h2r-check.mjs:54 por solo 0,02 s.",
+     "fix": "Actualizar :79-80 a «3.08 s, 6.48 s / 186 m, 13.02 s / 659 m and 338 km/h». Para tener margen en el 0–300, la referencia del aire forzado de h2rBike.js:159 (300/3.6) puede pasar a 337/3.6: así sale 13,15 s / 669 m, sin tocar el 0–100 (3,08 s), el 0–200 (6,50 s / 187 m) ni la punta (338,1 km/h); está probado en la copia."
+    }
+   ]
+  },
+  {
+   "findings": [
+    {
+     "title": "The bike passes through a wall of posts at ≥255 km/h, with no impact registered or after it has fallen",
+     "severity": "major",
+     "evidence": "Wall of posts (r 0.1875, every 0.25 m) at x=30, perpendicular to the bike. Bike reset at x=24, z=0.125 (aimed between two posts), u=260 km/h, 6th gear, no keys. Stepping at 1/240 s, s.impact stays 0.00 and s.hits stays empty on every step. Steps 16, 17, 19 and 21 move the bike 0.308, 0.408, 0.336 and 0.454 m where it should move 0.299 m: the collision pushes it forwards, through the wall. It ends at x=94 doing 242 km/h without falling. Lowest speed found: 255 km/h, at 16 of 60 start offsets. Sweep of 1800 runs (walls at 0/10/20/30°, 200–340 km/h): 38 clean pass-throughs with no fall, and 79 falls that end with the bike on the far side of the wall. The walls2 sweep also shows inc=70°, 300 km/h, z0=0 passing with maxImpact 0. Cause, in h2rBike.js collide(): the step at 255 km/h is 0.30 m. The wall is only 0.28 m thick between posts, and penetration is computed per post centre (l.366–370). A point that has crossed a post's centre gets a normal pointing forwards. l.388 then flips the wall's line normal to agree with it, l.391 pushes the bike 'out' along it (forwards), and l.394 returns because vn ≤ 0, so no impact or fall is registered. The 'Hit it' fall (l.399–401) and stepDown's collide (l.108, l.397) work from the same normal, so a fallen bike can also be pushed out on the far side.",
+     "fix": "Sweep the outline points from the previous step's position to the new one (segment against circle), or sub-step collide() so no point moves more than ≈0.1 m per check. Choose the wall normal's side from the previous position or the velocity (it must oppose the motion: −sign(v·n)), not from the summed penetration. Never push the bike along +v."
+    },
+    {
+     "title": "With the aids ON, braking in water 0.25–0.45 m deep sends the bike over the bars",
+     "severity": "major",
+     "evidence": "Ground: track up to x=5, then 'mud' with water at that depth. Aids on, 6th gear, S held from t=0 (brake ramps at 5/s). Over the bars ('the stoppie went past the balance point') at entry speeds of: depth 0.25 → 340 km/h, 0.30 → 325, 0.35 → 315, 0.40 → 305, 0.45 → 295. It goes over after 2.1–2.8 s at 190–240 km/h. Water at or below 0.45 m is meant to be ridable, and going over the bars is allowed only with the aids OFF. Same result with S+Space and with D held then S (0.40 m, 337 km/h, at t=2.50). Cause: the aids' lift cap on the front brake (h2rBike.js:205) subtracts the air's drag but not the water's (Fwater, l.232, up to 0.6 g). On top of that, the rear-lift mitigation (l.208) never eases the brake below 0.5 of itself, even at −44° of pitch. So the brake plus water drag pitch it past atan(lf/h) (l.278), while l.270 adds the water's own moment.",
+     "fix": "With the aids on, subtract Fwater as well as the air's drag in the lift cap at l.205. Let rear-lift mitigation release the brake fully (floor 0 instead of 0.5) once θ is past a few degrees. Add a test to tools/h2r-check.mjs: 0.30 m and 0.44 m of water, 337 km/h, S held, aids on → no fall."
+    },
+    {
+     "title": "Stopped on a slope, it never rolls back, even on a 45° grade with no brake",
+     "severity": "minor",
+     "evidence": "Ground h=(x−5)·k. Bike reset at x=20, no keys, 5 s: x stays exactly 20.000 and u=0 for k = 0.1, 0.2, 0.33, 0.5 and 1.0 (5.7° to 45°), aids on and off. Coasting up from 30 km/h, it stops at the top of its run (e.g. k=0.33 at x=14.03) and stays there; it never rolls back. Cause: h2rBike.js:239 clamps u ≥ 0, and l.240 sets u=0 whenever V<0.05 and Fgrade≥0, even with no brake on.",
+     "fix": "Let gravity win unless the brakes (or the engine in gear) hold the bike. For example, allow a small negative u when Fgrade exceeds the brake's static holding force (input.brake/rearBrake × the brake's force + rolling resistance), or at least hold it at standstill only while a brake is applied."
+    },
+    {
+     "title": "Aids off, full lean then full throttle: the bike holds 50–54° of lean while going straight (≈0 g lateral)",
+     "severity": "minor",
+     "evidence": "Aids off, start at 20/40/60/100 km/h in 2nd, D held, W from t=1.5 s. The lean stays at 50.6–53.9° while s.ay = 0.00–0.07 g (turn radius 1.8 km up to effectively infinite), sliding=true, axTyre 1.5–1.69 g. This lasts 0.38–0.50 s (more than 25° of lean beyond the turn's balance lean), and then the wheelie loops it (an allowed fall). Real balance needs tan φ = a_y/g. Cause: l.331–332 cut a_y to ayMax = g·√(μ²−(axTyre/g)²), which is 0 when the rear spins at μ, but the lean stop (l.323–326) uses only grip/balance and does not follow ayMax. So the drawn lean has no lateral force behind it.",
+     "fix": "When the turn saturates (s.sliding), bring s.stop down towards atan(|ay|/g) at STAND_UP, or cap the lateral share in grip (l.285) with the unfiltered axTyre. With the aids off, the lean would then come up as the rear spins, instead of floating."
+    },
+    {
+     "title": "The bike still steers and turns with its front wheel in the air (wheelie)",
+     "severity": "minor",
+     "evidence": "Aids off, 60 km/h in 2nd, W held, D from 0.3 s. At t=1.55 s: θ=5.5°, NF=0, steer 1.1°, lateral 0.48 g (R=203 m) at 112 km/h. h2rBike.js:124 sets Nf=0 when θ>0.002, but the yaw at l.327 (r = V·tanδ/L) and l.330 still uses the steer.",
+     "fix": "When s.theta > 0.002 (front off the ground), take the yaw from the rear tyre alone. For example, scale r by the front's load share, or hold r at its last value and let it decay. The lean controller should not get steering authority from an airborne front wheel."
+    },
+    {
+     "title": "No airborne phase: the bike's height snaps to the ground over crests (406 g vertical)",
+     "severity": "minor",
+     "evidence": "Crest h = 0.33·(x−40) up to x=50, then falling at 0.33 (≈±18°). 200 km/h with W held, 1/240 s frames. The second difference of s.y gives a vertical acceleration of up to 406 g, and the bike never leaves the ground. h2rBike.js:345–347 set s.y=(hf+hr)/2 and gradePitch directly from the ground every step, with no vertical velocity.",
+     "fix": "Give the bike a vertical velocity. When the ground falls away faster than gravity can follow (−v²·κ > g), let it fly ballistically (no tyre forces, the pitch kept) and land on the springs. Or, as a minimum, cap s.y's rate of change and mark the state as approximate."
+    }
+   ]
+  },
+  {
+   "findings": [
+    {
+     "title": "La ficha de la H2R (src/data/specs.js) sigue diciendo que la moto se cae al superar el agarre y da las cifras antiguas",
+     "severity": "major",
+     "evidence": "src/data/specs.js:578 'Ride model': '…falls when the grip is exceeded'. Ya no es cierto: en h2rBike.js solo quedan las llamadas a fall() de las líneas 277/278 (caballito o vuelco por delante), 339 (agua) y 400 (golpe). src/data/specs.js:579 'Ride model · checked' dice 0–100 ≈2.9 s, 0–200 ≈196 m, 0–300 ≈13.1 s (≈670 m), pero `node tools/h2r-check.mjs` da ahora 3.08 s, 186 m, 13.02 s y 659 m. La ficha se ve en la app y el diff no la toca. README.md:812 (0–100 2,55 s…) y README.md:823 ('193 de 200 recorridos acaban en caída') tampoco están actualizados; TRASPASO.md no se ha tocado (esto último era de esperar en este punto).",
+     "fix": "Reescribir specs.js:578: «nunca cae por inclinarse: un tope de inclinación (lo que agarran los neumáticos, hasta la estribera); cae solo por caballito o vuelco por delante sin ayudas, agua de más de 0,45 m o un golpe fuerte y de frente». Poner en specs.js:579 los resultados nuevos (3,1 s · 6,5 s/186 m · 13,0 s/659 m · 338 km/h · 54° a 100 km/h). Actualizar README y TRASPASO."
+    },
+    {
+     "title": "El cabeceo de la suspensión gira toda la moto, ruedas incluidas: la delantera se hunde ≈5 cm en el suelo al frenar y en reposo queda inclinada −0,45°",
+     "severity": "minor",
+     "evidence": "src/sim/h2rRide.js:181 `leanG.rotation.set(s.phi, 0, Math.atan((s.susR - s.susF*cos(rake))/BIKE.L))`. leanG contiene la moto entera con las ruedas (pivote a CROWN=0,08 m, a mitad de batalla). Ninguna barra de horquilla se mueve por separado. Medido en node: en reposo (susF 0,0707, susR 0,0527) el ángulo es −0,45° (antes −0,31°), así que la rueda delantera queda ≈6 mm bajo el suelo y la trasera ≈6 mm en el aire. Frenando a fondo desde 200 km/h con ayudas, susF llega a 0,12 (tope de recorrido) y el ángulo mínimo baja a −4,29° (antes −2,06°): el eje delantero baja ≈54 mm (0,725·sin 4,29°) y la trasera sube lo mismo. Antes eran 26 mm.",
+     "fix": "Restar el valor estático (calcular el ángulo con susF−susF0 y susR−susR0) y aplicar el cabeceo solo a la masa suspendida, no a las ruedas; o al menos limitarlo para que las ruedas no atraviesen el suelo."
+    },
+    {
+     "title": "placeHome() no reinicia lastHit: tras Enter, los avisos 'Scraped along it' y 'Contact' quedan mudos tantos segundos como durara la vuelta anterior",
+     "severity": "minor",
+     "evidence": "src/sim/h2rRide.js:258 reinicia fell, wheelieNoted, lastRefused y leanNoted, pero no lastHit (declarado en la línea 311). sim.reset() devuelve s.t a 0, y la condición de la línea 323 `s.t - lastHit > 1` es falsa hasta que s.t > lastHit+1. Ejemplo: un roce a los 120 s y luego Enter deja sin aviso de roce los 121 s siguientes. El aviso nuevo de roce depende de esta condición.",
+     "fix": "Añadir `lastHit = -10; splashed = false;` en placeHome()."
+    },
+    {
+     "title": "La prueba de navegador de ux-check no se queda en la pista: sale a la hierba y cruza la fila de balizas de borde a 5,8 m de una",
+     "severity": "minor",
+     "evidence": "tools/ux-check.mjs:866. Repliqué gt3Ground (circuitSurface, runwaySurface, groundSample, waterAt) y las balizas de borde de runway.js (cada 60,96 m en c=±25,86) con advance(1/30) y las rampas de teclado. Con D pulsada 3 s, la moto sale de la pista: a los 3 s está en x −1237,5, z 529,3 y entra en hierba. Cruza z 525,86 a ≈5,8 m de la baliza de x −1243,84 y termina en x −1237, z 570,8. Hoy pasa: máx. 52,6°, tope 52,7°, sin caída, 1,5° al final, 0 impactos. Pero el comentario ('on the runway, wide open, nothing to hit') no se cumple. Cualquier cambio del radio de giro o de la rampa (un ≈10 % de radio) puede llevar la moto contra una baliza (vn>7 m/s a ≈57° = caída) y el fallo parecería una caída por inclinación.",
+     "fix": "Arrancar en c≈−20 (z 480) para que el círculo de ≈57 m quede dentro del ancho útil, o girar a la izquierda hacia el lado del apron libre, o medir solo hasta que la moto salga de la pista. Como mínimo, corregir el comentario."
+    },
+    {
+     "title": "El recorrido aleatorio sin ayudas cubre menos de la mitad del tiempo que dice: 177 de 200 recorridos acaban por caballito o vuelco",
+     "severity": "minor",
+     "evidence": "tools/h2r-check.mjs, bloque de 200 recorridos aleatorios con aids=false. Medido con la misma semilla: 177 caídas (140 por delante, 37 por caballito), recorrido medio de 8,7 s de 20 s y caída mediana a los 6,5 s. Solo hay 298 s por encima de 30° de inclinación, frente a 775 s con ayudas. Por eso la afirmación 'ninguna caída por inclinarse sin ayudas' se comprueba en ≈44 % del tiempo previsto. Además, el filtro `/wheelie|bars/` dejaría pasar cualquier mensaje futuro que contenga 'bars' (por ejemplo, 'bars\\' lock'). Por construcción ya no queda ningún fall() por inclinación en h2rBike.js, así que los `!crashed` de estas pruebas solo vigilan caballitos, vuelcos, agua y golpes. La prueba de frenada inclinada con ayudas tampoco comprueba que frene: hoy lo hace, 0,35–0,92 g medidos.",
+     "fix": "En la variante sin ayudas, después de una caída por caballito o vuelco, reiniciar y seguir hasta completar los 20 s, o limitar el freno delantero aleatorio. Filtrar por los textos exactos de fall() en lugar de una expresión regular amplia. Añadir una deceleración mínima (>0,3 g) en 'frenar a fondo inclinada'."
+    },
+    {
+     "title": "La prueba dice imitar las rampas del teclado, pero frena a 7/s y h2rRide.js ahora a 5/s",
+     "severity": "minor",
+     "evidence": "El comentario de tools/h2r-check.mjs (bloque 'Ridden as the keyboard rides it') dice 'brakes 7/s as h2rRide.js ramps them', y ride() usa `ramp(r.brake, …, 7, f)`. El diff cambió el freno delantero en src/sim/h2rRide.js:93 a 5/s. Con 5/s el recorrido aleatorio sin ayudas da 175 caídas y la caída mediana a los 5,5 s (con 7/s, 177 y 6,5 s), así que las pruebas no ejercitan la rampa que usa la app.",
+     "fix": "Usar 5 para el freno delantero en ride() (o importar las constantes de las rampas desde h2rRide.js) y corregir el comentario."
+    },
+    {
+     "title": "El 0–300 km/h pasa por 0,02 s: 13,02 s frente a 13,4 s, con tolerancia 0,4 s",
+     "severity": "minor",
+     "evidence": "`node tools/h2r-check.mjs`: '0–300 13.02 s en 659 m (13.4 s, 660 m)'. El umbral nuevo es `Math.abs(at[300] - PRESS.t300) < 0.4`, así que el margen es de 0,02 s. Es un 2,8 % más rápido que la cifra GPS de MOTORRAD, aunque la distancia cuadra (−0,2 %). Cualquier ajuste mínimo (fricción, clutch) rompe la prueba, o la sigue pasando con una cifra que no es la de MOTORRAD.",
+     "fix": "Ajustar el modelo para acercar el 0–300 a 13,4 s (por ejemplo, la parte de ram air o el cdA a alta velocidad) o documentar la desviación. No dejar una tolerancia con 0,02 s de margen."
+    }
+   ]
+  }
+ ]
+}

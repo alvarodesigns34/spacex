@@ -7,8 +7,8 @@
  *  - Stability control: a yaw-rate reference from the steering and the speed (a neutral car's,
  *    capped by the grip) against the car's own rate and its slip angle, met by braking one wheel
  *    (and letting off the inner wheels' brakes when oversteering on them) and easing the throttle.
- *  - ABS: each wheel's pressure eases as soon as its tyre slips past the peak and comes back as it
- *    recovers, so it stays near its best grip, steering and stable, instead of locking.
+ *  - ABS: each wheel's slip held just short of its peak by a proportional–integral control of its
+ *    pressure, so it stays near its best grip, steering and stable, instead of locking.
  *  - EBD and cornering brake control: the rears' share of the brake trimmed to the load they carry,
  *    and further in a corner.
  *  - The drift mode: a tap of the parking brake at speed starts a drift; PSM stands back while the
@@ -23,9 +23,9 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
 export const ASSISTS = {
   tag: 'ESTIMATE',
-  tc: { gain: 0.8, floor: 0.05, rate: 30 },
+  tc: { gain: 0.8, floor: 0.05, rate: 30, combMax: 1.1, combGain: 3 },
   esc: { rateDead: 0.04, betaDead: 0.04, kRate: 9000, kBeta: 60000, maxMoment: 9000, speed: 5 },
-  abs: { release: 30, recover: 6, floor: 0.05, peakMargin: 1.05, speed: 1.5 },
+  abs: { target: 0.92, kp: 0.3, ki: 40, recover: 6, floor: 0.05, speed: 1.5 },
   drift: { start: 0.9, hold: 0.35, betaHold: 0.10, betaCap: 0.6, kCap: 70000, maxCap: 14000 },
   ebd: { rearMax: 0.72, cbc: 0.9, cbcFloor: 0.25 },
 };
@@ -42,10 +42,16 @@ export function psmActive(s, input, dt, beta) {
   return s.tc && s.drift <= 0;
 }
 
-/** Traction control: the share of the drive it lets through (s.tcCut, smoothed). */
+/**
+ * Traction control: the share of the drive it lets through (s.tcCut, smoothed). On the driven
+ * tyres' slip ratio, and on their combined slip too: a rear sliding sideways at the edge of its
+ * friction circle has no grip to spare for the drive even before it spins up (the published
+ * system works from the IMU as well as the wheel speeds).
+ */
 export function tractionControl(s, active, slipPeak, dt) {
   const T = ASSISTS.tc;
-  const target = active ? clamp(1.6 - T.gain * (Math.max(s.kap[2], s.kap[3]) / slipPeak), T.floor, 1) : 1;
+  const comb = Math.max(s.slip?.[2] ?? 0, s.slip?.[3] ?? 0);
+  const target = active ? clamp(Math.min(1.6 - T.gain * (Math.max(s.kap[2], s.kap[3]) / slipPeak), 1 + T.combGain * (T.combMax - comb)), T.floor, 1) : 1;
   s.tcCut += (target - s.tcCut) * Math.min(1, dt * T.rate);
   return s.tcCut;
 }
@@ -98,12 +104,26 @@ export function rearBrakeShare(s, bias, loadF, loadR, mu) {
   return Math.min(1 - bias, B.rearMax * loadR / Math.max(1, loadF + loadR)) * cbc;
 }
 
-/** ABS for wheel i, given its slip ratio before this step's update: updates and returns s.absK[i]. */
+/**
+ * ABS for wheel i, given its slip ratio before this step's update: updates and returns s.absK[i].
+ * A slip-target controller, proportional and integral: braking, each wheel's pressure is held so
+ * its slip ratio sits just short of the peak (0.92 of it, less at walking pace), easing as soon
+ * as it slips past and building back smoothly — not the bang-bang release and recovery it was,
+ * which chattered at ≈22 Hz with deep dumps of pressure.
+ */
 export function abs(s, i, braking, wx, kap, slipPeak, dt) {
   const A = ASSISTS.abs;
-  if (braking && Math.abs(wx) > A.speed && (kap < -slipPeak * A.peakMargin || (kap < -0.02 && s.slip[i] > 1.12))) {
-    s.absK[i] = Math.max(A.floor, s.absK[i] - dt * A.release * s.absK[i]);
-    s.abs = true;
-  } else s.absK[i] = Math.min(1, s.absK[i] + dt * A.recover);
+  s.absI ??= [0, 0, 0, 0];
+  if (braking && Math.abs(wx) > A.speed) {
+    const kT = -A.target * slipPeak * clamp(Math.abs(wx) / 8, 0.6, 1);
+    // (Past the peak sideways too — a tyre turning hard and braking — the target comes in.)
+    const e = kap - kT * (s.slip[i] > 1.12 ? 0.6 : 1);
+    s.absI[i] = clamp(s.absI[i] + e * dt * A.ki, -1, 0);
+    s.absK[i] = clamp(1 + A.kp * e / slipPeak + s.absI[i], A.floor, 1);
+  } else {
+    s.absI[i] = 0;
+    s.absK[i] = Math.min(1, s.absK[i] + dt * A.recover);
+  }
+  if (s.absK[i] < 0.97) s.abs = true;
   return s.absK[i];
 }

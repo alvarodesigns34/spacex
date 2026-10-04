@@ -37,7 +37,7 @@
  * Frame: world x, z (y up); the car's heading ψ is the angle of its nose from +x towards −z
  * (the scene's yaw), body velocity (u forward, v to the LEFT).
  */
-import { ENGINE, GEARBOX, WHEELS, BRAKES, BODY, AERO, TYRES, PERFORMANCE, SUSPENSION, CLUTCH } from '../data/gt3rs.js';
+import { ENGINE, GEARBOX, WHEELS, BRAKES, BODY, AERO, TYRES, PERFORMANCE, SUSPENSION, CLUTCH, DIFF } from '../data/gt3rs.js';
 import { psmActive, tractionControl, stability, rearBrakeShare, abs } from './gt3Assists.js';
 
 const G = 9.80665;
@@ -63,7 +63,15 @@ const magic = (s) => Math.sin(MF_C * Math.atan(MF_B * s));
 const SLIP_PEAK = 0.10, ALPHA_PEAK = 0.13;   // ≈ the slip ratio and angle (rad) at peak grip
 // The rears are 335 mm wide against the fronts' 275: more rubber on the road, a stiffer carcass —
 // a little more grip and their peak at a smaller slip angle (≈).
-const AXLE_MU = [1, 1, 1.07, 1.07], AXLE_ALPHA = [ALPHA_PEAK, ALPHA_PEAK, 0.115, 0.115];
+const AXLE_ALPHA = [ALPHA_PEAK, ALPHA_PEAK, 0.115, 0.115];
+/**
+ * The balance (≈): the rears' grip over the fronts', the share of the lateral load transfer the
+ * front takes (its roll stiffness), and the load sensitivity taken about each axle's own static
+ * load — about a quarter of the car's weight for all four, a 335 rear at the load it was made to
+ * carry counted as overloaded, its grip fell first at speed and the car spun at the limit at
+ * 240 km/h; about its own axle's, it understeers there, as the road car is set up to.
+ */
+export const BAL = { rollShareFront: 0.55, perAxle: true, rearMu: 1.07 };
 
 export const CAR = (() => {
   const m = BODY.mass + BODY.driver;
@@ -73,28 +81,49 @@ export const CAR = (() => {
     tf: BODY.trackFront, tr: BODY.trackRear,
     rf: WHEELS.front.dia / 2 * 0.975, rr: WHEELS.rear.dia / 2 * 0.975,   // ≈ rolling radius, 2.5 % under the free radius
     Iw: [1.1, 1.1, 1.6, 1.6],         // ≈ wheel, tyre and disc, kg·m² (FL, FR, RL, RR)
-    maxSteer: 30 * Math.PI / 180,     // ≈ from the 10.5 m turning circle with rear-axle steering
+    maxSteer: 32 * Math.PI / 180,     // ≈ fitted to the published 10.5 m turning circle (the outer front tyre's contact centre, with the rear-axle steering): 10.53 m
     rearSteer: 2 * Math.PI / 180,     // ≈
   };
 })();
 
 /**
  * How much of the steering lock a keyboard (or a full stick) should ask for at this speed: the
- * angle at which the front tyres reach about their grip in a steady turn — the geometric angle
- * for the tightest turn the grip allows, L·a/u², plus the tyres' own slip angle at the peak —
- * so a key held down turns the car as hard as it can turn, not past it into a slide. When the
- * car is already sideways, more is allowed the way the slide is caught, for the counter-steer (≈ this simulation's aid, as
- * any driving game needs one for a binary key).
+ * angle at which the front tyres reach about their grip in a steady turn, so a key held down
+ * turns the car as hard as it can turn, not past it into a slide that scrubs the fronts (≈ this
+ * simulation's aid, as any driving game needs one for a binary key).
+ *  - Ahead of time: the lateral acceleration the grip allows here (0.95 of it: the tyres' μ on
+ *    this ground, the downforce at this speed (the share of it the tyres turn into grip, which
+ *    their load sensitivity and the front's share of it hold to ≈half), less what braking or drive take of the friction
+ *    circle), and the lock a steady turn at it needs — the geometric L·a/u² and the car's own
+ *    understeer, TYRES.kUs·a (≈ measured on this model) — through the rear-axle steering, which
+ *    turns with the fronts at speed and takes some of their angle away.
+ *  - Behind it: the front tyres' slip as it is (s.slipF, 1 at their peak) trims that, so a key
+ *    held into a slide on a cold or wet patch asks less.
+ *  - When the car is already sideways, more is allowed the way the slide is caught, for the
+ *    counter-steer.
  */
 export function steerReach(s, dir = 0) {
   const u = Math.max(1, Math.abs(s.u));
   // What the braking or the drive already takes from the friction circle is not there to turn.
   const lat = Math.sqrt(Math.max(0.12, 1 - (s.ax / (TYRES.mu * G)) ** 2));
-  const grip = (CAR.L * 1.25 * TYRES.mu * G / (u * u)) * lat + ALPHA_PEAK * 0.9 * Math.sqrt(lat);
+  const down = 0.5 * AERO.rho * AERO.clA * u * u * lerp(1, AERO.drsClFactor, s.drsT ?? 0);
+  const ayMax = 0.95 * TYRES.mu * (s.muF ?? 1) * G * (1 + TYRES.downGain * down / (CAR.m * G)) * lat;
+  const dEff = CAR.L * ayMax / (u * u) + TYRES.kUs * ayMax;
+  const kR = clamp((s.u - 14) / 14, -1, 1);
+  const dF = dEff / (1 - kR * CAR.rearSteer / CAR.maxSteer);
+  const fb = clamp(1.25 - 0.5 * (s.slipF ?? 0.5), 0.6, 1.1);
   // The tail out to the right (β < 0) is caught by steering right (dir < 0), and vice versa;
   // more lock into the turn would only wind the slide up.
   const beta = Math.atan2(s.v, u), counter = dir !== 0 && Math.sign(dir) === Math.sign(beta) ? Math.abs(beta) * 1.8 : 0;
-  return clamp(grip / CAR.maxSteer + counter, 0.08, 1);
+  return clamp(dF * fb / CAR.maxSteer + counter, 0.08, 1);
+}
+/**
+ * The rate a steering input travels at: proportional to the reach, so full lock for this speed
+ * arrives in ≈0.28 s whatever the speed (a fixed rate made it a step at 200 km/h), and centres in ≈0.15 s.
+ */
+export function steerRate(s, turning) {
+  const r0 = steerReach(s, 0);
+  return turning ? clamp(r0 / 0.28, 0.5, 1.8) : clamp(r0 / 0.15, 0.8, 3.0);
 }
 
 /**
@@ -137,12 +166,14 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     alpha: [0, 0, 0, 0],              // relaxed slip angles
     load: [0, 0, 0, 0],
     rpm: ENGINE.idle, gear: 1, shift: 0, clutch: 0, reverse: false,
-    steer: 0, drs: false, abs: false, t: 0, pitch: 0, roll: 0, pitchV: 0, rollV: 0,
+    steer: 0, drs: false, drsT: 0, abs: false, t: 0, muF: 1, slipF: 0, thrF: 0, slipShown: [0, 0, 0, 0],
+    steerPrev: 0, diffLock: 0, ptv: 0, pitch: 0, roll: 0, pitchV: 0, rollV: 0,
     surface: ['track', 'track', 'track', 'track'],
     tcCut: 1,                         // traction control's share of the drive
     esc: 0,                           // the stability control's yaw moment this step, N·m (for the readout)
     drift: 0,                         // s left of a handbrake-started drift, while PSM stands back
     absK: [1, 1, 1, 1],               // ABS: each wheel's share of its brake pressure
+    absI: [0, 0, 0, 0],               // ABS: each wheel's integral term
     kap: [0, 0, 0, 0],                // slip ratios
     steerW: [0, 0, 0, 0],             // each wheel's steering angle (Ackermann at the front, the rear-axle steering)
     aero: 'normal',                   // the active aerodynamics: 'normal', 'drs' or 'airbrake'
@@ -204,15 +235,19 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     input.shiftUp = !!input.shiftUp; input.shiftDown = !!input.shiftDown;
     const c = Math.cos(s.psi), sn = Math.sin(s.psi);
     const V = Math.hypot(s.u, s.v);
-    // ---- Aerodynamics. Auto-DRS: flat wings on a straight at full throttle above 100 km/h.
-    s.drs = input.throttle > 0.95 && Math.abs(input.steer) < 0.15 && s.u > 28 && input.brake === 0;
+    // ---- Aerodynamics. Auto-DRS: flat wings on a straight at full throttle above 100 km/h — a
+    // straight read from the car's own lateral acceleration and the wheels' angle, not the stick's
+    // (a fast corner needs only ≈2–3° of lock), and the flaps take ≈0.3 s to travel.
+    const wantDrs = input.throttle > 0.95 && Math.abs(s.ay) < AERO.drsLatG * G && Math.abs(s.steer) < AERO.drsSteer && s.u > 28 && input.brake === 0;
+    s.drsT = clamp(s.drsT + (wantDrs ? 1 : -1) * dt / AERO.drsTime, 0, 1);
+    s.drs = s.drsT > 0.5;
     // Drag acts against the car's whole velocity (sideways too, in a slide: ≈ with the frontal
     // CdA, as no side figure is published); the downforce comes from the flow along the car.
     // Airbrake: hard on the brakes from speed, the flaps at their steepest for more drag.
-    const airbrake = !s.drs && input.brake > AERO.airbrakePedal && s.u > AERO.airbrakeSpeed;
+    const airbrake = s.drsT < 0.01 && input.brake > AERO.airbrakePedal && s.u > AERO.airbrakeSpeed;
     s.aero = s.drs ? 'drs' : airbrake ? 'airbrake' : 'normal';
-    const cdA = s.drs ? AERO.cdA : AERO.cdAHigh * (airbrake ? AERO.airbrakeCdFactor : 1);
-    const clA = AERO.clA * (s.drs ? AERO.drsClFactor : 1);
+    const cdA = lerp(AERO.cdAHigh * (airbrake ? AERO.airbrakeCdFactor : 1), AERO.cdA, s.drsT);
+    const clA = AERO.clA * lerp(1, AERO.drsClFactor, s.drsT);
     const kD = 0.5 * AERO.rho * cdA * V;
     const dragX = kD * s.u, dragY = kD * s.v, down = 0.5 * AERO.rho * s.u * s.u * clA;
     // ---- The ground, and the body on its springs (SUSPENSION): heave, pitch and roll follow the
@@ -265,8 +300,9 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     // the most a planar model can say; it does not roll the car over).
     const dLong = clamp(CAR.m * s.ax * CAR.h / CAR.L, -fR, fF);
     const axF = fF - dLong, axR = fR + dLong;
-    const latF = clamp(CAR.m * s.ay * CAR.h * 0.55 / CAR.tf, -axF / 2, axF / 2);   // ≈ roll stiffness 55/45
-    const latR = clamp(CAR.m * s.ay * CAR.h * 0.45 / CAR.tr, -axR / 2, axR / 2);
+    const rsF = BAL.rollShareFront;         // the share of the lateral transfer the front takes (≈ its roll stiffness)
+    const latF = clamp(CAR.m * s.ay * CAR.h * rsF / CAR.tf, -axF / 2, axF / 2);
+    const latR = clamp(CAR.m * s.ay * CAR.h * (1 - rsF) / CAR.tr, -axR / 2, axR / 2);
     const load = [axF / 2 - latF, axF / 2 + latF, axR / 2 - latR, axR / 2 + latR];
     if (aH !== 0 || aP !== 0 || aR !== 0 || gp.warp !== 0) {
       const heave = CAR.m * aH, pitch = S.inertiaPitch * aP / CAR.L, rollF = S.inertiaRoll * aR / (2 * CAR.tf), rollR = S.inertiaRoll * aR / (2 * CAR.tr);
@@ -307,10 +343,12 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     const rpmWheel = wc * RPM;
     if (s.shift > 0) s.shift -= dt;
     const shifting = s.shift > 0;
-    // The throttle the engine gets: cut through an upshift, blipped through a downshift to bring
-    // it up to the lower gear's speed, and opened a little at idle (the idle governor).
+    // The throttle the engine gets: through an upshift it stays open (the torque is cut below,
+    // as the ignition cuts it), blipped through a downshift to bring the engine up to the lower
+    // gear's speed, and opened a little at idle (the idle governor).
+    const upshifting = shifting && s.shiftDir > 0;
     let thr = input.throttle;
-    if (shifting) thr = s.shiftDir > 0 ? 0 : clamp((rpmWheel - s.rpm) / 900, 0, 1);
+    if (shifting && !upshifting) thr = clamp((rpmWheel - s.rpm) / 900, 0, 1);
     if (!s.clutchLocked) thr = Math.max(thr, clamp((ENGINE.idle + 120 - s.rpm) / 400, 0, 0.35));
     // Launch Control: at a standstill with the brake and the throttle both pressed, the engine is
     // held at the launch speed, the clutch open; let go of the brake and the car goes.
@@ -320,13 +358,15 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     const held = s.launch && input.brake > 0.1;
     if (held) thr = clamp((CLUTCH.launchRpm - s.rpm) / 600, 0, 1);
     const limiter = s.rpm >= ENGINE.maxRpm ? 0 : 1;
-    const Te = drowned ? -(ENGINE.friction[0] + ENGINE.friction[1] * s.rpm) * 4 : thr * fullTorque(s.rpm) * limiter * (1 - 0.6 * s.damage) - (1 - thr) * (ENGINE.friction[0] + ENGINE.friction[1] * s.rpm);
+    const Te = drowned ? -(ENGINE.friction[0] + ENGINE.friction[1] * s.rpm) * 4
+      : thr * fullTorque(s.rpm) * limiter * (1 - 0.6 * s.damage) * (upshifting ? GEARBOX.upshiftCut : 1) - (1 - thr) * (ENGINE.friction[0] + ENGINE.friction[1] * s.rpm);
     // The clutch: open through a shift; pulling away, slipping — taking up the drive as the engine
     // gathers revs, or, launching, holding it at the launch speed; otherwise closed, up to its capacity.
     // (Launching, it slips until the wheels have caught the engine up.)
     const launching = s.launch || (Math.abs(rpmWheel) < 1800 && (input.throttle > 0.02 || Math.abs(s.u) < 2));
     let cap;
-    if (shifting || held) cap = 0;
+    if (upshifting) cap = CLUTCH.capacity;        // the new gear's clutch takes the drive at once
+    else if (shifting || held) cap = 0;
     else if (launching && s.launch) cap = clamp(Te + 0.6 * (s.rpm - CLUTCH.launchRpm), 0, CLUTCH.capacity);
     else if (launching) cap = input.throttle > 0.02 ? input.throttle * CLUTCH.capacity * clamp((s.rpm - ENGINE.idle) / (CLUTCH.launchRpm - ENGINE.idle), 0, 1) ** 2 : 0;
     else cap = CLUTCH.capacity;
@@ -337,14 +377,15 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     const we = s.rpm / RPM;
     if (s.clutchLocked && (launching || shifting || Math.abs(Te) > cap)) s.clutchLocked = false;
     else if (!s.clutchLocked && !launching && !shifting && Math.abs(we - wc) < CLUTCH.slipBand && Math.abs(Te) <= cap) s.clutchLocked = true;
-    let driveT, reflected = 0;            // torque at the rear axle (both wheels); the engine's inertia the rears carry
+    let driveT;                           // torque at the rear axle (both wheels)
     if (s.clutchLocked) {
       driveT = Te * Gt * GEARBOX.efficiency;
-      reflected = ENGINE.inertia * Gt * Gt;
     } else {
       const Tcl = cap * clamp((we - wc) / CLUTCH.slipBand, -1, 1);
       driveT = Tcl * Gt * GEARBOX.efficiency;
       s.rpm = Math.max(300, (we + (Te - Tcl) / ENGINE.inertia * dt) * RPM);
+      // The upshift is over once the engine has come down to the new gear's speed.
+      if (upshifting && Math.abs(s.rpm / RPM - wc) < CLUTCH.slipBand) { s.shift = 0; s.clutchLocked = true; }
     }
     // The paddles (the PDK's manual mode): a pull is one gear, taken at once unless a downshift
     // would send the engine past its cut — then the gearbox refuses it, as the PDK does. It never
@@ -362,15 +403,25 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
         } else if (s.gear > 1 && rpmWheel < ENGINE.idle * 1.25 && below < ENGINE.maxRpm - 300) { s.gear--; s.shift = GEARBOX.shiftTime * 0.8; s.shiftDir = -1; }
       }
     }
-    // Automatic shifts (the PDK in its automatic mode).
+    // Automatic shifts (the PDK in its automatic mode), on a map read from the pedal: up early
+    // at a light throttle and at the cut flat out, never mid-corner with the power on; down
+    // later the harder the pedal, at 4,200 rpm braking; a stamp on the pedal (kickdown) goes
+    // straight to the lowest gear that keeps the engine under 7,800 rpm, in one shift. All on
+    // the road speed's rpm (not a spinning wheel's), and never into a gear that would over-rev.
     else if (!s.reverse && s.shift <= 0) {
-      // Up on the road speed's rpm (not a spinning wheel's), down with hysteresis: 2,600 rpm
-      // pulling, 4,200 braking, and never into a gear that would over-rev.
       const below = s.gear > 1 ? rpmWheel * GEARBOX.ratios[s.gear - 2] / GEARBOX.ratios[s.gear - 1] : Infinity;
       const roadRpm = (s.u / CAR.rr) * Gt * RPM;
-      if (Math.min(s.rpm, roadRpm * 1.08) > GEARBOX.upshiftRpm && s.gear < 7 && input.throttle > 0.1) { s.gear++; s.shift = GEARBOX.shiftTime; s.shiftDir = 1; }
-      else if (s.gear > 1 && below < 7600 && rpmWheel < (input.brake > 0.1 ? GEARBOX.downshiftRpm : 2600)) { s.gear--; s.shift = GEARBOX.shiftTime * 0.8; s.shiftDir = -1; }
+      const upAt = lerp(GEARBOX.upLight, GEARBOX.upshiftRpm, clamp((s.thrF - 0.15) / 0.75, 0, 1) ** 1.3);
+      const downAt = input.brake > 0.1 ? GEARBOX.downshiftRpm : lerp(GEARBOX.downLight, GEARBOX.downFull, s.thrF);
+      const cornering = Math.abs(s.ay) > 0.6 * G && s.thrF > 0.3;
+      const kick = input.throttle > 0.9 && (input.throttle - s.thrF > 0.5 || rpmWheel < 5500);
+      let kg = s.gear;
+      if (kick) while (kg > 1 && rpmWheel * GEARBOX.ratios[kg - 2] / GEARBOX.ratios[s.gear - 1] < GEARBOX.kickdownRpm) kg--;
+      if (kg < s.gear) { s.gear = kg; s.shift = GEARBOX.shiftTime; s.shiftDir = -1; }
+      else if (Math.min(s.rpm, roadRpm * 1.08) > upAt && s.gear < 7 && (input.throttle > 0.02 || s.rpm > GEARBOX.upshiftRpm) && !cornering) { s.gear++; s.shift = GEARBOX.shiftTime; s.shiftDir = 1; }
+      else if (s.gear > 1 && below < 7600 && rpmWheel < downAt) { s.gear--; s.shift = GEARBOX.shiftTime * 0.8; s.shiftDir = -1; }
     }
+    s.thrF += (input.throttle - s.thrF) * Math.min(1, 4 * dt);
     // Reverse: from a standstill, the brake held.
     if (!s.reverse && input.reverse && Math.abs(s.u) < 0.5) { s.reverse = true; s.gear = 1; }
     if (s.reverse && !input.reverse && input.throttle > 0) s.reverse = false;
@@ -382,22 +433,52 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     driveT *= aid.drive;
     s.r += aid.yaw / CAR.Iz * dt;
     const escBrake = aid.brake, escKeep = aid.keep;
-    // Locking differential: open, plus a locking torque that resists the two rears turning apart.
-    const lock = clamp((s.w[2] - s.w[3]) * 400, -(250 + 0.45 * Math.abs(driveT)), 250 + 0.45 * Math.abs(driveT));
-    const wheelDrive = [0, 0, driveT / 2 - lock, driveT / 2 + lock];
+    // ---- The differential: Porsche Torque Vectoring Plus, an electronically controlled locking
+    // differential, and the inner rear braked on turn-in (DIFF, ≈ its maps). Its lock's capacity
+    // is a preload and a share of the torque through it, the share mapped from what the car is
+    // doing: low turning in (the car rotates), high powering out of a corner (both rears drive,
+    // the tail can be steered with the throttle) and at speed (stability); lower on the overrun.
+    const steerRate = (s.steer - s.steerPrev) / dt;
+    s.steerPrev = s.steer;
+    const turnIn = Math.abs(steerRate) > 0.2 && input.throttle < 0.3 && Math.sign(steerRate) === Math.sign(s.steer);
+    let f = 0.3;
+    if (input.throttle > 0.5 && Math.abs(s.ay) > 3) f = 1;
+    if (s.u > 150 / 3.6) f = Math.max(f, 0.8);
+    if (turnIn) f = 0;
+    const map = driveT >= 0 ? DIFF.drive : DIFF.coast;
+    let lockCap = DIFF.preload + lerp(map[0], map[1], f) * Math.abs(driveT);
+    // The yaw the steering asks for (a neutral car's at this speed, as the stability control
+    // reads it). With PSM on, a lock that yaws the car away from it — one rear on less grip than
+    // the other — is opened.
+    const rRef = s.u * s.steer / (CAR.L * (1 + 0.0012 * s.u * s.u));
+    const yawErr = s.r - rRef;
+    if (s.tc && Math.abs(yawErr) > 0.015) lockCap *= clamp(1 - (Math.abs(yawErr) - 0.015) / 0.04, 0, 1);
     // ---- Brakes: the pedal's force split front/rear by the hydraulics (≈ 66/34), the rears' share
     // trimmed to the load they carry (electronic brake-force distribution: as the weight comes
-    // forward the rears would lock first and the tail come round), and the stability control's.
+    // forward the rears would lock first and the tail come round), the stability control's, and
+    // the torque vectoring's on the inner rear turning in.
     const tB = input.brake * 1.9 * mg;    // ≈ the pedal's full force, N, at the contact patches
     const rearShare = rearBrakeShare(s, BRAKES.bias, load[0] + load[1], load[2] + load[3], TYRES.mu);
     const brakeT = [
       tB * (1 - rearShare) / 2 * CAR.rf + escBrake[0], tB * (1 - rearShare) / 2 * CAR.rf + escBrake[1],
       tB * rearShare / 2 * CAR.rr + escBrake[2], tB * rearShare / 2 * CAR.rr + escBrake[3],
     ];
+    // The torque vectoring's brake: while the car turns less than it is steered (turning in,
+    // understeering), the inner rear is braked, which turns it in.
+    s.ptv = 0;
+    const under = (rRef - s.r) * Math.sign(s.steer);
+    if (DIFF.ptv.on && under > 0.02 && Math.abs(s.steer) > 0.005 && s.u > 3 && s.u < DIFF.ptv.vMax && input.brake < 0.5) {
+      s.ptv = Math.min(DIFF.ptv.maxBrake, 4000 * (under - 0.02));
+      brakeT[s.steer > 0 ? 2 : 3] += s.ptv;     // steering left (> 0), the left rear is the inner one
+    }
     const handT = input.handbrake * 1700;
-    // ---- Tyres.
+    // ---- Tyres. First each wheel's contact, its tyre and what acts on its spin; then the spins,
+    // implicitly — the fronts each on its own, the rears together through the differential and
+    // the engine — and last the forces at the new spins.
     let Fx = 0, Fy = 0, Mz = 0, roll = 0;
+    s.muF = ((grs[0].mu ?? 1) + (grs[1].mu ?? 1)) / 2 * (s.water[0] > WATER.film || s.water[1] > WATER.film ? WATER.wetMu : 1);
     s.abs = false;
+    const W = [];
     for (let i = 0; i < 4; i++) {
       const [px, py] = WP[i];
       // The contact patch's velocity in the body frame, turned into the wheel's frame.
@@ -406,7 +487,10 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
       const wx = vx * cd + vy * sd, wy = -vx * sd + vy * cd;
       const gr = grs[i];
       s.surface[i] = gr.kind;
-      let mu = TYRES.mu * AXLE_MU[i] * gr.mu * (1 - TYRES.muLoadSens * (load[i] / (mg / 4) - 1));
+      // Load sensitivity about each axle's own static load (a 335 rear is not overloaded at the
+      // load it was made to carry).
+      const Fz0 = BAL.perAxle ? (i < 2 ? mg * CAR.b / CAR.L / 2 : mg * CAR.a / CAR.L / 2) : mg / 4;
+      let mu = TYRES.mu * (i < 2 ? 1 : BAL.rearMu) * gr.mu * (1 - TYRES.muLoadSens * (load[i] / Fz0 - 1));
       // Water on the road: less grip, and fast enough, aquaplaning.
       if (s.water[i] > WATER.film) {
         const ride = clamp((Math.abs(wx) - 0.8 * WATER.vAq) / (0.3 * WATER.vAq), 0, 1) * clamp(s.water[i] / 0.008, 0, 1);
@@ -431,17 +515,51 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
       // recovers, so the tyre stays near its best grip, steering and stable, instead of locking.
       abs(s, i, brakeT[i] > 0, wx, kap0, SLIP_PEAK, dt);
       // The parking brake works on the rears past the ABS: that is what locks them for a drift.
-      let bt = brakeT[i] * s.absK[i] * escKeep[i] + (i >= 2 ? handT : 0);
+      const bt = brakeT[i] * s.absK[i] * escKeep[i] + (i >= 2 ? handT : 0);
       const e = 0.01, k = (tyre(s.w[i] + e)[0] - fx0) / e;           // dFx/dω
       const bSign = Math.abs(s.w[i]) > 0.3 ? Math.sign(s.w[i]) : Math.sign(wx) || 1;
-      const net0 = wheelDrive[i] - fx0 * R - bSign * bt;
-      const Iw = CAR.Iw[i] + (i >= 2 ? reflected / 2 : 0);
-      let wn = s.w[i] + dt * net0 / (Iw + dt * k * R);
+      const drive = i >= 2 ? driveT / 2 : 0;
+      W.push({ px, py, cd, sd, wx, gr, R, tyre, bt, kR: k * R, drive, net: drive - fx0 * R - bSign * bt });
+    }
+    const wn = s.w.slice();
+    for (const i of [0, 1]) wn[i] = s.w[i] + dt * W[i].net / Math.max(0.2, CAR.Iw[i] + dt * W[i].kR);
+    {
+      // The rears: the engine's inertia (through a closed clutch) acts on their sum only — on one
+      // wheel spinning up alone it counts a quarter, on the two turning apart not at all — and
+      // the lock is a stiff viscous coupling up to its capacity, past which it slips.
+      const J = s.clutchLocked ? ENGINE.inertia * Gt * Gt : 0;
+      const m11 = CAR.Iw[2] + J / 4, m22 = CAR.Iw[3] + J / 4, m12 = J / 4;
+      const solve = (kL, n2, n3) => {
+        const a = m11 + dt * (W[2].kR + kL), b = m12 - dt * kL, c = m22 + dt * (W[3].kR + kL);
+        const det = a * c - b * b;
+        if (Math.abs(det) < 1e-9) return [0, 0];
+        return [dt * (c * n2 - b * n3) / det, dt * (a * n3 - b * n2) / det];
+      };
+      const kL = DIFF.kStiff, dw = s.w[2] - s.w[3];
+      let [d2, d3] = solve(kL, W[2].net - kL * dw, W[3].net + kL * dw);
+      let lockT = kL * ((s.w[2] + d2) - (s.w[3] + d3));
+      if (Math.abs(lockT) > lockCap) {
+        lockT = Math.sign(lockT) * lockCap;
+        [d2, d3] = solve(0, W[2].net - lockT, W[3].net + lockT);
+      }
+      wn[2] = s.w[2] + d2; wn[3] = s.w[3] + d3;
+      s.diffLock = lockT;
+      W[2].drive -= lockT; W[3].drive += lockT;
+    }
+    for (let i = 0; i < 4; i++) {
+      const { px, py, cd, sd, wx, gr, R, tyre, bt, drive } = W[i];
+      let w = wn[i];
       // A brake stops a wheel; it cannot turn it backwards.
-      if (bt > Math.abs(wheelDrive[i]) && Math.sign(wn) !== Math.sign(s.w[i]) && Math.abs(s.w[i]) > 0) wn = 0;
-      s.w[i] = wn;
-      const [fx, fy, sl, kap] = tyre(wn);
+      if (bt > Math.abs(drive) && Math.sign(w) !== Math.sign(s.w[i]) && Math.abs(s.w[i]) > 0) w = 0;
+      // A wheel all but off the ground (the inner front in a fast corner) has nothing turning it
+      // but the road's air and its bearings: it runs at the road's speed (≈), not on, lagging, as
+      // a phantom slip.
+      if (load[i] < 50 && bt === 0 && Math.abs(drive) < 1) w += (wx / R - w) * Math.min(1, dt * 20);
+      s.w[i] = w;
+      const [fx, fy, sl, kap] = tyre(w);
       s.slip[i] = sl; s.kap[i] = kap;
+      // The slip that shows — marks, smoke, squeal — weighted by how much the tyre carries.
+      s.slipShown[i] = sl * Math.min(1, load[i] / (0.3 * (i < 2 ? mg * CAR.b / CAR.L / 2 : mg * CAR.a / CAR.L / 2)));
       // Rolling resistance and the surface's drag (gravel) act on the car, not through the wheel.
       roll += (TYRES.rolling + gr.roll) * load[i] * Math.tanh(wx / 0.5);
       // The water the tyre ploughs through, against its rolling.
@@ -452,6 +570,8 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
       Mz += px * by - py * bx;
     }
     Fx -= roll;
+    // The fronts' combined slip, weighted by their loads (1 at the peak): what steerReach reads.
+    s.slipF = (s.slip[0] * load[0] + s.slip[1] * load[1]) / Math.max(1, load[0] + load[1]);
     // ---- Body.
     Fx -= dragX; Fy -= dragY;
     // The body pushing the water ahead of it and aside, and the water damping its turning.

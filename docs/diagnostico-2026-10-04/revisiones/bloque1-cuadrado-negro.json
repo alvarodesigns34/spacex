@@ -1,0 +1,52 @@
+{
+ "note": "Adversarial review agents' raw findings (all fixed in the block's commit unless the handover says otherwise).",
+ "results": [
+  {
+   "findings": []
+  },
+  {
+   "findings": [
+    {
+     "title": "El «test de rango» del clamp no es una salvaguarda independiente de isnan: un compilador puede plegar ambos legalmente",
+     "severity": "minor",
+     "evidence": "src/main.js:335-336 dice que la comprobación se hace dos veces «porque algunos compiladores pliegan isnan». Sin embargo, src/main.js:344-346 (`lessThanEqual(abs(c.rgb), vec3(3.0e38))` y `!(abs(c.a) <= 3.0e38)`) depende de la semántica IEEE de las comparaciones con NaN. GLSL ES 3.00 §4.5.1 no obliga a una implementación a generar ni a conservar NaN, e isnan está definido como «siempre false si no se implementan los NaN». Un compilador que trate el código como libre de NaN (FXC sin IEEE strictness, Metal con fast-math) puede reescribir `!(x <= k)` como `x > k`, que vale false con NaN, y a la vez plegar isnan a false. Es la misma suposición que hace desaparecer isnan, así que el segundo test cae junto con el primero. El shader es GLSL ES 3.00 válido tal como lo compila three r170 (isnan/isinf existen en 300 es; `finite` no es palabra reservada; 3.0e38 cabe en highp). Ningún píxel finito cambia, porque un half float nunca pasa de 65504.",
+     "fix": "Si se quiere una segunda comprobación que no se pueda plegar, hacerla sobre los bits: `uvec3 e = floatBitsToUint(c.rgb) & 0x7f800000u; if (any(equal(e, uvec3(0x7f800000u)))) c.rgb = vec3(0.0);` y lo mismo para c.a. Las operaciones enteras no se ven afectadas por las suposiciones de fast-math. O bien corregir el comentario para que no prometa más de lo que garantiza."
+    },
+    {
+     "title": "La prueba de normales nulas excluye MeshBasicMaterial y ShaderMaterial, pero en la calidad alta GTAO dibuja esas mallas con MeshNormalMaterial antes del clamp",
+     "severity": "minor",
+     "evidence": "tools/check.mjs:933 descarta `mat.isMeshBasicMaterial || mat.isShaderMaterial`. En la calidad alta, que es la que usa la comprobación (check.mjs:59), el pase AO va entre RenderPass y el clamp (src/main.js:317-318). GTAOPass.render pinta cada malla opaca visible con `scene.overrideMaterial = this.normalMaterial`, un MeshNormalMaterial (vendor/three/examples/jsm/postprocessing/GTAOPass.js:70, 345, 479), en un normalRenderTarget HalfFloat (línea 187). Ahí normalize(vec3(0)) da NaN. El denoise de Poisson lo lee y blendMaterial lo multiplica sobre la imagen (DstColorFactor/ZeroFactor, líneas 121-123 y 416-419), así que el NaN llega al clamp, que lo convierte en negro. Las mallas Basic o Shader con normales nulas siguen siendo una fuente de NaN que esta prueba no vigila. Hoy no fallaría, porque sanitizeNormals recorre todas las mallas sin mirar el material, pero cualquier regresión en una de esas mallas pasaría desapercibida. (Ninguna malla de la escena usa un array de materiales, así que mirar solo material[0] no es un problema.)",
+     "fix": "Quitar el filtro de material en check.mjs:933 y dejar solo `!o.isMesh || !g || seen.has(g)`, que ya excluye Points y Lines. Así se comprueba lo mismo que sanea sanitizeNormals. Como mínimo, incluir toda malla que GTAO no oculte (opaca, con depthWrite y sin blending aditivo)."
+    },
+    {
+     "title": "La prueba del quad NaN no tiene control positivo: no demuestra que se genere un NaN ni que fallaría con el shader antiguo",
+     "severity": "minor",
+     "evidence": "tools/check.mjs:954-991 solo exige `black < 1 %`. Nada comprueba que `z / z` produjera NaN de verdad: en GLSL ES 3.00 la división por cero no está definida y no es obligatorio generar NaN. Tampoco comprueba que el quad de 4 mm a 2 m (≈2 px con 1280×800 y fov 42) llegara a rasterizarse, ni que el NaN sobreviviera hasta el lienzo como negro y no como blanco, porque la conversión de NaN a unorm8 en el último pase tampoco está definida. Si cualquiera de esas condiciones falla, la prueba pasa también con el clamp antiguo. El resto del fichero usa sabotajes de control para evitar justo esto (p. ej. check.mjs:75-84, «sabotaje de nombres duplicados detectado»). El resto de la mecánica es correcto en r170: cambiar `samples` y llamar a dispose() reconstruye los targets, setRenderTarget(null) del OutputPass deja enlazado el framebuffer por defecto para readPixels en la misma tarea, y el estado se restaura (samples a s0 y `jump(null)`, igual que dejó el bloque de presupuesto en check.mjs:858), así que las pruebas posteriores no se ven afectadas.",
+     "fix": "Añadir un control dentro del mismo evaluate: renderizar una vez con el pase de clamp desactivado (o con su rama no finita anulada mediante un define o un uniform) y exigir que entonces aparezca el bloque, por ejemplo con más del 1 % de píxeles distintos de un fotograma de referencia sin el quad. Después, exigir que no aparezca con el clamp activo. Comparar contra el fotograma de referencia en lugar de contar solo píxeles negros también cubre las plataformas donde el NaN se presenta como blanco."
+    }
+   ]
+  },
+  {
+   "findings": [
+    {
+     "title": "Los daños del GT3 vuelven a crear normales nulas tras el saneado del arranque: 899 triángulos de área cero en el morro, la cola, los faros, las aberturas y los embellecedores",
+     "severity": "major",
+     "evidence": "sanitizeNormals (src/geometry/utils.js:640-698) solo actúa sobre triángulos cuya normal YA es nula, y se ejecuta una sola vez (src/main.js:863). Varias mallas no indexadas del GT3 tienen triángulos de área exactamente cero que llevan normales analíticas válidas, así que el saneado no los toca. src/sim/gt3Damage.js:102 llama a `m.o.geometry.computeVertexNormals()` en cada malla abollada. En una geometría no indexada esa llamada asigna a cada vértice la normal de su cara, que es (0,0,0) en un triángulo de área cero: es justo la clase de defecto original. Lo comprobé en node (scripts en el scratchpad, dmg.mjs y dmg2.mjs): construí buildGt3rs, ejecuté sanitizeNormals (284 triángulos en 13 mallas) y el recuento dio 0 triángulos sin colapsar con normal nula. Después lancé golpes de createGt3Damage.hit (frontal, trasero, laterales y esquinas, a 3, 8 y 15 m/s) y salieron 899: gt3-nose-face 360, gt3-tail-face 360, gt3-lamp-bowls 91, gt3-lamp-lenses 74, gt3-black-trim 10, gt3-openings 4. Recalcular las normales en una copia de cada malla sin daño da exactamente esos mismos triángulos, y los 899 tienen área 0 (área máxima 0,00e+0). La comprobación nueva de tools/check.mjs ('ningún triángulo iluminado con normal nula') solo mira la escena al arrancar y nunca provoca un choque, así que no lo detecta. Tras cualquier choque de más de 2 m/s en el morro o la cola, la única defensa es el filtro anterior al bloom, que no existe en calidad baja. En calidad alta va además detrás del AO (ver el siguiente hallazgo).",
+     "fix": "Colapsar en el arranque todos los triángulos de área cero, tengan o no la normal válida, para que ningún recálculo posterior pueda revivirlos: con las posiciones idénticas, el desplazamiento de gt3Damage también es idéntico y siguen colapsados. Otra opción es llamar a sanitizeNormals(m.o) después de computeVertexNormals en gt3Damage.js:102. Además, ampliar la comprobación para que haga un `gt3drive` / damage.hit antes de contar las normales nulas."
+    },
+    {
+     "title": "El AO (GTAO) va antes del filtro a prueba de NaN y extiende una normal NaN a una mancha de unos 9×9 px que el filtro solo puede volver negra",
+     "severity": "minor",
+     "evidence": "En calidad alta, src/main.js:317-318 añade ao.pass ANTES del ShaderPass del filtro (main.js:338). GTAOPass dibuja el búfer G con un MeshNormalMaterial de sustitución (vendor/three/examples/jsm/postprocessing/GTAOPass.js:345), y ahí normalize(vec3(0)) deja un NaN en el búfer de normales (HalfFloat). PoissonDenoiseShader.js:139-152 calcula el peso de cada muestra con dot(viewNormal, sampleNormal) sobre las normales vecinas (radio 4 px, 16 muestras), así que un NaN contagia `denoised` a todos los píxeles cuyo disco lo alcanza. En el centro, la prueba `dot(viewNormal, viewNormal) == 0.` no descarta el NaN. La mezcla por defecto (GTAOPass.js, case OUTPUT.Default) multiplica el color de la escena por el AO. El filtro recibe ya un bloque de NaN y lo pone a vec3(0): sale un cuadrado negro de unos 9×9 px en lugar de un píxel. La prueba de regresión de check.mjs ('un píxel NaN no se convierte en un bloque negro') usa un plano con normales válidas y NaN solo en el color, así que no recorre este camino. Con las normales nulas que crean los daños del GT3 (hallazgo anterior), el camino se alcanza de verdad.",
+     "fix": "Evitar el NaN en el búfer de normales del AO: por ejemplo, sustituir pass.normalMaterial (src/core/ao.js) por un MeshNormalMaterial con onBeforeCompile que use `length(n) > 0.0 ? normalize(n) : vec3(0.0)`. Una normal empaquetada como cero hace que la eliminación de ruido descarte ese píxel y le dé peso 0 como vecino. También vale arreglar en origen las normales nulas posteriores al arranque. Si se quiere que la prueba lo cubra, añadir al plano de prueba una geometría con normales (0,0,0)."
+    },
+    {
+     "title": "El diff no actualiza el README, que sigue diciendo que no se ha cambiado ningún archivo del simulador",
+     "severity": "minor",
+     "evidence": "CLAUDE.md: «El README se escribe en español y se actualiza con cada cambio». `git status` solo muestra src/geometry/utils.js, src/main.js, src/sim/gt3Drive.js, src/vehicles/gt3rs.js y tools/check.mjs. README.md:818 sigue diciendo «Todavía no se ha cambiado ningún archivo del simulador.», y README.md:820 presenta el arreglo como «probado en la página», no como aplicado. Tampoco describe las dos comprobaciones nuevas de check.mjs, ni el límite de gl_PointSize del humo y la pulverización, ni el saneado de normales del arranque (que en el GT3 colapsa 284 triángulos en 13 mallas, no solo el splitter).",
+     "fix": "Antes del commit, actualizar README.md (sección de la pasada del 04-10-2026): el arreglo ya aplicado (filtro a prueba de NaN e Inf, puntos colineales quitados del splitter, sanitizeNormals en el arranque, límite de gl_PointSize) y las dos comprobaciones nuevas. Revisar también TRASPASO.md («Empieza aquí») para que no siga dando el bloque 1 como pendiente."
+    }
+   ]
+  }
+ ]
+}
