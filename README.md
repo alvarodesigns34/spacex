@@ -44,6 +44,8 @@ npm run serve          # http://127.0.0.1:8080/  (o: npx serve .)
 
 y abrir la URL que indique. `npm run serve` es un servidor en Node (`tools/serve.mjs`, admite `--port N`), así que funciona igual en Windows, donde antes hacía falta Python. Requiere WebGL 2.
 
+`.claude/settings.json` es la configuración de Claude Code para este proyecto: esfuerzo alto, *ultracode* (flujos de trabajo con varios agentes) y los flujos de trabajo activados. No afecta a la web.
+
 ## Controles
 
 **Pensada para ordenador.** La simulación está hecha para un ordenador de sobremesa o portátil con teclado, ratón y pantalla grande. La pantalla de carga lo dice («Designed for a desktop or laptop computer…»), y en un teléfono, una tableta o una ventana de menos de 900 × 560 px aparece una vez un aviso que se puede cerrar. La interfaz de teléfono (la barra inferior con sus cajones, la disposición vertical y los ajustes para táctil) se retiró el 28 de septiembre de 2026: costaba mucho tiempo mantenerla y la escena se ve mucho mejor en un ordenador. En la escena limpia queda un único botón, *Show interface*, para volver.
@@ -815,13 +817,52 @@ El usuario juzgó la primera versión «horrible» y pidió una copia idéntica 
 
 ### Pasada decisiva: diagnósticos hechos, aplicación pendiente (4 de octubre de 2026)
 
-El usuario pidió una pasada decisiva sobre la H2R, el Porsche y el F-16: modelos hiperrealistas sin simplificar, mejor sonido (el F-16 no tiene ninguno), arreglar un cuadrado negro intermitente en la zona de la H2R y el Porsche, conducción mucho más profunda (la moto no debe caerse al girar) y una pasada por el entorno y las físicas. Se hicieron seis auditorías de solo lectura. **Todavía no se ha cambiado ningún archivo del simulador.** Los resultados completos están en `docs/diagnostico-2026-10-04/` (índice en su `LEEME.md`).
+El usuario pidió una pasada decisiva sobre la H2R, el Porsche y el F-16: modelos hiperrealistas sin simplificar, mejor sonido (el F-16 no tiene ninguno), arreglar un cuadrado negro intermitente en la zona de la H2R y el Porsche, conducción mucho más profunda (la moto no debe caerse al girar) y una pasada por el entorno y las físicas. Se hicieron seis auditorías de solo lectura; los resultados completos están en `docs/diagnostico-2026-10-04/` (índice en su `LEEME.md`). La aplicación va por bloques, cada uno con su sección (la primera, *Pasada decisiva, bloque 1*).
 
 - **Cuadrado negro: causa confirmada, era el Porsche.** El splitter delantero tiene triángulos de área cero con normales nulas; dan un píxel NaN, el filtro de luciérnagas anterior al bloom lo deja pasar y el bloom lo convierte en un rectángulo negro que parpadea. Arreglo probado en la página: filtro a prueba de NaN, quitar los puntos colineales y un saneador de normales.
 - **H2R:** con las ayudas, 193 de 200 recorridos aleatorios acaban en caída. Hay un prototipo con 0 caídas (presupuesto de agarre con prioridad lateral y tope de inclinación a 59,9°, donde toca la estribera).
 - **Porsche:** el volante con teclado pide el doble del ángulo útil, el DRS se abre en plena curva, el PDK corta el empuje 0,1 s, subvira en el límite y el diferencial no es el autoblocante del coche.
 - **Sonido:** las explosiones se redondean a muestras enteras (≈ −25 dB de ruido), el silbido de alivio de la H2R se rompe a los 30 s y no hay modelo espacial. El F-16 no tiene sonido.
 - **No se llegó a hacer:** la auditoría del detalle de los modelos y el presupuesto de rendimiento, y la del entorno y las físicas.
+
+### Pasada decisiva, bloque 1: el cuadrado negro, arreglado (4 de octubre de 2026)
+
+**El fallo:** cerca del Porsche y de la H2R aparecía a ratos un rectángulo negro que tapaba media pantalla y parpadeaba al mover la cámara.
+
+**La causa:** había triángulos de área cero con normales (0, 0, 0). Por ejemplo, los del splitter del Porsche: su contorno se recortaba con un mínimo y dejaba puntos alineados.
+- En el sombreado, `normalize(vec3(0))` da NaN en algún píxel suelto.
+- El filtro de luciérnagas que va antes del bloom dejaba pasar ese NaN: la comparación `m > uPeak` es falsa con NaN. Además, un Inf lo convertía en NaN.
+- El desenfoque del bloom extendía ese único píxel a un bloque negro de cientos de píxeles.
+
+**El arreglo, en cinco capas:**
+1. **Filtro a prueba de NaN e Inf** (`main.js`). Un píxel no finito pasa a negro antes del bloom. Se comprueba dos veces: con `isnan`/`isinf` y sobre los bits del exponente, porque un compilador que da por hecho que no hay NaN puede quitar la primera comprobación, pero no las operaciones con enteros.
+2. **Splitter limpio en origen** (`buildSplitter`). Se quitan los puntos alineados del contorno; la forma no cambia.
+3. **`sanitizeNormals(scene)`** (`geometry/utils.js`), una vez al arrancar.
+   - Un triángulo con área cuya normal se anuló toma la normal de su cara.
+   - Uno sin área se colapsa en un punto, que ya no puede dibujar nada.
+   - El número de vértices y de triángulos no cambia.
+   - Arregla 475 triángulos en 40 geometrías: la cabina, las aberturas, las ruedas, los pianos y el Roadster.
+4. **Los golpes del Porsche:** cada abolladura recalcula las normales, y eso revivía 899 triángulos nulos en el morro, la cola, los faros y las aberturas. `gt3Damage.js` los vuelve a sanear tras cada golpe. (Lo encontró la revisión adversarial del cambio.)
+5. **El pase de AO** dibuja las normales antes del filtro, y su eliminación de ruido extendía un NaN a una mancha de ≈9 px. Ahora una normal no finita se escribe como «sin normal», que el filtro de ruido ya descarta (`core/ao.js`).
+
+Además, el tamaño de los puntos del humo y del agua del Porsche se acota a 1–512 px, como en `core/effects.js`.
+
+**Medido en el navegador, antes y después:**
+
+| | Antes | Después |
+|---|---|---|
+| Triángulos con normal nula en la escena | 495 | 0 |
+| 40 fotogramas orbitando la H2R a 5 m (X = bloque negro) | `.................X.XX......XX..X.XX.....` | ninguno |
+| Un NaN forzado de ≈4 px | 100 % de la imagen negra | 0,012 % de la imagen cambia |
+| Tras 18 golpes al Porsche | 899 triángulos nulos | 0 |
+
+**Pruebas nuevas:**
+- `check.mjs` · «ningún triángulo con normal nula»: todas las mallas, sea cual sea su material, porque el AO las dibuja todas.
+- `check.mjs` · «un píxel NaN no se convierte en un bloque negro»:
+  - Dos fuentes: un sombreador que divide cero entre cero y un cuadrado iluminado con normales nulas.
+  - Cada una con un control: sin el filtro, la imagen tiene que cambiar más de un 10 %, porque si no la prueba no demuestra nada. Con el filtro, menos de un 1 %.
+  - Se dibuja con los render targets sin multimuestreo, porque el de SwiftShader se traga el NaN.
+- `gt3rs-check.mjs` · «ningún triángulo del coche con normal nula»: el splitter recién construido, el coche saneado y el coche tras 18 golpes.
 
 ### La Ninja H2R contra fotos calibradas: frontal, alas, cúpula y cabina (3 de octubre de 2026, tercera versión)
 

@@ -92,7 +92,7 @@ export function createTyreSmoke(scene, max = 900) {
     name: 'gt3-tyre-smoke', transparent: true, depthWrite: false,
     uniforms: { scale: { value: 600 } },
     vertexShader: `attribute float size; attribute float alpha; varying float vA; uniform float scale;
-      void main() { vA = alpha; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = size * scale / max(0.5, -mv.z); gl_Position = projectionMatrix * mv; }`,
+      void main() { vA = alpha; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = clamp(size * scale / max(0.5, -mv.z), 1.0, 512.0); gl_Position = projectionMatrix * mv; }`,
     fragmentShader: `varying float vA;
       void main() { vec2 d = gl_PointCoord - 0.5; float r = length(d); if (r > 0.5) discard; float a = vA * smoothstep(0.5, 0.1, r); gl_FragColor = vec4(vec3(0.84, 0.85, 0.86), a); }`,
   });
@@ -143,7 +143,7 @@ export function createSpray(scene, max = 1600) {
     name: 'gt3-spray', transparent: true, depthWrite: false,
     uniforms: { scale: { value: 600 } },
     vertexShader: `attribute float size; attribute float alpha; varying float vA; uniform float scale;
-      void main() { vA = alpha; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = size * scale / max(0.5, -mv.z); gl_Position = projectionMatrix * mv; }`,
+      void main() { vA = alpha; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = clamp(size * scale / max(0.5, -mv.z), 1.0, 512.0); gl_Position = projectionMatrix * mv; }`,
     fragmentShader: `varying float vA;
       void main() { vec2 d = gl_PointCoord - 0.5; float r = length(d); if (r > 0.5) discard; float a = vA * smoothstep(0.5, 0.15, r); gl_FragColor = vec4(vec3(0.86, 0.9, 0.93), a); }`,
   });

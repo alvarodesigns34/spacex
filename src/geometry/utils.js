@@ -623,3 +623,77 @@ export function chunkedInstances(geometry, material, placements, { cell = 120, n
   }
   return group;
 }
+
+/**
+ * Repairs zero-length or non-finite vertex normals across a built scene, once, before the
+ * first frame.
+ *
+ * A triangle of zero area (collinear outline points in an extrusion, a ribbon station laid
+ * twice) gets a (0, 0, 0) normal from computeVertexNormals, and in a lit shader
+ * normalize(vec3(0)) is NaN. Such a sliver can still cover the odd pixel once transformed on
+ * the GPU, and the bloom spread that one NaN pixel into a flickering black block. For each
+ * flagged triangle: if it has real area (its vertex normal cancelled out), the bad corners
+ * take the face normal; if not, its three corners are made identical, which can never
+ * rasterise. Vertex and triangle counts, groups and draw ranges are kept, so the scene budget
+ * is unchanged.
+ *
+ * @returns { triangles, meshes } — how many triangles were repaired, in how many geometries
+ */
+export function sanitizeNormals(root) {
+  const done = new Set();
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  const n = new THREE.Vector3(), ab = new THREE.Vector3();
+  let triangles = 0, meshes = 0;
+  const bad = (nor, i) => {
+    const x = nor.getX(i), y = nor.getY(i), z = nor.getZ(i);
+    return !(Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) || x * x + y * y + z * z <= 1e-12;
+  };
+  root.traverse((o) => {
+    const g = o.geometry;
+    if (!o.isMesh || !g || done.has(g)) return;
+    done.add(g);
+    const pos = g.attributes.position, nor = g.attributes.normal;
+    if (!pos || !nor || pos.itemSize !== 3 || nor.itemSize !== 3 || pos.count !== nor.count) return;
+    const index = g.index;
+    const count = index ? index.count : pos.count;
+    const corner = (t) => (index ? index.getX(t) : t);
+    // First the triangles with area, which give their corners the face normal (the same
+    // winding as computeVertexNormals: (c − b) × (a − b)); then the ones without, so that a
+    // collapsed sliver never decides the normal of a vertex a real triangle shares.
+    const slivers = [];
+    let fixed = 0;
+    for (let t = 0; t + 2 < count; t += 3) {
+      const i0 = corner(t), i1 = corner(t + 1), i2 = corner(t + 2);
+      const f0 = bad(nor, i0), f1 = bad(nor, i1), f2 = bad(nor, i2);
+      if (!f0 && !f1 && !f2) continue;
+      a.fromBufferAttribute(pos, i0); b.fromBufferAttribute(pos, i1); c.fromBufferAttribute(pos, i2);
+      n.subVectors(c, b).cross(ab.subVectors(a, b));
+      if (n.lengthSq() > 1e-24 && Number.isFinite(n.x + n.y + n.z)) {
+        n.normalize();
+        if (f0) nor.setXYZ(i0, n.x, n.y, n.z);
+        if (f1) nor.setXYZ(i1, n.x, n.y, n.z);
+        if (f2) nor.setXYZ(i2, n.x, n.y, n.z);
+        fixed++;
+      } else slivers.push(t);
+    }
+    for (const t of slivers) {
+      const i0 = corner(t), i1 = corner(t + 1), i2 = corner(t + 2);
+      if (index) {
+        // All three corners on one vertex: nothing left to rasterise, counts unchanged.
+        index.setX(t + 1, i0); index.setX(t + 2, i0);
+        if (bad(nor, i0)) nor.setXYZ(i0, 0, 1, 0);
+      } else {
+        pos.setXYZ(i1, pos.getX(i0), pos.getY(i0), pos.getZ(i0));
+        pos.setXYZ(i2, pos.getX(i0), pos.getY(i0), pos.getZ(i0));
+        for (const i of [i0, i1, i2]) nor.setXYZ(i, 0, 1, 0);
+      }
+      fixed++;
+    }
+    if (fixed) {
+      nor.needsUpdate = true;
+      if (slivers.length) { if (index) index.needsUpdate = true; else pos.needsUpdate = true; }
+      triangles += fixed; meshes++;
+    }
+  });
+  return { triangles, meshes };
+}

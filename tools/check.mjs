@@ -917,6 +917,103 @@ try {
       rts.map(t => `stencil ${t.stencil ? 'sí' : 'no'} · ${t.samples} muestras`).join(' / '));
   }
 
+  // ---- No lit triangle with a zero normal; one NaN pixel stays one pixel ------------------
+  // The flickering black block near the Porsche and the H2R (October 2026): zero-area
+  // triangles with (0, 0, 0) normals shade as NaN (normalize(vec3(0))), and the bloom spread
+  // that one pixel into a rectangle hundreds of pixels wide. Two guards, each asserted: no lit
+  // triangle in the built scene keeps a zero or non-finite normal unless it is collapsed to a
+  // point (sanitizeNormals), and a NaN that gets through anyway — a quad whose shader divides
+  // zero by zero, a few pixels across — does not black out the frame (the firefly clamp drops non-finite pixels).
+  {
+    const zero = await page.evaluate(() => {
+      const v = window.__vc, seen = new Set(), names = new Map();
+      let tris = 0;
+      v.scene.traverse((o) => {
+        // Every mesh, whatever its material: the AO pass draws them all with MeshNormalMaterial.
+        const g = o.geometry;
+        if (!o.isMesh || !g || seen.has(g)) return;
+        seen.add(g);
+        const pos = g.attributes.position, nor = g.attributes.normal;
+        if (!pos || !nor || nor.itemSize !== 3) return;
+        const idx = g.index, n = idx ? idx.count : pos.count;
+        const k = (t) => (idx ? idx.getX(t) : t);
+        const badN = (i) => { const x = nor.getX(i), y = nor.getY(i), z = nor.getZ(i); return !Number.isFinite(x + y + z) || x * x + y * y + z * z <= 1e-12; };
+        const same = (i, j) => pos.getX(i) === pos.getX(j) && pos.getY(i) === pos.getY(j) && pos.getZ(i) === pos.getZ(j);
+        for (let t = 0; t + 2 < n; t += 3) {
+          const a = k(t), b = k(t + 1), c = k(t + 2);
+          if (!(badN(a) || badN(b) || badN(c))) continue;
+          if (same(a, b) && same(a, c)) continue;
+          tris++; names.set(o.name || '(sin nombre)', (names.get(o.name || '(sin nombre)') ?? 0) + 1);
+        }
+      });
+      return { tris, meshes: [...names].slice(0, 5).map(([m, c]) => `${m} ${c}`), sanitized: v.sanitized };
+    });
+    report(zero.tris === 0, 'ningún triángulo con normal nula',
+      `${zero.tris} triángulos${zero.meshes.length ? ` (${zero.meshes.join(', ')})` : ''} · saneados al arrancar: `
+      + `${zero.sanitized?.triangles ?? '?'} en ${zero.sanitized?.meshes ?? '?'} geometrías`);
+
+    const nan = await page.evaluate(async () => {
+      const v = window.__vc;
+      if (!v.quality.bloom) return { skipped: true };
+      const THREE = await import('three');
+      const c = v.composer, s0 = c.renderTarget1.samples;
+      // SwiftShader's multisample resolve swallows NaN, which would make this pass even with the
+      // clamp broken; real GPUs keep it. So the frame is rendered with the targets single-sampled.
+      const setSamples = (n) => { for (const t of [c.renderTarget1, c.renderTarget2]) { t.samples = n; t.dispose(); } };
+      setSamples(0);
+      v.jump('h2r', 'overview');
+      await new Promise(r => setTimeout(r, 400));
+      // A metre past the near plane (2 m at this view, where a quad at 2 m was clipped), ≈4 px
+      // across. Two sources: a shader that divides zero by zero, and a lit quad whose normals
+      // are (0, 0, 0) — the real defect, through the lit shader and the AO's normal pass.
+      const dist = v.camera.near + 1;
+      const nanQuad = new THREE.Mesh(new THREE.PlaneGeometry(0.01 * dist, 0.01 * dist), new THREE.ShaderMaterial({
+        uniforms: { z: { value: 0 } },
+        vertexShader: 'void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+        fragmentShader: 'uniform float z; void main() { float n = z / z; gl_FragColor = vec4(n, n, n, 1.0); }',
+      }));
+      const flatGeo = new THREE.PlaneGeometry(0.01 * dist, 0.01 * dist);
+      flatGeo.attributes.normal.array.fill(0);
+      const zeroQuad = new THREE.Mesh(flatGeo, new THREE.MeshStandardMaterial({ color: 0x808080 }));
+      v.camera.updateMatrixWorld();
+      for (const q of [nanQuad, zeroQuad]) {
+        q.position.copy(v.camera.position).add(v.camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(dist));
+        q.quaternion.copy(v.camera.quaternion);
+        q.frustumCulled = false;
+      }
+      // Three frames per source from the same camera in the same task: without it (the
+      // reference), with it and the clamp switched off (the control: the NaN must be made and
+      // must spread, or this check proves nothing), and with it and the clamp on. Counted as
+      // pixels that differ from the reference, so a platform presenting NaN as white is caught.
+      const clamp = c.passes.find(p => p.uniforms?.uPeak);
+      const gl = v.renderer.getContext(), w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
+      const grab = () => { c.render(); const px = new Uint8Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px); return px; };
+      const changed = (a, b) => { let k = 0; for (let i = 0; i < a.length; i += 4) if (Math.abs(a[i] - b[i]) > 8 || Math.abs(a[i + 1] - b[i + 1]) > 8 || Math.abs(a[i + 2] - b[i + 2]) > 8) k++; return k; };
+      const out = [];
+      try {
+        const ref = grab();
+        for (const q of [nanQuad, zeroQuad]) {
+          v.scene.add(q);
+          let control = 0;
+          if (clamp) { clamp.enabled = false; control = changed(grab(), ref); clamp.enabled = true; }
+          out.push({ control, guarded: changed(grab(), ref) });
+          v.scene.remove(q);
+        }
+      } finally {
+        if (clamp) clamp.enabled = true;
+        for (const q of [nanQuad, zeroQuad]) { v.scene.remove(q); q.geometry.dispose(); q.material.dispose(); }
+        setSamples(s0);
+        v.jump(null);
+      }
+      return { found: !!clamp, out, total: w * h };
+    });
+    const pct = (k) => `${(100 * k / nan.total).toFixed(2)} %`;
+    report(nan.skipped || (nan.found && nan.out.every(o => o.control > nan.total * 0.1 && o.guarded < nan.total * 0.01)), 'un píxel NaN no se convierte en un bloque negro',
+      nan.skipped ? 'sin bloom en esta calidad'
+        : !nan.found ? 'no se encuentra el filtro anterior al bloom'
+          : nan.out.map((o, i) => `${['NaN en el color', 'normales nulas'][i]}: cambia el ${pct(o.guarded)} de la imagen (sin el filtro, el ${pct(o.control)})`).join(' · '));
+  }
+
   // ---- The scale figures stay merged ------------------------------------------------------
   // Twenty-two people at four or five meshes each were 99 draw calls in the overview for
   // 13,286 triangles — more calls than the Starship, the pad and the Roadster together, for a

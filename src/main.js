@@ -46,7 +46,7 @@ import { buildColliders, CELL } from './core/colliders.js';
 import { RUNWAY, fromRunway, toRunway } from './core/terrain.js';
 import { buildOrbitalBackdrop } from './core/backdrop.js';
 import { buildLaunchMount, buildPedestal, buildHumanCrowd } from './vehicles/common.js';
-import { seeded, mergeAll } from './geometry/utils.js';
+import { seeded, mergeAll, sanitizeNormals } from './geometry/utils.js';
 import { terrainHeight } from './core/terrain.js';
 import { buildLaunchComplex, PAD, towerToPad } from './vehicles/pad.js';
 import { verifyExhibits, verifyScene, verifyPad, verifyInterfaces } from './data/verify.js';
@@ -327,6 +327,14 @@ async function main() {
   // bright square hanging beside the booster on its way home. The clamp scales any pixel down
   // to a peak of 12, far above where ACES has already saturated to white, so the image is
   // unchanged and only the bloom stops blowing single pixels up into blocks.
+  // The same pass drops non-finite pixels. One NaN — a zero-length normal on a sliver
+  // triangle, normalize(vec3(0)) in the lit shader — or one Inf from a half-float overflow
+  // went through the clamp untouched (NaN fails `m > uPeak`; Inf · (uPeak / Inf) is NaN), and
+  // the bloom's blur chain spread it into a black rectangle hundreds of pixels wide that
+  // flickered as the camera moved near the Porsche and the H2R (October 2026). The check is
+  // made twice: with isnan/isinf, and on the bits (an all-ones exponent is NaN or Inf), because
+  // a compiler that assumes no NaN (HLSL's without IEEE strictness, fast-math elsewhere) may
+  // fold isnan and any float comparison away, but not integer operations.
   if (bloom) {
     composer.addPass(new ShaderPass({
       uniforms: { tDiffuse: { value: null }, uPeak: { value: 12.0 } },
@@ -334,6 +342,10 @@ async function main() {
       fragmentShader: `uniform sampler2D tDiffuse; uniform float uPeak; varying vec2 vUv;
         void main() {
           vec4 c = texture2D(tDiffuse, vUv);
+          const uint EXP = 0x7f800000u;
+          bvec3 nonFinite = equal(floatBitsToUint(c.rgb) & uvec3(EXP), uvec3(EXP));
+          if (any(isnan(c.rgb)) || any(isinf(c.rgb)) || any(nonFinite)) c.rgb = vec3(0.0);
+          if (isnan(c.a) || (floatBitsToUint(c.a) & EXP) == EXP) c.a = 1.0;
           float m = max(max(c.r, c.g), c.b);
           gl_FragColor = vec4(m > uPeak ? c.rgb * (uPeak / m) : c.rgb, c.a);
         }`,
@@ -848,6 +860,9 @@ async function main() {
   }
   function seq() { return reentry?.running ? reentry : launch; }
 
+  // Zero-length normals (sliver triangles of zero area in extrusions and ribbons) shade as NaN;
+  // repaired once here, on the whole built scene, before anything is uploaded.
+  const sanitized = sanitizeNormals(scene);
   hud.setProgress('Compiling shaders…', 0.95);
   await nextFrame();
   performance.mark('vc:compile');
@@ -1759,7 +1774,7 @@ async function main() {
     // drawing buffer is presented and cleared. Comparing the two states of a level-of-detail
     // swap from one camera is the only way to measure whether the switch is visible, and it
     // cannot be done from outside the page.
-    composer,
+    composer, sanitized,
     // The state machine itself, so the gate can assert on transitions rather than on the
     // scene's reaction to them.
     view, viewState: () => view.snapshot(), overviewFor,

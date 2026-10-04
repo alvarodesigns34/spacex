@@ -6,6 +6,26 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ## ⭐ Empieza aquí (estado real al 04-10-2026; mira primero «Encargo del usuario del 04-10» y «Orden para continuar»)
 
+### Sesión del 04-10-2026 (segunda): aplicando la pasada decisiva
+
+- **Rama de la sesión:** `claude/gifted-bohr-7bjkq9`. Se empuja a las cinco ramas y a esa.
+- **Configuración de Claude Code:** `.claude/settings.json` del proyecto lleva `effortLevel: high`, `ultracode: true` y `enableWorkflows: true`, por petición del usuario. Con ultracode activo, cada tarea sustancial se hace con un workflow de varios agentes. El tamaño por defecto en Pro es *small* (menos de 5 agentes).
+- **Bloque 1, cuadrado negro: HECHO.** README, *Pasada decisiva, bloque 1*.
+  - Filtro a prueba de NaN e Inf, con `isnan` y con los bits del exponente (`main.js`).
+  - `buildSplitter` sin puntos alineados.
+  - `sanitizeNormals(scene)` al arrancar (`geometry/utils.js`; resultado en `__vc.sanitized`), y otra vez tras cada abolladura en `gt3Damage.js`.
+  - El pase de AO escribe «sin normal» si la normal no es finita (`core/ao.js`).
+  - `gl_PointSize` acotado en `gt3Drive.js`.
+  - Pruebas: dos en `check.mjs` y una en `gt3rs-check.mjs`.
+  - Una revisión adversarial con tres agentes encontró los daños, el AO y la falta de control positivo; todo está corregido.
+- **Lecciones del bloque 1:**
+  - Ningún pase anterior al bloom debe dejar pasar un NaN.
+  - No dejes puntos alineados en el contorno de un `ExtrudeGeometry`.
+  - `computeVertexNormals` en una geometría no indexada vuelve a dar (0, 0, 0) en los triángulos de área cero: sanea después.
+  - Una prueba de regresión necesita un control positivo. La primera versión de la prueba del NaN pasaba también con el código roto: el cuadrado forzado quedaba dentro del plano cercano (a 2 m en esa vista) y no se dibujaba.
+  - El multimuestreo de SwiftShader se traga el NaN: para verlo, pon `samples = 0` en los render targets del compositor y haz `dispose()`.
+- **Siguiente:** bloque 2, la conducción de la H2R (ver «Orden para continuar»).
+
 ### Estado al 03-10-2026 (léelo primero)
 
 - **Ramas:** las cinco apuntan a `d119f84`, con los despliegues de Pages en verde.

@@ -17,6 +17,7 @@
  * reset() puts every piece's own geometry and every part back.
  */
 import * as THREE from 'three';
+import { sanitizeNormals } from '../geometry/utils.js';
 
 // What dents: everything on the sprung body but the cabin (its live instruments, the steering
 // wheel) and the wing's flap (moved by the DRS); the wheels are not under it.
@@ -99,7 +100,9 @@ export function createGt3Damage({ car, scene, effects, ground }) {
       }
       if (touched) { P.needsUpdate = true; m.dirty = true; }
     }
-    for (const m of meshes) if (m.dirty) { m.o.geometry.computeVertexNormals(); m.dirty = false; }
+    // Recomputed normals give the body's zero-area triangles (0, 0, 0) again, which shade as NaN:
+    // repaired the same way as at boot (sanitizeNormals collapses them).
+    for (const m of meshes) if (m.dirty) { m.o.geometry.computeVertexNormals(); sanitizeNormals(m.o); m.dirty = false; }
     // What flies off where it struck.
     _w.set(px, y, pz).applyMatrix4(car.matrixWorld);
     const g = ground(_w.x, _w.z).h;

@@ -468,6 +468,51 @@ function drive({ v0 = 0, gear = 1, psm = true, keys, T = 5 }) {
     `aceleración lateral ${slow.toFixed(1)} m/s² a 60 km/h · ${fast.toFixed(1)} m/s² a 150`);
 }
 
+// ---- No zero normals on the car, built or dented -------------------------------------------
+// A triangle of zero area gets a (0, 0, 0) normal, which shades as NaN, and the bloom used to
+// spread that one pixel into a flickering black block (October 2026). The splitter's outline
+// is clean at the source; sanitizeNormals collapses the rest at boot; and a dent recomputes the
+// normals, which revived 899 of them on the nose, the tail, the lamps and the openings, so the
+// damage repairs them again. Built with plain materials (the model needs none of the canvas
+// textures here), then struck front, rear, on both sides and on two corners at 3, 8 and 15 m/s.
+{
+  const THREE = await import('three');
+  const { buildGt3rs } = await import('../src/vehicles/gt3rs.js');
+  const { sanitizeNormals } = await import('../src/geometry/utils.js');
+  const { createGt3Damage } = await import('../src/sim/gt3Damage.js');
+  const plain = new THREE.MeshStandardMaterial();
+  const M = new Proxy({}, { get: (t, k) => (t[k] ??= plain.clone()) });
+  const car = buildGt3rs(M), scene = new THREE.Scene();
+  scene.add(car);
+  const count = (root, only) => {
+    const names = new Map();
+    let n = 0;
+    root.traverse((o) => {
+      const g = o.geometry;
+      if (!o.isMesh || !g || (only && o.name !== only)) return;
+      const pos = g.attributes.position, nor = g.attributes.normal;
+      if (!pos || !nor) return;
+      const idx = g.index, cnt = idx ? idx.count : pos.count, k = (t) => (idx ? idx.getX(t) : t);
+      const bad = (i) => { const x = nor.getX(i), y = nor.getY(i), z = nor.getZ(i); return !Number.isFinite(x + y + z) || x * x + y * y + z * z <= 1e-12; };
+      const same = (i, j) => pos.getX(i) === pos.getX(j) && pos.getY(i) === pos.getY(j) && pos.getZ(i) === pos.getZ(j);
+      for (let t = 0; t + 2 < cnt; t += 3) {
+        const a = k(t), b = k(t + 1), c = k(t + 2);
+        if (!(bad(a) || bad(b) || bad(c)) || (same(a, b) && same(a, c))) continue;
+        n++; names.set(o.name, (names.get(o.name) ?? 0) + 1);
+      }
+    });
+    return { n, names: [...names].slice(0, 4).map(([m, c]) => `${m} ${c}`).join(', ') };
+  };
+  const splitter = count(car, 'gt3-splitter');
+  const fixed = sanitizeNormals(scene), built = count(car);
+  const damage = createGt3Damage({ car, scene, effects: { burst() {} }, ground: () => ({ h: 0 }) });
+  for (const [fx, fy, nx, ny] of [[2.2, 0, 1, 0], [-2.2, 0, -1, 0], [0, 0.95, 0, 1], [0, -0.95, 0, -1], [1.8, 0.8, 0.7, 0.7], [-1.9, -0.8, -0.7, -0.7]])
+    for (const vn of [3, 8, 15]) damage.hit(fx, fy, nx, ny, vn);
+  const dented = count(car);
+  report(splitter.n === 0 && built.n === 0 && dented.n === 0, 'ningún triángulo del coche con normal nula: ni el splitter, ni tras sanear, ni abollado',
+    `splitter ${splitter.n} · saneados ${fixed.triangles} en ${fixed.meshes} geometrías, quedan ${built.n} · tras 18 golpes ${dented.n}${dented.names ? ` (${dented.names})` : ''}`);
+}
+
 void GEARBOX; void BODY;
 console.log(failed ? `\n${failed} fallo(s) en el modelo del GT3 RS` : '\nModelo del GT3 RS: todo correcto');
 process.exit(failed ? 1 : 0);

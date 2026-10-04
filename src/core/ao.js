@@ -21,6 +21,23 @@ import * as THREE from 'three';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 
 class SceneAOPass extends GTAOPass {
+  constructor(...args) {
+    super(...args);
+    // A zero-length normal (normalize(vec3(0)) is NaN) wrote NaN into the normal buffer, and the
+    // denoiser's neighbour weights spread it to a ≈9 px patch of the image before the firefly
+    // clamp could catch one pixel. A non-finite normal is packed as (0.5, 0.5, 0.5), the
+    // zero vector, which the denoiser already discards. (The test on the bits, as in the
+    // clamp: a compiler that assumes no NaN may fold isnan away.)
+    this.normalMaterial.onBeforeCompile = (shader) => {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        'gl_FragColor = vec4( packNormalToRGB( normal ), diffuseColor.a );',
+        `vec3 packed = packNormalToRGB( normal );
+        const uint EXP = 0x7f800000u;
+        if ( any( isnan( packed ) ) || any( equal( floatBitsToUint( packed ) & uvec3( EXP ), uvec3( EXP ) ) ) ) packed = vec3( 0.5 );
+        gl_FragColor = vec4( packed, diffuseColor.a );`);
+    };
+  }
+
   // Full resolution. It ran at half, on the grounds that occlusion is low-frequency; it is not
   // at a silhouette. The half-resolution term, blended up bilinearly, bled across every depth
   // edge, and on a bright surface in front of a dark one — Starman's white suit against the

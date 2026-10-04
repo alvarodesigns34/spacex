@@ -1657,7 +1657,15 @@ function buildSplitter(M) {
   const side = range(1.85, X_NOSE, 10).map(x => [x, Math.min(halfW(x) * 0.97, W)]);
   const front = range(W, -W, 40).map(z => [E.xAt(z, y) + 0.02, z]);
   const outline = [...side, ...front, ...side.slice().reverse().map(([x, z]) => [x, -z])];
-  const shape = new THREE.Shape(outline.map(([x, z]) => new THREE.Vector2(x, z)));
+  // The clamp to W leaves a run of collinear points along each side; the triangulation turned
+  // them into zero-area triangles with zero normals, whose stray NaN pixel the bloom used to
+  // print as a flickering black block. Only redundant points go: the outline is unchanged.
+  const clean = outline.filter((p, i, a) => {
+    const q = a[(i + a.length - 1) % a.length], r = a[(i + 1) % a.length];
+    const cross = (p[0] - q[0]) * (r[1] - p[1]) - (p[1] - q[1]) * (r[0] - p[0]);
+    return Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-6 && Math.abs(cross) > 1e-9;
+  });
+  const shape = new THREE.Shape(clean.map(([x, z]) => new THREE.Vector2(x, z)));
   const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.018, bevelEnabled: false });
   geo.rotateX(Math.PI / 2);          // the shape's (x, z) onto the ground plane, extruded down
   geo.translate(0, 0.14, 0);
