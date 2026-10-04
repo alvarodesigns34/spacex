@@ -851,6 +851,7 @@ El usuario pidió una auditoría ambiciosa de los tres vehículos conducibles: m
   - el asiento ACES II, reclinado 30°, con sus laterales, cojines, el cabecero con el paracaídas y sus dos tubos pitot, los arneses y la maneta amarilla de eyección entre las rodillas;
   - las consolas laterales, con la palanca lateral (*side-stick*) a la derecha y el gas a la izquierda, como en el F-16;
   - el panel, con los biseles y las esferas de los instrumentos, la pantalla del radar y el panel de mando bajo el parasol.
+- **El lanzador de punta de ala** (tipo LAU-129, ≈ en forma y tamaño) era una barra rectangular. Ahora es un raíl esbelto de sección redondeada, con el morro afilado, la cola en cuña, los dos carriles de lanzamiento por debajo y el adaptador perfilado que lo une a la punta del ala.
 - **Pruebas nuevas** (`tools/check.mjs`): el área de captura (±2 %) y que ningún vértice de la piel quede dentro de la abertura de la cabina. Con el código anterior, la segunda falla (31 vértices dentro).
 
 ### Fase 4 del encargo: física y entorno: el viento del sitio (4 de octubre de 2026)

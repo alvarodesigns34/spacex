@@ -857,12 +857,34 @@ function buildWing(M, side) {
     hingeG.add(mesh(piece, [M.f16Upper, M.f16Lower], { name: `f16-flaperon-skin-${tag}` }));
     g.add(hingeG);
   }
-  // The wing-tip launcher (LAU-129-like, ≈): a rail under the tip, empty.
+  // The wing-tip launcher (LAU-129-like, ≈ in shape and size): a slender rail under the tip, its
+  // section a rounded box, a pointed fairing ahead and a shorter taper aft, the two launch rails
+  // along its underside; the adapter that carries it, a thin faired blade under the wing's tip.
   {
-    const rail = new THREE.BoxGeometry(2.6, 0.1, 0.08);
-    g.add(mesh(rail, M.f16Lower, { name: `f16-tip-launcher-${tag}`, position: [-(WING.te - 1.2), GROUND - 0.05, side * (tip + 0.15)] }));
-    const pylon = new THREE.BoxGeometry(1.4, 0.06, 0.16);
-    g.add(mesh(pylon, M.f16Lower, { name: `f16-tip-adapter-${tag}`, position: [-(WING.te - 0.9), GROUND, side * (tip + 0.06)] }));
+    const L = 2.6, x0 = -(WING.te - 1.2) + L / 2, yc = GROUND - 0.05, zc = side * (tip + 0.15);
+    const rows = [];
+    for (let k = 0; k <= 40; k++) {
+      const u = k / 40, x = x0 - u * L;
+      const nose = Math.pow(Math.min(1, u / 0.16), 0.55), tail = Math.pow(Math.min(1, (1 - u) / 0.08), 0.6);
+      const f = Math.max(0.05, Math.min(nose, tail)), hw = 0.04 * f, hh = 0.055 * f;
+      const row = [];
+      for (let j = 0; j < 20; j++) {
+        const a = (j / 20) * Math.PI * 2, c = Math.cos(a), sn = Math.sin(a);
+        row.push(V(x, yc + hh * Math.sign(sn) * Math.pow(Math.abs(sn), 0.5), zc + hw * Math.sign(c) * Math.pow(Math.abs(c), 0.5)));
+      }
+      rows.push(row);
+    }
+    const rail = outward(loft(rows, { closed: true }), (x, y, z, c) => c.set(x, yc, zc));
+    g.add(mesh(rail, M.f16Lower, { name: `f16-tip-launcher-${tag}` }));
+    const rails = [];
+    for (const dz of [-0.022, 0.022]) rails.push({ geometry: new THREE.BoxGeometry(L * 0.7, 0.012, 0.01), matrix: mat4([x0 - L * 0.48, yc - 0.058, zc + dz]) });
+    g.add(mesh(mergeAll(rails), M.alumDark, { name: `f16-tip-launcher-rails-${tag}`, castShadow: false }));
+    const sh = new THREE.Shape();
+    sh.moveTo(0, 0); sh.lineTo(1.25, 0); sh.quadraticCurveTo(1.45, 0, 1.4, -0.03); sh.lineTo(1.1, -0.07); sh.lineTo(0.08, -0.07); sh.lineTo(0, -0.03); sh.closePath();
+    const blade = new THREE.ExtrudeGeometry(sh, { depth: 0.03, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.008, bevelSegments: 3, curveSegments: 6 });
+    blade.translate(-0.7, 0, -0.015);
+    blade.rotateY(Math.PI);
+    g.add(mesh(blade, M.f16Lower, { name: `f16-tip-adapter-${tag}`, position: [-(WING.te - 0.9), GROUND + 0.02, side * (tip + 0.1)] }));
   }
   return g;
 }
