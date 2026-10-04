@@ -119,18 +119,6 @@ function shareNormals(ga, gb) {
     na.setXYZ(i, x / l, y / l, z / l); nb.setXYZ(j, x / l, y / l, z / l);
   }
 }
-/** Keeps only the triangles whose centroid passes `keep(x, y, z)`. */
-function keepTriangles(g, keep) {
-  const p = g.attributes.position, ix = g.index.array, out = [];
-  for (let i = 0; i < ix.length; i += 3) {
-    const a = ix[i], b = ix[i + 1], c = ix[i + 2];
-    const x = (p.getX(a) + p.getX(b) + p.getX(c)) / 3, y = (p.getY(a) + p.getY(b) + p.getY(c)) / 3, z = (p.getZ(a) + p.getZ(b) + p.getZ(c)) / 3;
-    if (keep(x, y, z)) out.push(a, b, c);
-  }
-  g.setIndex(out);
-  return g;
-}
-
 // ---- Sections ----------------------------------------------------------------------------------
 /** Thin airfoils. The 64A204: TN-1368's 64A006 thickness form scaled to 4 %, cambered for a design
  *  lift coefficient of 0.2 on the uniform-load (a = 1) mean line (≈: the 6A series is drawn on the
@@ -144,44 +132,173 @@ const biconvex = (x) => 2 * x * (1 - x);                               // half-t
 const chordStations = (n) => Array.from({ length: n + 1 }, (_, i) => (1 - Math.cos(Math.PI * i / n)) / 2);
 
 /**
- * The fuselage's section at station s: one ring, the bottom centre line round the right side,
- * the top, the left side and back. `main` sections run down to the inlet's floor aft of the lip;
- * forward of it the forebody's own bottom. NU and NL points a quarter.
+ * The fuselage's sections. A section is a ring of points: the bottom centre line, round the right
+ * side, the top, the left side and back; NL points to a lower quarter and NU to an upper one.
+ *
+ * - The forebody (to the inlet's lip) is one rounded body: its lower quarter a
+ *   superellipse from the chine to its own bottom, the traced line, held level aft of the lip.
+ * - The main fuselage, from the inlet's lip aft: its lower quarter is the inlet, its own duct under
+ *   the forebody as on the airplane, its roof parted from the forebody's bottom by the boundary-
+ *   layer diverter's slot (≈6.5 cm at the lip, ≈ from photographs), a groove in the one surface that
+ *   closes, in height and depth, by SLOT.s1; aft of that the section is carried into the traced one
+ *   (the upper quarter over the inlet's width blended in below) by SLOT.s2.
+ * The upper quarter is spaced so that index KC lies on the edge of the cockpit's opening under the
+ * canopy: the opening is cut along that row of vertices, a clean line (cutting triangles by their
+ * centroids, as before, left teeth that showed above the sills).
  */
-const NU = 14, NL = 14;
-function fuselageRing(s, main) {
-  const T = top(s), W = Math.max(0.004, width(s)), zc = chine(s);
-  const bot = main ? intakeBottom(s) : foreBottom(s);
-  const Wi = main ? intakeWidth(s) : W;
-  // Rounder over the top forward, flatter aft over the engine.
-  const nu = 2.2 + 0.8 * sstep(6, 10, s), nl = main ? 3.2 : 2.2;
-  const right = [];
-  // Lower quarter, bottom centre → side.
-  for (let k = NL; k >= 0; k--) {
-    const ph = (k / NL) * Math.PI / 2, c = Math.cos(ph), sn = Math.sin(ph);
-    const q = main ? sstep(0.0, 0.55, sn) : 0;
-    const w = W + (Wi - W) * q;
-    right.push([w * Math.pow(c, 2 / nl), zc - (zc - bot) * Math.pow(sn, 2 / nl)]);
+const NU = 24, NL = 24, KC = NU - 7;
+const SLOT = { s1: 5.7, s2: 6.9, gap: 0.065, rake: 0.06, lip: 0.025 };   // ≈, from photographs
+const fBottom = (s) => foreBottom(Math.min(s, LIP));
+
+/** Resamples a poly-line ([y, z] pairs) to n points evenly by arc length. */
+function resample(pts, n) {
+  const acc = [0];
+  for (let i = 1; i < pts.length; i++) acc.push(acc[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const L = acc[acc.length - 1], out = [];
+  let i = 1;
+  for (let k = 0; k < n; k++) {
+    const d = L * k / (n - 1);
+    while (i < pts.length - 1 && acc[i] < d) i++;
+    const t = acc[i] > acc[i - 1] ? (d - acc[i - 1]) / (acc[i] - acc[i - 1]) : 0;
+    out.push([pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * t, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * t]);
   }
-  // Upper quarter, side → top centre. Forward, a rounded superellipse; from the canopy aft the
-  // F-16's blended body: broad shoulders falling from the spine to the strakes and the wing's root
-  // (a cubic from the chine to the spine, ≈ from the photographs), mixed in over 4.5–6.5 m.
+  return out;
+}
+/** Arc length along a poly-line to where y first falls to `y` (the poly-line runs outboard → inboard). */
+function arcToY(pts, y) {
+  let acc = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const [y0, z0] = pts[i - 1], [y1, z1] = pts[i], d = Math.hypot(y1 - y0, z1 - z0);
+    if (y1 <= y) return acc + d * (y0 - y) / Math.max(1e-9, y0 - y1);
+    acc += d;
+  }
+  return acc;
+}
+
+/** Upper quarter, side → top centre: NU points (the side's point itself excluded). */
+function upperQuarter(s) {
+  const T = top(s), W = Math.max(0.004, width(s)), zc = chine(s);
+  // Rounder over the top forward, flatter aft over the engine.
+  const nu = 2.2 + 0.8 * sstep(6, 10, s);
+  // Forward, a rounded superellipse; from the canopy aft the F-16's blended body: broad shoulders
+  // falling from the spine to the strakes and the wing's root (a cubic from the chine to the spine,
+  // ≈ from the photographs), mixed in over 4.5–6.5 m.
   const blend = sstep(4.5, 6.5, s), H = T - zc;
   const b0 = [W, zc], b1 = [W * 0.92, zc + 0.42 * H], b2 = [W * 0.42, zc + H], b3 = [0, T];
-  for (let k = 1; k <= NU; k++) {
-    const ph = (k / NU) * Math.PI / 2, c = Math.cos(ph), sn = Math.sin(ph);
+  const dense = [];
+  for (let k = 0; k <= 160; k++) {
+    const ph = (k / 160) * Math.PI / 2, c = Math.cos(ph), sn = Math.sin(ph);
     const ey = W * Math.pow(c, 2 / nu), ez = zc + H * Math.pow(sn, 2 / nu);
-    const u = k / NU, v = 1 - u;
+    const u = k / 160, v = 1 - u;
     const by = v * v * v * b0[0] + 3 * v * v * u * b1[0] + 3 * v * u * u * b2[0] + u * u * u * b3[0];
     const bz = v * v * v * b0[1] + 3 * v * v * u * b1[1] + 3 * v * u * u * b2[1] + u * u * u * b3[1];
-    right.push([ey + (by - ey) * blend, ez + (bz - ez) * blend]);
+    dense.push([ey + (by - ey) * blend, ez + (bz - ez) * blend]);
   }
-  const left = right.slice(0, -1).reverse().map(([y, z]) => [-y, z]);
-  return [...right, ...left.slice(0, -1)].map(([y, z]) => P(s, z, y));
+  const all = resample(dense, 161), L = arcToY(all, -1);
+  // Where index KC falls: its natural place, or over the cockpit the opening's edge.
+  const w = sstep(CPIT.s0 - 0.5, CPIT.s0, s) * (1 - sstep(CPIT.s1, CPIT.s1 + 0.5, s));
+  const Le = L * KC / NU + (arcToY(all, Math.max(0.05, canopyWidth(s) - 0.03)) - L * KC / NU) * w;
+  const at = (d) => resampleAt(all, d);
+  const out = [];
+  for (let k = 1; k <= NU; k++) out.push(at(k <= KC ? Le * k / KC : Le + (L - Le) * (k - KC) / (NU - KC)));
+  return out;
 }
-/** Fraction of the way round (0 bottom, 0.25 right, 0.5 top, 0.75 left) for the atlas's V: the
- *  ring has 2(NL + NU) points, the first the bottom centre, NL + NU the top. */
-const ringFractions = (n) => Array.from({ length: n }, (_, j) => j / n);
+/** The point at arc length d along a poly-line. */
+function resampleAt(pts, d) {
+  let acc = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const seg = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    if (acc + seg >= d || i === pts.length - 1) {
+      const t = seg > 0 ? Math.min(1, Math.max(0, (d - acc) / seg)) : 0;
+      return [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * t, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * t];
+    }
+    acc += seg;
+  }
+  return pts[pts.length - 1];
+}
+
+/** The forebody's lower quarter: NL + 1 points, bottom centre → side (the chine). */
+function bodyLower(s) {
+  const W = Math.max(0.004, width(s)), zc = chine(s), bot = fBottom(s), nl = 2.2, out = [];
+  for (let k = NL; k >= 0; k--) {
+    const ph = (k / NL) * Math.PI / 2, c = Math.cos(ph), sn = Math.sin(ph);
+    out.push([W * Math.pow(c, 2 / nl), zc - (zc - bot) * Math.pow(sn, 2 / nl)]);
+  }
+  return out;
+}
+/** Height of a poly-line running bottom centre → side, at y (between its points). */
+function zAtY(pts, y) {
+  for (let i = 1; i < pts.length; i++) {
+    const [y0, z0] = pts[i - 1], [y1, z1] = pts[i];
+    if ((y0 - y) * (y1 - y) <= 0 && y1 !== y0) return z0 + (z1 - z0) * (y - y0) / (y1 - y0);
+  }
+  return pts[pts.length - 1][1];
+}
+/** The inlet's width: inside the forebody's. */
+const inletHalf = (s) => Math.min(intakeWidth(s), Math.max(0.004, width(s)) * 0.985);
+/** Points of the main fuselage's lower quarter (bottom centre → chine), piece by piece, so that the
+ *  inlet's corners and the diverter's slot keep their shape: the inlet's side, its top corner, its
+ *  roof inboard to the slot's inner end, up the slot, the forebody's underside and side. */
+const LQ = { side: 12, corner: 3, roof: 8, slot: 2, body: 15 };
+const NLM = LQ.side + LQ.corner + LQ.roof + LQ.slot + LQ.body;
+/** The slot: open at the lip, closing (both its height and its depth) by SLOT.s1. */
+function slotAt(s) {
+  const u = sstep(LIP, SLOT.s1, s), Wi = inletHalf(s), rc = 0.012 + 0.05 * (1 - u);
+  return { gap: Math.max(0.004, SLOT.gap * (1 - u)), yin: 0.03 + (Wi - rc - 0.05) * u, rc, Wi };
+}
+/** The main fuselage's lower quarter: NLM + 1 points, bottom centre → chine. From SLOT.s1 the
+ *  inlet-and-forebody section is carried into the traced one by SLOT.s2. */
+function mainLower(s) {
+  const F = bodyLower(s), { gap, yin, rc, Wi } = slotAt(s);
+  const ib = intakeBottom(s), zt = zAtY(F, Wi) - gap, nl = 3.2, out = [];
+  for (let k = LQ.side; k >= 0; k--) {     // the inlet's side, bottom centre → the corner
+    const ph = (k / LQ.side) * Math.PI / 2, c = Math.cos(ph), sn = Math.sin(ph);
+    out.push([Wi * Math.pow(c, 2 / nl), (zt - rc) - (zt - rc - ib) * Math.pow(sn, 2 / nl)]);
+  }
+  for (let k = 1; k <= LQ.corner; k++) {   // the corner, a quarter round
+    const a = (k / LQ.corner) * Math.PI / 2;
+    out.push([Wi - rc + rc * Math.cos(a), zt - rc + rc * Math.sin(a)]);
+  }
+  for (let k = 1; k <= LQ.roof; k++) {     // the roof, under the forebody, inboard
+    const y = (Wi - rc) + (yin - (Wi - rc)) * k / LQ.roof;
+    out.push([y, zAtY(F, y) - gap]);
+  }
+  for (let k = 1; k <= LQ.slot; k++) out.push([yin, zAtY(F, yin) - gap * (1 - k / LQ.slot)]);
+  const rest = resample([[yin, zAtY(F, yin)], ...F.filter(p => p[0] > yin)], LQ.body + 1);
+  out.push(...rest.slice(1));
+  const t = sstep(SLOT.s1, SLOT.s2, s);
+  if (t <= 0) return out;
+  // The traced section: the lower quarter carried from the forebody's width to the inlet's.
+  const W = Math.max(0.004, width(s)), zc = chine(s), WiT = intakeWidth(s), traced = [];
+  for (let k = 160; k >= 0; k--) {
+    const ph = (k / 160) * Math.PI / 2, c = Math.cos(ph), sn = Math.sin(ph);
+    const w = W + (WiT - W) * sstep(0.0, 0.55, sn);
+    traced.push([w * Math.pow(c, 2 / nl), zc - (zc - ib) * Math.pow(sn, 2 / nl)]);
+  }
+  const b = resample(traced, NLM + 1);
+  return out.map((p, i) => [p[0] + (b[i][0] - p[0]) * t, p[1] + (b[i][1] - p[1]) * t]);
+}
+/** A whole ring from its right lower quarter (bottom centre → side) and the upper quarter; the lip's
+ *  rake (its top a little ahead of its bottom, ≈) on the inlet's points. */
+function ringOf(s, lower, rake = 0) {
+  const nIn = LQ.side + LQ.corner + LQ.roof, ib = intakeBottom(s);
+  const zTop = rake ? lower[nIn][1] : 0;
+  const sAt = (i, z) => (rake && i <= nIn) ? s - rake * (z - ib) / Math.max(0.1, zTop - ib) : s;
+  const right = [...lower.map(([y, z], i) => [y, z, sAt(i, z)]), ...upperQuarter(s).map(([y, z]) => [y, z, s])];
+  const left = right.slice(0, -1).reverse().map(([y, z, ss]) => [-y, z, ss]);
+  return [...right, ...left.slice(0, -1)].map(([y, z, ss]) => P(ss, z, y));
+}
+const rakeAt = (s) => SLOT.rake * Math.max(0, 1 - (s - LIP) / 0.4);
+const fuselageRing = (s, main) => main ? ringOf(s, mainLower(s), rakeAt(s)) : ringOf(s, bodyLower(s));
+/** The atlas's V for each point of a ring with `nl` points to a lower quarter: 0 the bottom
+ *  centre line, 0.25 the right chine, 0.5 the top, 0.75 the left chine. */
+function ringV(nl) {
+  const right = [];
+  for (let j = 0; j <= nl; j++) right.push(0.25 * j / nl);
+  for (let k = 1; k <= NU; k++) right.push(0.25 + 0.25 * k / NU);
+  const left = right.slice(0, -1).reverse().map(v => 1 - v);
+  return [...right, ...left.slice(0, -1)];
+}
 
 // ---- Materials -----------------------------------------------------------------------------------
 function f16Materials(M) {
@@ -204,6 +321,8 @@ function f16Materials(M) {
     clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 1.3, depthWrite: false,
   });
   // The inlet duct, the gear wells and the cockpit: flat dark paint (≈).
+  // The inlet duct inside: white (≈, as photographed).
+  M.f16Duct = new THREE.MeshStandardMaterial({ name: 'f16-duct', color: 0xcfcdc6, metalness: 0.05, roughness: 0.6, envMapIntensity: 0.6 });
   M.f16Dark = new THREE.MeshStandardMaterial({ name: 'f16-dark', color: 0x2a2c2f, metalness: 0.1, roughness: 0.85 });
   // The nozzle (≈ from photographs): the outer flaps' heat-darkened titanium, bluish brown; the
   // divergent flaps inside, pale streaked metal. Facets shaded flat, as the flaps are flat.
@@ -224,27 +343,36 @@ function f16Materials(M) {
 const FORE = [], MAIN = [];
 for (let s = 0.62; s <= LIP + 1e-9; s += (s < 1.2 ? 0.04 : 0.1)) FORE.push(Math.min(s, LIP));
 if (FORE[FORE.length - 1] < LIP) FORE.push(LIP);
-for (let s = LIP; s <= LINES.nozzle.s0 + 1e-9; s += 0.1) MAIN.push(Math.min(s, LINES.nozzle.s0));
+for (let s = LIP; s <= LINES.nozzle.s0 + 1e-9; s += (s < SLOT.s2 ? 0.05 : 0.1)) MAIN.push(Math.min(s, LINES.nozzle.s0));
+if (MAIN[MAIN.length - 1] < LINES.nozzle.s0) MAIN.push(LINES.nozzle.s0);
 
 /** The cockpit's opening under the canopy (removed from the skin so the cockpit shows). */
 const CPIT = { s0: 3.2, s1: 5.95 };
-function inCockpit(x, y, z) {
-  const s = -x;
-  if (s < CPIT.s0 || s > CPIT.s1) return false;
-  return Math.abs(z) < canopyWidth(s) - 0.03 && y - GROUND > top(s) - 0.06;
+/** Removes the cockpit's opening from a fuselage loft whose rings have `nl` points to a lower
+ *  quarter: the quads between the opening's two edge rows of vertices (index KC of the upper
+ *  quarter, each side), between the rows inside CPIT. */
+function cutCockpit(g, ss, nl) {
+  const nJ = 2 * (nl + NU) + 1, ix = g.index.array, out = [], j0 = nl + KC, j1 = nl + 2 * NU - KC;
+  for (let i = 0; i < ss.length - 1; i++) {
+    const open = ss[i] >= CPIT.s0 - 1e-9 && ss[i + 1] <= CPIT.s1 + 1e-9;
+    for (let j = 0; j < nJ - 1; j++) {
+      if (open && j >= j0 && j < j1) continue;
+      const q = (i * (nJ - 1) + j) * 6;
+      for (let k = 0; k < 6; k++) out.push(ix[q + k]);
+    }
+  }
+  g.setIndex(out);
+  return g;
 }
 
 function buildFuselage(M) {
   const g = new THREE.Group();
   g.name = 'f16-fuselage';
   const rowsFore = FORE.map(s => fuselageRing(s, false)), rowsMain = MAIN.map(s => fuselageRing(s, true));
-  const n = rowsFore[0].length, fr = ringFractions(n);
-  const uvAtlas = (rows, ss) => (i, j) => [ss[i] / SKIN_LEN, j >= n ? 1 : fr[j]];
-  const centre = (x, y, z, c) => c.set(x, GROUND + chine(-x), 0);
-  const fore = outward(loft(rowsFore, { closed: true, uv: uvAtlas(rowsFore, FORE) }), centre);
-  const main = outward(loft(rowsMain, { closed: true, uv: uvAtlas(rowsMain, MAIN) }), centre);
-  keepTriangles(fore, (x, y, z) => !inCockpit(x, y, z));
-  keepTriangles(main, (x, y, z) => !inCockpit(x, y, z));
+  const uvAtlas = (ss, vs) => (i, j) => [ss[i] / SKIN_LEN, j >= vs.length ? 1 : vs[j]];
+  const centre = (x, y, z, c) => c.set(x, GROUND + chine(-x) - 0.2, 0);
+  const fore = cutCockpit(outward(loft(rowsFore, { closed: true, uv: uvAtlas(FORE, ringV(NL)) }), centre), FORE, NL);
+  const main = cutCockpit(outward(loft(rowsMain, { closed: true, uv: uvAtlas(MAIN, ringV(NLM)) }), centre), MAIN, NLM);
   shareNormals(fore, main);
   g.add(mesh(fore, M.f16Skin, { name: 'f16-forebody' }));
   g.add(mesh(main, M.f16Skin, { name: 'f16-fuselage-skin' }));
@@ -288,48 +416,90 @@ function buildFuselage(M) {
     g.add(blade(7.6, top(7.6) - 0.01, 1, 0.13, 0.3, 'f16-antenna-spine'));
     g.add(blade(6.6, intakeBottom(6.6) + 0.01, -1, 0.1, 0.26, 'f16-antenna-belly'));
   }
-  g.add(buildInlet(M, rowsFore[rowsFore.length - 1], rowsMain[0]));
+  g.add(buildInlet(M, rowsMain[0]));
   g.add(buildNozzle(M, rowsMain[rowsMain.length - 1]));
   return g;
 }
 
 /**
- * The inlet: the mouth between the forebody's bottom and the lip at s 4.6, a dark duct running
- * back to the fan face, which is a solid disc — nothing behind the mouth can be seen through.
+ * The inlet (≈, from photographs; the capture area is TP-3355's). Its outside is the fuselage's
+ * skin, with the diverter's slot between its roof and the forebody (fuselageRing); here are the
+ * mouth and what is behind it: the lip, a rounded rim all the way round, its top a little ahead
+ * of its bottom; the duct, painted pale inside as on the airplanes, running back to the fan face,
+ * a solid disc — nothing behind the mouth can be seen through; the web on the centre line that
+ * closes the slot's middle at the lip, and the two webs that carry the inlet in the slot.
  */
-function buildInlet(M, foreRing, mainRing) {
+function buildInlet(M, lipRing) {
   const g = new THREE.Group();
   g.name = 'f16-inlet';
-  const n = foreRing.length, half = NL;   // indices 0..NL on the right, n−NL..n−1 on the left
-  // The mouth's outline: the lip's lower curve (main ring) from the left side round the bottom to
-  // the right side, then the forebody's bottom back across.
-  const lipIdx = [...Array.from({ length: NL }, (_, k) => n - NL + k), ...Array.from({ length: half + 1 }, (_, k) => k)];
-  const lower = lipIdx.map(i => mainRing[i].clone());
-  const upper = lipIdx.slice().reverse().map(i => foreRing[i].clone());
-  const mouth = [...lower, ...upper.slice(1, -1)];
-  // The lip: a rounded rim along the lower curve.
-  const rim = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(lower), 48, 0.025, 8, false);
-  g.add(mesh(rim, M.f16Lower, { name: 'f16-inlet-lip' }));
-  // The duct: the mouth's outline carried aft, shrinking to the fan face's circle.
-  const fanS = 6.8, fanR = Math.sqrt(LINES.inletArea / Math.PI) * 1.18, fanZ = -0.42;
-  // Each point of the mouth runs back to the fan face's circle at its own angle round the mouth's centre.
-  const cy = mouth.reduce((a, p) => a + p.y, 0) / mouth.length;
-  const rows = [];
+  // The mouth: the inlet's points of the fuselage's first ring at the lip (side, corner and roof,
+  // right and left), closed across the centre web.
+  const nIn = LQ.side + LQ.corner + LQ.roof, n = lipRing.length;
+  const mouth = [...lipRing.slice(n - nIn), ...lipRing.slice(0, nIn + 1)].map(p => p.clone());
+  const m = mouth.length, t = SLOT.lip;
+  const cy = mouth.reduce((a, p) => a + p.y, 0) / m;
+  const nrm = mouth.map((p, j) => {
+    const a = mouth[(j + m - 1) % m], b = mouth[(j + 1) % m];
+    const n2 = V(0, -(b.z - a.z), b.y - a.y).normalize();
+    return n2.y * (p.y - cy) + n2.z * p.z < 0 ? n2.negate() : n2;
+  });
+  // The lip: each point carried round a half circle of radius t, from the skin, forward, to the
+  // duct's wall inside.
+  const lipRows = [];
   for (let k = 0; k <= 8; k++) {
-    const t = k / 8, s = LIP + (fanS - LIP) * t;
-    rows.push(mouth.map((p) => {
-      const a = Math.atan2(p.y - cy, p.z);
+    const th = Math.PI * k / 8;
+    lipRows.push(mouth.map((p, j) => p.clone().addScaledVector(nrm[j], -t + t * Math.cos(th)).add(V(t * Math.sin(th), 0, 0))));
+  }
+  const lip = loft(lipRows, { closed: true });
+  if (lip.attributes.normal.getX(4 * (m + 1)) < 0) flip(lip);
+  g.add(mesh(lip, M.f16Lower, { name: 'f16-inlet-lip' }));
+
+  // The duct: the lip's inside carried aft, shrinking to the fan face's circle.
+  const inner = lipRows[8];
+  const fanS = 6.8, fanR = Math.sqrt(LINES.inletArea / Math.PI) * 1.18, fanZ = -0.42;
+  const duct = [];
+  for (let k = 0; k <= 12; k++) {
+    const u = k / 12;
+    duct.push(inner.map((p) => {
+      const a = Math.atan2(p.y - cy, p.z), s = -p.x + (fanS + p.x) * u;
       const c = P(s, fanZ + fanR * 0.9 * Math.sin(a), fanR * Math.cos(a));
-      return V(-s, p.y, p.z).lerp(c, sstep(0, 1, t));
+      return V(-s, p.y, p.z).lerp(c, sstep(0, 1, u));
     }));
   }
-  const duct = loft(rows, { closed: true });
-  outward(duct, (x, y, z, c) => c.set(x, GROUND + fanZ, 0));
-  flip(duct);   // seen from inside
-  g.add(mesh(duct, M.f16Dark, { name: 'f16-inlet-duct', castShadow: false }));
-  const face = new THREE.CircleGeometry(fanR * 1.02, 32);
+  const dg = loft(duct, { closed: true });
+  outward(dg, (x, y, z, c) => c.set(x, GROUND + fanZ, 0));
+  flip(dg);   // seen from inside
+  g.add(mesh(dg, M.f16Duct, { name: 'f16-inlet-duct', castShadow: false }));
+  const face = new THREE.CircleGeometry(fanR * 1.02, 40);
   face.rotateY(Math.PI / 2);
   g.add(mesh(face, M.blackMatte ?? M.f16Dark, { name: 'f16-fan-face', position: [-fanS - 0.01, GROUND + fanZ, 0], castShadow: false }));
+
+  // The centre web's face at the lip, between the inlet's roof and the forebody's bottom.
+  const F = bodyLower(LIP), { gap, yin } = slotAt(LIP);
+  {
+    const sh = new THREE.Shape();
+    sh.moveTo(-yin, zAtY(F, yin) - gap); sh.lineTo(yin, zAtY(F, yin) - gap);
+    sh.lineTo(yin, zAtY(F, yin)); sh.lineTo(0, zAtY(F, 0)); sh.lineTo(-yin, zAtY(F, yin));
+    const geo = new THREE.ShapeGeometry(sh);
+    geo.rotateY(Math.PI / 2);
+    g.add(mesh(geo, M.f16Lower, { name: 'f16-diverter-face', position: [-LIP + 0.002, GROUND, 0], castShadow: false }));
+  }
+  // The webs that carry the inlet in the slot, outboard (≈).
+  const webs = [];
+  for (const y of [-0.4, 0.4]) {
+    const st = [];
+    for (let s = LIP + 0.06; s <= SLOT.s1 + 1e-9; s += 0.05) if (slotAt(s).yin < Math.abs(y) - 0.02) st.push(s);
+    if (st.length < 2) continue;
+    const top = (s) => zAtY(bodyLower(s), Math.abs(y));
+    const sh = new THREE.Shape();
+    sh.moveTo(-st[0], top(st[0]) + 0.01);
+    for (const s of st) sh.lineTo(-s, top(s) + 0.01);
+    for (const s of st.slice().reverse()) sh.lineTo(-s, top(s) - slotAt(s).gap - 0.01);
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.012, bevelEnabled: false });
+    geo.translate(0, GROUND, y - 0.006);
+    webs.push({ geometry: geo });
+  }
+  if (webs.length) g.add(mesh(mergeAll(webs), M.f16Lower, { name: 'f16-diverter-webs', castShadow: false }));
   return g;
 }
 

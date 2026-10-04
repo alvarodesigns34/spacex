@@ -954,6 +954,39 @@ try {
       });
       return { tris, meshes: [...names].slice(0, 5).map(([m, c]) => `${m} ${c}`), sanitized: v.sanitized };
     });
+    // The F-16's inlet and canopy (README, «Encargo del 4 de octubre (cuarta sesión)»): the capture
+    // area at the lip's leading edge is TP-3355's 0.53 m², and no vertex of the fuselage's skin is
+    // left inside the cockpit's opening (the old cut, by the triangles' centroids, left teeth there).
+    const f16 = await page.evaluate(async () => {
+      const v = window.__vc, THREE = await import('three');
+      const { LINES, OVERALL } = await import('/src/data/f16.js'), { curve } = await import('/src/geometry/utils.js');
+      const top = curve(LINES.top), cw = curve(LINES.canopyWidth), GROUND = -OVERALL.groundWL;
+      let air = null, lip = null;
+      v.exhibits.f16.model.traverse(o => { if (o.name === 'f16-airframe') air = o; if (o.name === 'f16-inlet-lip') lip = o; });
+      const p = lip.geometry.attributes.position, nJ = p.count / 9;
+      let a = 0;
+      for (let j = 0; j < nJ - 1; j++) { const i = 4 * nJ + j; a += p.getZ(i) * p.getY(i + 1) - p.getZ(i + 1) * p.getY(i); }
+      let inside = 0, checked = 0;
+      const q = new THREE.Vector3(), inv = new THREE.Matrix4();
+      air.updateMatrixWorld(true);
+      for (const name of ['f16-forebody', 'f16-fuselage-skin']) {
+        const m = air.getObjectByName(name), pos = m.geometry.attributes.position, ix = m.geometry.index;
+        inv.copy(air.matrixWorld).invert().multiply(m.matrixWorld);
+        const used = new Set(ix.array);
+        for (const i of used) {
+          q.fromBufferAttribute(pos, i).applyMatrix4(inv);
+          const s = -q.x;
+          if (s < 3.35 || s > 5.8) continue;
+          checked++;
+          if (Math.abs(q.z) < cw(s) - 0.035 && q.y - GROUND > top(s) - 0.05) inside++;
+        }
+      }
+      return { area: Math.abs(a / 2), published: LINES.inletArea, inside, checked };
+    });
+    report(Math.abs(f16.area / f16.published - 1) < 0.02, 'F-16: área de captura en el borde del labio',
+      `${f16.area.toFixed(3)} m² (TP-3355: ${f16.published.toFixed(3)} m²)`);
+    report(f16.inside === 0 && f16.checked > 500, 'F-16: ningún vértice de la piel dentro de la abertura de la cabina',
+      `${f16.inside} de ${f16.checked} vértices`);
     report(zero.tris === 0, 'ningún triángulo con normal nula',
       `${zero.tris} triángulos${zero.meshes.length ? ` (${zero.meshes.join(', ')})` : ''} · saneados al arrancar: `
       + `${zero.sanitized?.triangles ?? '?'} en ${zero.sanitized?.meshes ?? '?'} geometrías`);

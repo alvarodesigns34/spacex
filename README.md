@@ -834,6 +834,21 @@ El usuario pidió una pasada decisiva sobre la H2R, el Porsche y el F-16: modelo
 - **Sonido:** las explosiones se redondean a muestras enteras (≈ −25 dB de ruido), el silbido de alivio de la H2R se rompe a los 30 s y no hay modelo espacial. El F-16 no tiene sonido.
 - **No se llegó a hacer:** la auditoría del detalle de los modelos y el presupuesto de rendimiento, y la del entorno y las físicas.
 
+### Encargo del 4 de octubre (cuarta sesión): F-16, Porsche y H2R a fondo. F-16, toma de aire y cúpula
+
+El usuario pidió una auditoría ambiciosa de los tres vehículos conducibles: modelos 3D mucho más detallados, conducción y vuelo más reales, entorno y una pasada final por las físicas. Se empezó por renderizar los tres de cerca. Lo más tosco era el F-16.
+
+**F-16A, primera parte** (`src/vehicles/f16.js`):
+- **La cúpula enseñaba dientes negros** a lo largo del borde. La abertura de la cabina se recortaba quitando los triángulos de la piel por su centro, y el borde quedaba en escalera por encima de los marcos. Ahora el cuarto superior de cada sección se reparte de modo que una fila de vértices cae justo en el borde de la abertura, y se corta por esa fila: una línea limpia.
+- **El doble de resolución** en las secciones del fuselaje (24 puntos por cuarto en vez de 14). El avión pasa de ≈47.000 a ≈70.000 triángulos.
+- **La toma de aire, como en el avión.** Antes era una prolongación del fuselaje, con la boca hasta las esquinas del lomo. Contrastada con fotos libres de Commons (solo como referencia: «F-16 Fighting Falcon air intake» y vistas laterales de museo):
+  - la toma es su propio conducto bajo el fuselaje, separado de él por la **ranura del desviador de capa límite** (≈6,5 cm en el labio, ≈). La ranura se cierra hacia atrás en ≈1,1 m; es un surco de la misma superficie, sin juntas;
+  - la boca va de un lado al otro de la toma, con las esquinas superiores redondeadas, y la sostienen un alma central y dos laterales;
+  - el **labio** es un borde redondeado (≈2,5 cm de radio) que da toda la vuelta a la boca, con la parte de arriba algo adelantada (≈6 cm, ≈);
+  - **el conducto por dentro es claro**, como en las fotos (antes era negro).
+  - El área de captura, medida en el borde de ataque del labio, es 0,531 m² (TP-3355: 0,533 m²); la forma es ≈.
+- **Pruebas nuevas** (`tools/check.mjs`): el área de captura (±2 %) y que ningún vértice de la piel quede dentro de la abertura de la cabina. Con el código anterior, la segunda falla (31 vértices dentro).
+
 ### Fase 4 del encargo: física y entorno: el viento del sitio (4 de octubre de 2026)
 
 Auditoría: el F-16 decía expresamente «sin efecto suelo y sin viento». El Porsche y la H2R medían su resistencia contra el suelo, no contra el aire. La manga de la pista estaba fija, el vapor de la plataforma derivaba hacia el sureste, contra la brisa del mar, y las cuatro capas de olas iban cada una por su lado. Ahora todo comparte un mismo viento.
