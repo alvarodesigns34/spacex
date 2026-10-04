@@ -20,17 +20,29 @@
  *  - Mechanical: the valve train's tick (order 12) and the gearbox's whine, on top.
  *  - The tyres, gravel and the wind are mixed in on top, as before; and the kerbs' rumble, with a
  *    thump as a wheel goes over their edge.
+ * Each firing lands at its exact time between two samples, and the controls are audio parameters
+ * read sample by sample (tools/sound-check.mjs renders the worklet offline and checks it). The
+ * load is the engine's own (the PDK's blips and cuts, the traction control's trim).
  * Off the worklet (an old browser), it falls back to a few oscillators on the firing orders.
  */
-import { GEARBOX } from '../data/gt3rs.js';
 import { underWheels } from './gt3Camera.js';
 const WORKLET = `
 class Gt3Flat6 extends AudioWorkletProcessor {
+  // The controls arrive as audio parameters, read sample by sample (glided on the main thread).
+  static get parameterDescriptors() {
+    return [
+      { name: 'rpm', defaultValue: 900, minValue: 0, maxValue: 12000 },
+      { name: 'load', defaultValue: 0, minValue: 0, maxValue: 1 },
+      { name: 'thr', defaultValue: 0, minValue: 0, maxValue: 1 },
+      { name: 'cut', defaultValue: 0, minValue: 0, maxValue: 1 },
+      { name: 'on', defaultValue: 0, minValue: 0, maxValue: 1 },
+      { name: 'gearW', defaultValue: 0, minValue: 0, maxValue: 20000 },
+      { name: 'cabin', defaultValue: 0, minValue: 0, maxValue: 1 },
+    ];
+  }
   constructor() {
     super();
-    this.rpm = 900; this.load = 0; this.thr = 0; this.cut = 0; this.on = 0; this.gearW = 0; this.cabin = 0;
-    this.tRpm = 900; this.tLoad = 0; this.tThr = 0; this.tCut = 0; this.tGearW = 0; this.tCabin = 0;
-    this.theta = 0; this.next = 0; this.cyl = 0;
+    this.theta = 0; this.next = 0; this.cyl = 0; this.cA = 0; this.cB = 0; this.hpX = 0;
     this.envA = 0; this.envB = 0; this.slowA = 0; this.slowB = 0; this.ind = 0; this.pop = 0;
     this.seed = 911; this.gearPh = 0; this.tick = 0; this.nb = 0; this.hp = 0; this.lp = 0; this.lp2 = 0;
     this.lastThr = 0; this.blip = 0;
@@ -43,7 +55,6 @@ class Gt3Flat6 extends AudioWorkletProcessor {
     // The firing order 1-6-2-4-3-5: bank of each firing (A: 1-3, B: 4-6), and each cylinder's own strength.
     this.order = [1, 6, 2, 4, 3, 5];
     this.cylGain = [1.0, 0.96, 1.03, 0.98, 1.02, 0.95];
-    this.port.onmessage = (e) => { const d = e.data; this.tRpm = d.rpm; this.tLoad = d.load; this.tThr = d.thr; this.tCut = d.cut; this.on = d.on; this.tGearW = d.gearW || 0; this.tCabin = d.cabin || 0; };
   }
   rnd() { this.seed = (this.seed * 1664525 + 1013904223) >>> 0; return this.seed / 4294967296; }
   design(r, sr) {
@@ -59,40 +70,44 @@ class Gt3Flat6 extends AudioWorkletProcessor {
     }
     return y;
   }
-  process(_, outputs) {
+  process(_, outputs, P) {
     const out = outputs[0][0], sr = sampleRate, n = out.length;
-    this.rpm += (this.tRpm - this.rpm) * 0.3; this.load += (this.tLoad - this.load) * 0.25;
-    this.thr += (this.tThr - this.thr) * 0.3; this.cut = this.tCut;
-    this.gearW += (this.tGearW - this.gearW) * 0.2; this.cabin += (this.tCabin - this.cabin) * 0.1;
-    const x9 = this.rpm / 9000;
-    // The pipes' resonances rise a little as the gas heats (≈ with revs and load).
-    const heat = 1 + 0.14 * x9 + 0.05 * this.load;
+    const at = (a, i) => (a.length > 1 ? a[i] : a[0]);
+    // The pipes' resonances rise a little as the gas heats (≈ with revs and load), once a block.
+    const x90 = at(P.rpm, 0) / 9000;
+    const heat = 1 + 0.14 * x90 + 0.05 * at(P.load, 0);
     const baseA = [140, 420, 1300, 3100], baseB = [150, 455, 1380, 3300];
     for (let k = 0; k < 4; k++) { this.resA[k].f = baseA[k] * heat; this.resB[k].f = baseB[k] * heat; this.design(this.resA[k], sr); this.design(this.resB[k], sr); }
     // The plenum's howl follows the intake's tuning, pulled up a little with the revs (the variable intake).
-    this.resI[0].f = 520 + 260 * x9; this.resI[1].f = 1600 + 500 * x9;
+    this.resI[0].f = 520 + 260 * x90; this.resI[1].f = 1600 + 500 * x90;
     for (const r of this.resI) this.design(r, sr);
-    const fCrank = this.rpm / 60, dTheta = 2 * Math.PI * fCrank / sr;
-    const decay = Math.exp(-1 / (sr * (0.0009 + 0.0016 * (1 - x9))));
     const slow = Math.exp(-1 / (sr * 0.007));
     const indDecay = Math.exp(-1 / (sr * 0.0035));
-    const overrun = this.thr < 0.06 && this.rpm > 4200;
     for (let i = 0; i < n; i++) {
+      const rpm = at(P.rpm, i), load = at(P.load, i), thr = at(P.thr, i), cut = at(P.cut, i), on = at(P.on, i);
+      const gearW = at(P.gearW, i), cabin = at(P.cabin, i), x9 = rpm / 9000;
+      const fCrank = rpm / 60, dTheta = 2 * Math.PI * fCrank / sr;
+      const decay = Math.exp(-1 / (sr * (0.0009 + 0.0016 * (1 - x9))));
+      const overrun = thr < 0.06 && rpm > 4200;
       this.theta += dTheta;
-      let impA = 0, impB = 0, impI = 0;
+      // Each firing at its exact time between two samples, split across this one and the next,
+      // per bank (rounded to the nearest sample, it left an rpm-dependent inharmonic floor).
+      let impA = this.cA, impB = this.cB, impI = 0;
+      this.cA = 0; this.cB = 0;
       // A firing every 120° of crank, alternating banks.
       while (this.theta >= this.next) {
+        const fr = (this.theta - this.next) / dTheta;
         this.next += 2 * Math.PI / 3;
         const c = this.order[this.cyl]; this.cyl = (this.cyl + 1) % 6;
-        let a = (0.32 + 0.68 * this.load) * (0.6 + 0.6 * x9) * this.cylGain[c - 1] * (0.93 + 0.14 * this.rnd());
-        if (this.cut > 0.5) a *= this.rnd() < 0.8 ? 0.05 : 0.5;            // the limiter / the PDK's ignition cut
+        let a = (0.32 + 0.68 * load) * (0.6 + 0.6 * x9) * this.cylGain[c - 1] * (0.93 + 0.14 * this.rnd());
+        if (cut > 0.5) a *= this.rnd() < 0.8 ? 0.05 : 0.5;            // the limiter / the PDK's ignition cut
         if (overrun) {
           a *= 0.16;
-          if (this.rnd() < 0.03 * Math.min(1, this.rpm / 8000)) this.pop = 0.7 + 0.6 * this.rnd();   // a late burn in the pipe
+          if (this.rnd() < 0.03 * Math.min(1, rpm / 8000)) this.pop = 0.7 + 0.6 * this.rnd();   // a late burn in the pipe
         }
-        if (c <= 3) impA += a; else impB += a;
+        if (c <= 3) { impA += a * fr; this.cA += a * (1 - fr); } else { impB += a * fr; this.cB += a * (1 - fr); }
         // The same cylinder's intake stroke draws through the plenum (its timing is not the point: its rate is).
-        impI += (0.15 + 0.85 * this.thr) * (0.3 + 0.7 * x9 * x9);
+        impI += (0.15 + 0.85 * thr) * (0.3 + 0.7 * x9 * x9);
       }
       if (this.theta > 1e6) { this.theta -= 1e6; this.next -= 1e6; }
       this.envA = this.envA * decay + impA; this.slowA = this.slowA * slow + impA * 0.15;
@@ -106,20 +121,21 @@ class Gt3Flat6 extends AudioWorkletProcessor {
       const body = pA + pB;
       this.lp += (body - this.lp) * 0.06; this.lp2 += (this.lp - this.lp2) * 0.06;
       y = y * 2.0 + this.lp2 * 0.8;
-      const drive = 1.1 + 2.2 * this.load;
+      const drive = 1.1 + 2.2 * load;
       y = Math.tanh(y * drive) / Math.tanh(drive);
       // The induction howl: the suction pulses through the plenum, plus the rush of air.
       const nz = this.rnd() * 2 - 1; this.nb += (nz - this.nb) * (0.2 + 0.3 * x9);
-      const iv = this.ring(this.resI, this.ind * 0.6 + this.nb * 0.4 * this.thr);
-      y += iv * (0.35 + 0.65 * this.cabin) * 0.55 * (0.2 + 0.8 * this.thr);
+      const iv = this.ring(this.resI, this.ind * 0.6 + this.nb * 0.4 * thr);
+      y += iv * (0.35 + 0.65 * cabin) * 0.55 * (0.2 + 0.8 * thr);
       // The valve train's tick (order 12) and the gearbox's whine (its own speed).
-      this.tick += 2 * Math.PI * fCrank * 12 / sr; if (this.tick > 1e6) this.tick -= 1e6;
+      this.tick += 2 * Math.PI * fCrank * 12 / sr; if (this.tick > 2 * Math.PI) this.tick -= 2 * Math.PI;
       y += Math.sin(this.tick) * 0.008 * x9;
-      this.gearPh += 2 * Math.PI * this.gearW / sr; if (this.gearPh > 1e6) this.gearPh -= 1e6;
-      y += Math.sin(this.gearPh) * 0.014 * Math.min(1, this.gearW / 1500) * (0.4 + 0.6 * this.load);
-      // A DC block, and the level.
-      const o = y - this.hp; this.hp += o * 0.002;
-      out[i] = Math.tanh(o * 0.55 * (1.1 + 1.0 * x9 * x9)) * this.on;
+      this.gearPh += 2 * Math.PI * gearW / sr; if (this.gearPh > 2 * Math.PI) this.gearPh -= 2 * Math.PI;
+      if (gearW < 0.45 * sr) y += Math.sin(this.gearPh) * 0.014 * Math.min(1, gearW / 1500) * (0.4 + 0.6 * load);
+      // The level, then a DC block on what comes out (it sat before the last curve and left an offset).
+      const v = Math.tanh(y * 0.55 * (1.1 + 1.0 * x9 * x9)) * on;
+      this.hp = 0.9985 * this.hp + v - this.hpX; this.hpX = v;
+      out[i] = this.hp;
     }
     return true;
   }
@@ -208,14 +224,20 @@ export function createGt3Sound() {
       if (!enabled || !ctx || !N) return;
       set(N.master.gain, 0.7, 0.08);
       const dead = !!(s.dead || s.drowned);
-      const rpm = dead ? 0 : Math.max(600, s.rpm), thr = dead ? 0 : Math.max(0, Math.min(1, i.throttle));
-      // Load: the throttle as the engine gets it — cut through an upshift, trimmed by the traction control.
+      // The throttle the engine gets: the PDK's blips on a downshift, Launch Control's hold.
+      const rpm = dead ? 0 : Math.max(600, s.rpm), thr = dead ? 0 : Math.max(0, Math.min(1, s.engThr ?? i.throttle));
+      // Load: the engine's (cut through an upshift, at the limiter), trimmed by the traction control.
       const upshift = s.shift > 0 && s.shiftDir > 0;
-      const load = thr * (s.tcCut ?? 1) * (upshift ? GEARBOX.upshiftCut : 1);
+      const load = dead ? 0 : Math.max(0, Math.min(1, (s.engLoad ?? thr) * (s.tcCut ?? 1)));
       const cut = upshift || rpm >= 9000 ? 1 : 0;
       const gearW = Math.abs((s.w?.[2] ?? 0) + (s.w?.[3] ?? 0)) / 2 * 4.27 / (2 * Math.PI) * 11;   // the pinion's mesh, Hz (4.27 final drive; ≈11 teeth)
-      if (N.engine) N.engine.port.postMessage({ rpm, load, thr, cut, on: dead ? 0 : 1, gearW, cabin: inside ? 1 : 0 });
-      else if (N.fallback) {
+      if (N.engine) {
+        const P = N.engine.parameters, t0 = ctx.currentTime;
+        P.get('rpm').setTargetAtTime(rpm, t0, 0.015); P.get('load').setTargetAtTime(load, t0, 0.02);
+        P.get('thr').setTargetAtTime(thr, t0, 0.01); P.get('cut').setValueAtTime(cut, t0);
+        P.get('on').setTargetAtTime(dead ? 0 : 1, t0, 0.01); P.get('gearW').setTargetAtTime(gearW, t0, 0.03);
+        P.get('cabin').setTargetAtTime(inside ? 1 : 0, t0, 0.1);
+      } else if (N.fallback) {
         const f = rpm / 60 * 3;
         set(N.fallback.o3.frequency, f, 0.012); set(N.fallback.o15.frequency, f / 2, 0.012); set(N.fallback.o6.frequency, f * 2, 0.012);
         set(N.fallback.eng.gain, dead ? 0 : 0.1 + 0.25 * thr, 0.03);

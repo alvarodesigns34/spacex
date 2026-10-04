@@ -13,7 +13,7 @@
     "check:ux": "node tools/ux-check.mjs",
     "check:provenance": "node tools/provenance-check.mjs",
     "lint": "eslint .",
-    "check:static": "npm run lint && node tools/provenance-check.mjs && node tools/cloud-check.mjs && node tools/hardware-check.mjs && node tools/f16-check.mjs && node tools/gt3rs-check.mjs && node tools/gt3rs-lap.mjs && node tools/h2r-check.mjs && node tools/mission-check.mjs && node tools/static-check.mjs",
+    "check:static": "npm run lint && node tools/provenance-check.mjs && node tools/cloud-check.mjs && node tools/hardware-check.mjs && node tools/f16-check.mjs && node tools/gt3rs-check.mjs && node tools/gt3rs-lap.mjs && node tools/h2r-check.mjs && node tools/sound-check.mjs && node tools/mission-check.mjs && node tools/static-check.mjs",
     "check:f16": "node tools/f16-check.mjs",
     "check:gt3rs": "node tools/gt3rs-check.mjs",
     "check:h2r": "node tools/h2r-check.mjs",

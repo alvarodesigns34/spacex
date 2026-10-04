@@ -179,6 +179,7 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     load: [0, 0, 0, 0],
     rpm: ENGINE.idle, gear: 1, shift: 0, clutch: 0, reverse: false,
     steer: 0, drs: false, drsT: 0, abs: false, t: 0, muF: 1, slipF: 0, thrF: 0, slipShown: [0, 0, 0, 0],
+    engThr: 0, engLoad: 0,             // the throttle the engine gets (blips, cuts, launch) and its load 0..1, for the sound
     odo: 0,                           // m travelled over the ground (the road's texture under the tyres: gt3Camera.js, gt3Sound.js)
     steerPrev: 0, diffLock: 0, ptv: 0, pitch: 0, roll: 0, pitchV: 0, rollV: 0,
     surface: ['track', 'track', 'track', 'track'],
@@ -381,6 +382,7 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
     const limiter = s.rpm >= ENGINE.maxRpm ? 0 : 1;
     const Te = drowned ? -(ENGINE.friction[0] + ENGINE.friction[1] * s.rpm) * 4
       : thr * fullTorque(s.rpm) * limiter * (1 - 0.6 * s.damage) * (upshifting ? GEARBOX.upshiftCut : 1) - (1 - thr) * (ENGINE.friction[0] + ENGINE.friction[1] * s.rpm);
+    s.engThr = drowned ? 0 : thr; s.engLoad = drowned ? 0 : thr * limiter * (upshifting ? GEARBOX.upshiftCut : 1) * (1 - 0.6 * s.damage);
     // The clutch: open through a shift; pulling away, slipping — taking up the drive as the engine
     // gathers revs, or, launching, holding it at the launch speed; otherwise closed, up to its capacity.
     // (Launching, it slips until the wheels have caught the engine up.)

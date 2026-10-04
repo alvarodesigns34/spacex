@@ -74,7 +74,7 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
       wR: 0, gear: 0, rpm: ENGINE.idle, shift: 0, manual: false, wheelAngleF: 0, wheelAngleR: 0, ax: 0, ay: 0,
       aids: true, wheelie: false, stoppie: false, slide: 0, slip: 0, crashed: null, down: 0, fallSide: 1,
       vx: 0, vz: 0, spinDown: 0, water: 0, immersion: 0, impact: 0, hits: [],
-      susF: 0, susR: 0, vF: 0, vR: 0, NF: 0, NR: 0, t: 0, ramShare: 0, gradePitch: 0, grip: 1, fuelCut: false,
+      susF: 0, susR: 0, vF: 0, vR: 0, NF: 0, NR: 0, t: 0, ramShare: 0, gradePitch: 0, grip: 1, fuelCut: false, engThr: 0, engLoad: 0,
       surface: 'track', abs: false, tc: false, lock: 0, budget: 1, leanCap: 0, sliding: false, axTyre: 0, axF: 0, stop: BIKE.maxLean, slideCap: BIKE.maxLean,
       vy: NaN, air: false,             // vertical speed (NaN until the first step reads the slope)
       shiftRefused: -10, scrape: -10,
@@ -184,6 +184,8 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
     if (slipClutch) s.rpm += (Math.max(geared, launchRpm) - s.rpm) * Math.min(1, dt * 10);
     else s.rpm = geared;
     let Te = engineTorque(Math.max(ENGINE.idle, s.rpm)) * thr * ram;
+    // What the engine gets, for the sound: the throttle past the aids and the cuts, and its load.
+    s.engThr = thr; s.engLoad = thr * (slipClutch ? ENGINE.launchClutch : 1);
     // A slipping clutch passes part of the engine's torque (ESTIMATE, fitted to the 0–100 km/h).
     if (slipClutch) Te *= ENGINE.launchClutch;
     // Engine braking, eased by the aids (≈ KEBC's light setting) — when the rider shuts the

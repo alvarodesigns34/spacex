@@ -833,6 +833,16 @@ El usuario pidió una pasada decisiva sobre la H2R, el Porsche y el F-16: modelo
 - **Sonido:** las explosiones se redondean a muestras enteras (≈ −25 dB de ruido), el silbido de alivio de la H2R se rompe a los 30 s y no hay modelo espacial. El F-16 no tiene sonido.
 - **No se llegó a hacer:** la auditoría del detalle de los modelos y el presupuesto de rendimiento, y la del entorno y las físicas.
 
+### Pasada decisiva, bloque 4 (primera parte): el sonido de los motores, sin arenilla ni clics (4 de octubre de 2026)
+
+Del diagnóstico `docs/diagnostico-2026-10-04/sonido.json`, pasos 0–2. Todo lo comprueba `tools/sound-check.mjs` (en `check:static`), que saca el código de cada worklet de su módulo y lo renderiza sin navegador a 48 kHz.
+- **Cada explosión en su instante exacto.** Antes se redondeaba a la muestra entera más cercana: cuando el periodo de encendido no era un número entero de muestras, aparecía un ruido inarmónico que dependía de las rpm (−25 dB a 14.000 rpm en la H2R, −27 dB a 8.900 en el GT3: la «arenilla digital» al subir de vueltas). Ahora cada impulso se reparte entre dos muestras según su posición: −39,5 dB en la H2R a 14.000 rpm y −41,9 dB en el GT3 a 8.900 (con la variación aleatoria entre cilindros quitada para medir).
+- **Controles muestra a muestra:** rpm, carga, gas, corte y encendido son parámetros de audio que el hilo principal desliza (`setTargetAtTime`), en vez de un mensaje por fotograma suavizado una vez por bloque. Se acaban la escalera de tono que dependía de los fps y el clic al pararse el motor (una caída o un motor ahogado): el salto al pararse es ahora menor que en marcha.
+- **El gas que recibe el motor**, no el del pedal: el sonido lee `s.engThr` y `s.engLoad` (con los cortes del cambio rápido, el limitador, el golpe de gas del PDK al reducir y el control de tracción).
+- **H2R, válvula de alivio:** su silbido tenía la fase atada al compresor y, tras ≈30 s, salía como ruido aliasado entre 2 y 47 kHz; además nunca sonaba en los cambios rápidos. Ahora tiene su propia fase: un silbido que cae de ≈2,7 a 1 kHz en ≈60 ms con el siseo del aire (banda de ≈4 kHz), del tamaño de la presión que suelta (≈). Suena cuando el gas del motor se cierra con presión, también en cada cambio rápido. La prueba exige el mismo silbido a los 0,5 s que a los 40 s.
+- **H2R, compresor:** silba al paso de sus álabes, 6 en la punta (Kawasaki), 55,2 veces la velocidad del cigüeñal (≈12,9 kHz a 14.000 rpm), y ya no a la velocidad del eje (9,2×), que queda ≈20 dB por debajo. Nada por encima de 0,45 de la frecuencia de muestreo.
+- **Sin continua a la salida:** el filtro que la quita va ahora después de la última curva (antes dejaba ≈0,03). Comprobado también en Chromium con un `OfflineAudioContext`: los dos worklets cargan y suenan. Cada motor gasta ≈1,5 % de un núcleo.
+
 ### Pasada decisiva, bloque 3 (segunda parte): PSM en tres etapas, cámaras, pianos, neumáticos y vuelta de referencia (4 de octubre de 2026)
 
 Lo que quedaba de `conduccion-porsche.json`, más un dato del dossier de Porsche que el modelo no respetaba. Cada punto tiene su prueba en `tools/gt3rs-check.mjs` (o en `ux-check`), y cada prueba nueva se comprobó contra el código anterior.
