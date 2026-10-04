@@ -1,0 +1,4 @@
+(() => { const cam = "const o=v.scene.getObjectByName('h2r'); const c=new THREE.Vector3(); o.getWorldPosition(c); const a=150*Math.PI/180; v.camera.position.set(c.x+2.5*Math.sin(a), c.y+0.25, c.z+2.5*Math.cos(a)); v.camera.lookAt(c.x,c.y+0.5,c.z);";
+ return [{ name: 'with', setup: "v.jump('h2r','overview'); await new Promise(r=>setTimeout(r,2500));" + cam },
+  { name: 'nosplit', setup: cam + "v.scene.getObjectByName('gt3-splitter').visible=false;" },
+  { name: 'fixnormals', setup: cam + "const s=v.scene.getObjectByName('gt3-splitter'); s.visible=true; const n=s.geometry.attributes.normal; let z=0; for(let i=0;i<n.count;i++){ if(Math.hypot(n.getX(i),n.getY(i),n.getZ(i))<1e-6){n.setXYZ(i,0,1,0); z++;} } n.needsUpdate=true; window.__z=z;" }]; })()

@@ -1,0 +1,13 @@
+// Isolate the chirp term exactly as the worklet computes it (h2rSound.js:95,102) and find its instantaneous frequency.
+const sr = 48000, fCrank = 11000 / 60;
+for (const sc0 of [10, 3e5, 9e5]) {
+  let sc = sc0, chirp = 1, prevPh = null; const fr = [];
+  for (let i = 0; i < sr * 0.3; i++) {
+    sc += 2 * Math.PI * fCrank * 9.2 / sr;
+    const ph = sc * (0.6 + chirp);
+    if (prevPh !== null && i % 1200 === 0) { let d = (ph - prevPh) % (2 * Math.PI); if (d < 0) d += 2 * Math.PI; fr.push((d * sr / (2 * Math.PI)).toFixed(0)); }
+    prevPh = ph; chirp *= 0.99965;
+  }
+  console.log(`sc at trigger ${sc0}: apparent chirp frequency every 25 ms (Hz):`, fr.join(' '));
+}
+console.log('intended (0.6+chirp)*9.2*fcrank from', (1.6 * 9.2 * fCrank).toFixed(0), 'to', (0.6 * 9.2 * fCrank).toFixed(0));

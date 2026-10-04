@@ -1,0 +1,40 @@
+import {make,rolling,KMH,DT,G,CAR} from './common.mjs';
+// A. DRS in a fast corner with analog steering (gamepad), full throttle
+{ const {c,s,i}=make(); rolling(s,230*KMH,6); s.tc=true; i.throttle=1; i.steer=0.09;
+  let drsT=0, ay=0; for(let k=0;k<240*2;k++){c.step(DT); if(s.drs){drsT+=DT;} ay=Math.max(ay,Math.abs(s.ay));}
+  console.log(`A DRS in 230 km/h corner, steer 2.7°, full throttle: DRS on ${drsT.toFixed(2)} s of 2, ay ${(ay/G).toFixed(2)} g, β ${(Math.atan2(s.v,s.u)*57.3).toFixed(1)}`);
+}
+// B. upshift torque gap: launch, log ax around shifts
+{ const {c,s,i}=make(); s.tc=true; i.throttle=1; i.brake=1; for(let k=0;k<360;k++)c.step(DT); i.brake=0;
+  let g0=s.gear, log=[]; let tmin=null;
+  for(let k=0;k<240*12;k++){ const g=s.gear; c.step(DT); if(s.gear!==g){ log.push({t:k*DT,from:g,to:s.gear,v:s.u*3.6,rpm:s.rpm, k}); } 
+    const L=log[log.length-1]; if(L && k-L.k<60){ L.min=Math.min(L.min??99,s.ax); L.max=Math.max(L.max??-99,s.ax); if(k-L.k===0)L.ax0=s.ax; if(k===L.k+1)L.rpm1=s.rpm; if(k===L.k+30)L.rpm30=s.rpm;} }
+  for(const L of log) console.log(`B shift ${L.from}->${L.to} at ${L.t.toFixed(2)}s ${L.v.toFixed(0)} km/h: ax before ${(L.ax0/G).toFixed(2)}g min ${(L.min/G).toFixed(2)}g max ${(L.max/G).toFixed(2)}g`);
+}
+// C. kickdown: 80 km/h in 7th, floor it
+for (const [v,g] of [[80,7],[120,7],[60,5]]) { const {c,s,i}=make(); rolling(s,v*KMH,g); i.throttle=1; const g0=s.gear; let t=0;
+  for(;t<1;t+=DT)c.step(DT); const gAfter=s.gear; for(;t<20 && s.u<(v+40)*KMH;t+=DT)c.step(DT);
+  console.log(`C kickdown from ${v} km/h in ${g0}th, WOT: gear after 1 s ${gAfter} (rpm ${s.rpm.toFixed(0)}), ${v}-${v+40} km/h ${t.toFixed(2)} s`);
+}
+// D. part throttle upshift points
+for (const thr of [0.2,0.4,0.7]) { const {c,s,i}=make(); i.throttle=thr; const pts=[]; for(let k=0;k<240*25;k++){const g=s.gear,r=s.rpm; c.step(DT); if(s.gear>g)pts.push(`${g}->${s.gear}@${r.toFixed(0)}`);} console.log(`D throttle ${thr}: ${pts.join(' ')} v ${(s.u*3.6).toFixed(0)}`);}
+// E. lift off at 120 km/h in 4th cruising (coast): gear held?
+{ const {c,s,i}=make(); rolling(s,120*KMH,3); i.throttle=0.3; for(let k=0;k<240*10;k++)c.step(DT); console.log(`E cruising throttle 0.3 from 120 km/h in 3rd after 10 s: gear ${s.gear} rpm ${s.rpm.toFixed(0)} v ${(s.u*3.6).toFixed(0)}`);}
+// F. braking decel vs speed + ABS behaviour
+{ const {c,s,i}=make(); rolling(s,250*KMH,7); i.brake=1; let x0=s.x; const out=[]; let absCycles=0, lastK=1, kapMin=0;
+  for(let k=0;k<240*8 && s.u>0.3;k++){c.step(DT); const v=s.u*3.6; if(Math.abs(v-Math.round(v/50)*50)<0.3 && !out.some(o=>o.v===Math.round(v/50)*50)) out.push({v:Math.round(v/50)*50, ax:s.ax/G, kap:s.kap.map(x=>x.toFixed(3)).join('/'), absK:s.absK.map(x=>x.toFixed(2)).join('/'), gear:s.gear, aero:s.aero});}
+  for(const o of out) console.log(`F braking ${o.v} km/h: ${o.ax.toFixed(2)}g kap ${o.kap} absK ${o.absK} gear ${o.gear} ${o.aero}`); console.log('F 250-0 distance',(s.x-x0).toFixed(1));
+}
+// G. ABS chatter: absK std over 1 s at 100 km/h
+{ const {c,s,i}=make(); rolling(s,140*KMH,4); i.brake=1; const ks=[]; for(let k=0;k<240*1.2;k++){c.step(DT); ks.push(s.absK[0]);} let flips=0; for(let k=2;k<ks.length;k++) if((ks[k]-ks[k-1])*(ks[k-1]-ks[k-2])<0) flips++; console.log(`G ABS FL share min ${Math.min(...ks).toFixed(2)} max ${Math.max(...ks).toFixed(2)} direction flips ${flips} in 1.2 s`);}
+// H. diff chatter at high speed shift
+{ const {c,s,i}=make(); rolling(s,180*KMH,4); s.rpm=8790; i.throttle=1; let mx=0, flips=0, prev=0; for(let k=0;k<240*1;k++){c.step(DT); const d=s.w[2]-s.w[3]; if(d*prev<0)flips++; prev=d; mx=Math.max(mx,Math.abs(d));} console.log(`H rear wheel speed difference straight-line: max ${mx.toFixed(3)} rad/s, sign flips ${flips}/240`);}
+// I. turning circle at walking pace, full lock
+{ const {c,s,i}=make(); rolling(s,2,1); i.steer=1; for(let k=0;k<240*6;k++){ i.throttle=s.u<2?0.15:0; c.step(DT);} const Rcg=s.u/s.r; const Rrear=Math.sqrt(Math.max(0,Rcg*Rcg-(CAR.b)**2)); 
+  // outer front corner of body radius
+  const Rf=Math.hypot(Rrear+0.95, CAR.L+1.04); const Rw=Math.hypot(Rrear+CAR.tf/2, CAR.L);
+  console.log(`I full lock 2 m/s: R_cg ${Rcg.toFixed(2)} m, outer front wheel circle ${(2*Rw).toFixed(2)} m, body circle ${(2*Rf).toFixed(2)} m (published 10.5 m)`);}
+// J. step steer response 100 km/h
+{ const {c,s,i}=make(); rolling(s,100*KMH,3); i.throttle=0.35; for(let k=0;k<48;k++)c.step(DT); i.steer=0.1; let r=[]; for(let k=0;k<240*2;k++){c.step(DT); r.push(s.r);} const rss=r[r.length-1]; const t63=r.findIndex(x=>x>0.632*rss)*DT, t90=r.findIndex(x=>x>0.9*rss)*DT, pk=Math.max(...r); console.log(`J step steer 3° at 100 km/h: yaw ss ${rss.toFixed(3)} t63 ${(t63*1000).toFixed(0)} ms t90 ${(t90*1000).toFixed(0)} ms overshoot ${((pk/rss-1)*100).toFixed(1)} %`);}
+// K. lift-off in 1.3 g corner at 150 km/h, PSM off
+for (const psm of [false,true]) { const {c,s,i}=make(); s.tc=psm; rolling(s,150*KMH); i.steer=0.11; for(let k=0;k<240*3;k++){ i.throttle=Math.max(0,Math.min(0.94,0.3+(150*KMH-s.u)*0.3)); c.step(DT);} const ay0=s.ay; i.throttle=0; let bmax=0, rmax=0; const r0=s.r; for(let k=0;k<240*2;k++){c.step(DT); bmax=Math.max(bmax,Math.abs(Math.atan2(s.v,s.u))*57.3); rmax=Math.max(rmax,s.r);} console.log(`K lift-off at 150 km/h, ${(ay0/G).toFixed(2)} g, PSM ${psm}: β max ${bmax.toFixed(1)}°, yaw ${r0.toFixed(2)}→max ${rmax.toFixed(2)} rad/s`);}

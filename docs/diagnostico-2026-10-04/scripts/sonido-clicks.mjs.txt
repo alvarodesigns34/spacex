@@ -1,0 +1,15 @@
+import { H2R, GT3 } from './run.mjs';
+const SR = 48000;
+function test(Cls, base, change, label) {
+  const p = new Cls(); p.port.onmessage({ data: base });
+  const blk = [new Float32Array(128)]; let prev = 0, maxD = 0, maxBefore = 0;
+  for (let b = 0; b < 600; b++) {
+    if (b === 500) p.port.onmessage({ data: { ...base, ...change } });
+    p.process([], [blk]);
+    for (let i = 0; i < 128; i++) { const d = Math.abs(blk[0][i] - prev); prev = blk[0][i]; if (b >= 400 && b < 500) maxBefore = Math.max(maxBefore, d); if (b >= 500 && b < 502) maxD = Math.max(maxD, d); }
+  }
+  console.log(`${label}: max sample step steady ${maxBefore.toFixed(3)}, at the change ${maxD.toFixed(3)}`);
+}
+test(H2R, { rpm: 9000, load: 1, thr: 1, cut: 0, on: 1 }, { on: 0, rpm: 0, load: 0, thr: 0 }, 'H2R crash (on 1->0)');
+test(GT3, { rpm: 7000, load: 1, thr: 1, cut: 0, on: 1, gearW: 0, cabin: 0 }, { on: 0, rpm: 0 }, 'GT3 drowned (on 1->0)');
+test(H2R, { rpm: 9000, load: 0, thr: 0, cut: 0, on: 0 }, { on: 1 }, 'H2R respawn (on 0->1)');

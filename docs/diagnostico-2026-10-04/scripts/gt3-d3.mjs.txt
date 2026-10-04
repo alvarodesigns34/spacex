@@ -1,0 +1,21 @@
+import {make,rolling,KMH,DT,G,steerReach,CAR} from './common.mjs';
+// keyboard: hold A, throttle to hold speed (gamepad-like analog), and with full W
+const F=1/60;
+function kb({kmh,psm=true,w='hold',T=4}) {
+  const {c,s,i}=make(); s.tc=psm; rolling(s,kmh*KMH);
+  const d={throttle:0,steer:0}; let drsT=0, maxB=0, escMax=0, ays=[], reach=0;
+  const ramp=(cur,t,r)=>cur+Math.max(-r*F,Math.min(r*F,t-cur));
+  for(let t=0;t<T;t+=F){
+    const want=steerReach(s,1); reach=want;
+    d.steer=ramp(d.steer,want,1.8);
+    const thr = w==='full'?1:Math.max(0,Math.min(1,0.3+(kmh*KMH-s.u)*0.3));
+    d.throttle=ramp(d.throttle,thr,7);
+    Object.assign(i,{throttle:d.throttle,steer:d.steer});
+    c.advance(F);
+    if(s.drs) drsT+=F; maxB=Math.max(maxB,Math.abs(Math.atan2(s.v,s.u))*57.3); escMax=Math.max(escMax,Math.abs(s.esc));
+    if(t>T-1) ays.push(Math.abs(s.u*s.r));
+  }
+  const ay=ays.reduce((a,b)=>a+b,0)/ays.length/G;
+  return `${kmh}km/h ${psm?'PSM':'off'} ${w}: reach ${(reach*30).toFixed(1)}° ay ${ay.toFixed(2)}g v_end ${(s.u*3.6).toFixed(0)} β_max ${maxB.toFixed(1)}° slip F ${s.slip[0].toFixed(2)}/${s.slip[1].toFixed(2)} R ${s.slip[2].toFixed(2)}/${s.slip[3].toFixed(2)} esc_max ${escMax.toFixed(0)} DRS ${drsT.toFixed(2)}s gear ${s.gear}`;
+}
+for (const kmh of [40,80,120,160,200,240]) for (const psm of [true,false]) for (const w of ['hold','full']) console.log(kb({kmh,psm,w}));

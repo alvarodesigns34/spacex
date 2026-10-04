@@ -1,0 +1,51 @@
+// Does one NaN pixel reach the composer and become a black square? (forced NaN quad + splitter views, MSAA on/off)
+import { createServer } from 'node:http';
+import { writeFile } from 'node:fs/promises';
+import { staticHandler } from '/home/user/spacex/tools/static.mjs';
+import { chromium } from '/tmp/claude-0/-home-user-spacex/49448258-b837-551e-9b35-7fac201f56d4/scratchpad/bench/node_modules/playwright/index.mjs';
+import { bootAtQuality } from '/home/user/spacex/tools/census.mjs';
+const PORT = 8800 + Math.floor(Math.random() * 90);
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png' };
+const server = createServer(staticHandler('/home/user/spacex', TYPES));
+await new Promise(r => server.listen(PORT, '127.0.0.1', r));
+const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox'] });
+const page = await (await browser.newContext({ viewport: { width: 800, height: 450 } })).newPage();
+page.on('pageerror', e => console.error('PAGEERROR', e.message));
+try {
+  await bootAtQuality(page, `http://127.0.0.1:${PORT}/`, 'high');
+  await page.evaluate(() => { document.getElementById('hud').style.display = 'none'; });
+  await page.evaluate(() => window.__vc.jump('h2r', 'overview')); await page.waitForTimeout(2500);
+  const shots = await page.evaluate(async () => {
+    const v = window.__vc; const THREE = await import('three');
+    const r = v.renderer, gl = r.getContext(), sz = r.getDrawingBufferSize(new THREE.Vector2());
+    const px = new Uint8Array(sz.x * sz.y * 4);
+    const info = { msaa: v.composer.renderTarget1.samples, type: v.composer.renderTarget1.texture.type, passes: v.composer.passes.map(p => p.constructor.name + (p.enabled ? '' : '(off)')), aoEnabled: v.ao?.pass.enabled };
+    const frame = () => {
+      v.camera.updateMatrixWorld(); v.composer.render();
+      gl.readPixels(0, 0, sz.x, sz.y, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      let zero = 0, minx = 1e9, miny = 1e9, maxx = -1, maxy = -1;
+      for (let i = 0; i < px.length; i += 4) if (px[i] <= 1 && px[i + 1] <= 1 && px[i + 2] <= 1) { zero++; const x = (i / 4) % sz.x, y = sz.y - 1 - Math.floor(i / 4 / sz.x); minx = Math.min(minx, x); maxx = Math.max(maxx, x); miny = Math.min(miny, y); maxy = Math.max(maxy, y); }
+      return { zero, box: zero ? [minx, miny, maxx, maxy] : null, img: r.domElement.toDataURL('image/jpeg', 0.85) };
+    };
+    const place = (dist, el, az) => { const o = v.scene.getObjectByName('h2r'); const c = new THREE.Vector3(); o.getWorldPosition(c); const a = az * Math.PI / 180; v.camera.position.set(c.x + dist * Math.sin(a), c.y + el * (dist / 2.5), c.z + dist * Math.cos(a)); v.camera.lookAt(c.x, c.y + 0.5, c.z); };
+    const out = { info };
+    // A: forced NaN: a 2x2 cm quad in front of the camera writing 0/0.
+    place(5, 0.8, 0);
+    const nanMat = new THREE.ShaderMaterial({ uniforms: { z: { value: 0 } }, vertexShader: 'void main(){ gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }', fragmentShader: 'uniform float z; void main(){ float n = z / z; gl_FragColor = vec4(n, n, n, 1.0); }' });
+    const q = new THREE.Mesh(new THREE.PlaneGeometry(0.004, 0.004), nanMat); q.name = 'diag-nan';
+    v.camera.updateMatrixWorld(); q.position.copy(v.camera.localToWorld(new THREE.Vector3(0.3, 0.1, -2))); q.quaternion.copy(v.camera.quaternion); v.scene.add(q);
+    out.forcedNaN = frame();
+    v.scene.remove(q);
+    out.noNaN = frame();
+    // B: the splitter views (found NaN in a float render), with MSAA as shipped and with MSAA off.
+    for (const [d, e, a] of [[5, 0.8, 30], [5, 0.25, 180], [2.5, 1.6, 60], [2.5, 0.25, 150]]) { place(d, e, a); out[`split_${d}_${e}_${a}`] = frame(); }
+    const s0 = v.composer.renderTarget1.samples;
+    v.composer.renderTarget1.samples = 0; v.composer.renderTarget2.samples = 0; v.composer.renderTarget1.dispose(); v.composer.renderTarget2.dispose();
+    for (const [d, e, a] of [[5, 0.8, 30], [5, 0.25, 180], [2.5, 1.6, 60], [2.5, 0.25, 150]]) { place(d, e, a); out[`noMSAA_split_${d}_${e}_${a}`] = frame(); }
+    return out;
+  });
+  for (const [k, val] of Object.entries(shots)) {
+    if (val?.img) { await writeFile(`prop_${k}.jpg`, Buffer.from(val.img.split(',')[1], 'base64')); delete val.img; }
+    console.log(k, JSON.stringify(val));
+  }
+} finally { await browser.close(); server.close(); }

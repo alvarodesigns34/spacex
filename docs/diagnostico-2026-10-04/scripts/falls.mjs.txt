@@ -1,0 +1,49 @@
+const { createH2rBike, BIKE } = await import('./proto/sim/h2rBike.js');
+const DT = 1/240, D = 180/Math.PI;
+const flat = (mu=1, kind='track') => () => ({ h:0, mu, roll:0, kind });
+// keys(t) -> {w,s,a,d,sp}; emulates h2rRide readControls ramps at 60 Hz
+function run(name, { v0=0, gear, aids=true, ground=flat(), obstacles, keys, T=6, psi=0 }) {
+  const b = createH2rBike({ ground, obstacles }); const s = b.state; b.reset({psi}); s.aids = aids;
+  if (v0) { s.u = v0/3.6; s.wR = s.u/BIKE.RR; s.gear = gear ?? Math.min(5, Math.floor(v0/55)); }
+  const r = { throttle:0, brake:0, rear:0, lean:0 }; const ramp=(c,t,rt,dt)=>c+Math.max(-rt*dt,Math.min(rt*dt,t-c));
+  let t=0, maxPhi=0, minU=1e9, maxSlide=0, maxTh=0, minTh=0;
+  const fdt = 1/60;
+  while (t < T && !s.crashed) {
+    const k = keys(t, s); const want=(k.d?1:0)-(k.a?1:0);
+    r.throttle=ramp(r.throttle,k.w?1:0,6,fdt); r.brake=ramp(r.brake,k.s?1:0,7,fdt); r.rear=ramp(r.rear,k.sp?1:0,7,fdt);
+    r.lean=ramp(r.lean,want,want?2.2:3,fdt);
+    Object.assign(b.input,{throttle:r.throttle,brake:r.brake,rearBrake:r.rear,lean:r.lean});
+    for (let i=0;i<4 && !s.crashed;i++){ b.step(DT); maxPhi=Math.max(maxPhi,Math.abs(s.phi*D)); maxSlide=Math.max(maxSlide,s.slide); maxTh=Math.max(maxTh,s.theta*D); minTh=Math.min(minTh,s.theta*D);} t+=fdt;
+  }
+  console.log(`${s.crashed?'FALL':'ok  '} ${name.padEnd(48)} ${s.crashed?`t=${s.crashed.t.toFixed(2)} v=${(s.crashed.speed*3.6).toFixed(0)} "${s.crashed.why}"`:`v=${(s.u*3.6).toFixed(0)}`} maxPhi=${maxPhi.toFixed(1)} slide=${maxSlide.toFixed(2)} th=[${minTh.toFixed(1)},${maxTh.toFixed(1)}]`);
+  return s;
+}
+globalThis.run = run; globalThis.flat = flat;
+const speeds=[8,12,15,20,30,50,80,120,180,250,300];
+for (const aids of [true,false]) {
+  console.log(`\n=== aids ${aids}`);
+  for (const v of speeds) run(`lean full ${v} coast`, {v0:v, aids, keys:()=>({d:1})});
+  for (const v of speeds) run(`lean full ${v} then full brake @1.5s`, {v0:v, aids, keys:(t)=>({d:1, s:t>1.5})});
+  for (const v of speeds) run(`lean full ${v} brake first then lean`, {v0:v, aids, keys:(t)=>({s:1, d:t>0.3})});
+  for (const v of speeds) run(`lean full ${v} then full throttle`, {v0:v, aids, keys:(t)=>({d:1, w:t>1.5})});
+  for (const v of [30,80,150,250]) run(`flick L/R 0.6s ${v}`, {v0:v, aids, keys:(t)=>({d:Math.floor(t/0.6)%2==0, a:Math.floor(t/0.6)%2==1})});
+  for (const v of [30,80,150,250]) run(`flick L/R 0.25s ${v}`, {v0:v, aids, keys:(t)=>({d:Math.floor(t/0.25)%2==0, a:Math.floor(t/0.25)%2==1})});
+  run('from rest throttle+lean', {aids, keys:()=>({w:1,d:1}), T:8});
+  run('from rest throttle then lean@2s', {aids, keys:(t)=>({w:1,d:t>2}), T:8});
+  run('lean+brake to stop from 40', {v0:40, aids, keys:(t)=>({d:1,s:t>1}), T:8});
+  run('lean+brake to stop from 20', {v0:20, aids, keys:(t)=>({d:1,s:t>0.5}), T:8});
+  run('crawl 12 km/h lean, throttle blips', {v0:12, gear:0, aids, keys:(t)=>({d:1,w:(t%1)<0.2}), T:8});
+  run('lean full 15 with rear brake', {v0:15, gear:0, aids, keys:(t)=>({d:1,sp:t>1}), T:6});
+  run('stoppie: full brake 100 upright', {v0:100, aids, keys:()=>({s:1}), T:6});
+  run('stoppie: full brake 250 upright', {v0:250, aids, keys:()=>({s:1}), T:8});
+  run('launch full throttle', {aids, keys:()=>({w:1}), T:6});
+  run('2nd gear 60 full throttle', {v0:60,gear:1, aids, keys:()=>({w:1}), T:4});
+  const half=(x)=>x>20?{h:0,mu:0.55,roll:0,kind:'grass'}:{h:0,mu:1,roll:0,kind:'track'};
+  run('lean on track, then grass (run off)', {v0:100, aids, ground:(x,z)=>half(Math.hypot(x,z)), keys:()=>({d:1}),T:6});
+  run('upright onto grass at 150', {v0:150, aids, ground:(x)=>half(x), keys:()=>({}),T:4});
+  run('upright onto grass then lean', {v0:100, aids, ground:(x)=>half(x), keys:(t)=>({d:t>1.5}),T:4});
+  run('upright onto grass then brake', {v0:150, aids, ground:(x)=>half(x), keys:(t)=>({s:t>1}),T:6});
+  const kerb=(x,z)=>{const r=Math.hypot(x,z); return r>15? {h:0,mu:undefined,roll:0,kind:'kerb'}:{h:0,mu:undefined,roll:0,kind:'track'}};
+  run('lean on track then kerb', {v0:100, aids, ground:kerb, keys:()=>({d:1}),T:6});
+  run('lean on gravel 80', {v0:80, aids, ground:flat(undefined,'gravel'), keys:()=>({d:1}),T:6});
+}

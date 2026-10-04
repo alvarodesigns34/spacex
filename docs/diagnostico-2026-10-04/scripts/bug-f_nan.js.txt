@@ -1,0 +1,5 @@
+(() => { const cam = "const o=v.scene.getObjectByName('gt3rs'); const c=new THREE.Vector3(); o.getWorldPosition(c); v.camera.position.set(c.x+4, c.y+1.2, c.z+3); v.camera.lookAt(c.x,c.y+0.5,c.z); v.camera.updateMatrixWorld();";
+ const nan = "if(!window.__nanq){ const m=new THREE.ShaderMaterial({uniforms:{z:{value:0}}, vertexShader:'void main(){gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}', fragmentShader:'uniform float z; void main(){ float n = z/z; gl_FragColor=vec4(vec3(n),1.);}'}); const q=new THREE.Mesh(new THREE.PlaneGeometry(0.01,0.01), m); q.name='nanq'; v.scene.add(q); window.__nanq=q; } const d=new THREE.Vector3(); v.camera.getWorldDirection(d); window.__nanq.position.copy(v.camera.position).addScaledVector(d, 3); window.__nanq.quaternion.copy(v.camera.quaternion); window.__nanq.visible=true;";
+ return [{ name: 'base', setup: "v.jump('gt3rs','overview'); await new Promise(r=>setTimeout(r,4000));" + cam },
+  { name: 'nan', setup: cam + nan },
+  { name: 'nan_noao', setup: cam + nan + "v.ao.pass.enabled=false;" }]; })()

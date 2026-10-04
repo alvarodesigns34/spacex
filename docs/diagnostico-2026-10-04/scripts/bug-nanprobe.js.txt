@@ -1,0 +1,31 @@
+(async () => {
+  const THREE = await import('three');
+  const v = window.__vc; const r = v.renderer;
+  const W = 480, H = 270;
+  const hdr = new THREE.WebGLRenderTarget(W, H, { type: THREE.HalfFloatType });
+  const flag = new THREE.WebGLRenderTarget(W, H, { type: THREE.UnsignedByteType });
+  const q = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
+    uniforms: { t: { value: hdr.texture } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }',
+    fragmentShader: `uniform sampler2D t; varying vec2 vUv;
+      bool bad(float x){ return !(x < 1e30) || !(x > -1e30); }
+      void main(){ vec4 c = texture2D(t, vUv); float m = max(max(c.r,c.g),c.b);
+        float isn = (c.r != c.r || c.g != c.g || c.b != c.b) ? 1. : 0.;
+        float isi = (!isn_dummy(c)) ? 0. : 0.;
+        gl_FragColor = vec4(isn, (bad(c.r)||bad(c.g)||bad(c.b)) ? 1. : 0., m > 12. ? 1. : 0., 1.); }`.replace('float isi = (!isn_dummy(c)) ? 0. : 0.;', ''),
+    depthTest: false }));
+  const qs = new THREE.Scene(); qs.add(q); const qc = new THREE.Camera();
+  window.__nanprobe = () => {
+    const prevT = r.getRenderTarget();
+    const cam = v.camera; const aspect = cam.aspect;
+    r.setRenderTarget(hdr); r.render(v.scene, cam);
+    r.setRenderTarget(flag); r.render(qs, qc);
+    const px = new Uint8Array(W * H * 4); r.readRenderTargetPixels(flag, 0, 0, W, H, px);
+    r.setRenderTarget(prevT);
+    let nan = 0, bad = 0, hot = 0; const where = [];
+    for (let i = 0; i < W * H; i++) { if (px[i*4] > 127) nan++; if (px[i*4+1] > 127) { bad++; if (where.length < 10) where.push([i % W, H - 1 - Math.floor(i / W)]); } if (px[i*4+2] > 127) hot++; }
+    return { nan, bad, hot, where };
+  };
+  // Also raw float max via readRenderTargetPixels on a float RT is not portable; flags suffice.
+  return 'ok';
+})()

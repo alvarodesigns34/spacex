@@ -1,0 +1,25 @@
+const { createGt3Car, CAR, steerReach } = await import('/home/user/spacex/src/sim/gt3Car.js');
+const KMH=1/3.6, DT=1/240, G=9.80665;
+const flat=()=>({h:0,mu:1,roll:0,kind:'track'});
+const make=()=>{const c=createGt3Car({ground:flat}); c.reset(); return {c,s:c.state,i:c.input};};
+const rolling=(s,v,g)=>{s.u=v;s.gear=g;s.w=s.w.map((_,k)=>v/(k<2?CAR.rf:CAR.rr));};
+const gearFor=v=>{const r=[3.75,2.38,1.72,1.34,1.11,0.96,0.84];for(let g=1;g<=7;g++){const rpm=v/CAR.rr*r[g-1]*4.27*9.549;if(rpm<8000)return g;}return 7;};
+// 1. Max steady lateral g vs speed: speed-hold controller with throttle, sweep steer
+console.log('--- steady skidpad: max ay (g) vs speed, PSM off / on');
+for (const kmh of [60,100,150,200,250]) {
+  const out=[];
+  for (const psm of [false,true]) {
+    let best=0, bestSt=0, info='';
+    for (let st=0.01; st<=0.5; st+=0.005) {
+      const {c,s,i}=make(); s.tc=psm; rolling(s,kmh*KMH,gearFor(kmh*KMH)); i.steer=st;
+      let ok=true, ays=[], esc=0;
+      for (let k=0;k<240*4;k++){ const e=kmh*KMH-s.u; i.throttle=Math.max(0,Math.min(1,0.3+e*0.5)); i.brake=e<-3?0.2:0; c.step(DT); if(k>240*3){ays.push(Math.abs(s.u*s.r)); esc=Math.max(esc,Math.abs(s.esc));} }
+      const beta=Math.abs(Math.atan2(s.v,s.u));
+      if (Math.abs(s.u-kmh*KMH)>2 || beta>0.15) continue;
+      const ay=ays.reduce((a,b)=>a+b,0)/ays.length;
+      if (ay>best){best=ay;bestSt=st;info=`steer ${(st*30).toFixed(1)}° β ${(beta*57.3).toFixed(1)}° slip ${s.slip.map(x=>x.toFixed(2)).join('/')} esc ${esc.toFixed(0)} load ${s.load.map(x=>x.toFixed(0)).join('/')}`;}
+    }
+    out.push(`${psm?'PSM':'off'} ${(best/G).toFixed(2)}g [${info}]`);
+  }
+  console.log(kmh,'km/h', out.join(' | '));
+}

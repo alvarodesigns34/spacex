@@ -1,0 +1,9 @@
+import * as THREE from 'three';
+const { buildGt3rs } = await import('/home/user/spacex/src/vehicles/gt3rs.js');
+const store = {}; const M = new Proxy(store, { get: (t, k) => (k in t ? t[k] : (typeof k === 'string' ? (t[k] = new THREE.MeshStandardMaterial({ name: k })) : undefined)), set: (t, k, v) => { t[k] = v; return true; } });
+const root = buildGt3rs(M);
+for (const nm of ['gt3-splitter','gt3-openings','gt3-wheel-black','gt3-black-trim','gt3-lamp-bowls']) {
+  const o = root.getObjectByName(nm); const g = o.geometry; const p = g.attributes.position, n = g.attributes.normal;
+  const zs = []; for (let i = 0; i < n.count; i++) if (Math.hypot(n.getX(i), n.getY(i), n.getZ(i)) < 1e-6) zs.push(i);
+  console.log(nm, 'indexed', !!g.index, 'verts', p.count, 'zeroN', zs.length, 'first', zs.slice(0, 6).map(i => [p.getX(i), p.getY(i), p.getZ(i)].map(x => +x.toFixed(4))));
+}

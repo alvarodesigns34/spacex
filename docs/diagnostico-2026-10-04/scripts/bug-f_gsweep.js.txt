@@ -1,0 +1,8 @@
+(() => { const L = [];
+ const views = []; for (const d of [2, 3.5, 6]) for (const h of [0.15, 0.4, 1.0]) for (let az = 0; az < 360; az += 20) views.push([d, h, az]);
+ const cam = (d, h, az) => `const o=v.scene.getObjectByName('gt3rs'); const c=new THREE.Vector3(); o.getWorldPosition(c); const a=${az}*Math.PI/180; v.camera.position.set(c.x+${d}*Math.sin(a), c.y+${h}, c.z+${d}*Math.cos(a)); v.camera.lookAt(c.x,c.y+0.3,c.z);`;
+ L.push({ name: 'warm', setup: "v.jump('gt3rs','overview'); await new Promise(r=>setTimeout(r,4000));" });
+ for (const [d, h, az] of views) L.push({ name: `a_${d}_${h}_${az}`, setup: cam(d, h, az) });
+ L.push({ name: 'fix', setup: "let z=0; v.scene.getObjectByName('gt3rs').traverse(o=>{ const n=o.geometry?.attributes?.normal; if(!n) return; for(let i=0;i<n.count;i++) if(!(Math.hypot(n.getX(i),n.getY(i),n.getZ(i))>1e-6)){ n.setXYZ(i,0,1,0); z++; } n.needsUpdate=true; }); console.error('fixed', z);" });
+ for (const [d, h, az] of views) L.push({ name: `b_${d}_${h}_${az}`, setup: cam(d, h, az) });
+ return L; })()

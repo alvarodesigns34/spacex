@@ -1,0 +1,37 @@
+import fs from 'fs';
+const SR = 48000;
+function load(file, name) {
+  const t = fs.readFileSync(file, 'utf8');
+  const src = t.slice(t.indexOf('const WORKLET = `') + 17, t.indexOf('`;', t.indexOf('const WORKLET')));
+  let cls;
+  const f = new Function('AudioWorkletProcessor', 'registerProcessor', 'sampleRate', src);
+  class AWP { constructor() { this.port = { onmessage: null }; } }
+  f(AWP, (n, c) => { cls = c; }, SR);
+  return cls;
+}
+export const H2R = load('/home/user/spacex/src/sim/h2rSound.js');
+export const GT3 = load('/home/user/spacex/src/sim/gt3Sound.js');
+export function render(Cls, msg, seconds, warm = 1, onBlock) {
+  const p = new Cls();
+  p.port.onmessage({ data: msg });
+  const N = Math.floor(SR * seconds), W = Math.floor(SR * warm);
+  const out = new Float32Array(N); const blk = [new Float32Array(128)];
+  for (let i = 0; i < W + N; i += 128) {
+    if (onBlock) onBlock(p, i - W);
+    p.process([], [blk]);
+    if (i >= W) out.set(blk[0].subarray(0, Math.min(128, N - (i - W))), i - W);
+  }
+  return out;
+}
+// Real FFT (radix-2)
+export function spectrum(x) {
+  let n = 1; while (n < x.length) n <<= 1; n >>= 1;
+  const re = new Float64Array(n), im = new Float64Array(n);
+  for (let i = 0; i < n; i++) re[i] = x[i] * (0.5 - 0.5 * Math.cos(2 * Math.PI * i / (n - 1)));
+  for (let i = 1, j = 0; i < n; i++) { let b = n >> 1; for (; j & b; b >>= 1) j ^= b; j ^= b; if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; } }
+  for (let len = 2; len <= n; len <<= 1) { const a = -2 * Math.PI / len; for (let i = 0; i < n; i += len) for (let k = 0; k < len / 2; k++) { const c = Math.cos(a * k), s = Math.sin(a * k); const ur = re[i + k], ui = im[i + k]; const vr = re[i + k + len / 2] * c - im[i + k + len / 2] * s, vi = re[i + k + len / 2] * s + im[i + k + len / 2] * c; re[i + k] = ur + vr; im[i + k] = ui + vi; re[i + k + len / 2] = ur - vr; im[i + k + len / 2] = ui - vi; } }
+  const mag = new Float64Array(n / 2); for (let i = 0; i < n / 2; i++) mag[i] = re[i] ** 2 + im[i] ** 2;
+  return { mag, df: SR / n };
+}
+export const rms = x => Math.sqrt(x.reduce((a, b) => a + b * b, 0) / x.length);
+export const db = v => (10 * Math.log10(v + 1e-30)).toFixed(1);

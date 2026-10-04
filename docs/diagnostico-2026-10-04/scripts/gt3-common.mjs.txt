@@ -1,0 +1,8 @@
+export const { createGt3Car, CAR, steerReach, fullTorque } = await import('/home/user/spacex/src/sim/gt3Car.js');
+export const KMH=1/3.6, DT=1/240, G=9.80665;
+export const flat=()=>({h:0,mu:1,roll:0,kind:'track'});
+export const make=(ground=flat)=>{const c=createGt3Car({ground}); c.reset(); return {c,s:c.state,i:c.input};};
+export const R=[3.75,2.38,1.72,1.34,1.11,0.96,0.84];
+export const rpmAt=(v,g)=>v/CAR.rr*R[g-1]*4.27*9.549;
+export const gearFor=v=>{for(let g=1;g<=7;g++){if(rpmAt(v,g)<7200)return g;}return 7;};
+export const rolling=(s,v,g=gearFor(v))=>{s.u=v;s.gear=g;s.w=s.w.map((_,k)=>v/(k<2?CAR.rf:CAR.rr));s.rpm=rpmAt(v,g);s.clutchLocked=true;};

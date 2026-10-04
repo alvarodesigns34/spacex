@@ -1,0 +1,23 @@
+const THREE = await import('three');
+const { buildH2r, AXLE_F, AXLE_R } = await import('/home/user/spacex/src/vehicles/h2r.js');
+const root = buildH2r({}); root.updateMatrixWorld(true);
+const v = new THREE.Vector3(); const CROWN = 0.08;
+let best = { a: 90 }; const per = {};
+root.traverse(o => { if (!o.isMesh || !o.geometry?.attributes?.position) return;
+  let p = o; let wheel = false; while (p) { if (/wheel|tyre|tire|rim/i.test(p.name)) wheel = true; p = p.parent; }
+  if (wheel) return;
+  const pos = o.geometry.attributes.position;
+  for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+    const z = Math.abs(v.z), y = v.y; if (z < 0.05) continue;
+    // leaning about the tyre crown (centre CROWN above ground): point touches when rotated position y' = CROWN - ... 
+    const yc = y - CROWN; const r = Math.hypot(z, yc); if (r < CROWN) continue;
+    // rotate by phi: y'' = CROWN + yc cos - z sin ; contact ground plane when y''=0 (approx crown contact moves too; crude)
+    // solve yc cos φ - z sin φ = -CROWN
+    const ang = Math.atan2(z, yc) ; const phi = Math.acos(-CROWN / r) - Math.atan2(z, yc) ;
+    const phiDeg = (Math.acos(-CROWN/r) - Math.atan2(z, yc)) * 180/Math.PI;
+    // above: yc cos φ - z sin φ = r cos(φ+α) where α=atan2(z,yc); =-CROWN → φ = acos(-CROWN/r) - α
+    if (phiDeg < best.a) best = { a: phiDeg, name: o.name || o.parent?.name, x: v.x, y, z: v.z };
+    const n = (o.name||o.parent?.name||'?'); per[n] = Math.min(per[n] ?? 90, phiDeg);
+  } });
+console.log('min touch lean', best);
+console.log(Object.entries(per).sort((a,b)=>a[1]-b[1]).slice(0,12).map(([n,a])=>n+':'+a.toFixed(1)).join('  '));

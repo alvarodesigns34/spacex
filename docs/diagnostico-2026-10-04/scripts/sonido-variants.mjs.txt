@@ -1,0 +1,42 @@
+import fs from 'fs';
+import { spectrum, db, rms } from './run.mjs';
+let SR = 48000;
+function loadSrc(file, edits, sr) {
+  const t = fs.readFileSync(file, 'utf8');
+  let src = t.slice(t.indexOf('const WORKLET = `') + 17, t.indexOf('`;', t.indexOf('const WORKLET')));
+  for (const [a, b] of edits) { if (!src.includes(a)) throw new Error('no match: ' + a); src = src.split(a).join(b); }
+  let cls; class AWP { constructor() { this.port = {}; } }
+  new Function('AudioWorkletProcessor', 'registerProcessor', 'sampleRate', src)(AWP, (n, c) => { cls = c; }, sr);
+  return cls;
+}
+function render(Cls, msg, sec, sr) {
+  const p = new Cls(); p.port.onmessage({ data: msg });
+  const N = Math.floor(sr * sec), W = sr; const out = new Float32Array(N); const blk = [new Float32Array(128)];
+  for (let i = 0; i < W + N; i += 128) { p.process([], [blk]); if (i >= W) out.set(blk[0].subarray(0, Math.min(128, N - (i - W))), i - W); }
+  return out;
+}
+function inharm(x, f0, cyc, sr) {
+  const { mag } = spectrum(x); const df = sr / (2 * mag.length);
+  let tot = 0, harm = 0; for (let i = Math.ceil(30 / df); i < mag.length; i++) tot += mag[i];
+  for (let k = 1; k * f0 * cyc < sr / 2 - 50; k++) { const c = Math.round(k * f0 * cyc / df); for (let b = c - 3; b <= c + 3; b++) harm += mag[b] || 0; }
+  return db(1 - harm / tot);
+}
+const H = '/home/user/spacex/src/sim/h2rSound.js', G = '/home/user/spacex/src/sim/gt3Sound.js';
+// Remove randomness & non-harmonic sources
+const detH = [
+  ['(0.92 + 0.16 * this.rnd())', '1'],
+  ['y += (Math.sin(this.sc) * 0.9', 'y += 0*(Math.sin(this.sc) * 0.9'],
+  ['y += this.nb * 0.05', 'y += 0*this.nb * 0.05'],
+];
+const detG = [['(0.93 + 0.14 * this.rnd())', '1'], ['this.nb * 0.4 * this.thr', '0']];
+// The firing at its exact sub-sample time: spread the impulse linearly across this and the next sample.
+const fracH = [['let imp = 0;', 'let imp = this.carry || 0; this.carry = 0;'], ['imp += a;', 'const fr = (this.theta - this.next + Math.PI) / dTheta; imp += a * fr; this.carry += a * (1 - fr);']];
+const fracG = [['let impA = 0, impB = 0, impI = 0;', 'let impA = this.cA || 0, impB = this.cB || 0, impI = 0; this.cA = 0; this.cB = 0;'], ['if (c <= 3) impA += a; else impB += a;', 'const fr = (this.theta - this.next + 2 * Math.PI / 3) / dTheta; if (c <= 3) { impA += a * fr; this.cA += a * (1 - fr); } else { impB += a * fr; this.cB += a * (1 - fr); }']];
+for (const rpm of [6000, 10000, 14000]) {
+  const m = { rpm, load: 1, thr: 1, cut: 0, on: 1 };
+  console.log(`H2R ${rpm} WOT deterministic: integer-sample firings ${inharm(render(loadSrc(H, detH, SR), m, 2.73, SR), rpm / 60, 0.5, SR)} dB | fractional ${inharm(render(loadSrc(H, [...detH, ...fracH], SR), m, 2.73, SR), rpm / 60, 0.5, SR)} dB | fractional @192k ${inharm(render(loadSrc(H, [...detH, ...fracH], 192000), m, 0.69, 192000), rpm / 60, 0.5, 192000)} dB`);
+}
+for (const rpm of [4000, 7000, 8900]) {
+  const m = { rpm, load: 1, thr: 1, cut: 0, on: 1, gearW: 0, cabin: 0 };
+  console.log(`GT3 ${rpm} WOT deterministic: integer-sample ${inharm(render(loadSrc(G, detG, SR), m, 2.73, SR), rpm / 60, 0.5, SR)} dB | fractional ${inharm(render(loadSrc(G, [...detG, ...fracG], SR), m, 2.73, SR), rpm / 60, 0.5, SR)} dB`);
+}

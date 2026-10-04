@@ -813,6 +813,16 @@ El usuario juzgó la primera versión «horrible» y pidió una copia idéntica 
   - Encima: el silbido del compresor a ≈9,2 veces el cigüeñal según la presión de soplado, el chirrido al cortar gas con presión, los petardeos al retener, el corte del cambio rápido y del limitador, el silbido de la primaria y la admisión.
   - Es una síntesis a oído, no una grabación.
 
+### Pasada decisiva: diagnósticos hechos, aplicación pendiente (4 de octubre de 2026)
+
+El usuario pidió una pasada decisiva sobre la H2R, el Porsche y el F-16: modelos hiperrealistas sin simplificar, mejor sonido (el F-16 no tiene ninguno), arreglar un cuadrado negro intermitente en la zona de la H2R y el Porsche, conducción mucho más profunda (la moto no debe caerse al girar) y una pasada por el entorno y las físicas. Se hicieron seis auditorías de solo lectura. **Todavía no se ha cambiado ningún archivo del simulador.** Los resultados completos están en `docs/diagnostico-2026-10-04/` (índice en su `LEEME.md`).
+
+- **Cuadrado negro: causa confirmada, era el Porsche.** El splitter delantero tiene triángulos de área cero con normales nulas; dan un píxel NaN, el filtro de luciérnagas anterior al bloom lo deja pasar y el bloom lo convierte en un rectángulo negro que parpadea. Arreglo probado en la página: filtro a prueba de NaN, quitar los puntos colineales y un saneador de normales.
+- **H2R:** con las ayudas, 193 de 200 recorridos aleatorios acaban en caída. Hay un prototipo con 0 caídas (presupuesto de agarre con prioridad lateral y tope de inclinación a 59,9°, donde toca la estribera).
+- **Porsche:** el volante con teclado pide el doble del ángulo útil, el DRS se abre en plena curva, el PDK corta el empuje 0,1 s, subvira en el límite y el diferencial no es el autoblocante del coche.
+- **Sonido:** las explosiones se redondean a muestras enteras (≈ −25 dB de ruido), el silbido de alivio de la H2R se rompe a los 30 s y no hay modelo espacial. El F-16 no tiene sonido.
+- **No se llegó a hacer:** la auditoría del detalle de los modelos y el presupuesto de rendimiento, y la del entorno y las físicas.
+
 ### La Ninja H2R contra fotos calibradas: frontal, alas, cúpula y cabina (3 de octubre de 2026, tercera versión)
 
 Las fotos oficiales de Kawasaki no se pudieron volver a descargar en esta sesión. Se usaron como referencia fotos libres de Wikimedia Commons de la moto en exposiciones: perfil derecho, frontal, tres cuartos y varias sin carenado. Ninguna está en el repositorio.

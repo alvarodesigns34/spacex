@@ -1,0 +1,13 @@
+import {make,rolling,KMH,DT,G,CAR} from './common.mjs';
+// 1. phantom slip on an unloaded wheel in steady cornering + accel
+{ const {c,s,i}=make(); s.tc=true; rolling(s,60*KMH); i.steer=0.3; let n=0,tot=0;
+  for(let k=0;k<240*3;k++){ i.throttle=0.6; c.step(DT); if(k>240){tot++; if(s.load[0]<300 && s.slip[0]>1.15) n++;}}
+  console.log(`1 inner front: load<300 N and slip>1.15 (marks+squeal) in ${n}/${tot} steps; last load ${s.load[0].toFixed(0)} N slip ${s.slip[0].toFixed(2)} kap ${s.kap[0].toFixed(3)} w*R/u ${(s.w[0]*CAR.rf/s.u).toFixed(3)}`);}
+// 2. diff in corner on power: lock torque and yaw moment
+{ const {c,s,i}=make(); s.tc=false; rolling(s,70*KMH,2); i.steer=0.25; for(let k=0;k<240*2;k++){i.throttle=0.3;c.step(DT);} 
+  const dw=s.w[2]-s.w[3]; console.log(`2 corner 70 km/h part throttle: rear Δω ${dw.toFixed(2)} rad/s kap RL ${s.kap[2].toFixed(3)} RR ${s.kap[3].toFixed(3)} ay ${(s.ay/G).toFixed(2)}`);
+  i.throttle=1; let mx=0, b=0; for(let k=0;k<240*1;k++){c.step(DT); mx=Math.max(mx,Math.abs(s.w[2]-s.w[3])); b=Math.max(b,Math.abs(Math.atan2(s.v,s.u))*57.3);} console.log(`   then WOT 1 s: max Δω ${mx.toFixed(2)} β max ${b.toFixed(1)}° kap ${s.kap[2].toFixed(2)}/${s.kap[3].toFixed(2)}`);}
+// 3. high speed stability: 280 km/h straight, steering pulse 0.03 for 0.2 s
+{ const {c,s,i}=make(); rolling(s,280*KMH,7); i.throttle=0.9; for(let k=0;k<240;k++)c.step(DT); i.steer=0.03; for(let k=0;k<48;k++)c.step(DT); i.steer=0; let rmax=0, rend; for(let k=0;k<240*3;k++){c.step(DT); rmax=Math.max(rmax,Math.abs(s.r));} console.log(`3 280 km/h steer pulse 0.9°/0.2 s: yaw after 3 s ${s.r.toFixed(4)} max ${rmax.toFixed(3)} β ${(Math.atan2(s.v,s.u)*57.3).toFixed(2)}`);}
+// 4. power oversteer onset in 2nd gear corner exit PSM off: time to 20° beta
+{ const {c,s,i}=make(); s.tc=false; rolling(s,60*KMH,2); i.steer=0.3; for(let k=0;k<240*2;k++){i.throttle=0.2;c.step(DT);} i.throttle=1; let t=0; for(;t<3;t+=DT){c.step(DT); if(Math.abs(Math.atan2(s.v,s.u))>0.35)break;} console.log(`4 2nd gear 60 km/h corner, WOT, PSM off: β 20° after ${t.toFixed(2)} s, gear ${s.gear}`);}

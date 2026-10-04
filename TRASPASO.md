@@ -4,7 +4,7 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ---
 
-## ⭐ Empieza aquí (estado real al 03-10-2026, último commit `d119f84`)
+## ⭐ Empieza aquí (estado real al 04-10-2026; mira primero «Encargo del usuario del 04-10» y «Orden para continuar»)
 
 ### Estado al 03-10-2026 (léelo primero)
 
@@ -34,7 +34,7 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
   3) Bug del cuadrado negro intermitente en la zona H2R/Porsche.
   4) Conducción muy profunda de los tres; la moto no debe poder caerse al girar (límite de inclinación).
   5) Pasada profunda por el entorno y las físicas.
-- **Diagnósticos hechos (solo lectura; resultados completos en la carpeta de la sesión `diag-backup/`, que se pierde con el contenedor):**
+- **Diagnósticos hechos (solo lectura). Resultados completos en el repositorio: `docs/diagnostico-2026-10-04/` (empieza por su `LEEME.md`); los JSON traen archivo:línea, cifras y el plan de arreglo, y `prototipos/h2rBike2.js.txt` es la moto sin caídas. Ningún archivo del simulador se ha cambiado todavía. Resumen:**
   - **Cuadrado negro, causa confirmada:**
     - Triángulos de área cero con normales (0,0,0) en el splitter del Porsche (`buildSplitter`, `gt3rs.js` ≈1655-1665: el contorno se recorta con `Math.min(halfW(x)*0.97, W)` y deja puntos colineales en z = ±0,825 m) dan píxeles NaN (`normalize(vec3(0))`).
     - El filtro de luciérnagas antes del bloom (`main.js` ≈330-340) deja pasar el NaN (`m > uPeak` es falso con NaN) y convierte Inf en NaN.
@@ -63,6 +63,13 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
     - controles a frecuencia de fotograma que dan clics.
   - **F-16:** diagnóstico guardado en `diag-backup/f16-*.json`.
   - **Sin hacer:** modelos (detalle y presupuestos) y entorno/físicas.
+- **Orden para continuar la pasada decisiva (recomendada):**
+  1. **Cuadrado negro primero** (un commit pequeño y seguro; el plan, el código del shader, el saneador y las dos pruebas de regresión están en `cuadrado-negro.json`, campo `plan`).
+  2. **Conducción de la H2R:** aplicar el prototipo (`h2rBike2.js.txt`) sobre `src/sim/h2rBike.js`, con sus pruebas en `tools/h2r-check.mjs` (nada de caídas al inclinar ni al frenar inclinado; sí con valla de frente o 0,6 m de agua). Reajustar a la vez altura del centro de masas, caballito y pérdidas para acercar el 0–100 a 3,1 s sin romper los otros tres tiempos de MOTORRAD.
+  3. **Conducción del Porsche** (`conduccion-porsche.json`): volante, DRS automático, PDK, equilibrio, diferencial, mando.
+  4. **Sonido** (`sonido.json`, `f16.json`): tiempo fraccionario de las explosiones, chirrido de la H2R, modelo espacial; **sonido y botón de sonido del F-16**.
+  5. **Modelos hiperrealistas y entorno/físicas:** **los diagnósticos de estos dos frentes no se hicieron**; empieza por ellos (ver el encargo arriba). Límites a tener en cuenta: `tools/check.mjs` (`LIMITS`: 3,6 M triángulos, 1.800 mallas, 290 materiales, 160 texturas; hoy 288 materiales) y `core/lod.js`. El usuario permite subirlos si hace falta calidad.
+  - Norma de trabajo: bloques pequeños, `check:static` antes de cada commit, push a las cinco ramas más la de la sesión, `npm run check` al cerrar el bloque, y vigilar CI. Los agentes en paralelo se agotaron la cuota de la sesión una vez: cada agente debe terminar pronto y su resultado guardarse en el repositorio.
 - **Peticiones del usuario aún abiertas (ambición máxima, «me da igual el tiempo»):**
   - Que la H2R y el Porsche sean idénticos a los reales en modelo, conducción y sonido. Ambos están muy mejorados, pero se puede afinar más.
   - H2R: alas, cúpula, cuernos, morro, tija y tapas del motor hechos (tercera sesión). Quedan: lado izquierdo del motor (compresor, tapas), basculante, tapa lateral bajo el asiento con su hueco triangular, chasis con más tubos (foto cenital sin carenado).

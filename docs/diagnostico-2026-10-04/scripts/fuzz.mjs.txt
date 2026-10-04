@@ -1,0 +1,22 @@
+const mod = process.argv[2];
+const { createH2rBike, BIKE } = await import(mod);
+const DT=1/240, D=180/Math.PI;
+let seed=12345; const rnd=()=>((seed=(seed*1103515245+12345)&0x7fffffff)/0x7fffffff);
+const kinds=[['track',1],['kerb',0.9],['grass',0.55],['gravel',0.45],['pad',0.9],['runway',0.95]];
+for (const aids of [true,false]) { const whys={}; let falls=0, runs=200, maxPhi=0, gravelPhi=[];
+ for(let r=0;r<runs;r++){
+  // surface: stripes of 30 m in x+z
+  const ground=(x,z)=>{ const i=Math.abs(Math.floor((x+z)/40))%kinds.length; const [kind,mu]=r%2?kinds[i]:kinds[0]; return {h:0,mu,roll:0,kind}; };
+  const b=createH2rBike({ground}); const s=b.state; b.reset(); s.aids=aids; s.u=(10+rnd()*60); s.wR=s.u/BIKE.RR; s.gear=Math.min(5,Math.floor(s.u/12));
+  const keys={l:0,t:0,b:0,rb:0}; const sm={l:0,t:0,b:0,rb:0};
+  for(let k=0;k<240*30&&!s.crashed;k++){
+    if(k%24===0){ if(rnd()<0.3) keys.l=[-1,0,1][Math.floor(rnd()*3)]; if(rnd()<0.3) keys.t=rnd()<0.5?1:0; if(rnd()<0.2) keys.b=rnd()<0.3?1:0; if(rnd()<0.1) keys.rb=rnd()<0.2?1:0; if(keys.b) keys.t=0; }
+    const ramp=(c,t,rt)=>c+Math.max(-rt*DT,Math.min(rt*DT,t-c));
+    sm.t=ramp(sm.t,keys.t,6); sm.b=ramp(sm.b,keys.b,7); sm.rb=ramp(sm.rb,keys.rb,7); sm.l=ramp(sm.l,keys.l,keys.l?2.2:3);
+    Object.assign(b.input,{throttle:sm.t,brake:sm.b,rearBrake:sm.rb,lean:sm.l});
+    b.step(DT); maxPhi=Math.max(maxPhi,Math.abs(s.phi)*D);
+  }
+  if(s.crashed){falls++; const w=s.crashed.why.replace(/\d+/g,'#'); whys[w]=(whys[w]||0)+1;}
+ }
+ console.log(mod.split('/').pop(),'aids',aids,'falls',falls,'/',runs,'maxPhi',maxPhi.toFixed(1),JSON.stringify(whys));
+}

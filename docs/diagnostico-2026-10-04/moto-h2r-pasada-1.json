@@ -1,0 +1,141 @@
+{
+ "summary": "This was a read-only audit of the Ninja H2R riding model (src/sim/h2rBike.js, h2rRide.js, ui/h2rHud.js, data/h2r.js, tools/h2r-check.mjs). The repository was not edited. All scratch work is in /tmp/claude-0/-home-user-spacex/49448258-b837-551e-9b35-7fac201f56d4/scratchpad/diag/:\n- falls.mjs: a scenario matrix\n- trace.mjs: per-step traces\n- fuzz.mjs: 200 seeded random 30 s rides on mixed surfaces\n- glance.mjs: glancing contact with a post wall\n- lean.mjs: the lean angle at which the model's parts touch the ground\n- stall.mjs: standstill in a high gear\n- obst.js: a browser sweep of the real circuit for phantom obstacles\n- h2rBike2.js: a working PROTOTYPE of the proposed fix. check2.mjs is h2r-check run against it.\n\nHEADLINE: the user is right. With the AIDS ON (the default), 193 of 200 random 30 s rides end in a fall (133 \"Lowside\", 38 \"Lost the front on the grass\", 22 on the gravel). With aids off, 200 of 200 fall. Every lean-related fall comes from one mechanism. A whole-bike friction check (h2rBike.js:265-269: demand = hypot(ax, u·r)/g > μ·1.02 → slide → fall at slide > 0.25) is fed by quantities the aids never limit:\n1. The yaw is purely kinematic (r = V·tanδ/L, h2rBike.js:258). During counter-steering the bars can go to lim = 0.6/(V/4) rad (5.1° at 100 km/h, h2rBike.js:249). One left-right flick produces a 4.5 g \"lateral acceleration\" spike and falls in 0.02 s. Flicks fall at every speed from 50 to 300 km/h, and the circuit's L20-R20-L20 chicane forces them.\n2. ABS caps the front only against the front circle (h2rBike.js:173-177). Braking at full lean with the aids on lowsides in 0.13 s at every speed from 40 to 250 km/h. It also happens if the rider releases the lean key while braking.\n3. Traction control caps only rear slip (h2rBike.js:145, capR at :159). Full throttle at lean unloads the front (NF = 0, a 2.4° wheelie while leant at 45°) and lowsides from 20 to 100 km/h starting speed.\n4. Sudden surface changes are not anticipated. At 53° on track, crossing onto grass, gravel or mud (or pad → grass at 40 km/h) falls in 0.03-0.1 s.\n5. Braking to a stop while holding the lean from 50 km/h falls.\n\nThere is also an independent map bug. Walls are built as rows of r = 0.1875 m circles every 0.25 m (main.js:814, CELL = 0.25). collide() (h2rBike.js:284-309) takes each circle's own normal, so a scalloped wall produces fake head-on impacts. A 3° graze at 60 km/h reports \"Hit it at 33 km/h\" and falls, and every graze from 3° to 20° at 60-150 km/h falls. The fall threshold is 3.5 m/s normal speed (h2rBike.js:304).\n\nThe browser sweep of the real circuit (627 centreline samples × 5 lateral offsets, ±5.5 m) found zero phantom obstacles on the track surface. The home spot is on the pad (μ 0.9).\n\nTHE PROTOTYPE (diag/h2rBike2.js) gives 0 of 200 falls with the aids on (aids-off falls are all loop or stoppie: 43 and 153). It changes six things:\n1. A grip budget in which the lean has priority (the lateral share first, then what is left for drive and brake).\n2. Drive and brake capped to that budget.\n3. The lean target always limited by grip, plus a low-speed feasibility cap.\n4. The steer limit capped by grip.\n5. A hard lean stop that eases down (the pegs).\n6. Lateral saturation that makes the bike run wide, with the lowside, tuck and clearance falls removed.\n\nIt still passes every existing h2r-check except the one that expects a grass fall without aids, which is intentionally obsolete. Grazes up to 12° at 100 km/h become slides along the wall. Head-on contact still falls (\"Hit it at 95 km/h\"), and so does 0.6 m of water.\n\nGEOMETRY: lean.mjs measured the model's own parts, leaning about the tyre crown (CROWN 0.08 m). The footpeg touches at 59.9°, then the swingarm beam at 60.2°, the lower cowl at 60.3° and the wing plate at 61.4°. The current BIKE.maxLean of 58° is therefore 2° inside the peg. That fits the 58-60° the user wants, and it can be tagged DERIVED from the model.\n\nPRESS FIGURES (unchanged by the prototype):\n- 0-100 km/h: 2.87 s against MOTORRAD's 3.1 s, too quick by 0.23 s\n- 0-200 km/h: 6.51 s / 196 m against 6.5 s / 184 m\n- 0-300 km/h: 13.06 s / 670 m against 13.4 s / 660 m\n- Top speed: 338 against 337 km/h GPS\n\nLoosening the wheelie control makes the bike faster (1°/3° gives 2.74 s; 0.5°/2° gives 2.68 s), and the launch rpm is insensitive (4500 to 7700 all give 2.81-2.87 s). The low-speed launch is limited by the front lifting. To reach 3.1 s, refit together the centre-of-mass height (MASS.cgHeight), the wheelie-control onset and gain, and efficiency/cdA, against all four figures.\n\nOTHER DEFECTS FOUND:\n- Standing still in a gear above 1st gives rpm = 0. The bike shows 0 rpm and pulls away in 6th (79 km/h after 10 s), because slipClutch only applies in gear 0 (h2rBike.js:137).\n- GEARBOX.downshiftRpm is defined but unused (h2r.js:363). Hard-coded 7500/6000 are used instead (h2rBike.js:130).\n- Manual mode is sticky until reset (h2rBike.js:122).\n- A shift pressed during the 60 ms cut is dropped (h2rBike.js:123-125).\n- The rider camera's head roll is unfiltered (h2rRide.js:131).\n- The HUD has no TC, ABS or lean-limit lamps, although s.tc and s.abs exist (h2rHud.js:119).\n- The \"aids\" brake limiting is presented as cornering ABS (h2rBike.js:18-19, 168). As far as I know the H2R (a closed-course machine) has no ABS (KIBS), so this must be labelled a simulator assist, as an approximation, per the CLAUDE.md rules. This needs checking against the kawasaki.eu specification sheet.",
+ "findings": [
+  {
+   "title": "Lowside with aids ON from a fast lean change: kinematic yaw from the counter-steer counts as tyre demand",
+   "severity": "critical",
+   "files": [
+    "src/sim/h2rBike.js"
+   ],
+   "evidence": "h2rBike.js:245-258: computed-torque controller with wn = max(2.2, 6.5 - V/20); steer lim = min(27°, 0.6/max(1, V/4)) rad (5.1° at 100 km/h); r = V·tanδ/L. h2rBike.js:262-269: ay = u·r enters demand = hypot(ax, ay)/g; slide += (demand - μ)·dt·8 and falls at 0.25. trace.mjs, flick at 100 km/h: at t = 0.600 the steer jumps 1.28° → 5.13°, ay goes from 1.13 g to 4.54 g, then 'Lowside' at t = 0.617. falls.mjs D (lean ±1 every 0.8 s): falls at 50, 100, 200 and 300 km/h with the aids on. The circuit has an L20/R20/L20 chicane (CIRCUIT.layout).",
+   "fix": "Cap the steer by grip: lim = min(steerMax, 0.6/max(1, V/4), atan(μ·g·L/V²)). This still allows a roll acceleration of about (g·sinφ + μg·cosφ)/h ≈ 19 rad/s², so flicks stay quick. Saturate the lateral force: if |u·r| > μg then r = sign·μg/V, so the bike runs wide. Never turn slide into a fall."
+  },
+  {
+   "title": "Lowside with aids ON when braking leant over: ABS only checks the front circle, not the whole bike's budget",
+   "severity": "critical",
+   "files": [
+    "src/sim/h2rBike.js"
+   ],
+   "evidence": "h2rBike.js:169-179: Fbf is capped to capF·0.95 (front circle with latF = m·|u r|·lr/L) and to the rear-lift limit. Nothing caps Fbf against the lateral budget, and NR → 0 under braking. trace.mjs, brake at 53° and 100 km/h: ax = -1.00 g, ay = 1.40-1.56 g, demand 1.72-1.84 > 1.53, Lowside at 0.13 s. falls.mjs B: falls at 40/60/100/150/200/250 km/h. B2 (lean released when the brake goes on) also falls at 60/100/200 km/h.",
+   "fix": "Use a grip budget with the lean first: ayCap = kAid·μ·g (kAid = 0.92 with the aids, 1.0 without), axAvail = sqrt(ayCap² - min(|ay|, ayCap)²). Cap the brake so that Fbf ≤ max(0, m·axAvail + Fx), the tyres' net braking force. Use this even without the aids, because a fall from leaning must never happen. Reduce the lean reach with filtered |ax| so the bike stands up under braking."
+  },
+  {
+   "title": "Lowside with aids ON on throttle at lean: traction control limits only the rear slip, and the front unloads to zero",
+   "severity": "critical",
+   "files": [
+    "src/sim/h2rBike.js"
+   ],
+   "evidence": "h2rBike.js:145 (TC from slip > 0.1), :158-160 (capR uses the rear's lateral share only). trace.mjs, full throttle at lean from 100 km/h: NF = 0 N while φ = 45°, θ = 2.4° (a wheelie while leant), demand 1.49-1.51. falls.mjs A thr = 1: falls with 'Lowside' at about 155 km/h from starts at 20/30/40/60/100 km/h. E (lean, then full throttle): falls at 15/25/40/60 km/h. I (throttle chopped, then reopened at full lean): falls at 60/100 km/h.",
+   "fix": "With the aids, capR = min(capR, m·axAvail + Fres_prev); store s.fres = Faero + Froll + Fwater each step. The existing slip-based TC then cuts the throttle consistently. Add a front-load floor when |φ| > 15°: cap drive so that ax ≤ g·(b - 0.15L)/h - Faero/m (≈0.79 g), i.e. Nf ≥ 0.15·m·g. Scale the wheelie-control onset by cos(φ)-like weighting (onset 2° upright, 0.5° at 45°)."
+  },
+  {
+   "title": "Instant fall when the surface changes under a lean (track → grass/gravel/mud, pad → grass)",
+   "severity": "critical",
+   "files": [
+    "src/sim/h2rBike.js",
+    "src/main.js"
+   ],
+   "evidence": "μ = 1.5·g.mu (h2rBike.js:109). main.js:714-733: grass 0.55, gravel 0.45, mud 0.4, pad 0.9, kerb 0.9. falls.mjs C: at 53° the grass, gravel and mud fall at 50/100/150 km/h within 0.02-0.04 s. C2 (pad → grass): falls at 40/60/90 km/h. This is the usual way a player runs wide at a corner exit, and the pad (the start) is bordered by grass.",
+   "fix": "Use a lean stop that eases down: stopWant = min(maxLean, min(reach, lowCap) + 2°), s.stop = (stopWant ≥ s.stop) ? stopWant : max(stopWant, s.stop - 1.2·dt). Clamp |φ| ≤ s.stop and zero phiDot towards it. Lateral saturation (run wide) covers the moment before the bike stands up. The prototype gives no falls; the lean goes 53° → 32-34° on gravel."
+  },
+  {
+   "title": "Explicit falls from lean that must become unreachable: clearance, 'fell over', highside start, front tuck",
+   "severity": "high",
+   "files": [
+    "src/sim/h2rBike.js"
+   ],
+   "evidence": "h2rBike.js:259 fall when |φ| > maxLean + 4° ('Leant past the clearance'); :260 |φ| > 75° ('It fell over'); :268 aids off, slip > 0.6 and |φ| > 25° → slide += 2·dt (highside start); :183 aids off, front lock and |φ| > 12° → 'The front tucked'. In fuzz.mjs with the aids off there were 88 front-tuck falls and 74 lowsides out of 200.",
+   "fix": "Delete the fall calls at :259, :260, :268 and :183. Replace them with the hard lean stop: phi clamped to s.stop ≤ BIKE.maxLean, so the peg scrapes but the bike never falls. For a locked front while leant: run wide with ay capped at 0.5·μg and the reach cut, so the bike stands up. For a spinning rear while leant (aids off): a power slide, with a visual yaw offset and marks, no fall. Keep s.slide only as a 'demand over grip' indicator for marks, smoke and the HUD."
+  },
+  {
+   "title": "Fake head-on impacts when grazing walls built of collider circles",
+   "severity": "high",
+   "files": [
+    "src/sim/h2rBike.js",
+    "src/main.js"
+   ],
+   "evidence": "main.js:814 adds obstacles as r = CELL·0.75 = 0.1875 m circles on a 0.25 m grid (colliders.js:22). h2rBike.js:288-305 uses each circle's radial normal, so a wall is scalloped. At the dent between two circles the normal is about 56° off the wall normal, and the fall threshold is vn > 3.5 m/s (:304). glance.mjs, original model: a 3° graze at 60 km/h gives 'Hit it at 33 km/h' (the true normal speed is 3 km/h). Every case from 3° to 20° at 60/100/150 km/h fell.",
+   "fix": "Rewrite collide(): (1) merge all penetrations in a step into one depth-weighted normal and push out once by the maximum depth; (2) if 3 or more obstacle centres lie within 0.8 m of the deepest contact and their principal axis dominates (λ1 > 4·λ2), use the perpendicular to that axis, oriented towards the bike, as the wall normal; (3) fall only when vn > 6 m/s (21.6 km/h normal); below that, keep the tangential speed scaled by max(0.6, 1 - vn/12), turn psi along the wall and halve phiDot. Prototype: grazes ≤ 8° at up to 150 km/h and 12° at up to 100 km/h slide along; 12°/150 km/h (31 km/h normal) and 20°/100 km/h still fall, which is correct. The head-on test still falls."
+  },
+  {
+   "title": "Braking to a stop while leant falls: the low-speed lean is infeasible because of the steer limit",
+   "severity": "high",
+   "files": [
+    "src/sim/h2rBike.js"
+   ],
+   "evidence": "h2rBike.js:244 target = lean·reach·min(1, (V-3)/8). Holding a lean needs δ ≈ g·L·tanφ/V², but lim = min(27°, 0.6/max(1, V/4)). falls.mjs G: from 50 km/h, lean held and full brake → Lowside. At V = 3 m/s the code switches to 'feet down' (:235-240).",
+   "fix": "lowCap = 0.8·atan(V²·tan(min(steerMax, 0.6/max(1, V/4)))/(g·L)); target = input.lean·min(reach, lowCap); also include it in the lean stop. Prototype G: 20/30/50 km/h all stop with no fall."
+  },
+  {
+   "title": "Lean limit and lean geometry: 58° is plausible and can be DERIVED from the model; the lean mixes CG lean and bike roll",
+   "severity": "medium",
+   "files": [
+    "src/sim/h2rBike.js",
+    "src/sim/h2rRide.js",
+    "src/data/h2r.js"
+   ],
+   "evidence": "BIKE.maxLean = 58° is marked '≈' (h2rBike.js:38). lean.mjs (vertices of buildH2r leaned about the tyre crown, CROWN = 0.08 from h2rRide.js:31) gives first touch at the footpeg, 59.9°; swingarm beam 60.2°; lower cowl 60.3°; lower wing plate 61.4°; trellis 62.4°. φ is used both as the centre of mass's lean (g·tanφ = ay) and as the drawn roll about the crown. With the aids, reach on track is atan(0.92·1.5) = 54°, so the grip binds before the pegs.",
+   "fix": "Keep BIKE.maxLean = 58°, retagged DERIVED: 2° inside the model's peg contact at 59.9°. Add a test that recomputes the peg-contact angle from the model and requires maxLean ≤ pegAngle - 1°. Optional realism: draw φ_bike from φ_cg by solving tanφ_cg = (h-c)·sinφ_b/(c+(h-c)·cosφ_b) (tyre-crown offset, c = 0.08, h = 0.68). Clamp φ_b ≤ 58° → ay ≤ 1.28 g. Add peg-scrape sparks when |φ_b| ≥ 57°."
+  },
+  {
+   "title": "Keyboard shaping: a digital key gives full lean in 0.45 s, the throttle reaches 1 in 0.17 s, and the lean reversal rate is only the release rate",
+   "severity": "medium",
+   "files": [
+    "src/sim/h2rRide.js"
+   ],
+   "evidence": "h2rRide.js:86-97: throttle ramp 6/s, brake 7/s, rear 7/s, lean 2.2/s in and 3/s out. The target is input.lean·reach (h2rBike.js:244), so holding the key always means maximum lean at any speed. readControls is inside h2rRide (THREE and the DOM), so it cannot be tested in node.",
+   "fix": "Move the shaping into a pure, exported function shapeInputs(prev, keys, dt) (in h2rBike.js or a new src/sim/h2rInput.js). Rates: throttle in 3/s, out 8/s; brake in 4/s, out 8/s; lean in 1.4/s (≈0.7 s to full), out 2.5/s, and 3.5/s when reversing through zero; optional Shift = 50 % lean (precision). Also slew-limit the controller's lean reference to ≤ 1.4 rad/s (≈80°/s, a racing chicane roll rate)."
+  },
+  {
+   "title": "Standstill in gears 2-6: rpm 0 and it pulls away in 6th; downshiftRpm unused; manual mode sticky; shifts dropped",
+   "severity": "medium",
+   "files": [
+    "src/sim/h2rBike.js",
+    "src/data/h2r.js"
+   ],
+   "evidence": "stall.mjs: after 5 shifts up at a standstill, gear 6 and rpm 0. With full throttle for 10 s it reaches 79 km/h, rpm 3188. After braking to 0: gear 6, rpm 0. Causes: slipClutch only when gear === 0 (h2rBike.js:137); s.rpm = geared (:149); GEARBOX.downshiftRpm 8500 is unused (h2r.js:363) while the code uses a hard-coded 7500/6000 (h2rBike.js:130); s.manual is never cleared (:122); shiftUp/Down are cleared even when s.shift > 0 (:123-125).",
+   "fix": "slipClutch = geared < launchRpm in any gear, with rpm ≥ idle always. When V < 2 m/s and the brake is on, drop to 1st even in manual mode. Use GEARBOX.downshiftRpm in the auto logic. Go back to auto after 8 s without Q/E, or let T/HUD toggle it. Queue one pending shift while s.shift > 0. Note that the quick-shifter's up/down capability and the auto-blip are ESTIMATE until checked against the specification sheet."
+  },
+  {
+   "title": "Brake 'cornering ABS' presented as a real system; the H2R is believed to have no ABS",
+   "severity": "medium",
+   "files": [
+    "src/sim/h2rBike.js",
+    "src/ui/h2rHud.js",
+    "src/sim/h2rRide.js"
+   ],
+   "evidence": "h2rBike.js:18-19 and :168 ('ABS with the aids'); HUD aids tooltip (h2rHud.js:25). CLAUDE.md requires only verifiable figures, with approximations marked as such. As far as I know the H2R's electronics are KTRC, KLCM, KEBC, KQS and an IMU, with no KIBS; this needs checking on the kawasaki.eu specification sheet.",
+   "fix": "Rename it to 'brake assist (simulator, ≈)' in the comments and the note() texts. In the HUD use lamps TC / BRK / LEAN / SLIDE. List the real electronics in data/h2r.js only once verified."
+  },
+  {
+   "title": "Rider camera: unfiltered head roll, no look-into-turn",
+   "severity": "low",
+   "files": [
+    "src/sim/h2rRide.js"
+   ],
+   "evidence": "h2rRide.js:121-133: the eye is in leanIn space, and camera.rotateZ(-s.phi·0.6) is applied every frame with no smoothing; FOV fixed at 75°; the eye drops 1.36 → 1.16 m when tucked.",
+   "fix": "headRoll += (0.6·phi - headRoll)·(1 - exp(-dt/0.12)); look-ahead yaw = clamp(r·0.35 s, ±12°), filtered; add the suspension pitch (susR - susF)·0.3 to the view. Keep the switch to the chase camera on a fall, which is now only reached through a wall, water, or aids-off loop/stoppie."
+  },
+  {
+   "title": "Acceleration is 0.23 s quick to 100 km/h against MOTORRAD; the test tolerances are loose",
+   "severity": "medium",
+   "files": [
+    "src/data/h2r.js",
+    "tools/h2r-check.mjs",
+    "src/sim/h2rBike.js"
+   ],
+   "evidence": "h2r-check: 0-100 2.87 s (3.1), 0-200 6.51 s / 196 m (6.5 / 184), 0-300 13.06 s / 670 m (13.4 / 660), 338 km/h (337 GPS). Tolerances are ±0.35 / ±0.35 / ±0.6 s and ±10 % (h2r-check.mjs:51-52). drag.mjs: the launch rpm (4500 to 7700) barely matters; loosening the wheelie control speeds the bike up. The launch is limited by the front lifting (a ≈ g·b/h ≈ 1.1 g).",
+   "fix": "Refit MASS.cgHeight (try 0.70-0.74), the wheelie-control onset and gain (h2rBike.js:142), and GEARBOX.efficiency/MASS.cdA together, with a scratch grid search against t100/t200/t300/d200/d300/vmax. Then tighten the test to ±0.15 s (100/200), ±0.3 s (300), ±5 % distance, ±5 km/h top speed. Update the MASS comment (h2r.js:388-395) and the README numbers."
+  },
+  {
+   "title": "Aids-off stoppie and loop dominate aids-off falls",
+   "severity": "low",
+   "files": [
+    "src/sim/h2rBike.js"
+   ],
+   "evidence": "fuzz.mjs on the prototype with the aids off: 153 stoppie and 43 loop falls out of 200, coming from the digital S key (1.3·m·g request, :171) with no rear-lift mitigation.",
+   "fix": "Keep these as the only aids-off stunt falls (they are not turning). Cap the aids-off front brake by the front circle using the lean, so a stoppie is only reachable when |φ| < 10°, and gate the loop and stoppie falls with |φ| < 10°. This is a product decision to confirm with the user."
+  }
+ ],
+ "plan": "Reference prototype: /tmp/claude-0/-home-user-spacex/49448258-b837-551e-9b35-7fac201f56d4/scratchpad/diag/h2rBike2.js. Diff it against src/sim/h2rBike.js. Its tuning is incomplete, but every mechanism below is in it and verified. In the repository, test labels are written in Spanish, as in the existing h2r-check.mjs.\n\nA. src/sim/h2rBike.js (dynamics)\n\nA1. Grip budget, at the top of step() after V:\n```\nconst kAid = s.aids ? 0.92 : 1.0;\nconst ayCap = kAid * mu * G;\nconst ayNow = Math.min(Math.abs(s.ay), ayCap);\nconst axAvail = Math.sqrt(Math.max(0, ayCap*ayCap - ayNow*ayNow));\n```\nAdd s.ay = 0, s.fres = 0, s.axF = 0, s.stop = BIKE.maxLean and s.leanLimit = false to reset().\n\nA2. Drive: after capR (:159), with the aids, capR = min(capR, BIKE.m*axAvail + s.fres). Without the aids, cap at the friction ellipse only.\nFront-load floor when |φ| > 15° (both modes): axMaxFront = G*(BIKE.b - 0.15*BIKE.L)/BIKE.h - Faero_prev/BIKE.m, and capR = min(capR, BIKE.m*axMaxFront + s.fres).\nWheelie-control onset (:142): onset = (2 - 1.5*min(1, |φ|/(45°)))°.\n\nA3. Brake: after the rear-lift block (:179), apply to BOTH modes:\n```\nconst room = Math.max(0, BIKE.m*axAvail + Fx);\nif (Fbf > room) { Fbf = room; s.abs = true; }\n```\nDelete the fall at :183. Locked front: lock time drives s.slide (visual only).\nSet s.fres = Faero + Froll + Fwater after :188.\n\nA4. Lean reach (:232-234):\n```\ns.axF += (s.ax - s.axF)*min(1, dt*6);\ngrip = sqrt(max(0, (kAid*mu)^2 - (min(|axF|, 0.5*kAid*mu*G)/G)^2));\nreach = min(BIKE.maxLean, atan(grip));\n```\nDo this always, not only with the aids.\n\nA5. Low-speed feasibility, in the V ≥ 3 branch:\n```\nlowCap = 0.8*atan(V*V*tan(min(steerMax, 0.6/max(1, V/4)))/(G*L));\ntarget = slew(input.lean*min(reach, lowCap), 1.4 rad/s);\n```\nStore the slewed reference in s.leanRef.\n\nA6. Steer limit (:249): lim = min(steerMax, 0.6/max(1, V/4), atan(mu*G*L/(V*V))).\n\nA7. Lean stop, after :257:\n```\nwant = min(maxLean, min(reach, lowCap) + 2°);\ns.stop = want >= s.stop ? want : max(want, s.stop - 1.2*dt);\nif (|phi| > s.stop) { phi = sign*s.stop; if (phi*phiDot > 0) phiDot = 0; }\ns.leanLimit = |phi| >= BIKE.maxLean - 0.5°;\n```\nDelete the falls at :259 and :260.\n\nA8. Lateral saturation, replacing :262:\n```\nlet ay = s.u*s.r;\nif (|ay| > mu*G && V > 0.5) { ay = sign*mu*G; s.r = ay/V; }\ns.ay = ay;\n```\nKeep the slide accumulation (:265-267) as an indicator only, clamped to [0, 1]. Delete :268 and the slide fall at :269. Keep the water fall at :270.\n\nA9. Clutch and gearbox:\n- slipClutch = geared < launchRpm (any gear); rpm = max(idle, ...).\n- Use GEARBOX.downshiftRpm in the auto downshift.\n- Queue a shift while s.shift > 0: keep input.shiftUp/shiftDown until consumed.\n- Return to auto after 8 s without manual input (s.manualT).\n- When V < 2 and the brake is on, select 1st.\n\nA10. collide(): replace it with the merged-normal and principal-axis version from h2rBike2.js:\n- Penetrations weighted by depth, pushed out once.\n- PCA of the obstacle centres within 0.8 m when there are 3 or more and λ1 > 4·λ2.\n- Fall only if vn > 6 m/s.\n- Otherwise: u = |v_t|·max(0.6, 1 - vn/12), psi along the wall, phiDot *= 0.5.\n- The down/sliding branch stays as it is.\n\nA11. Header comment (:5-28): describe the budget, the lean stop and run-wide behaviour. Falls only from: hitting something at more than 21.6 km/h normal speed, water deeper than 0.45 m, or (aids off, |φ| < 10°) a loop or stoppie. Relabel ABS as a simulator brake assist (≈). Gate the loop and stoppie falls (:227-228) with Math.abs(s.phi) < 10*D2R; when leant, theta is clamped instead.\n\nB. src/data/h2r.js\n- Add CHASSIS.leanPeg = 59.9 (DERIVED: model peg contact about the tyre crown, computed by tools/h2r-check) and LEAN_MAX = 58 (DERIVED: 2° inside it). Use it for BIKE.maxLean.\n- Refit MASS.cgHeight, the wheelie-control constants (moved into a CONTROL ESTIMATE block), GEARBOX.efficiency and MASS.cdA so that 0-100 is about 3.1 s (now 2.87), 0-300 about 13.4 s (now 13.06) and the top speed 337 km/h. Update the MASS comment with the new results.\n- Document the electronics only after checking kawasaki.eu: KTRC, KLCM, KEBC, KQS, IMU, and whether ABS is absent.\n\nC. src/sim/h2rRide.js\nC1. Move the input shaping into an exported pure function shapeInputs(prev, {up, down, left, right, space, shift}, dt) with these rates:\n- throttle in 3, out 8\n- brake in 4, out 8\n- rear in 5, out 8\n- lean in 1.4, out 2.5, reversal 3.5\n- Shift halves the lean demand\nreadControls (:86-97) calls it.\nC2. Rider camera (:121-133): filtered head roll, τ = 0.12 s, gain 0.6; look-ahead yaw clamp(r·0.35, ±12°), filtered with τ = 0.2 s.\nC3. Peg-scrape sparks in layMarks when s.leanLimit; slide marks driven by s.slide > 0.05 (already). In events(), add notes for 'Lean limit: the pegs touch' (once per corner) and 'Running wide: past the grip'.\nC4. Update the header comment (:1-16) for the fall rules.\n\nD. src/ui/h2rHud.js\n- Lamps (:119): add TC (s.tc), BRK (s.abs), LEAN (s.leanLimit), SLIDE (s.slide > 0.1). Publish them from h2rRide.publish() (tc, abs, leanLimit, slide).\n- Lean arc colour (:132): amber above 50°, red at the 58° limit; add a tick at 58°.\n- Update the Aids tooltip text (:25).\n\nE. tools/h2r-check.mjs: new and changed tests, with Spanish labels. Use a seeded RNG (LCG as in diag/fuzz.mjs; the 200 × 30 s fuzz takes about 6 s, so 100 × 20 s keeps check:static fast).\nE1. Fuzz, aids on: 100 seeded rides of 20 s, random lean/throttle/brake/rear keys through shapeInputs, surfaces striped track/kerb/grass/gravel/pad/runway. Expect s.crashed === null in all; max |φ| ≤ BIKE.maxLean + 0.01; max hypot(ax, ay)/g ≤ μ_local·1.02 after saturation.\nE2. Fuzz, aids off: no fall whose reason matches /Lowside|front|clearance|fell over/; falls allowed only for loop or stoppie, and only with |φ| < 10° at the moment of the fall.\nE3. Lean limit: full lean on track from 40 to 300 km/h in 20 km/h steps, throttle 0/0.5/1. No fall; 50° ≤ steady |φ| ≤ 58°; |ay - g·tanφ| < 0.03 g when not saturated.\nE4. Chicane flicks at 60/100/200 km/h, lean ±1 every 0.8 s: no fall; peak |ay| ≤ μg·1.02; first steer still opposite (counter-steer test kept).\nE5. Braking at full lean, from 100/150/250 km/h with the lean held: no fall; φ decreases monotonically within 1 s of braking; s.abs set; slows by more than 30 km/h in 2 s.\nE6. Throttle exit: full lean at 60 km/h in 1st, full throttle: no fall; NF ≥ 0.1·m·g whenever |φ| > 15°; θ < 1°.\nE7. Surface change at 53° from track to gravel (and pad to grass): no fall; |φ| ≤ atan(0.92·1.5·0.45) + 3° within 1.5 s; the path radius grows (runs wide).\nE8. Braking to a stop from 50 km/h with the lean held: no fall; |φ| < 3° when V < 0.5 m/s.\nE9. Wall grazing on a row of posts (r 0.1875, pitch 0.25, as in main.js). 5° at 100 km/h and 8° at 60 km/h: no fall, the bike ends parallel to the wall, no penetration. 20° at 100 km/h: falls ('Hit it' with a normal speed of 30-38 km/h). Keep the head-on test at 80 km/h.\nE10. Water 0.6 m: falls (keep).\nE11. Clearance consistency: run lean.mjs logic on buildH2r (exclude wheel/tyre/rim names; lean about CROWN 0.08). The first-contact angle must be within 59.9 ± 0.5° and BIKE.maxLean*D ≤ that - 1.\nE12. Standstill in 6th: rpm ≥ ENGINE.idle; pulling away at full throttle does not exceed 30 km/h in 2 s unless downshifted; braking to a stop with auto engaged ends in 1st.\nE13. Input shaping: shapeInputs from zero holding 'right' reaches lean 1 in 0.7 ± 0.05 s; a reversal from +1 to -1 takes about 0.57 s; throttle reaches 1 in 0.33 s.\nE14. Press figures: tighten to ±0.15 s (0-100, 0-200), ±0.3 s (0-300), ±5 % distances, top speed ±5 km/h, after the refit in B.\nRemove or invert two existing tests:\n- 'sin ayudas, frenar fuerte inclinado tira la moto al suelo' (:85-89): now must NOT fall.\n- 'sin ayudas, tumbarse a fondo en la hierba la tira' (:93-97): now must NOT fall, with the lean ≤ atan(1.5·0.55) + 3°.\nKeep the slide-on-its-side test by triggering the fall through a wall.\n\nF. Process (CLAUDE.md)\n- npm run check:static must pass with exit code 0 before each commit.\n- Update the README (Spanish): a new section on the H2R riding rework with the measured numbers (fuzz 193/200 → 0/200, lean 58° DERIVED from the 59.9° peg contact, press figures).\n- Update TRASPASO.md.\n- Run the full npm run check at the end of the block.\n- Push to the five branches and verify CI and Pages.\n- Optional: add an h2rRide browser smoke test to the existing UX check (start, ride with an autopilot through the chicane, assert no s.crashed). No tool currently drives the H2R in the browser."
+}

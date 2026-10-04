@@ -1,0 +1,35 @@
+// node live.mjs <outdir> : live screenshots of the running app in the H2R/Porsche area.
+import { createServer } from 'node:http';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { staticHandler } from '/home/user/spacex/tools/static.mjs';
+import { chromium } from '/tmp/claude-0/-home-user-spacex/49448258-b837-551e-9b35-7fac201f56d4/scratchpad/bench/node_modules/playwright/index.mjs';
+import { bootAtQuality } from '/home/user/spacex/tools/census.mjs';
+const out = process.argv[2]; const quality = process.argv[3] ?? 'high';
+await mkdir(out, { recursive: true });
+const PORT = 8800 + Math.floor(Math.random() * 90);
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png' };
+const server = createServer(staticHandler('/home/user/spacex', TYPES));
+await new Promise(r => server.listen(PORT, '127.0.0.1', r));
+const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox'] });
+const page = await (await browser.newContext({ viewport: { width: 960, height: 540 } })).newPage();
+page.on('pageerror', e => console.error('PAGEERROR', e.message));
+page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') console.error('CONSOLE', m.type(), m.text().slice(0, 300)); });
+const shots = async (tag, n) => { for (let i = 0; i < n; i++) { await page.screenshot({ path: `${out}/${tag}_${String(i).padStart(2, '0')}.png` }); } console.log('shot', tag); };
+const info = async (tag) => console.log(tag, JSON.stringify(await page.evaluate(() => { const v = window.__vc; return { cam: v.camera.position.toArray().map(x => +x.toFixed(2)), near: v.camera.near, far: v.camera.far, fov: v.camera.fov, ao: v.ao?.pass?.enabled }; })));
+try {
+  await bootAtQuality(page, `http://127.0.0.1:${PORT}/`, quality);
+  await page.evaluate(() => window.__vc.hud?.hideCoach?.());
+  await page.evaluate(() => window.__vc.jump('gt3rs', 'overview')); await page.waitForTimeout(2500); await info('gt3-ov'); await shots('gt3ov', 6);
+  await page.keyboard.press('b'); await page.waitForTimeout(1500); await info('gt3-drive'); await shots('gt3start', 6);
+  await page.keyboard.down('w'); await page.waitForTimeout(3000); await shots('gt3acc', 6);
+  await page.keyboard.down('a'); await page.keyboard.press('Space'); await page.waitForTimeout(1500); await shots('gt3drift', 10);
+  await page.keyboard.press('c'); await page.waitForTimeout(500); await info('gt3-cam'); await shots('gt3cam2', 6);
+  await page.keyboard.up('a'); await page.keyboard.up('w');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(1500);
+  await page.evaluate(() => window.__vc.jump('h2r', 'overview')); await page.waitForTimeout(2500); await info('h2r-ov'); await shots('h2rov', 6);
+  await page.keyboard.press('n'); await page.waitForTimeout(2000); await info('h2r-ride'); await shots('h2rstart', 6);
+  await page.keyboard.down('w'); await page.waitForTimeout(3000); await shots('h2racc', 8);
+  await page.keyboard.press('c'); await page.waitForTimeout(500); await info('h2r-cam'); await shots('h2rcam2', 6);
+  await page.keyboard.press('c'); await page.waitForTimeout(500); await info('h2r-cam3'); await shots('h2rcam3', 6);
+  await page.keyboard.up('w');
+} finally { await browser.close(); server.close(); }

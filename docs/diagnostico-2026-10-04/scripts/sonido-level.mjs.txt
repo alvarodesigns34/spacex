@@ -1,0 +1,6 @@
+import { H2R, GT3, render, spectrum } from './run.mjs';
+const A = f => { const f2 = f * f; const ra = (12194 ** 2 * f2 * f2) / ((f2 + 20.6 ** 2) * Math.sqrt((f2 + 107.7 ** 2) * (f2 + 737.9 ** 2)) * (f2 + 12194 ** 2)); return ra * 1.2589; };
+function dBA(x) { const { mag, df } = spectrum(x); let e = 0, z = 0; for (let i = 1; i < mag.length; i++) { e += mag[i] * A(i * df) ** 2; z += mag[i]; } return [10 * Math.log10(e), 10 * Math.log10(z)]; }
+const row = (Cls, rpms, extra) => { let ref; return rpms.map(rpm => { const [a, z] = dBA(render(Cls, { rpm, load: 1, thr: 1, cut: 0, on: 1, ...extra }, 1.4)); ref ??= a; return `${rpm}: ${(a - ref).toFixed(1)} dBA`; }).join(' | '); };
+console.log('H2R WOT, A-weighted level rel 3000 rpm:', row(H2R, [3000, 6000, 9000, 12000, 14000], {}));
+console.log('GT3 WOT, A-weighted level rel 2000 rpm:', row(GT3, [2000, 4000, 6000, 8000, 9000], { gearW: 0, cabin: 0 }));

@@ -1,0 +1,14 @@
+import {make,rolling,KMH,DT,G} from './common.mjs';
+console.log('--- steady: ay vs steer (PSM off), speed held');
+for (const kmh of [60,100,150,200,250]) {
+  let line=[];let best=0,bi='';
+  for (let st=0.02; st<=0.6; st+=0.02) {
+    const {c,s,i}=make(); s.tc=false; rolling(s,kmh*KMH); i.steer=st;
+    let drs=0, ay=0,n=0;
+    for (let k=0;k<240*5;k++){ const e=kmh*KMH-s.u; i.throttle=Math.max(0,Math.min(0.94,0.25+e*0.15)); c.step(DT); if(s.drs)drs++; if(k>240*4){ay+=Math.abs(s.u*s.r);n++;} }
+    ay/=n; const beta=Math.atan2(s.v,s.u)*57.3;
+    if (ay/G>best && Math.abs(s.u-kmh*KMH)<1.5){best=ay/G;bi=`st ${(st*30).toFixed(1)}° β${beta.toFixed(1)} slipF ${s.slip[0].toFixed(2)}/${s.slip[1].toFixed(2)} slipR ${s.slip[2].toFixed(2)}/${s.slip[3].toFixed(2)} L ${s.load.map(x=>x.toFixed(0)).join('/')}`;}
+    line.push(`${(st*30).toFixed(0)}:${(ay/G).toFixed(2)}${Math.abs(s.u-kmh*KMH)>1.5?'*':''}`);
+  }
+  console.log(kmh, 'best', best.toFixed(2), bi); console.log('   ', line.join(' '));
+}

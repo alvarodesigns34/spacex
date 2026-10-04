@@ -1,0 +1,19 @@
+import * as THREE from 'three';
+
+const which = process.argv[2] ?? 'gt3rs';
+let root;
+if (which === 'gt3rs') { const { buildGt3rs } = await import('/home/user/spacex/src/vehicles/gt3rs.js'); const store = {}; const M = new Proxy(store, { get: (t, k) => (k in t ? t[k] : (typeof k === 'string' ? (t[k] = new THREE.MeshStandardMaterial({ name: k })) : undefined)), set: (t, k, v) => { t[k] = v; return true; } }); root = buildGt3rs(M); }
+else { const { buildH2r } = await import('/home/user/spacex/src/vehicles/h2r.js'); root = buildH2r({}); }
+if (root.then) root = await root;
+const rep = [];
+root.traverse(o => {
+  if (!o.geometry) return;
+  const g = o.geometry, p = g.attributes.position, n = g.attributes.normal;
+  let nanP = 0, nanN = 0, zeroN = 0, shortN = 0;
+  for (let i = 0; i < p.count; i++) {
+    if (![p.getX(i), p.getY(i), p.getZ(i)].every(Number.isFinite)) nanP++;
+    if (n) { const x = n.getX(i), y = n.getY(i), z = n.getZ(i); if (![x, y, z].every(Number.isFinite)) nanN++; else { const l = Math.hypot(x, y, z); if (l < 1e-6) zeroN++; else if (l < 0.5) shortN++; } }
+  }
+  if (nanP || nanN || zeroN || shortN) rep.push({ name: o.name, mat: o.material?.name, count: p.count, nanP, nanN, zeroN, shortN });
+});
+console.log(JSON.stringify(rep, null, 0).replace(/},/g, '},\n'));

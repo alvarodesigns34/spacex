@@ -1,0 +1,30 @@
+import { createServer } from 'node:http';
+import { staticHandler } from '/home/user/spacex/tools/static.mjs';
+import { chromium } from '/tmp/claude-0/-home-user-spacex/49448258-b837-551e-9b35-7fac201f56d4/scratchpad/bench/node_modules/playwright/index.mjs';
+import { bootAtQuality } from '/home/user/spacex/tools/census.mjs';
+const PORT = 8800 + Math.floor(Math.random() * 90);
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
+const server = createServer(staticHandler('/home/user/spacex', TYPES));
+await new Promise(r => server.listen(PORT, '127.0.0.1', r));
+const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox'] });
+const page = await (await browser.newContext({ viewport: { width: 800, height: 450 } })).newPage();
+try {
+  await bootAtQuality(page, `http://127.0.0.1:${PORT}/`, 'high');
+  const res = await page.evaluate(() => {
+    const v = window.__vc; const out = []; let meshes = 0, lit = 0;
+    v.scene.traverse(o => {
+      if (!o.isMesh || !o.geometry?.attributes?.normal) return; meshes++;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      if (!mats.some(m => m && !m.isMeshBasicMaterial && !m.isShaderMaterial)) return; lit++;
+      const g = o.geometry, p = g.attributes.position, n = g.attributes.normal, idx = g.index;
+      const tri = idx ? idx.count / 3 : p.count / 3; let bad = 0, nanV = 0;
+      const get = (k) => idx ? idx.getX(k) : k;
+      for (let t = 0; t < tri; t++) { for (let k = 0; k < 3; k++) { const i = get(3 * t + k); const x = n.getX(i), y = n.getY(i), z = n.getZ(i); if (!(Math.hypot(x, y, z) > 1e-6)) { bad++; break; } } }
+      for (let i = 0; i < p.count; i++) if (!Number.isFinite(p.getX(i) + p.getY(i) + p.getZ(i))) nanV++;
+      if (bad || nanV) { const path = []; let q = o; while (q && path.length < 4) { path.push(q.name || q.type); q = q.parent; } out.push([path.join('<'), bad, nanV, tri]); }
+    });
+    return { meshes, lit, bad: out.sort((a, b) => b[1] - a[1]) };
+  });
+  console.log('meshes', res.meshes, 'lit', res.lit, 'with zero/NaN-normal triangles', res.bad.length);
+  for (const r of res.bad) console.log(r.join('  '));
+} finally { await browser.close(); server.close(); }

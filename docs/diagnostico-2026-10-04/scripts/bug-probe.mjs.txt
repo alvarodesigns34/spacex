@@ -1,0 +1,51 @@
+// node probe.mjs <id> <dist> <el> <az> : find the NaN pixel(s) of that view and the mesh/material producing them.
+import { createServer } from 'node:http';
+import { staticHandler } from '/home/user/spacex/tools/static.mjs';
+import { chromium } from '/tmp/claude-0/-home-user-spacex/49448258-b837-551e-9b35-7fac201f56d4/scratchpad/bench/node_modules/playwright/index.mjs';
+import { bootAtQuality } from '/home/user/spacex/tools/census.mjs';
+const [id, dist, el, az] = [process.argv[2], +process.argv[3], +process.argv[4], +process.argv[5]];
+const PORT = 8800 + Math.floor(Math.random() * 90);
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png' };
+const server = createServer(staticHandler('/home/user/spacex', TYPES));
+await new Promise(r => server.listen(PORT, '127.0.0.1', r));
+const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox'] });
+const page = await (await browser.newContext({ viewport: { width: 800, height: 450 } })).newPage();
+page.on('pageerror', e => console.error('PAGEERROR', e.message));
+try {
+  await bootAtQuality(page, `http://127.0.0.1:${PORT}/`, 'high');
+  await page.evaluate(() => { document.getElementById('hud').style.display = 'none'; });
+  await page.evaluate((id) => window.__vc.jump(id, 'overview'), id); await page.waitForTimeout(2500);
+  const res = await page.evaluate(async ({ id, dist, el, az }) => {
+    const v = window.__vc; const THREE = await import('three');
+    const o = v.scene.getObjectByName(id); const c = new THREE.Vector3(); o.getWorldPosition(c);
+    const a = az * Math.PI / 180;
+    v.camera.position.set(c.x + dist * Math.sin(a), c.y + el * (dist / 2.5), c.z + dist * Math.cos(a));
+    v.camera.lookAt(c.x, c.y + 0.5, c.z); v.camera.updateMatrixWorld();
+    const r = v.renderer, sz = r.getDrawingBufferSize(new THREE.Vector2());
+    const frt = new THREE.WebGLRenderTarget(sz.x, sz.y, { type: THREE.FloatType });
+    const buf = new Float32Array(sz.x * sz.y * 4);
+    const nanPix = () => { r.setRenderTarget(frt); r.render(v.scene, v.camera); r.readRenderTargetPixels(frt, 0, 0, sz.x, sz.y, buf); r.setRenderTarget(null);
+      const out = []; for (let i = 0; i < buf.length; i += 4) if (!Number.isFinite(buf[i]) || !Number.isFinite(buf[i + 1]) || !Number.isFinite(buf[i + 2])) out.push([(i / 4) % sz.x, Math.floor(i / 4 / sz.x), buf[i], buf[i+1], buf[i+2], buf[i+3]]); return out; };
+    const base = nanPix();
+    if (!base.length) return { base };
+    // Pick: raycast through the first NaN pixel.
+    const [px, py] = base[0];
+    const ndc = new THREE.Vector2((px + 0.5) / sz.x * 2 - 1, (py + 0.5) / sz.y * 2 - 1);
+    const rc = new THREE.Raycaster(); rc.setFromCamera(ndc, v.camera);
+    const hits = rc.intersectObjects(v.scene.children, true).filter(h => h.object.visible).slice(0, 6).map(h => {
+      const m = Array.isArray(h.object.material) ? h.object.material[h.face?.materialIndex ?? 0] : h.object.material;
+      let path = []; let q = h.object; while (q && path.length < 6) { path.push(q.name || q.type); q = q.parent; }
+      return { d: +h.distance.toFixed(3), obj: path.join('<'), mat: m?.name, type: m?.type, transparent: m?.transparent, side: m?.side, face: h.faceIndex };
+    });
+    // Elimination: hide each visible mesh and see if the NaN goes.
+    const meshes = [...new Set(rc.intersectObjects(v.scene.children, true).filter(h => h.object.visible).map(h => h.object))];
+    const culprits = [];
+    for (const m of meshes) {
+      m.visible = false; const n = nanPix().length; m.visible = true;
+      if (n < base.length) { const mat = Array.isArray(m.material) ? m.material.map(x => x.name).join('|') : m.material?.name; let path = []; let q = m; while (q && path.length < 6) { path.push(q.name || q.type); q = q.parent; } culprits.push({ obj: path.join('<'), mat, left: n }); }
+      if (culprits.length > 8) break;
+    }
+    return { base: base.slice(0, 10), count: base.length, hits, culprits, meshes: meshes.length };
+  }, { id, dist, el, az });
+  console.log(JSON.stringify(res, null, 1));
+} finally { await browser.close(); server.close(); }

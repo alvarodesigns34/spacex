@@ -1,0 +1,7 @@
+import {make,rolling,KMH,DT,G,steerReach} from './common.mjs';
+const F=1/60;
+const {c,s,i}=make(); s.tc=false; rolling(s,240*KMH);
+const d={throttle:0,steer:0}; const ramp=(cur,t,r)=>cur+Math.max(-r*F,Math.min(r*F,t-cur));
+for(let t=0;t<4;t+=F){ d.steer=ramp(d.steer,steerReach(s,1),1.8); const thr=Math.max(0,Math.min(1,0.3+(240*KMH-s.u)*0.3)); d.throttle=ramp(d.throttle,thr,7); Object.assign(i,{throttle:d.throttle,steer:d.steer}); c.advance(F);
+ if (Math.round(t*60)%6===0) console.log(t.toFixed(2), `v ${(s.u*3.6).toFixed(0)} thr ${d.throttle.toFixed(2)} st ${(d.steer*30).toFixed(1)} β ${(Math.atan2(s.v,s.u)*57.3).toFixed(1)} r ${s.r.toFixed(2)} ay ${(s.ay/G).toFixed(2)} ax ${(s.ax/G).toFixed(2)} slip ${s.slip.map(x=>x.toFixed(2)).join('/')} L ${s.load.map(x=>x.toFixed(0)).join('/')} drs ${s.drs} kap ${s.kap[2].toFixed(3)} g${s.gear} rpm ${s.rpm.toFixed(0)} cl ${s.clutchLocked}`);
+ if (Math.abs(Math.atan2(s.v,s.u))>0.3) break; }

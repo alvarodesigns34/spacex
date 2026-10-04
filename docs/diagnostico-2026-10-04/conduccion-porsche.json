@@ -1,0 +1,142 @@
+{
+ "summary": "Read-only audit of the GT3 RS driving model: src/sim/gt3Car.js, gt3Assists.js, gt3Drive.js, gt3Sound.js, src/ui/gt3Hud.js, src/data/gt3rs.js and tools/gt3rs-check.mjs. All 48 checks in gt3rs-check.mjs pass (`node tools/gt3rs-check.mjs`, 2 s). The model meets the published straight-line numbers: 0-100 km/h 3.19 s, 0-160 6.90 s, 0-200 10.65 s, top speed 296.5 km/h, 100-0 braking 27.7 m (ams: 28.0 m), 200-0 99.7 m (ams: 97.0 m). The suite never tests handling balance, the driver inputs, the shift logic or the aero-state logic, and that is where the defects are. I measured them with headless scripts in /tmp/claude-0/-home-user-spacex/49448258-b837-551e-9b35-7fac201f56d4/scratchpad/diag/ (common.mjs, d1-d6.mjs; run with `node --import ../hooks.mjs dN.mjs`).\n\nWhat the measurements show:\n- **Keyboard steering asks for about twice the steering angle the grip can use**, so holding a key past the grip limit scrubs the fronts. It spins the car at 240 km/h with PSM off; with PSM on, the stability control brakes a wheel in every fast corner.\n- **Auto-DRS opens in the middle of a 1.6 g corner.** That takes away 55 % of the downforce at once.\n- **The PDK cuts drive completely for 0.1 s on every upshift**, has no kickdown, and has no part-throttle shift map: at 20 % throttle it never leaves 1st.\n- **The car is strongly limit-understeer.** The inner front wheel carries 0-325 N at 1.2 g, and the rears use only 30-50 % of their grip at the limit, so the throttle cannot steer the tail out of a corner.\n- **The differential is a single viscous term**, not the GT3 RS's electronically controlled lock (PTV Plus). The engine's inertia is also wrongly added to each rear wheel separately.\n- **Gamepad input is raw:** full lock at any speed, no speed sensitivity, no smoothing, no paddles, no rumble.\n- **Smaller issues:** the ABS chatters at about 22 Hz; the turning circle is 11.1 m against the published 10.5 m; the chase camera blend depends on frame rate; the head shake is random each frame; kerbs give no rumble.\n\nLateral grip is plausible: 1.21 g at 60 km/h, 1.34 g at 100, about 1.5 g at 150, about 1.65 g at 200 and 1.7 g at 240 with downforce. That matches \"about 1.5 g or more on track tyres\". The 6:49.328 Nordschleife lap cannot be checked: the repository has no Nordschleife geometry.",
+ "findings": [
+  {
+   "title": "Auto-DRS opens mid-corner at high speed (55% downforce loss at once)",
+   "severity": "critical",
+   "evidence": "gt3Car.js:208 `s.drs = input.throttle > 0.95 && Math.abs(input.steer) < 0.15 && s.u > 28 && input.brake === 0`. At 230 km/h a 1.5 g corner needs only about 2.6° at the wheels, which is 0.09 of the input range, under the 0.15 gate. d4.mjs A: 230 km/h, steer 0.09, full throttle → DRS on for 2.00 s of 2 s while pulling 1.60 g. In d1 at 250 km/h the PSM run's wheel loads summed about 3,400 N less than the PSM-off run; that matches DRS shedding downforce mid-corner (the run did not log DRS). gt3Car.js:214-215 also switch cdA and clA instantly, with no flap travel time. Keyboard drivers rarely hit this only because steerReach asks for 7.5°; gamepad drivers will hit it.",
+   "fix": "Gate DRS on lateral acceleration and yaw, and give the flap a travel time. Add `drsT: 0` to fresh(). Then: `const want = input.throttle>0.95 && Math.abs(s.ay)<AERO.drsLatG*G && Math.abs(s.steer)<0.035 && s.u>28 && input.brake===0; s.drsT = clamp(s.drsT + (want?1:-1)*dt/AERO.drsTime, 0, 1); s.drs = s.drsT>0.5;`. Blend: `cdA = lerp(AERO.cdAHigh*(airbrake?AERO.airbrakeCdFactor:1), AERO.cdA, s.drsT)` and `clA = AERO.clA*lerp(1, AERO.drsClFactor, s.drsT)`. Add to AERO (ESTIMATE ≈): `drsLatG: 0.3, drsTime: 0.3`. The flap in gt3Drive.js:401 should animate with s.drsT.",
+   "files": [
+    "src/sim/gt3Car.js",
+    "src/data/gt3rs.js",
+    "src/sim/gt3Drive.js"
+   ]
+  },
+  {
+   "title": "Keyboard steering (steerReach) asks for about 2x the usable steering angle; full key scrubs the fronts and spins the car at 240 km/h with PSM off",
+   "severity": "critical",
+   "evidence": "gt3Car.js:93 `grip = L*1.25*mu*G/u² * lat + ALPHA_PEAK*0.9*sqrt(lat)`. It adds the front peak slip angle (7.4°) but not the rear slip angle subtracted from it, ignores downforce, the rear-axle steering and the surface μ (gravel 0.45, wet), and carries a 1.25 fudge factor. d3.mjs, key held with throttle holding speed: reach 11.9° at 80 km/h, 9.1° at 120, 7.6° at 200, 7.5° at 240. The front load-weighted combined slip settles at 1.26-1.39 (peak = 1.0). With PSM the stability control brakes a wheel in every fast corner (2,545 Nm at 200, 4,705 Nm at 240). With PSM off at 240 km/h, β grows about 15°/s to a spin (d5.mjs). Where the grip limit actually is (d2.mjs): 7.2° at 100 km/h for 1.34 g, 3.6-4.4° at 150-200. On top of that, gt3Drive.js:278 ramps at a fixed 1.8/s in normalised units, so at 200 km/h (reach 0.25) full lock arrives in 0.14 s: effectively a step input.",
+   "fix": "Rewrite steerReach as feed-forward plus slip feedback. Feed-forward: `down = 0.5*AERO.rho*AERO.clA*u²*(s.drs?AERO.drsClFactor:1); muS = mean front ground mu (store s.muF in step()); ayMax = 0.95*TYRES.mu*muS*G*(1 + down/(CAR.m*G))*lat; dEff = CAR.L*ayMax/u² + TYRES.kUs*ayMax` (kUs ≈ 0.0029 rad per m/s², measured from d2: 3.6° at 1.08 g at 100 km/h). Correct for the rear steer: `kR = clamp((s.u-14)/14,-1,1); dF = dEff/(1 - kR*CAR.rearSteer/CAR.maxSteer)`. Feedback: in step(), keep `s.slipF = (slip0*load0 + slip1*load1)/(load0+load1)` and scale the reach by `clamp(1.25 - 0.5*s.slipF, 0.6, 1.1)`. Keep the counter-steer term. In gt3Drive.js:278 make the rate proportional to the reach: `const r0 = steerReach(s, 0); driver.steer = ramp(driver.steer, want, want ? clamp(r0/0.28, 0.5, 1.8) : clamp(r0/0.15, 0.8, 3.0));`, which reaches full lock in about 0.28 s at any speed.",
+   "files": [
+    "src/sim/gt3Car.js",
+    "src/sim/gt3Drive.js",
+    "src/data/gt3rs.js"
+   ]
+  },
+  {
+   "title": "PDK upshift is a full torque gap; no kickdown; no throttle-dependent shift map",
+   "severity": "high",
+   "evidence": "gt3Car.js:313 sets the throttle to zero through an upshift and gt3Car.js:329 sets the clutch capacity to zero (`if (shifting || held) cap = 0`), so the drive drops to nothing for 0.1 s. d4.mjs B, acceleration (g) before → lowest during the shift: 1→2 0.91→0.24, 2→3 0.60→0.14, 3→4 0.40→0.06, 4→5 0.25→-0.01. A real PDK hands torque from one clutch to the other with no gap. The automatic mode (gt3Car.js:371-372) upshifts only above 8,800 rpm at any throttle above 0.1, and downshifts only below 2,600 rpm. Measured (d4 C/D/E): WOT at 80 km/h in 7th → only 5th at 4,254 rpm, 80-120 takes 4.71 s; WOT at 120 km/h in 7th stays in 7th, 120-160 takes 6.98 s; throttle 0.2 from rest stays in 1st at about 8,500 rpm forever (72 km/h); throttle 0.3 at 120 km/h stays in 3rd at 7,367 rpm. There is also no hold on upshifts under lateral g.",
+   "fix": "(a) Seamless upshift: through `shiftDir>0`, keep the clutch slipping with `cap = CLUTCH.capacity` on the new ratio and cut the engine torque to `Te *= GEARBOX.upshiftCut` (≈0.4) while `we > wc + slipBand`. End the shift when `|we - wc| < slipBand` (so s.shift is a timeout, not a fixed gap); the inertia phase then lasts about 60-80 ms and produces a small shift kick. Keep the current blip and open clutch for downshifts. (b) Shift map: add a filtered pedal `s.thrF += (input.throttle - s.thrF)*min(1, 4*dt)`. Upshift when `rpmRoad > lerp(GEARBOX.upLight, GEARBOX.upshiftRpm, clamp((s.thrF-0.15)/0.75,0,1)**1.3)`. Downshift when `rpmWheel < (input.brake>0.1 ? GEARBOX.downshiftRpm : lerp(GEARBOX.downLight, 5200, s.thrF))`. No upshift while `|s.ay| > 0.6*G && s.thrF > 0.3`. (c) Kickdown when `input.throttle > 0.9` and the pedal rose more than 0.5 within 0.3 s, or rpm < 5,500: in one shift, jump to the lowest gear `g` with `rpm(g) < GEARBOX.kickdownRpm` (≈7,800) instead of one step per shift. Add to GEARBOX (ESTIMATE ≈): `upLight: 2800, downLight: 1300, kickdownRpm: 7800, upshiftCut: 0.4`. In gt3Sound.js:204 change the upshift load factor from 0.1 to GEARBOX.upshiftCut. After this, re-tune GEARBOX.efficiency (or the ≈ part of the torque curve) so 0-100/160/200 stay within ±5 %; the gap removal makes 0-200 quicker.",
+   "files": [
+    "src/sim/gt3Car.js",
+    "src/data/gt3rs.js",
+    "src/sim/gt3Sound.js"
+   ]
+  },
+  {
+   "title": "Handling balance: strong limit understeer, inner front unloaded, no throttle adjustability",
+   "severity": "high",
+   "evidence": "gt3Car.js:268-269 put 55 % of the lateral load transfer on the front of a 39/61 car. gt3Car.js:66 gives the rears 1.07 μ. gt3Car.js:409 uses mg/4 as the reference load for load sensitivity on both axles, so the 335 rears lose μ at their own static load. Measured steady state (d1/d2): inner front load 325 N at 60 km/h/1.21 g, 110 N at 100, 21 N at 150, 0 N at 200. At the limit the front normalised slip is 0.77-0.90 (on the flat top of the curve, magic(0.77) = 0.99) while the rears sit at 0.28-0.50: the front alone sets the limit. Exits with PSM off (d6.mjs 2 and 4): WOT in 2nd at 70 km/h, 1.22 g gives β max 2.9° and rear slip ratio 0.06; WOT in 2nd at 60 km/h never reaches 20° in 3 s (it shifts to 3rd instead). A 386 kW rear-drive car on Cup 2 R should step out there.",
+   "fix": "Move the transfer split into data: `SUSPENSION.rollShareFront: 0.46` (≈), and use `latF = m*ay*h*S.rollShareFront/tf` and `latR = m*ay*h*(1-S.rollShareFront)/tr`. Set AXLE_MU rear to 1.03. Use a per-axle nominal load: `Fz0 = i<2 ? mg*CAR.b/CAR.L/2 : mg*CAR.a/CAR.L/2`, then `mu *= 1 - TYRES.muLoadSens*(load[i]/Fz0 - 1)`. Optional (cornering stiffness that saturates with load): `alphaPk_i = AXLE_ALPHA[i]*(load[i]/Fz0)**0.25`. Re-run the PSM keyboard tests (80 km/h < 5°, braking from 150 km/h < 8°) after the steerReach fix. Expected shift in the d2 sweep: the limit moves to front about 1.0 / rear about 0.85, with roughly the same 1.25-1.35 g at 60-100 km/h.",
+   "files": [
+    "src/sim/gt3Car.js",
+    "src/data/gt3rs.js"
+   ]
+  },
+  {
+   "title": "Differential: a viscous term with a torque-proportional cap, not the GT3 RS's electronically controlled lock (PTV Plus), and the engine inertia added to each rear wheel",
+   "severity": "high",
+   "evidence": "gt3Car.js:386 `lock = clamp((w2-w3)*400, ±(250+0.45|driveT|))`. It is the same in drive and coast, has no electronic map (steering, lateral g, yaw rate, speed, throttle), no turn-in opening, and no brake torque vectoring on the inner rear. It is also explicit, at 400 Nm per rad/s against a 1.6 kg·m² rear wheel with dt = 1/240; only the implicit tyre damping keeps it stable. gt3Car.js:438 adds `reflected/2` (0.14·Gt², which is 35.8 kg·m² in 1st) to each rear wheel's own inertia. Physically the engine inertia acts only on the sum mode (Ie·Gt²/4 per wheel when one wheel moves alone, and zero on the difference mode). In 1st gear a single rear wheel therefore spins up about 11x more slowly than it should (17.9 against 1.6 kg·m²), which hides inner-wheel flare and over-damps traction-control events.",
+   "fix": "Add `DIFF` to data (ESTIMATE ≈): `{ preload: 40, drive: [0.25, 0.65], coast: [0.15, 0.45], kStiff: 2500, ptv: { maxBrake: 350, vMax: 150/3.6 } }`. Electronic map each step: `eL = lerp(lo, hi, f)` with f higher for throttle above 0.5 with |ay| above 3 m/s² (exit), and for u above 150 km/h (stability); lower on turn-in (steering rate above 0.2 rad/s and throttle below 0.3). The cap is `preload + eL*|driveT|`. Solve the rear axle jointly and implicitly. With `J = ENGINE.inertia*Gt²` when the clutch is locked (else 0) and `a_i = CAR.Iw[i] + dt*k_i*R + J/4`, `b = J/4`, the lock is a viscous coupling `kL = DIFF.kStiff` limited by the cap: solve `[a2+dt·kL, b-dt·kL; b-dt·kL, a3+dt·kL]·[Δw2, Δw3] = dt·[net2, net3]`. If the implied `|kL·(w2'-w3')|` exceeds the cap, re-solve with kL = 0 and ±cap added to the nets (a clutch slipping). This replaces gt3Car.js:438-439 for i = 2, 3: run the front wheels in the loop, then the rear pair. PTV: below vMax, on turn-in, PSM on or off, add `out.brake[inner rear] += min(ptv.maxBrake, 2000*|steer rate|)` in gt3Assists.js. Expose `s.diffLock` for the HUD.",
+   "files": [
+    "src/sim/gt3Car.js",
+    "src/sim/gt3Assists.js",
+    "src/data/gt3rs.js"
+   ]
+  },
+  {
+   "title": "Gamepad input is raw: full lock at any speed, deadzone step, no smoothing, no paddles or buttons, no rumble",
+   "severity": "high",
+   "evidence": "gt3Drive.js:282-283 `dz = x => |x|<0.08 ? 0 : x; driver.steer = -dz(axes[0])`. This bypasses steerReach and every ramp: 25 % stick at 240 km/h is 7.5° at the wheels, past the grip limit (3.5-4°). The deadzone is not rescaled, so the input jumps from 0 to 0.08. Only buttons 0, 6 and 7 are read. There are no paddles (LB/RB, buttons 4/5), no PSM, camera or DRS buttons, and no `vibrationActuator` feedback for kerbs, ABS or slides. When the stick re-enters the deadzone, the keyboard ramp returns the wheel at 3.0/s (0.33 s lag).",
+   "fix": "In readControls: `x = axes[0]; m = max(0, (|x|-0.06)/0.94); target = -sign(x)*m**1.6*steerReach(s, -sign(x)) + counter-steer allowance` (steerReach's dir handling already gives more lock toward the slide). Rate-limit it with the same speed-scaled ramp as the keyboard fix. Triggers: `throttle = b(7)**1.2`, `brake = b(6)` (keep the analog value). Add edge-detected buttons: 4 → paddle(-1), 5 → paddle(+1), 3 (Y) → cycleCamera, 2 (X) → setTraction / PSM mode cycle, 9 (start) → pause, 0 (A) → handbrake (analog where available). Rumble every 50 ms, guarded: `g.vibrationActuator?.playEffect?.('dual-rumble', { duration: 60, strongMagnitude: clamp(maxLoadedSlip-1, 0, 1), weakMagnitude: kerb ? 0.6 : s.abs ? 0.35 : 0 })`.",
+   "files": [
+    "src/sim/gt3Drive.js"
+   ]
+  },
+  {
+   "title": "Unloaded wheel produces phantom slip: tyre marks, smoke and squeal",
+   "severity": "medium",
+   "evidence": "With the inner front at about 0 N, nothing turns the wheel, so its speed lags the road (d6.mjs 1: load 31 N, wheel surface speed / road speed = 0.934, slip 1.15). Over 2 s at 60 km/h it showed load < 300 N with slip > 1.15 in 38 of 479 steps; in d3, at 40 km/h with full throttle, the inner front slip reached 3.65. The marks (gt3Drive.js:413), the smoke (gt3Drive.js:420) and the squeal (gt3Sound.js:216) all read s.slip[i] regardless of load. On reload, the wheel speed mismatch also gives a one-step force spike.",
+   "fix": "In step(), publish `s.slipFx[i] = load[i] > 0.12*Fz0 ? sl : 0` (or weight by `min(1, load/(0.3*Fz0))`). Use it in layMarks (also require `s.load[i] > 400`), in the smoke and in the gt3Sound squeal (`over = max over i of (slip_i-1)*min(1, load_i/3000)`). Give a near-unloaded wheel the road speed: `if (load[i] < 50) wn += (wx/R - wn)*min(1, dt*20)`.",
+   "files": [
+    "src/sim/gt3Car.js",
+    "src/sim/gt3Drive.js",
+    "src/sim/gt3Sound.js"
+   ]
+  },
+  {
+   "title": "ABS is a bang-bang controller chattering at about 22 Hz with deep pressure dumps",
+   "severity": "medium",
+   "evidence": "gt3Assists.js:250-256 releases at 30/s proportionally whenever slip ratio < -0.105 and recovers at 6/s linearly. d4.mjs G (140 km/h, full brake): front-left pressure share swings between 0.34 and 1.00, with 53 direction reversals in 1.2 s (about 22 Hz). The stopping distances still meet ams, but the brake force ripples and the ABS readout flickers, and keyboard braking (always brake = 1) is always in this regime.",
+   "fix": "Replace with a slip-target PI: `kT = -0.92*slipPeak*clamp(V/8, 0.6, 1); e = kap - kT; s.absI[i] = clamp(s.absI[i] + e*dt*40, -1, 0); s.absK[i] = clamp(1 + 6*e/slipPeak + s.absI[i], floor, 1)` while braking, with `absI: [0,0,0,0]` added to fresh(). Keep s.abs true while absK < 0.97. Keep the release floor.",
+   "files": [
+    "src/sim/gt3Assists.js",
+    "src/sim/gt3Car.js"
+   ]
+  },
+  {
+   "title": "Turning circle 11.1 m against the published 10.5 m",
+   "severity": "low",
+   "evidence": "d4.mjs I, full lock at 2 m/s: CG radius 4.26 m, outer front wheel circle 11.09 m (+5.6 %). maxSteer 30° and rearSteer 2° are ≈ (gt3Car.js:76-77). BODY.turningCircle (gt3rs.js:71, PUBLISHED) is not used anywhere in the model or the tests.",
+   "fix": "Tune maxSteer to about 31.5-32° (≈) so the outer-front-wheel circle at walking pace is within ±3 % of BODY.turningCircle, and add that test. Keep 14.1:1 on the cabin wheel (gt3Cabin.js:43), so lock-to-lock follows.",
+   "files": [
+    "src/sim/gt3Car.js"
+   ]
+  },
+  {
+   "title": "Tyre model leftovers: dead data, fixed relaxation, linear cornering stiffness",
+   "severity": "low",
+   "evidence": "TYRES.B, C, E, Bx, Cx, Ex (gt3rs.js:138-139) are never read. The model uses hard-coded MF_B = 2.36, MF_C = 1.35, SLIP_PEAK = 0.10 and ALPHA_PEAK = 0.13 (gt3Car.js:61-66). The relaxation length is a constant 0.35 m plus a +2 m/s fudge (gt3Car.js:419). Measured step steer at 100 km/h (d4 J): yaw rate reaches 63 % at 63 ms, 90 % at 108 ms, with 4.4 % overshoot. That is quick for a road car (≈ t90 0.15-0.25 s) and adds to the keyboard twitchiness. Cornering stiffness grows linearly with load.",
+   "fix": "Move MF_B, MF_C, SLIP_PEAK, ALPHA_PEAK and AXLE_* into TYRES and delete the unused fields. Make the relaxation length depend on load: `sigma = TYRES.relaxation*sqrt(clamp(load/Fz0, 0.3, 2))` with relaxation ≈ 0.5 m, and use `(|wx| + 2*clamp(1-|wx|/3, 0, 1))` so the low-speed term vanishes above 3 m/s. Add the load exponent on alphaPk from the balance finding. Add a test for yaw-rate t90 at 100 km/h with a 3° step in 0.12-0.22 s (≈).",
+   "files": [
+    "src/data/gt3rs.js",
+    "src/sim/gt3Car.js"
+   ]
+  },
+  {
+   "title": "Cameras: chase heading blend depends on frame rate and does not filter; head shake is per-frame white noise",
+   "severity": "low",
+   "evidence": "gt3Drive.js:322 resets _f from psi every frame, then gt3Drive.js:364 `_f.lerp(_look, 0.55)` is a fixed mix, not a filter, so the camera heading snaps with every yaw change. gt3Drive.js:338 adds `Math.random()` shake each frame, so its spectrum changes with frame rate (at 144 Hz it is a fizz). The driver camera fully inherits the body roll and pitch (sprung.localToWorld), with no horizon stabilisation.",
+   "fix": "Keep a persistent `camDir` vector: `camDir.lerp(velocityDir or noseDir, 1 - exp(-dt*6)).normalize()`. Drive the shake from road input: keep `s.travelV[i]` (the change in s.travel per step) and use `amp = 0.02*rms(travelV)` plus a deterministic two-sine engine buzz at the firing frequency × 0.0002. Level the horizon partly: after lookAt, `camera.rotateZ(-0.5*(s.br + s.roll))`.",
+   "files": [
+    "src/sim/gt3Drive.js",
+    "src/sim/gt3Car.js"
+   ]
+  },
+  {
+   "title": "Kerbs and surfaces give almost no feedback",
+   "severity": "low",
+   "evidence": "The kerb is a flat 3 cm step with μ 0.9 (circuit.js:20, 68; main.js:717). Sound has no kerb rumble: gt3Sound.js:217 only switches gravel or grass on the rear surface. The head shake (gt3Drive.js:334) is a random amplitude.",
+   "fix": "Without inventing new kerb geometry: return the kerb stripe phase from circuitSurface (`stripe: (t.s % stripeLen)/stripeLen`, using the stripe length circuit.js already uses to paint) and pass it through gt3Ground. In gt3Sound add a rumble layer, a filtered square wave at `speed/stripeLen` Hz with gain set by the number of wheels on kerb. Feed the same into the camera shake and the gamepad rumble.",
+   "files": [
+    "src/core/circuit.js",
+    "src/main.js",
+    "src/sim/gt3Sound.js",
+    "src/sim/gt3Drive.js"
+   ]
+  },
+  {
+   "title": "PSM is a single on/off toggle; the direct yaw moment of the drift aid is not physical",
+   "severity": "low",
+   "evidence": "gt3Drive.js:234 toggles s.tc, which switches TC and ESC together. The GT3 RS lets the driver turn off ESC and TC separately (it has steering-wheel rotary controls for TC and diff lock). gt3Car.js:383 `s.r += aid.yaw/CAR.Iz*dt` adds a free yaw moment (the drift aid's).",
+   "fix": "Add `s.psmMode` ('on' | 'escOff' | 'off'), cycled by T. tractionControl stays active in escOff; stability only in 'on'. Add HUD lamps and README text. Keep the drift aid but mark it as an aid, or replace its direct yaw with extra outer-front braking only.",
+   "files": [
+    "src/sim/gt3Drive.js",
+    "src/sim/gt3Assists.js",
+    "src/ui/gt3Hud.js"
+   ]
+  }
+ ],
+ "plan": "Order of work. Run `npm run check:static` before each commit, and the full `npm run check` at the end. Every new constant goes into src/data/gt3rs.js tagged ESTIMATE ≈. Update README (in Spanish) with each change; the current README says 0-100 3.25 s while the model now gives 3.19 s. New tests go in tools/gt3rs-check.mjs with Spanish labels, reusing its make/rolling/drive helpers.\n\nP0-1 DRS gate and flap travel (gt3Car.js:207-217, gt3Drive.js:401, AERO.drsLatG 0.3 and drsTime 0.3).\n- Test: 230 km/h, steer 0.09 held, full throttle, 2 s → s.drsT stays at 0 while |ay| > 1.2 g.\n- Test: straight at 200 km/h with full throttle → DRS opens within 0.5 s.\n- The top-speed test must still give 296 ± 4 km/h.\n\nP0-2 steerReach rewrite (gt3Car.js:89-98) and speed-scaled ramp (gt3Drive.js:278).\n- New data: TYRES.kUs 0.0029 rad per m/s² (≈); store s.muF and s.slipF in step().\n- Update the drive() helper in gt3rs-check.mjs:168 to the same ramp.\n- Test: key held, throttle holding speed, at 60/100/160/220 km/h on flat track → load-weighted front slip in the last second between 0.85 and 1.12; with PSM on, |s.esc| < 800.\n- Test: on flat(0.45, 0.22, 'gravel') at 60 km/h → front slip < 1.2.\n- Test: at 240 km/h with PSM off and the key held, β < 6°.\n- The existing PSM tests must stay green.\n\nP0-3 Gamepad (gt3Drive.js:279-289): shaped stick through steerReach and the ramp; analog pedals; edge-triggered buttons 2/3/4/5/9; guarded rumble.\n- Make this testable without a browser: extract `gamepadToDriver(g, s, prev, dt)` as an exported pure function, then test it with a stubbed gamepad object.\n- Test: at 200 km/h a full stick asks no more than steerReach.\n- Test: deadzone continuity, |steer| < 0.01 at an axis of 0.07 and 0.09.\n- Test: buttons 4/5 queue paddle pulls.\n\nP1-4 Seamless upshift (gt3Car.js:308-348; GEARBOX.upshiftCut 0.4; gt3Sound.js:204).\n- Test: during each full-throttle upshift from 1→2 to 4→5, the lowest ax stays above 0.6 × the ax just before the shift, and the shift ends (s.shift ≤ 0 with the clutch locked) within 0.15 s.\n- Re-tune GEARBOX.efficiency until 0-100/160/200 are back within ±5 %; aim for ±2 %.\n\nP1-5 Shift map and kickdown (gt3Car.js:365-373; GEARBOX.upLight 2800, downLight 1300, kickdownRpm 7800; s.thrF added to fresh() so the reset test still passes).\n- Test: throttle 0.2 from rest → upshifts below 4,000 rpm and reaches at least 5th by 60 s.\n- Test: WOT at 80 km/h in 7th → at least 3 gears down in a single shift within 0.3 s; 80-120 km/h < 2.6 s (≈, not published).\n- Test: 0.3 throttle at 120 km/h → gear ≥ 5 within 5 s.\n- Test: no upshift while |ay| > 0.6 g at 0.6 throttle.\n\nP1-6 Balance (gt3Car.js:66, 268-269, 409; SUSPENSION.rollShareFront 0.46).\n- Test: 100 km/h steady-state sweep (copy d2.mjs) → at the best steer, front slip ≥ 0.8 and rear slip ≥ 0.65.\n- Test: at 1.2 g the inner front load is ≥ 15 % of its static load.\n- Test: understeer gradient (measured steer − L·ay/u²)/ay between 0.8 and 1.8 °/g.\n- Test: 60 km/h in 2nd, steer 0.3, PSM off, WOT → β > 15° within 1.5 s; with PSM on, β < 8°.\n- Re-run all keyboard tests.\n\nP1-7 Unloaded-wheel slip (gt3Car.js:443-444; gt3Drive.js:413, 420; gt3Sound.js:216).\n- Test: 60 km/h steady corner with throttle 0.6 → no wheel with load < 300 N reports slipFx > 1.15.\n\nP1-8 PTV Plus differential (gt3Car.js:385-387 and 427-442 restructured; DIFF table; PTV brake in gt3Assists.stability).\n- Test (split-μ launch): left ground μ 1, right 0.5, PSM on → 0-100 km/h < 4.5 s and |yaw| < 0.05 rad/s.\n- Test (one wheel in the air, 1st gear, clutch locked): that wheel's angular acceleration is within 10 % of `(0.5*Te*Gt*eff - lock)/(Iw + J/4)`.\n- Test (turn-in at 80 km/h, throttle 0.2): yaw rate after 0.3 s is higher with PTV than without.\n- Test: lift-off at 150 km/h, 1.4 g → β < 6° (coast lock adds stability).\n- Test: the existing drift and spin tests still pass.\n\nP2-9 ABS slip PI (gt3Assists.js:249-257; absI added to fresh()).\n- Test: 140 km/h full brake → fewer than 15 reversals of front-left absK per second, and absK stays within 0.55-1.\n- 100-0 must stay at 28.0 m ± 5 % and 200-0 at 97.0 m ± 5 %.\n\nP2-10 Tyre cleanup and load-dependent relaxation (gt3rs.js:135-142, gt3Car.js:61-66, 409-421).\n- Test: step steer of 3° at 100 km/h → yaw t90 between 0.12 and 0.22 s, overshoot < 15 %.\n\nP2-11 maxSteer tuned to the published 10.5 m turning circle.\n- Test: outer-front-wheel circle at 2 m/s within ±3 % of BODY.turningCircle.\n\nP2-12 Cameras (gt3Drive.js:322-376).\n- Test: run placeCamera headless at 30 fps and at 144 fps on the same recorded state trace; camera heading differs by < 1° after 2 s.\n\nP2-13 Kerb rumble.\n- circuit.js returns the stripe phase; main.js gt3Ground passes it through; gt3Sound adds a rumble layer; the camera and gamepad rumble use it.\n- The render checks must keep the material count ≤ 290 (no new materials needed).\n\nP2-14 PSM modes (on / ESC off / off), with HUD lamps and a test on each mode.\n\nP3 lap-time regression: add tools/gt3rs-lap.mjs.\n- Run the car round the in-scene 2,505.5 m circuit (core/circuitPlan CENTRE) with a pure-pursuit driver on the vehicle model, PSM on, and record the lap time and the g-g-V envelope (peak lateral g at 60/100/150/200/250 km/h). Use it as a regression guard, ±1 %.\n- The Nordschleife 6:49.328 (Porsche's official time over 20.832 km, an average of 183.3 km/h) cannot be checked without a licensed centreline and elevation profile. Do not add one unless the user approves a source.\n- Reference envelope from this audit: 1.21 / 1.34 / about 1.5 / about 1.65 / about 1.7 g at 60 / 100 / 150 / 200 / 240 km/h. Braking: 1.80 g at 200 km/h, 1.49 g at 100.\n\nDiagnostic scripts to reuse: /tmp/claude-0/-home-user-spacex/49448258-b837-551e-9b35-7fac201f56d4/scratchpad/diag/common.mjs and d1.mjs-d6.mjs (run with `node --import ../hooks.mjs dN.mjs` from that folder)."
+}

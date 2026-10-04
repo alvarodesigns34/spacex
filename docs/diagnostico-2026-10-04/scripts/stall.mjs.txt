@@ -1,0 +1,6 @@
+const { createH2rBike } = await import('/home/user/spacex/src/sim/h2rBike.js');
+const b=createH2rBike({ground:()=>({h:0,mu:1,roll:0,kind:'track'})}); const s=b.state; b.reset();
+for(let i=0;i<5;i++){ b.input.shiftUp=true; for(let k=0;k<30;k++) b.step(1/240); }
+console.log('gear',s.gear+1,'rpm',s.rpm.toFixed(0),'manual',s.manual);
+b.input.throttle=1; let t=0; while(t<10){b.step(1/240);t+=1/240;} console.log('after 10s full thr in 6th from stop: kmh',(s.u*3.6).toFixed(0),'rpm',s.rpm.toFixed(0));
+b.input.throttle=0; b.input.brake=1; t=0; while(t<10){b.step(1/240);t+=1/240;} console.log('stopped: kmh',(s.u*3.6).toFixed(1),'gear',s.gear+1,'rpm',s.rpm.toFixed(0));

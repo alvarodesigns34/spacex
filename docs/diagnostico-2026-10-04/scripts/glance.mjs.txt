@@ -1,0 +1,6 @@
+const { createH2rBike, BIKE } = await import(process.argv[2]);
+const DT=1/240; for (const ang of [3,5,8,12,20]) for (const kmh of [60,100,150]) {
+ const posts=[]; for(let x=0;x<400;x+=0.25) posts.push({x,z:-3,r:0.15}); // wall along x at z=-3 (right side when psi=0? z positive right)
+ const b=createH2rBike({ground:()=>({h:0,mu:1,roll:0,kind:'track'}),obstacles:()=>posts}); const s=b.state; b.reset({x:5,z:0,psi:ang*Math.PI/180}); s.u=kmh/3.6; s.wR=s.u/BIKE.RR; s.gear=3; b.input.throttle=0.3;
+ for(let k=0;k<240*4&&!s.crashed;k++) b.step(DT);
+ console.log('angle',ang,'kmh',kmh, s.crashed?s.crashed.why:'ok', (s.u*3.6).toFixed(0)); }
