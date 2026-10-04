@@ -21,6 +21,8 @@
  * h2r-swingarm (about the pivot); the dash's face redraws through its userData.draw.
  */
 import * as THREE from 'three';
+import { applyDetail } from '../materials/detail.js';
+import { buildEngine as buildEngineParts } from './h2rEngine.js';
 import { buildTank, buildSeatTail, buildFairing3 as buildFairing, buildDecals, PXY } from './h2rBody.js';
 import { T, AXLE_F, AXLE_R, PIVOT, STEER_AXIS, STEER_GROUND, RR, RF, D2R, TAU, segMatrix, slab, loft, mergeAll, mesh, partMaterials, buildWheel, stylema, canvasTexture } from './h2rParts.js';
 
@@ -45,7 +47,27 @@ export function buildH2r(M) {
   root.updateMatrixWorld(true);
   root.add(buildDecals(fairing.userData.panel, tank.getObjectByName('h2r-tank-top'), root.getObjectByName('h2r-tail')));
   root.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  detailH2r(M);
   return root;
+}
+
+/**
+ * What each material is made of, close up (materials/detail.js; tile sizes and strengths ≈,
+ * against the photographs): the tyres' rubber, the cast cases and sump, the brushed and machined
+ * aluminium, the satin and powder-coated black, the seat's grain, the carbon's twill, the orange
+ * peel under the mirror coat's and the frame's clear coats.
+ */
+function detailH2r(M) {
+  const D = (m, kind, o) => m && applyDetail(m, kind, o);
+  D(M.h2rTyre, 'rubber', { size: 0.012, normal: 0.8, rough: 0.35 });
+  D(M.h2rRubber, 'rubber', { size: 0.01, normal: 0.8, rough: 0.35 });
+  for (const k of ['h2rSatin', 'h2rSatin2', 'h2rBlack2', 'h2rChain', 'h2rMeshDark']) D(M[k], 'stipple', { size: 0.008, normal: 0.6, rough: 0.25 });
+  for (const k of ['h2rEngine', 'h2rCaseGrey', 'h2rCast', 'h2rCaliper']) D(M[k], 'cast', { size: 0.018, normal: 0.8, rough: 0.35 });
+  for (const k of ['h2rAlu', 'h2rMachined', 'h2rTi', 'h2rPlenum']) D(M[k], 'brushed', { size: 0.03, normal: 0.35, rough: 0.3 });
+  for (const k of ['h2rDiscF', 'h2rDiscR']) D(M[k], 'brushed', { size: 0.015, normal: 0.6, rough: 0.35 });
+  D(M.h2rSeat, 'grain', { size: 0.02, normal: 1, rough: 0.4 });
+  D(M.h2rCarbon, 'twill', { size: 0.032, normal: 0.6, rough: 0.2, color: 0.85 });
+  for (const k of ['h2rChrome', 'h2rChrome2', 'h2rGreen', 'h2rRim', 'h2rBlack', 'h2rRedAnod']) D(M[k], 'peel', { size: 0.06, normal: 0.18, rough: 0.1 });
 }
 
 function bremboDecal() {
@@ -182,7 +204,30 @@ function buildSwingarm(M) {
     return [[A[0], A[1], zi], [A[0], A[1], zo + 0.02], [A[0], A[1] - 0.02, zo], [B[0], B[1] + 0.02, zo], [B[0], B[1], zo + 0.02], [B[0], B[1], zi]];
   });
   M.h2rSatin2 ??= M.h2rSatin.clone(); M.h2rSatin2.side = THREE.DoubleSide; M.h2rSatin2.name = 'h2r-satin-black-2s';
-  inner.add(mesh(loft(secs, { steps: 4, creaseDeg: 40 }), M.h2rSatin2, { name: 'h2r-swingarm-beam' }));
+  void secs;
+  // The arm, cast, dark grey satin (the photographs with the bodywork off): a box-section upper
+  // beam from the pivot, rising a little and falling to the hub; a lower beam closing the
+  // triangle; a web between them with a shallow recess; the eccentric hub carrier on its end
+  // (≈ sections from the photographs; the pivot and the axle are the model's).
+  M.h2rEngine ??= new THREE.MeshStandardMaterial({ name: 'h2r-engine', color: 0x34363a, metalness: 0.35, roughness: 0.52 });
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  const hub = AXLE_R;
+  const arm = [];
+  arm.push({ geometry: boxBeam([V(PIVOT.x, PIVOT.y + 0.02, -0.11), V(-0.3, 0.405, -0.112), V(-0.5, 0.395, -0.115), V(hub.x + 0.06, hub.y + 0.05, -0.118)], (t) => 0.075 - 0.02 * t, (t) => 0.055 - 0.01 * t) });
+  arm.push({ geometry: boxBeam([V(PIVOT.x - 0.01, PIVOT.y - 0.04, -0.11), V(-0.36, 0.265, -0.113), V(hub.x + 0.07, hub.y - 0.045, -0.118)], (t) => 0.045 - 0.01 * t, (t) => 0.045) });
+  {
+    // The web between the beams, a little inboard, with its recess (a thinner panel inside a frame).
+    const web = [[PIVOT.x - 0.04, PIVOT.y], [-0.3, 0.385], [-0.5, 0.375], [hub.x + 0.11, hub.y + 0.02], [hub.x + 0.11, hub.y - 0.02], [-0.36, 0.285], [PIVOT.x - 0.05, PIVOT.y - 0.03]];
+    const wg = slab(web, 0.012, 0.004, 2); wg.translate(0, 0, -0.122); arm.push({ geometry: wg });
+    const c = web.reduce((a, p) => [a[0] + p[0] / web.length, a[1] + p[1] / web.length], [0, 0]);
+    const inset = web.map(([x, y]) => [c[0] + (x - c[0]) * 0.72, c[1] + (y - c[1]) * 0.62]);
+    const ig = slab(inset, 0.004, 0.002, 1); ig.translate(0, 0, -0.13); arm.push({ geometry: ig });
+  }
+  // The hub carrier: the eccentric's housing round the axle, and its pinch bolts.
+  arm.push({ geometry: (() => { const h = new THREE.CylinderGeometry(0.072, 0.072, 0.05, 48); h.rotateX(Math.PI / 2); h.translate(hub.x, hub.y, -0.125); return h; })() });
+  arm.push({ geometry: (() => { const h = new THREE.TorusGeometry(0.072, 0.005, 10, 48); h.translate(hub.x, hub.y, -0.15); return h; })() });
+  for (const dy of [-0.03, 0.03]) arm.push({ geometry: (() => { const b = new THREE.CylinderGeometry(0.007, 0.007, 0.03, 6); b.translate(hub.x + 0.075, hub.y + dy, -0.125); return b; })() });
+  inner.add(mesh(mergeAll(arm), M.h2rEngine, { name: 'h2r-swingarm-beam' }));
   // The chain guard over the top run, and the hugger over the tyre.
   const cg = slab([PXY(895, 546), PXY(1090, 548), PXY(1080, 556), PXY(905, 558)], 0.07, 0.002); cg.translate(0, 0, -0.145);
   inner.add(mesh(cg, M.h2rSatin, { name: 'h2r-chain-guard' }));
@@ -191,7 +236,7 @@ function buildSwingarm(M) {
   for (let i = 0; i <= 10; i++) { const a = (62 + 50 * i / 10) * D2R, r = RR + 0.014; hugS.push([[AXLE_R.x + Math.cos(a) * r, AXLE_R.y + Math.sin(a) * r, -0.1], [AXLE_R.x + Math.cos(a) * (r + 0.006), AXLE_R.y + Math.sin(a) * (r + 0.006), 0.0], [AXLE_R.x + Math.cos(a) * r, AXLE_R.y + Math.sin(a) * r, 0.1]]); }
   inner.add(mesh(loft(hugS, { steps: 2 }), M.h2rSatin2, { name: 'h2r-hugger' }));
   // The chain, from the gearbox sprocket to the wheel's.
-  const front = T(-790, 362, -0.105), back = AXLE_R.clone().setZ(-0.105);
+  const front = T(-790, 362, -0.165), back = AXLE_R.clone().setZ(-0.165);
   const r0 = 0.046, r1 = 0.106, pts = [];
   const dir = new THREE.Vector3().subVectors(back, front).normalize(), nrm = new THREE.Vector3(-dir.y, dir.x, 0);
   const arc = (c, r, a0, a1) => { for (let i = 0; i <= 20; i++) { const a = a0 + (a1 - a0) * i / 20; pts.push(c.clone().addScaledVector(dir, Math.cos(a) * r).addScaledVector(nrm, Math.sin(a) * r)); } };
@@ -202,6 +247,37 @@ function buildSwingarm(M) {
   const rc = stylema(M, null); rc.scale.set(0.75, 0.75, 0.75); rc.position.set(AXLE_R.x + 0.02, AXLE_R.y - 0.105, 0.075); rc.rotation.z = Math.PI;
   inner.add(rc);
   return g;
+}
+
+/** A cast beam of rounded box section (height h(t), width w(t), t 0..1 along it) along points. */
+function boxBeam(points, h, w, segs = 40) {
+  const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal');
+  const secs = [];
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs, p = curve.getPoint(t), tan = curve.getTangent(t);
+    const side = new THREE.Vector3(0, 0, 1), up = side.clone().cross(tan).normalize(), across = tan.clone().cross(up).normalize();
+    const sec = [];
+    for (let k = 0; k < 20; k++) {
+      const a = k / 20 * TAU, c = Math.cos(a), sn = Math.sin(a), e = 0.32;
+      sec.push(p.clone().addScaledVector(up, Math.sign(sn) * Math.abs(sn) ** e * h(t) / 2).addScaledVector(across, Math.sign(c) * Math.abs(c) ** e * w(t) / 2).toArray());
+    }
+    sec.push(sec[0]);
+    secs.push(sec);
+  }
+  const g = loft(secs, { steps: 1, creaseDeg: 70 });
+  // The ends closed.
+  const parts = [{ geometry: g.index ? g.toNonIndexed() : g }];
+  for (const [i, sgn] of [[0, -1], [secs.length - 1, 1]]) {
+    const ring = secs[i], c = ring.slice(0, -1).reduce((a, p) => a.map((v, k) => v + p[k] / (ring.length - 1)), [0, 0, 0]);
+    const pos = [], idx = [];
+    pos.push(...c); ring.slice(0, -1).forEach(p => pos.push(...p));
+    for (let k = 1; k < ring.length - 1; k++) { const a = k, b = k + 1 > ring.length - 1 ? 1 : k + 1; if (sgn > 0) idx.push(0, a, b); else idx.push(0, b, a); }
+    idx.push(...(sgn > 0 ? [0, ring.length - 1, 1] : [0, 1, ring.length - 1]));
+    const cap = new THREE.BufferGeometry(); cap.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); cap.setIndex(idx);
+    const capN = cap.toNonIndexed(); capN.computeVertexNormals();
+    parts.push({ geometry: capN });
+  }
+  return mergeAll(parts);
 }
 
 // ---- The trellis --------------------------------------------------------------------------------
@@ -247,90 +323,35 @@ function buildFrame(M) {
     if (pts.length === 2) items.push({ geometry: cyl, matrix: segMatrix(pts[0], pts[1], r) });
     else items.push({ geometry: new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'centripetal'), 48, r, 14) });
   }
+  // The nodes' bosses, welded into the tubes (round, ≈34 mm across, as the photographs show), each
+  // with the bolt it carries on its outer face (the engine's and the brackets' mounts).
+  const boltItems = [];
   for (const b of bosses) {
-    const c = new THREE.CylinderGeometry(0.021, 0.021, 0.04, 20); c.rotateX(Math.PI / 2); c.translate(b.x, b.y, b.z);
+    const s = Math.sign(b.z) || 1;
+    const c = new THREE.CylinderGeometry(0.017, 0.0185, 0.03, 28); c.rotateX(Math.PI / 2); c.translate(b.x, b.y, b.z);
     items.push({ geometry: c });
+    // The weld's fillet round the boss.
+    const w = new THREE.TorusGeometry(0.0185, 0.0035, 8, 28); w.translate(b.x, b.y, b.z - s * 0.012);
+    items.push({ geometry: w });
+    const hb = new THREE.CylinderGeometry(0.0075, 0.0075, 0.007, 6); hb.rotateX(Math.PI / 2); hb.translate(b.x, b.y, b.z + s * 0.018);
+    boltItems.push({ geometry: hb });
+    const wa = new THREE.CylinderGeometry(0.011, 0.011, 0.0015, 24); wa.rotateX(Math.PI / 2); wa.translate(b.x, b.y, b.z + s * 0.0152);
+    boltItems.push({ geometry: wa });
   }
   // The head tube on the steering axis.
   // (From just over the bottom clamp to just under the top one: it no longer stands through the
   // top clamp, where the rider saw its green end as a disc.)
   items.push({ geometry: new THREE.CylinderGeometry(1, 1, 1, 24), matrix: segMatrix(headBot.clone().addScaledVector(STEER_AXIS, -0.045), headTop.clone().addScaledVector(STEER_AXIS, 0.005), 0.03) });
   g.add(mesh(mergeAll(items), M.h2rGreen, { name: 'h2r-trellis' }));
+  g.add(mesh(mergeAll(boltItems), M.h2rMachined, { name: 'h2r-trellis-bolts' }));
   return g;
 }
 
 // ---- The engine ------------------------------------------------------------------------------------
-/** A side profile in the side photograph's pixels, extruded across the bike between z0 and z1. */
-function blockPx(profile, z0, z1, bevel = 0.008) {
-  const pts = profile.map(([u, v]) => PXY(u, v));
-  const g = slab(pts, Math.max(0.001, z1 - z0 - 2 * bevel), bevel, 2);
-  g.translate(0, 0, z0 + bevel);
-  return g;
-}
 function lathe(points, segs = 48) { return new THREE.LatheGeometry(points.map(([r, y]) => new THREE.Vector2(r, y)), segs); }
-/** A round engine cover: a shallow dome with a stepped rim, its axis across the bike, facing out. */
-function cover(u, v, z, r, depth, side) {
-  const g = lathe([[0, depth], [r * 0.55, depth * 0.96], [r * 0.85, depth * 0.8], [r * 0.95, depth * 0.55], [r, depth * 0.45], [r * 1.04, 0.004], [r * 1.04, 0]], 56);
-  g.rotateX(side * Math.PI / 2);
-  const [x, y] = PXY(u, v);
-  g.translate(x, y, z);
-  return g;
-}
-/**
- * The supercharged 998 cm³ four (traced on both side photographs, LS and the right side mirrored;
- * its shape out of the bike from Kawasaki's photographs of it): the crankcase with the generator
- * and sprocket covers on the left, the clutch and pickup covers on the right, the cylinders and head
- * leaning forward, the sump, the aluminium intake chamber on top, and the supercharger behind the
- * cylinders on the left, red, fed by the ram-air duct.
- */
+/** The engine (h2rEngine.js) and the ram-air duct that feeds its supercharger. */
 function buildEngine(M) {
-  M.h2rEngine ??= new THREE.MeshStandardMaterial({ name: 'h2r-engine', color: 0x232427, metalness: 0.6, roughness: 0.48 });
-  M.h2rCaseGrey ??= new THREE.MeshStandardMaterial({ name: 'h2r-case-grey', color: 0x55585d, metalness: 0.5, roughness: 0.6 });
-  M.h2rRedAnod ??= new THREE.MeshStandardMaterial({ name: 'h2r-red-anodised', color: 0x8c1d12, metalness: 0.7, roughness: 0.35 });
-  M.h2rPlenum ??= new THREE.MeshStandardMaterial({ name: 'h2r-intake-chamber', color: 0xbfc3c8, metalness: 0.9, roughness: 0.32 });
-  // The cylinder block, head and sump are bare cast aluminium, light; the covers charcoal (the
-  // right-side photograph and those with the fairing off).
-  M.h2rCast ??= new THREE.MeshStandardMaterial({ name: 'h2r-cast-aluminium', color: 0xa9adb2, metalness: 0.75, roughness: 0.5 });
-  const g = new THREE.Group(); g.name = 'h2r-engine';
-  const dark = [], grey = [], bright = [], cast = [];
-  // Crankcase and gearbox.
-  dark.push({ geometry: blockPx([[498, 520], [497, 598], [510, 638], [540, 658], [600, 662], [690, 658], [718, 640], [726, 560], [722, 505], [650, 490], [560, 492]], -0.15, 0.15, 0.012) });
-  // Cylinders and head, leaning forward, under the duct and the intake chamber.
-  cast.push({ geometry: blockPx([[498, 525], [474, 440], [470, 405], [500, 390], [565, 392], [610, 430], [640, 500]], -0.18, 0.18, 0.012) });
-  // The sump (cast) under the crankcase.
-  cast.push({ geometry: blockPx([[583, 657], [690, 652], [684, 712], [640, 725], [600, 722], [588, 690]], -0.085, 0.085, 0.006) });
-  // Covers: generator and sprocket on the left; on the right the clutch cover, a charcoal ring
-  // (r ≈0.092 m) round a raised dished disc (r ≈0.063 m) centred at (−0.025, 0.484) m, and the
-  // pickup cover (r ≈0.03 m) at (0.115, 0.44) m (the right-side photograph through its camera).
-  dark.push({ geometry: cover(583, 578, -0.15, 0.072, 0.03, -1) });
-  dark.push({ geometry: cover(673, 573, -0.15, 0.058, 0.024, -1) });
-  dark.push({ geometry: cover(654.6, 538.7, 0.15, 0.092, 0.035, 1) });
-  grey.push({ geometry: cover(654.6, 538.7, 0.18, 0.063, 0.018, 1) });
-  grey.push({ geometry: cover(576.3, 563.3, 0.15, 0.03, 0.016, 1) });
-  for (const [u, v, z, r, n] of [[583, 578, -0.154, 0.08, 10], [673, 573, -0.154, 0.065, 8], [654.6, 538.7, 0.154, 0.1, 14], [576.3, 563.3, 0.154, 0.036, 4]]) {
-    const [x, y] = PXY(u, v);
-    for (let k = 0; k < n; k++) {
-      const a = (k / n) * TAU + 0.2, b = new THREE.CylinderGeometry(0.0055, 0.0055, 0.012, 6); b.rotateX(Math.PI / 2);
-      b.translate(x + Math.cos(a) * r, y + Math.sin(a) * r, z); bright.push({ geometry: b });
-    }
-  }
-  // The oil filler cap on the clutch cover's top front, its red ring, at (0.076, 0.547) m.
-  { const cap = new THREE.CylinderGeometry(0.018, 0.018, 0.02, 32); cap.rotateX(Math.PI / 2); cap.translate(0.076, 0.547, 0.165); bright.push({ geometry: cap }); }
-  // The round black plate in its cast housing on the head's right side, at (−0.05, 0.653) m.
-  { const h = new THREE.CylinderGeometry(0.045, 0.048, 0.03, 40); h.rotateX(Math.PI / 2); h.translate(-0.05, 0.653, 0.135); cast.push({ geometry: h }); }
-  g.add(mesh(mergeAll(dark), M.h2rEngine, { name: 'h2r-engine-cases' }));
-  g.add(mesh(mergeAll(grey), M.h2rCaseGrey, { name: 'h2r-engine-covers' }));
-  g.add(mesh(mergeAll(cast), M.h2rCast, { name: 'h2r-engine-castings' }));
-  g.add(mesh(mergeAll(bright), M.h2rSatin, { name: 'h2r-engine-bolts' }));
-  { const ring = new THREE.TorusGeometry(0.016, 0.003, 8, 32); ring.translate(0.076, 0.547, 0.176); g.add(mesh(ring, M.h2rRedAnod, { name: 'h2r-filler-ring' })); }
-  { const p = new THREE.CylinderGeometry(0.028, 0.028, 0.004, 40); p.rotateX(Math.PI / 2); p.translate(-0.05, 0.653, 0.151); g.add(mesh(p, M.h2rSatin, { name: 'h2r-head-plate' })); }
-  // The intake chamber over the head, aluminium, under the tank.
-  g.add(mesh(blockPx([[470, 398], [482, 362], [560, 336], [650, 350], [665, 395], [600, 412], [520, 410]], -0.15, 0.15, 0.02), M.h2rPlenum, { name: 'h2r-intake-chamber' }));
-  // The supercharger, behind the cylinders on the left: the impeller's scroll housing.
-  const [sx, sy] = PXY(672, 470), scz = -0.07;
-  const vol = lathe([[0.0, -0.04], [0.06, -0.04], [0.072, -0.026], [0.075, 0.0], [0.072, 0.026], [0.06, 0.04], [0.0, 0.04]], 40);
-  vol.rotateX(Math.PI / 2); vol.translate(sx, sy, scz);
-  g.add(mesh(vol, M.h2rRedAnod, { name: 'h2r-supercharger' }));
+  const g = buildEngineParts(M);
   g.add(buildDuct(M));
   return g;
 }
@@ -374,30 +395,81 @@ function carbonMaterial() {
 }
 
 /**
- * The exhaust (both side photographs): four titanium headers out of the head's front, down past the
- * engine's front and back under it into the collector, and the silencer rising along the right side
- * to its large round end can behind the footpeg.
+ * The exhaust, traced on the right-side photograph (h2rEngine.js's calibration): four titanium
+ * headers out of the head's front, down past the oil cooler and back under the engine, merging
+ * into the collector, and the long silencer along the right side, from under the engine up to its
+ * slash-cut outlet beside the rear wheel (≈0.11 m across, ≈0.6 m long).
+ * The headers wear titanium's heat tint as the photographs show it (≈): straw by the ports, blue
+ * and violet down the front, bronze under the engine.
  */
 function buildExhaust(M) {
-  // The headers' titanium has the bronze-gold heat tint of the photographs; the silencer is polished.
-  M.h2rTi ??= new THREE.MeshStandardMaterial({ name: 'h2r-titanium', color: 0xb38d58, metalness: 1, roughness: 0.25 });
-  const P = (u, v, z) => new THREE.Vector3(...PXY(u, v), z);
+  M.h2rTi ??= new THREE.MeshStandardMaterial({ name: 'h2r-titanium', color: 0xffffff, map: heatTint(), metalness: 1, roughness: 0.26 });
   const g = new THREE.Group(); g.name = 'h2r-exhaust';
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
   const items = [];
   for (let i = 0; i < 4; i++) {
-    const z = -0.078 + i * 0.052, k = i - 1.5;
-    const pts = [P(492, 500, z * 0.95), P(470 - k * 2, 560, z), P(463 - k * 3, 640, z * 1.05), P(478 - k * 4, 700 - k * 3, z), P(520, 716 - k * 5, z * 0.7), P(620, 712 - k * 4, z * 0.45), P(720, 702, z * 0.2), P(752, 696, z * 0.1)];
-    items.push({ geometry: new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'centripetal'), 70, 0.0165, 14) });
+    const z = -0.114 + i * 0.076, k = i - 1.5;
+    const pts = [V(0.275, 0.6, z), V(0.31, 0.53, z * 1.02), V(0.326, 0.42, z * 1.04), V(0.33 - k * 0.004, 0.29, z), V(0.3 - k * 0.006, 0.215 + k * 0.004, z * 0.85),
+      V(0.22, 0.183 + k * 0.006, z * 0.6), V(0.12, 0.172 + k * 0.004, z * 0.42 + 0.02), V(0.05, 0.176, z * 0.22 + 0.05)];
+    items.push({ geometry: new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'centripetal'), 90, 0.0168, 16) });
   }
   g.add(mesh(mergeAll(items), M.h2rTi, { name: 'h2r-headers' }));
-  // Collector into the silencer, out to the right and rising.
-  const A = P(752, 696, 0.04), B = P(790, 676, 0.12), C = P(935, 575, 0.175);
-  const col = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([P(700, 703, 0), A, B]), 20, 0.034, 14);
+  // The collector: the four into one, a cone, then the link pipe rising to the silencer.
+  const col = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V(0.07, 0.176, 0.05), V(0.02, 0.18, 0.08), V(-0.03, 0.2, 0.11)]), 24, 0.036, 20);
   g.add(mesh(col, M.h2rTi, { name: 'h2r-collector' }));
-  const L = B.distanceTo(C), q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), C.clone().sub(B).normalize());
-  const can = lathe([[0.034, 0], [0.042, L * 0.2], [0.05, L * 0.55], [0.058, L * 0.85], [0.06, L * 0.97], [0.064, L], [0.054, L + 0.003], [0.0, L + 0.003]], 36);
-  can.applyQuaternion(q); can.translate(B.x, B.y, B.z);
-  g.add(mesh(can, M.h2rMachined, { name: 'h2r-silencer' }));
+  // The silencer: a tube along its axis whose radius grows out of the link, its outlet cut on a
+  // slant (the end turned ≈30° to the axis), a dark liner inside.
+  const A = V(-0.03, 0.2, 0.11), B = V(-0.57, 0.405, 0.165);
+  g.add(mesh(silencerGeometry(A, B, (t) => t < 0.12 ? 0.036 + (0.055 - 0.036) * (t / 0.12) ** 0.7 : 0.055, 30 * D2R), M.h2rMachined, { name: 'h2r-silencer' }));
+  const ax = B.clone().sub(A), L = ax.length(); ax.normalize();
+  const liner = new THREE.CylinderGeometry(0.045, 0.045, 0.1, 32, 1, true);
+  liner.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), ax));
+  liner.translate(...A.clone().addScaledVector(ax, L - 0.06).toArray());
+  M.h2rVoid ??= new THREE.MeshStandardMaterial({ name: 'h2r-void', color: 0x0a0a0b, metalness: 0.2, roughness: 0.7 });
+  const linerMat = M.h2rVoid.side === THREE.DoubleSide ? M.h2rVoid : (M.h2rVoid2 ??= Object.assign(M.h2rVoid.clone(), { side: THREE.DoubleSide, name: 'h2r-void-2s' }));
+  g.add(mesh(liner, linerMat, { name: 'h2r-silencer-liner' }));
+  // Its two hangers' bands round the body.
+  for (const t of [0.35, 0.78]) {
+    const band = new THREE.TorusGeometry(0.0565, 0.004, 8, 48);
+    band.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), ax));
+    band.translate(...A.clone().addScaledVector(ax, L * t).toArray());
+    g.add(mesh(band, M.h2rSatin, { name: 'h2r-silencer-band' }));
+  }
+  return g;
+}
+/** The heat tint along a header (u from the port to the collector), ≈ from the photographs. */
+function heatTint() {
+  const t = canvasTexture(512, 8, (g, w, h) => {
+    const grd = g.createLinearGradient(0, 0, w, 0);
+    for (const [s, c] of [[0, '#d8c08a'], [0.1, '#c9a35e'], [0.2, '#9a6a8a'], [0.3, '#5a62a8'], [0.42, '#4b7fc0'], [0.55, '#7a5aa0'], [0.66, '#b0884e'], [0.8, '#a8813f'], [1, '#c6a670']]) grd.addColorStop(s, c);
+    g.fillStyle = grd; g.fillRect(0, 0, w, h);
+  });
+  if (t) { t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.RepeatWrapping; }
+  return t;
+}
+/** A tube from A to B with radius r(t), t 0..1 along it, its far end cut on a slant of `slash` to the axis. */
+function silencerGeometry(A, B, r, slash, rings = 40, segs = 48) {
+  const ax = B.clone().sub(A), L = ax.length(); ax.normalize();
+  const u = Math.abs(ax.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+  const e1 = u.clone().sub(ax.clone().multiplyScalar(u.dot(ax))).normalize(), e2 = ax.clone().cross(e1);
+  const pos = [], idx = [];
+  for (let i = 0; i <= rings; i++) {
+    const t = i / rings;
+    for (let j = 0; j <= segs; j++) {
+      const a = j / segs * TAU, rr = r(t), c = Math.cos(a), s = Math.sin(a);
+      // The last ring set back along the axis by the slant: longest on the upper side.
+      const along = L * t - (i === rings ? Math.tan(slash) * rr * (1 - c) : 0);
+      const p = A.clone().addScaledVector(ax, along).addScaledVector(e1, c * rr).addScaledVector(e2, s * rr);
+      pos.push(p.x, p.y, p.z);
+    }
+  }
+  for (let i = 0; i < rings; i++) for (let j = 0; j < segs; j++) {
+    const a = i * (segs + 1) + j, b = a + segs + 1;
+    idx.push(a, b, a + 1, a + 1, b, b + 1);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx); g.computeVertexNormals();
   return g;
 }
 

@@ -894,7 +894,13 @@ try {
     // meshes, sixteen materials of its own — mirror coat, carbon, frame green, titanium… — and
     // its decals), at 3.24 M triangles, 1,552 meshes, 259 materials and ≈130 textures: 3.6 M,
     // 1,800, 290 and 160, clear of today's figures by the same margins as before.
-    const LIMITS = { tris: 3_600_000, meshes: 1800, materials: 290, textures: 160 };
+    // And again for the decisive pass on the vehicles' models (October 2026, the user's order:
+    // "if the budget is at its limit, raise it; never lower the quality"): the H2R's engine,
+    // exhaust, swingarm and frame rebuilt piece by piece, the Porsche and the F-16 to follow, and
+    // the shared surface detail (materials/detail.js: a normal and a roughness map per kind of
+    // surface). At 286 materials and 110 textures before it: 4.5 M triangles, 2,200 meshes, 340
+    // materials and 220 textures.
+    const LIMITS = { tris: 4_500_000, meshes: 2200, materials: 340, textures: 220 };
     const over = Object.entries(LIMITS).filter(([k, max]) => budget[k] > max);
     report(over.length === 0, 'presupuesto de escena',
       `${budget.tris.toLocaleString('es-ES')} triángulos construidos, ${budget.drawnTris.toLocaleString('es-ES')} dibujados `

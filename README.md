@@ -833,6 +833,28 @@ El usuario pidió una pasada decisiva sobre la H2R, el Porsche y el F-16: modelo
 - **Sonido:** las explosiones se redondean a muestras enteras (≈ −25 dB de ruido), el silbido de alivio de la H2R se rompe a los 30 s y no hay modelo espacial. El F-16 no tiene sonido.
 - **No se llegó a hacer:** la auditoría del detalle de los modelos y el presupuesto de rendimiento, y la del entorno y las físicas.
 
+### Fase 2 del encargo, primera parte: detalle de superficie y la H2R por dentro (4 de octubre de 2026)
+
+- **Detalle de superficie para los vehículos** (`src/materials/detail.js`). Cada clase de superficie tiene un pequeño mapa de relieve y de rugosidad, sin costuras, generado al arrancar y compartido: fundición en arena, metal cepillado o mecanizado, granulado de pintura en polvo o plástico, goma, piel de naranja bajo la laca, grano de cuero y sarga de carbono 2×2 (esta también con color).
+  - Se proyecta desde los tres ejes del propio espacio de la pieza (triplanar), no por UV, porque las piezas son barridos, tornos y extrusiones sin coordenadas métricas. Queda fija a la pieza y no resbala al moverse el vehículo.
+  - Se suma al relieve y a la rugosidad que ya tenga el material. Tamaños e intensidades ≈.
+- **El motor de la H2R, rehecho pieza a pieza** (`src/vehicles/h2rEngine.js`). Medido sobre una foto libre de la moto en una exposición (Wikimedia Commons, solo como referencia, no está en el repositorio), con su escala y su giro calculados con los dos ejes y la batalla publicada: 1,644 mm por píxel, ≈ ±1 cm. Tiene:
+  - el cárter con su línea de partición, tornillos y nervios;
+  - el cárter superior de fundición con su resalte redondo;
+  - los cilindros y la culata inclinados, con su junta y sus nervios;
+  - la tapa de levas con las cuatro pipetas;
+  - la tapa del embrague (r 0,127 m) con su escalón, el disco interior (r 0,090 m), la pestaña y doce tornillos;
+  - la tapa del captador (r 0,035 m) y el tapón de llenado con su anillo rojo;
+  - el cárter de aceite con nervios y tapón de vaciado, el enfriador de aceite con aletas y el filtro;
+  - a la izquierda, las tapas del alternador y del piñón (esta sobre el piñón de la cadena), la bomba de agua y los manguitos;
+  - el compresor: la carcasa roja, la voluta en espiral hasta la salida, la boca pulida con el rodete de 6 álabes, y los tornillos;
+  - los cuatro cuerpos de mariposa y la cámara de admisión con su junta y tornillería.
+  - Las tapas torneadas del motor anterior no se veían: el perfil del torno iba al revés y sus caras miraban hacia dentro.
+- **Escape:** cuatro colectores con el degradado térmico del titanio que muestran las fotos (pajizo, azul, violeta, bronce). Bajan por delante del enfriador y vuelven bajo el motor hasta el colector. El silencioso es largo, por la derecha, de ≈0,11 m de diámetro, con la boca cortada en bisel, su forro oscuro y dos abrazaderas.
+- **Basculante monobrazo de fundición:** viga superior de sección cajón, brazo inferior, alma con rebaje y portabuje excéntrico. La corona y su portacoronas van por fuera, en el extremo del eje, y la cadena pasa por fuera del brazo, como en las fotos sin carenado.
+- **Chasis:** los nudos son bosas de ≈34 mm, con su cordón de soldadura y el tornillo que llevan, en vez de discos de 4 cm.
+- **Presupuesto** (`tools/check.mjs`), subido por orden del usuario: 4,5 M triángulos, 2.200 mallas, 340 materiales y 220 texturas.
+
 ### Fase 1 del encargo: conducción de la H2R y del F-16 (4 de octubre de 2026)
 
 El usuario reordenó el trabajo en cuatro fases (conducción, modelos 3D, sonido, físicas y entorno), con un commit por fase y el check completo solo al final. Esta es la conducción; la del Porsche ya se hizo (bloque 3, dos partes).

@@ -328,7 +328,8 @@ export function buildWheel(M, which) {
   }
   if (!front) {
     // The 42-tooth sprocket (a toothed ring, cut out between its arms) and the cush drive's machined
-    // carrier with its eight slots, on the left (the side photograph).
+    // carrier with its eight slots, on the left end of the axle, outboard of the single-sided arm's
+    // eccentric (the photographs with the bodywork off).
     const tooth = [];
     const N = 42, ro = 0.108, ri = 0.098;
     for (let i = 0; i < N * 2; i++) { const a = (i / (N * 2)) * TAU, r = i % 2 ? ri : ro; tooth.push(new THREE.Vector2(Math.cos(a) * r, Math.sin(a) * r)); }
@@ -337,13 +338,13 @@ export function buildWheel(M, which) {
       const a0 = (i / 6) * TAU + 0.12, a1 = a0 + TAU / 6 - 0.24, h = new THREE.Path();
       h.absarc(0, 0, 0.088, a0, a1, false); h.absarc(0, 0, 0.07, a1, a0, true); spr.holes.push(h);
     }
-    const sg = new THREE.ExtrudeGeometry(spr, { depth: 0.006, bevelEnabled: false, curveSegments: 6 }); sg.translate(0, 0, -0.108);
+    const sg = new THREE.ExtrudeGeometry(spr, { depth: 0.006, bevelEnabled: false, curveSegments: 6 }); sg.translate(0, 0, -0.168);
     spin.add(mesh(sg, M.h2rAlu, { name: 'h2r-sprocket' }));
     const car = new THREE.Shape(); car.absarc(0, 0, 0.068, 0, TAU, false);
     for (let i = 0; i < 8; i++) { const a0 = (i / 8) * TAU + 0.1, a1 = a0 + TAU / 8 - 0.2, h = new THREE.Path(); h.absarc(0, 0, 0.058, a0, a1, false); h.absarc(0, 0, 0.032, a1, a0, true); car.holes.push(h); }
-    const cg = new THREE.ExtrudeGeometry(car, { depth: 0.014, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 1, curveSegments: 8 }); cg.translate(0, 0, -0.13);
+    const cg = new THREE.ExtrudeGeometry(car, { depth: 0.014, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 1, curveSegments: 8 }); cg.translate(0, 0, -0.19);
     spin.add(mesh(cg, M.h2rMachined, { name: 'h2r-sprocket-carrier' }));
-    const nut = new THREE.CylinderGeometry(0.024, 0.024, 0.02, 6); nut.rotateX(Math.PI / 2); nut.translate(0, 0, -0.14);
+    const nut = new THREE.CylinderGeometry(0.024, 0.024, 0.02, 6); nut.rotateX(Math.PI / 2); nut.translate(0, 0, -0.2);
     spin.add(mesh(nut, M.h2rAlu, { name: 'h2r-hub-nut' }));
   }
   return g;
