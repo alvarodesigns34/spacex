@@ -42,6 +42,10 @@ const flat = (mu = 1, kind = 'track') => () => ({ h: 0, mu, roll: 0, kind });
   const names = ['h2r', 'h2r-steer', 'h2r-wheel-f-spin', 'h2r-wheel-r-spin', 'h2r-swingarm', 'h2r-impeller', 'h2r-dash', 'h2r-trellis', 'h2r-tank', 'h2r-cowl', 'h2r-screen'];
   const missing = names.filter(n => !have.has(n));
   report(!missing.length, 'el modelo tiene las piezas que mueve el pilotaje', missing.length ? `faltan ${missing.join(', ')}` : names.length + ' piezas');
+  // The site carries it: the deploy copies assets/ (without it the page fell back to the code model).
+  const { readFile: rf } = await import('node:fs/promises');
+  const wf = await rf(new URL('../.github/workflows/pages.yml', import.meta.url), 'utf8');
+  report(/cp -r[^\n]*\bassets\b/.test(wf), 'el despliegue publica assets/ (el h2r.glb llega a la web)', /cp -r[^\n]*/.exec(wf)?.[0].trim() ?? 'sin copia');
   // What moves turns about where the ride turns it: the wheels' spin groups on the axles.
   const at = (n) => new THREE.Vector3().setFromMatrixPosition(nodes(glb).find(x => x.name === n).matrix);
   const { AXLE_F, AXLE_R } = await import('../src/vehicles/h2r/geometry.js');
