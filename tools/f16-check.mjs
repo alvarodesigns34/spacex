@@ -140,6 +140,22 @@ let liftoff = null;
   report(aMax < 27 && aMax > 20 && !s.crashed, 'el limitador de α con la palanca a fondo atrás (TP-1538: ≈25°)', `α máx ${aMax.toFixed(1)}°, nz máx ${nzMax.toFixed(2)} g`);
 }
 
+// ---- Sea level: full afterburner at 300 m -----------------------------------------------------
+// The F-16's published top speed low down is ≈Mach 1.2 (1,470 km/h; Wikipedia, "General Dynamics
+// F-16 Fighting Falcon", specifications); held level at 300 m, the model must top out near it.
+{
+  const { f, s, i } = make();
+  airborne(f, s, { h: 300, V: 250, a: 2, power: 100 });
+  const vsLoop = pid(0.03, 0.01, -0.5, 0.5);
+  let mMax = 0, kmh = 0;
+  for (let k = 0; k < 4000 && !s.crashed; k++) {
+    i.pitch = vsLoop((300 - s.pos.y) * 0.05 - s.vel.y, 0.05);
+    f.advance(0.05);
+    if (s.mach > mMax) { mMax = s.mach; kmh = s.vel.length() * 3.6; }
+  }
+  report(!s.crashed && mMax > 1.1 && mMax < 1.35, 'a nivel del mar con postcombustión, la máxima publicada (≈Mach 1,2, 1.470 km/h)', `Mach ${mMax.toFixed(2)}, ${kmh.toFixed(0)} km/h`);
+}
+
 // ---- Supersonic: full afterburner at 11,000 m ---------------------------------------------------
 {
   const { f, s, i } = make();
