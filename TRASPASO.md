@@ -4,7 +4,27 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ---
 
-## ⭐ Empieza aquí (estado real al cierre del 04-10-2026: lee primero «Sesión del 04-10-2026 (cuarta)» y después «Cierre de la sesión del 04-10-2026 (tercera)»)
+## ⭐ Empieza aquí (estado real al 05-10-2026: lee primero «Sesión del 05-10-2026 (quinta)», después «Sesión del 04-10-2026 (cuarta)» y «Cierre de la sesión del 04-10-2026 (tercera)»)
+
+### Sesión del 05-10-2026 (quinta, rama `claude/youthful-noether-0ihafx`): la H2R «nivel Blender, literalmente»
+
+- **Orden del usuario:** «En esta iteración quiero que te centres al máximo en la H2R. Ahora sí, nivel blender pero literalmente. Organiza el código en diferentes archivos por piezas si es más cómodo. DETALLE ABSOLUTO.» El encargo amplio (F-16, Porsche, entorno, físicas) sigue de fondo.
+- **Método, sistema a sistema** (un commit por sistema, todos empujados a las seis ramas con CI en verde salvo el último, en marcha al escribir esto):
+  - `2fbf921`: refactor: `src/vehicles/h2r.js` reexporta desde `src/vehicles/h2r/` (un archivo por pieza). Verificado idéntico (huella y recuentos).
+  - `f117abe`: ruedas (neumático con banda y flanco, llanta, radios), discos flotantes con taladros reales, pinzas Stylema por lado (`mirrorZ`), pinza trasera, latiguillos, cadena 525 eslabón a eslabón (`chain.js`).
+  - `ffd6e45`: horquilla (`fork.js`), tijas (`clamps.js`), mandos (`controls.js`); `steer.js` es el montaje.
+  - `51d395c`: escape (bridas, colector dorado alineado, silenciador cónico cortado en bisel con labio y núcleo, unión con muelles). Tenía las caras del revés (se veía negro).
+  - `7ac2516`: motor como carpeta `engine/` (`parts.js`, `core.js`, `right.js`, `supercharger.js`, `chamber.js`); tapa del embrague trazada en mm sobre la foto derecha; emblema «SUPER CHARGED»; compresor con rodete de 6+6 álabes (gira 9,2× el cigüeñal en `h2rRide.js`); cámara de admisión; el conducto de admisión de aire dinámico tenía las caras hacia dentro.
+  - `5c7773b`: lado izquierdo del motor, estriberas (`rearsets.js`, trazadas en mm), V y soldaduras del chasis.
+- **Fuente primaria nueva:** Kawasaki Technical Review n.º 180 (julio de 2019), «Development of Ninja H2 Series»: figs. 3 (motor), 4 (chasis solo) y 10 (rodete); álabes ≈1 mm, ≥120.000 min⁻¹. El PDF lleva las imágenes en CMYK invertido: `pdfimages -j` y luego invertir los canales.
+- **Calibración de la foto derecha** («Kawasaki Ninja H2R right», Commons, 1280 px): semejanza fijada por los centros de los ejes, foto (192,5; 507,5) y (1072,5; 542,5) px contra el render lateral casi ortográfico (ejes en (333; 500) y (1215; 515,1) px a 1,6441 mm/px). Con eso, `model_mm.png` (la foto proyectada al plano lateral del modelo, 1 px = 1 mm) y las rejillas en mm. Ver el Anexo (`ortho.py`, `blend.py`, `seg.py`, `mgrid.py`, `p2m.py`).
+- **Lecciones:**
+  - Las comprobaciones de normales no ven una malla entera del revés (es coherente consigo misma). Usa el **volumen con signo** (`vol.js` del Anexo): negativo = del revés. Lo encontraron el silenciador y el conducto.
+  - `mergeAll([])` da una malla sin vértices (pasó con `h2r-engine-covers`); busca mallas sin `position` (`empty.js`).
+  - `ext()` de `engine/parts.js` mete el contorno hacia dentro el ancho del bisel (antes lo agrandaba) y suaviza las normales del canto (`withCreaseNormals`).
+  - `_frames.mjs`: el **primer** encuadre de cada tanda sale a menudo vacío (o enfoca el Porsche): `mk.py` ya antepone un encuadre `_warm`. Variable `HIDE` (expresión regular de nombres de malla) para ocultar el carenado.
+  - Sin fotos del amortiguador trasero ni de su bieleta no se ha inventado su disposición (regla de medidas verificables); solo queda el depósito dorado.
+- **Pendiente (orden propuesto):** sistema 6, carenado (lo que más se ve y lo que más difiere de la foto: depósito más bajo con su toma lateral hundida, costado en capas facetadas, carbono, aletas inferiores, juntas y tornillería); sistema 7, materiales (cromo espejo, carbono); después el `npm run check` completo y cerrar.
 
 ### Sesión del 04-10-2026 (cuarta, rama `claude/youthful-noether-0ihafx`): encargo nuevo, solo F-16, Porsche y H2R
 
@@ -1029,6 +1049,139 @@ W.save(out, quality=85)
 ```
 
 **Encuadres de todos los expositores**: la lista de presets está en `specs.js`. Para auditar, genero un `frames.js` con `v.jump(id, preset)` para cada uno y reviso la hoja de contactos.
+
+### `mk.py` (en el scratchpad): encuadres en el marco del vehículo
+Uso: `[HIDE='^h2r-(tank|cowl)'] python3 mk.py salida.js <expositor> nombre px py pz tx ty tz ...` y luego `node tools/_frames.mjs salida.js <carpeta>`. Antepone un encuadre `_warm` (el primero sale a menudo vacío).
+```python
+# usage: mk.py out.js ex name px py pz tx ty tz [fov] ...  (local frame of the exhibit's model)
+import sys, json, os
+HIDE = os.environ.get('HIDE', '')
+out, ex = sys.argv[1], sys.argv[2]; a = sys.argv[3:]; L = []
+while a:
+    n, *v = a[:7]; a = a[7:]
+    p, t = v[:3], v[3:6]
+    L.append({'name': n, 'setup': f"""v.jump('{ex}','overview'); await new Promise(r=>setTimeout(r,4500)); v.lod.forceDetailed?.();
+const m=v.exhibits['{ex}'].model; m.updateMatrixWorld(true); {('m.traverse(o=>{ if(o.isMesh && /'+HIDE+'/.test(o.name)) o.visible=false; });') if HIDE else ''}
+const P=m.localToWorld(new THREE.Vector3({p[0]},{p[1]},{p[2]})), T=m.localToWorld(new THREE.Vector3({t[0]},{t[1]},{t[2]}));
+v.rig.jumpTo(P,T); await new Promise(r=>setTimeout(r,1500)); v.camera.position.copy(P); v.camera.lookAt(T); v.camera.updateProjectionMatrix();"""})
+json.dump([dict(L[0], name='_warm')] + L, open(out, 'w'))
+```
+
+### `ortho.py` (en el scratchpad): vista lateral derecha casi ortográfica a 1,644 mm/px
+Uso: `python3 ortho.py o.js orR 0.0 0.55 [regex]`; añade tú un `_warm` delante como en `mk.py`. Plano cercano a D−1,6 m para no ver los otros expositores.
+```python
+# usage: ortho.py out.js name cx cy [hide-regex]  -> right-side near-orthographic frame, 1.644 mm/px at 1280x720
+import sys, json, math
+out, name, cx, cy = sys.argv[1], sys.argv[2], float(sys.argv[3]), float(sys.argv[4]); hide = sys.argv[5] if len(sys.argv) > 5 else ''
+D = 40.0; fov = 2 * math.degrees(math.atan(360 * 0.001644 / D))
+setup = f"""v.jump('h2r','overview'); await new Promise(r=>setTimeout(r,4500)); v.lod.forceDetailed?.();
+const m=v.exhibits['h2r'].model; m.updateMatrixWorld(true);
+{"m.traverse(o=>{ if(o.isMesh && /"+hide+"/.test(o.name)) o.visible=false; });" if hide else ""}
+const P=m.localToWorld(new THREE.Vector3({cx},{cy},{D})), T=m.localToWorld(new THREE.Vector3({cx},{cy},0));
+v.rig.jumpTo(P,T); await new Promise(r=>setTimeout(r,1500)); v.camera.position.copy(P); v.camera.lookAt(T); v.camera.fov={fov}; v.camera.far=200; v.camera.near={D-1.6}; v.camera.updateProjectionMatrix();"""
+json.dump([{'name': name, 'setup': setup}], open(out, 'w'))
+```
+
+### `blend.py` (en el scratchpad): foto derecha alineada sobre el render por los ejes
+Uso: `python3 blend.py en/orR.jpg salida.jpg 0.5 [x0 y0 x1 y1 zoom]` (deja también `_photo.jpg`, la foto sola en el mismo encuadre).
+```python
+# usage: blend.py render.jpg out.jpg [alpha] [x0 y0 x1 y1 zoom]  (render's axles R(333,500) F(1215,515.1) -> photo's)
+import sys
+from PIL import Image
+S = '<scratchpad>'
+r = Image.open(sys.argv[1]).convert('RGB'); a = float(sys.argv[3]) if len(sys.argv) > 3 else 0.5
+p = Image.open(S + '/ref/h/Kawasaki_Ninja_H2R_right.JPG').convert('RGB')
+R0, F0 = complex(333, 500), complex(1215, 515.1); R1, F1 = complex(192.5, 507.5), complex(1072.5, 542.5)
+k = (F1 - R1) / (F0 - R0)          # photo = R1 + k (render - R0)
+c0 = R1 - k * R0
+w = p.transform(r.size, Image.AFFINE, (k.real, -k.imag, c0.real, k.imag, k.real, c0.imag), resample=Image.BICUBIC)
+out = Image.blend(r, w, a)
+if len(sys.argv) > 4:
+    x0, y0, x1, y1, z = map(int, sys.argv[4:9]); out = out.crop((x0, y0, x1, y1)).resize(((x1 - x0) * z, (y1 - y0) * z))
+    w.crop((x0, y0, x1, y1)).resize(((x1 - x0) * z, (y1 - y0) * z)).save(sys.argv[2].replace('.jpg', '_photo.jpg'))
+out.save(sys.argv[2])
+```
+
+### `seg.py` (en el scratchpad): la foto derecha proyectada al plano lateral del modelo (1 px = 1 mm)
+Uso: `python3 seg.py` → `en/model_mm.png` (x de −0,9 a 0,9 m, y de 0 a 1,2 m).
+```python
+# The right-side photograph warped into model space: 1 px = 1 mm, x from -0.9 to 0.9, y from 0 to 1.2.
+import numpy as np, cv2
+from PIL import Image
+S = '<scratchpad>'
+p = Image.open(S + '/ref/h/Kawasaki_Ninja_H2R_right.JPG').convert('RGB')
+R0, F0 = complex(333, 500), complex(1215, 515.1); R1, F1 = complex(192.5, 507.5), complex(1072.5, 542.5)
+k = (F1 - R1) / (F0 - R0); c0 = R1 - k * R0
+s = 0.0016441
+# model (x, y) -> render (u, v) -> photo
+def photo(x, y):
+    r = complex(333 + (x + 0.725) / s, 500 - (y - 0.32) / s); q = c0 + k * r; return q.real, q.imag
+# output pixel (i, j): x = -0.9 + i/1000, y = 1.2 - j/1000. Affine coefficients photo = A*(i,j)+b
+x0, y0 = photo(-0.9, 1.2); x1, y1 = photo(-0.9 + 0.001, 1.2); x2, y2 = photo(-0.9, 1.2 - 0.001)
+coef = (x1 - x0, x2 - x0, x0, y1 - y0, y2 - y0, y0)
+w = p.transform((1800, 1200), Image.AFFINE, coef, resample=Image.BICUBIC)
+w.save(S + '/en/model_mm.png')
+print('coef', coef)
+```
+
+### `mgrid.py` (en el scratchpad): rejilla en mm del modelo sobre `model_mm.png`
+Uso: `python3 mgrid.py salida.png xmin xmax ymin ymax paso_mm [escala]` (etiquetas en mm del modelo).
+```python
+# usage: mgrid.py out.png xmin xmax ymin ymax step_mm [scale]   (labels in model mm)
+import sys
+from PIL import Image, ImageDraw
+S = '<scratchpad>'
+im = Image.open(S + '/en/model_mm.png'); out = sys.argv[1]; xa, xb, ya, yb, st = map(int, sys.argv[2:7]); sc = float(sys.argv[7]) if len(sys.argv) > 7 else 1
+c = im.crop((xa + 900, 1200 - yb, xb + 900, 1200 - ya)); c = c.resize((int(c.size[0] * sc), int(c.size[1] * sc)), Image.LANCZOS); d = ImageDraw.Draw(c)
+for x in range((xa // st + 1) * st, xb, st):
+    X = (x - xa) * sc; d.line((X, 0, X, c.size[1]), fill=(255, 0, 0) if x % (st * 5) == 0 else (255, 140, 140)); d.text((X + 2, 2), str(x), fill=(255, 255, 0))
+for y in range((ya // st + 1) * st, yb, st):
+    Y = (yb - y) * sc; d.line((0, Y, c.size[0], Y), fill=(255, 0, 0) if y % (st * 5) == 0 else (255, 140, 140)); d.text((2, Y + 2), str(y), fill=(255, 255, 0))
+c.save(out)
+```
+
+### `p2m.py` (en el scratchpad): píxel de la foto derecha → mm del modelo
+Uso: importar `p2m(u, v)` o `crop(cx, cy, ox, oy, zoom)` para recortes ampliados.
+```python
+# right.JPG pixel -> model mm (side plane)
+R0, F0 = complex(333, 500), complex(1215, 515.1); R1, F1 = complex(192.5, 507.5), complex(1072.5, 542.5)
+k = (F1 - R1) / (F0 - R0); c0 = R1 - k * R0; s = 0.0016441
+def p2m(u, v):
+    r = (complex(u, v) - c0) / k
+    return round(((r.real - 333) * s - 0.725) * 1000, 1), round((0.32 - (r.imag - 500) * s) * 1000, 1)
+def crop(cx, cy, ox=360, oy=380, z=4): return p2m(ox + cx / z, oy + cy / z)
+if __name__ == '__main__':
+    pts = {'node': (680, 290), 'fbolt': (600, 290), 'x': (420, 300), 'up': (440, 210), 'peg': (300, 400), 'pegpiv': (330, 390), 'low': (510, 450),
+           'hp_tl': (100, 40), 'hp_tr': (330, 60), 'hp_r': (480, 190), 'hp_br': (470, 250), 'hp_b': (200, 230), 'hp_l': (100, 130), 'slot0': (220, 95), 'slot1': (360, 140),
+           'ped0': (480, 440), 'pedtip': (650, 575), 'node2': (590, 480)}
+    for n, (a, b) in pts.items(): print(n, crop(a, b))
+```
+
+### `vol.js` (en el scratchpad): mallas con volumen con signo negativo (del revés)
+Uso: `node tools/_probe.mjs vol.js`. Los huecos interiores (taladro del eje, interior del silenciador) salen negativos a propósito.
+```js
+const { buildH2r } = await import('/src/vehicles/h2r.js');
+const root = buildH2r({}), out = [];
+root.updateMatrixWorld(true);
+root.traverse(o => { if (!o.isMesh) return; const mats = [].concat(o.material); if (mats.every(m => m.side === THREE.DoubleSide)) return;
+  const g = o.geometry, p = g.attributes.position, idx = g.index, N = idx ? idx.count : p.count; let v = 0;
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  g.computeBoundingBox(); const ctr = g.boundingBox.getCenter(new THREE.Vector3()), sz = g.boundingBox.getSize(new THREE.Vector3());
+  for (let t = 0; t < N; t += 3) { a.fromBufferAttribute(p, idx ? idx.getX(t) : t).sub(ctr); b.fromBufferAttribute(p, idx ? idx.getX(t+1) : t+1).sub(ctr); c.fromBufferAttribute(p, idx ? idx.getX(t+2) : t+2).sub(ctr); v += a.dot(b.cross(c)) / 6; }
+  const box = sz.x * sz.y * sz.z;
+  if (v < 0) out.push(`${o.name} vol ${(v*1e6).toFixed(1)} cm3 (box ${(box*1e6).toFixed(0)})`);
+});
+return out.join('\n') || 'none negative';
+```
+
+### `empty.js` (en el scratchpad): mallas sin vértices
+Uso: `node tools/_probe.mjs empty.js`.
+```js
+const { buildH2r } = await import('/src/vehicles/h2r.js');
+const root = buildH2r({}), out = [];
+root.traverse(o => { if (o.isMesh && !(o.geometry.attributes.position?.count > 0)) out.push(o.name + ' ' + Object.keys(o.geometry.attributes).join(',')); });
+return out.join('\n') || 'none';
+```
 
 ---
 
