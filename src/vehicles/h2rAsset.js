@@ -3,7 +3,8 @@
  * the model is Blender's; what moves it stays in code (sim/h2rBike.js, sim/h2rRide.js), which
  * finds its parts by name: h2r-steer, h2r-wheel-f-spin, h2r-wheel-r-spin, h2r-swingarm,
  * h2r-impeller, h2r-dash. On loading:
- *  - Blender's ".001" suffixes on repeated names are taken off (the code's names, exactly);
+ *  - Blender's ".001" suffixes on repeated names (".001", or "001" once the loader has taken
+ *    the dot out) are taken off: the code's names, exactly;
  *  - a part with several materials, which glTF splits into one primitive per material (the loader
  *    makes a group of meshes), is one mesh again with its material array, as the code built it;
  *  - each material's surface detail is laid on again from its recipe (userData.detailSpec, the
@@ -39,14 +40,14 @@ export function adoptH2r(scene, M, associations = null) {
       g.parent.add(mesh); g.removeFromParent();
     }
   }
-  root.traverse(o => { o.name = o.name.replace(/\.\d{3}$/, ''); });
+  root.traverse(o => { o.name = o.name.replace(/\.?\d{3}$/, ''); });
   const seen = new Set();
   root.traverse(o => {
     if (!o.isMesh) return;
     o.castShadow = true; o.receiveShadow = true;
     for (const m of [].concat(o.material)) {
       if (seen.has(m)) continue; seen.add(m);
-      m.name = m.name.replace(/\.\d{3}$/, '');
+      m.name = m.name.replace(/\.?\d{3}$/, '');
       const spec = m.userData.detailSpec;
       if (spec) { delete m.userData.detail; const { kind, ...opts } = spec; applyDetail(m, kind, opts); }
     }

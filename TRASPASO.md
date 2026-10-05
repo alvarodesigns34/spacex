@@ -24,6 +24,12 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
   - `ext()` de `engine/parts.js` mete el contorno hacia dentro el ancho del bisel (antes lo agrandaba) y suaviza las normales del canto (`withCreaseNormals`).
   - `_frames.mjs`: el **primer** encuadre de cada tanda sale a menudo vacío (o enfoca el Porsche): `mk.py` ya antepone un encuadre `_warm`. Variable `HIDE` (expresión regular de nombres de malla) para ocultar el carenado.
   - Sin fotos del amortiguador trasero ni de su bieleta no se ha inventado su disposición (regla de medidas verificables); solo queda el depósito dorado.
+- **La H2R pasa a Blender (orden del usuario): ver el README, «La H2R pasa a Blender».** Lecciones:
+  - Tras cambiar el `.glb`, pasa también `node tools/check.mjs` (escena), no solo `check:static`: la fase 2 llegó a CI con caras de área UV nula (los cantos del grosor y el bisel) y no se desplegó.
+  - `GLTFLoader` quita los puntos de los nombres: el `.001` de Blender llega como `001`.
+  - El empaquetado UV conjunto de 37.000 islas deja el atlas casi vacío: atlas por pieza con estantes (`parts/bake.py`).
+  - Con 4 núcleos, un horneado de oclusión tarda >30 min: en segundo plano y sin pruebas a la vez.
+  - `pkill -f` con un patrón que aparece en la propia orden mata el shell (código 144).
 - **Pendiente (orden propuesto):** sistema 6, carenado (lo que más se ve y lo que más difiere de la foto: depósito más bajo con su toma lateral hundida, costado en capas facetadas, carbono, aletas inferiores, juntas y tornillería); sistema 7, materiales (cromo espejo, carbono); después el `npm run check` completo y cerrar.
 
 ### Sesión del 04-10-2026 (cuarta, rama `claude/youthful-noether-0ihafx`): encargo nuevo, solo F-16, Porsche y H2R

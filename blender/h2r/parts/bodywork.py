@@ -53,6 +53,40 @@ def _weld(ob, angle):
     me.update()
 
 
+def _apply(ob):
+    """The modifiers made real (the walls' rims are new faces, which the next step maps)."""
+    bpy.context.view_layer.objects.active = ob
+    for m in list(ob.modifiers):
+        bpy.ops.object.modifier_apply(modifier=m.name)
+
+
+def _map_unmapped(ob):
+    """The faces the wall and the bevels add carry no UV area of their own (their corners copy the
+    face they grew from): mapped as the code mapped the panels, by position (u = 3x + 3z, v = 3y in
+    the model's frame; Blender's X = x, Y = -z, Z = y, here by the axis each face's normal is
+    nearest), so the surface detail and the checks see a mapped surface everywhere."""
+    me = ob.data
+    if not me.uv_layers:
+        return
+    uv = me.uv_layers[0].data
+    mw = ob.matrix_world
+    # (Triangle by triangle, as the file will carry them: a bevel's quad can keep its area while
+    # one of its two triangles has none.)
+    me.calc_loop_triangles()
+    bad = set()
+    for t in me.loop_triangles:
+        a, b, c = (uv[i].uv for i in t.loops)
+        if abs((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y)) < 1e-9 and t.area > 1e-12:
+            bad.add(t.polygon_index)
+    for p in (me.polygons[i] for i in bad):
+        # (Faces that projection sees edge-on: by the axis their normal is nearest instead.)
+        n = (mw.to_3x3() @ p.normal)
+        ax = max(range(3), key=lambda k: abs(n[k]))
+        for li, vi in zip(range(p.loop_start, p.loop_start + p.loop_total), p.vertices):
+            w = mw @ me.vertices[vi].co
+            uv[li].uv = ((3 * w.y, 3 * w.z), (3 * w.x, 3 * w.z), (3 * w.x, 3 * w.y))[ax]
+
+
 def refine():
     done = []
     for ob in list(bpy.data.objects):
@@ -70,6 +104,8 @@ def refine():
         bev.width = min(0.0009, wall * 0.4); bev.segments = 2; bev.limit_method = 'ANGLE'; bev.angle_limit = math.radians(35)
         bev.harden_normals = True
         wn = ob.modifiers.new('normals', 'WEIGHTED_NORMAL'); wn.keep_sharp = True
+        _apply(ob)
+        _map_unmapped(ob)
         done.append(ob.name)
     # The decals wrapped onto the finished surfaces, a hair proud.
     for ob in list(bpy.data.objects):
@@ -81,4 +117,5 @@ def refine():
             continue
         sw = ob.modifiers.new('onto', 'SHRINKWRAP')
         sw.target = tgt; sw.wrap_method = 'NEAREST_SURFACEPOINT'; sw.offset = 0.0006; sw.wrap_mode = 'OUTSIDE_SURFACE'
+        _apply(ob)
     return done
