@@ -76,7 +76,7 @@ function detailH2r(M) {
   D(M.h2rRubber, 'rubber', { size: 0.01, normal: 0.8, rough: 0.35 });
   for (const k of ['h2rSatin', 'h2rSatin2', 'h2rBlack2', 'h2rChain', 'h2rMeshDark']) D(M[k], 'stipple', { size: 0.008, normal: 0.6, rough: 0.25 });
   for (const k of ['h2rEngine', 'h2rCaseGrey', 'h2rCast', 'h2rCaliper']) D(M[k], 'cast', { size: 0.018, normal: 0.8, rough: 0.35 });
-  for (const k of ['h2rAlu', 'h2rMachined', 'h2rTi', 'h2rPlenum']) D(M[k], 'brushed', { size: 0.03, normal: 0.35, rough: 0.3 });
+  for (const k of ['h2rAlu', 'h2rMachined', 'h2rTi', 'h2rTiGold', 'h2rSilencer', 'h2rPlenum']) D(M[k], 'brushed', { size: 0.03, normal: 0.35, rough: 0.3 });
   D(M.h2rDiscF, 'brushed', { size: 0.015, normal: 0.6, rough: 0.35 });
   D(M.h2rSprocket, 'brushed', { size: 0.02, normal: 0.4, rough: 0.3 });
   // The brake lines' stainless braid: a fine twill across the line (≈1.5 mm).

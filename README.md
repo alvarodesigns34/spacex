@@ -862,6 +862,13 @@ El usuario pidió centrar esta tanda en la Ninja H2R, con detalle absoluto, y or
 - **Bombas radiales** de freno (derecha) y de embrague (izquierda): la abrazadera, el cuerpo hacia delante, el eje de la maneta con su rueda de regulación y su anillo dorado, y la maneta negra, curvada delante del puño y con bola en la punta. Los depósitos redondos ahumados, con tapa negra estriada, sobre sus soportes, y el latiguillo corto hasta la bomba. La bomba de embrague baja su manguito hacia el motor.
 - El latiguillo de freno nace ahora en el racor de la bomba derecha.
 
+**Paso 4: escape** (`exhaust.js`), contrastado con «Kawasaki Ninja H2R right» y «… exposd right front» (Commons, solo referencia; medidas ≈):
+- **Colectores:** cuatro tubos de titanio con su degradado de calor (pajizo junto a la culata, azul y violeta al bajar, bronce en las curvas), cada uno sujeto a su lumbrera por una brida ovalada con dos tuercas y sus espárragos, y con su cordón de soldadura azul ≈8 cm más abajo.
+- **Colector 4 en 1** dorado bajo el motor, con la sonda lambda y su cable; su salida sigue ya el eje del silenciador.
+- **Silenciador** de acero cepillado: tubo de unión de ≈62 mm que se abre en un cono largo hasta ≈104 mm en la boca, bajo el colín. La boca está cortada en bisel, con una pared de 4 mm, el labio enrollado, el interior oscuro y el núcleo perforado retranqueado.
+- **Unión deslizante** tras el colector, con su manguito y dos muelles enganchados; abrazadera del soporte bajo la estribera derecha, con su orejeta, y la pletina calada que sube hasta la placa del talón con dos tornillos Allen.
+- **Corregido:** las caras del silenciador estaban al revés (por fuera se veía el interior oscuro, de ahí el «silenciador negro»).
+
 ### Encargo del 4 de octubre (cuarta sesión): F-16, Porsche y H2R a fondo. F-16, toma de aire y cúpula
 
 El usuario pidió una auditoría ambiciosa de los tres vehículos conducibles: modelos 3D mucho más detallados, conducción y vuelo más reales, entorno y una pasada final por las físicas. Se empezó por renderizar los tres de cerca. Lo más tosco era el F-16.
