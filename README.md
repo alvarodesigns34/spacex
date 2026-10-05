@@ -920,6 +920,13 @@ Decisión del usuario: **el modelo 3D de la H2R se hace en Blender; las físicas
 - Todos tienen pared (≈2,5 mm; el asiento, 12 mm) con su canto, un bisel fino que capta la luz como el borde de un panel real y normales endurecidas: los planos se ven planos y los pliegues, vivos.
 - Los rótulos se envuelven sobre la superficie terminada («shrinkwrap»), sin flotar.
 - La comparación lateral en Blender (`lib/review.py`: cámara ortográfica a 1 px = 1 mm sobre la misma rejilla que la foto calibrada) confirma que los contornos ajustados antes coinciden con la foto; lo que faltaba era la superficie.
+- **Corregido tras el CI:** el grosor y el bisel creaban caras sin área en las coordenadas de textura. Ahora se aplican los modificadores en Blender y cada triángulo sin área recibe coordenadas por su posición, según el eje más cercano a su normal. Además, `GLTFLoader` quita el punto de los nombres: el `.001` de Blender llega como `001`, y el cargador lo quita también. El despliegue de Pages no copiaba `assets/`, así que la web caía al modelo en código; ya lo copia, y `h2r-check` lo vigila.
+
+**Fase 3, primer paso: oclusión ambiental horneada** (`blender/h2r/parts/bake.py`):
+- Las sombras de contacto en cada rincón, unión y hueco (el motor entre los tubos del chasis, la tapa del embrague contra el cárter, el borde de un panel sobre el motor), que la luz ambiental en tiempo real no encuentra sola.
+- Un atlas de 2048 × 2048 para toda la moto, en un segundo juego de coordenadas (`uv1`), horneado con Cycles con todas las piezas presentes para que se ensombrezcan entre sí (≈3 mm por texel). Cada pieza se despliega por separado y recibe un cuadrado del atlas proporcional a su superficie; las piezas de miles de islas diminutas (cadena, rótulos, tiras finas) apuntan a una esquina blanca.
+- Se exporta como `occlusionTexture` de glTF, que en Three.js es el `aoMap`: oscurece solo la luz ambiental y la del entorno, como hace la oclusión real.
+- `verify.js` comprueba ya cada textura en el juego de coordenadas que usa: canal 0 para los mapas de superficie y canal 1 para el horneado. En el canal del horneado solo exige que el atributo exista.
 
 ### Encargo del 4 de octubre (cuarta sesión): F-16, Porsche y H2R a fondo. F-16, toma de aire y cúpula
 

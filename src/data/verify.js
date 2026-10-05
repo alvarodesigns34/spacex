@@ -165,15 +165,28 @@ export function verifyScene(root, { log = true } = {}) {
       // so when it fired the gate failed with "undefined: undefined" and lost the diagnosis.
       issues.push({ mesh: label, problem: 'la pintura de carrocería está en DoubleSide', severity: 'error' });
     }
-    const slots = TEX_SLOTS.filter(k => mats.some(m => m && m[k]));
-    if (slots.length && !g.attributes.uv) {
-      issues.push({ mesh: label, problem: `usa ${slots.join(', ')} sin atributo uv`, severity: 'error' });
-    } else if (slots.length && g.attributes.uv) {
+    // Each map reads the UV set its texture names (texture.channel: 0 is `uv`, 1 is `uv1`…): a
+    // baked occlusion map rides on a second set of its own (the H2R's, from Blender), and the
+    // first set's checks are about the maps that use the first.
+    const channels = new Map();
+    for (const k of TEX_SLOTS) for (const m of mats) {
+      if (!m || !m[k]) continue;
+      const c = m[k].channel ?? 0;
+      if (!channels.has(c)) channels.set(c, new Set());
+      channels.get(c).add(k);
+    }
+    for (const [channel, slotSet] of channels) {
+    const slots = [...slotSet], attr = channel ? `uv${channel}` : 'uv';
+    if (!g.attributes[attr]) {
+      issues.push({ mesh: label, problem: `usa ${slots.join(', ')} sin atributo ${attr}`, severity: 'error' });
+    } else if (channel === 0) {
+      // (A baked set (channel 1 on) is a lightmap: a part with no occlusion of its own points
+      // all its corners at the atlas's white texel by design, so only its presence is asked.)
       // An attribute full of zeros is not a UV map. mergeAll() fabricates one so that
       // mergeGeometries() will not throw on a mixed batch, and a constant vUv is the same
       // failure this check was written to catch: flat sampling, degenerate tangents, and a
       // surface that shades as one colour. Ask whether the coordinates actually vary.
-      const uv = g.attributes.uv;
+      const uv = g.attributes[attr];
       let minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
       const step = Math.max(1, Math.floor(uv.count / 512));
       for (let i = 0; i < uv.count; i += step) {
@@ -182,7 +195,7 @@ export function verifyScene(root, { log = true } = {}) {
         if (v < minV) minV = v; if (v > maxV) maxV = v;
       }
       if (maxU - minU < 1e-6 && maxV - minV < 1e-6) {
-        issues.push({ mesh: label, problem: `usa ${slots.join(', ')} con uv constante`, severity: 'error' });
+        issues.push({ mesh: label, problem: `usa ${slots.join(', ')} con ${attr} constante`, severity: 'error' });
       } else {
         // Texel density. UVs that vary are still wrong if they vary at the wrong RATE, and
         // this project has two authoring conventions: metric UVs against maps that set
@@ -195,7 +208,7 @@ export function verifyScene(root, { log = true } = {}) {
         // precisely: does a metre of this surface carry about as much texture as the map
         // expects? The bound is deliberately loose — a factor of twelve either way — because
         // the surface is measured by its bounding box, which under-reads a curved panel.
-        const tex = mats.map(m => m && TEX_SLOTS.map(k => m[k]).find(Boolean)).find(Boolean);
+        const tex = mats.map(m => m && slots.map(k => m[k]).find(Boolean)).find(Boolean);
         const want = tex?.userData?.tileSize;
         if (want) {
           g.computeBoundingBox();
@@ -256,6 +269,7 @@ export function verifyScene(root, { log = true } = {}) {
           }
         }
       }
+    }
     }
     if (!g.attributes.normal) {
       issues.push({ mesh: label, problem: 'geometría sin normales', severity: 'error' });
