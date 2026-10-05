@@ -1,4 +1,4 @@
-/** The rest: the dash, the steering damper, the radiator and its shrouds, the rearsets, the shock's reservoir, the rear hugger's panel. */
+/** The rest: the dash, the steering damper, the radiator and its shrouds, the shock's reservoir, the rear hugger's panel. */
 import * as THREE from 'three';
 import { segMatrix, slab, mergeAll, mesh } from './geometry.js';
 import { PXY } from './photo.js';
@@ -7,7 +7,7 @@ import { buildDash } from './dash.js';
 
 /**
  * The rest (the photographs): the instrument panel behind the screen, the radiator and the lower
- * side slats, the rearsets, the Öhlins shock's gold reservoir, the rear hugger and chain guard.
+ * side slats, the Öhlins shock's gold reservoir, the rear hugger and chain guard.
  */
 export function buildDetails(M) {
   M.h2rLcd ??= new THREE.MeshStandardMaterial({ name: 'h2r-lcd', color: 0x0a0d10, metalness: 0.2, roughness: 0.15, emissive: 0x0b1820, emissiveIntensity: 0.6 });
@@ -41,15 +41,6 @@ export function buildDetails(M) {
     M.h2rChrome2 ??= Object.assign(M.h2rChrome.clone(), { side: THREE.DoubleSide, name: 'h2r-mirror-coat-2s' });
     g.add(mesh(mergeAll([{ geometry: geo }, { geometry: L }]), M.h2rChrome2, { name: 'h2r-radiator-shroud' }));
     for (const s of [-1, 1]) { const b = new THREE.CylinderGeometry(0.008, 0.008, 0.006, 12); b.rotateX(Math.PI / 2); b.translate(0.252, 0.535, s * 0.229); g.add(mesh(b, M.h2rAlu, { name: 'h2r-shroud-bolt' })); }
-  }
-  // Rearsets: aluminium heel plates and pegs (the side photograph), the right one with the brake pedal.
-  for (const s of [-1, 1]) {
-    const plate = slab([PXY(742, 598), PXY(762, 560), PXY(826, 574), PXY(834, 610), PXY(800, 628), PXY(748, 626)], 0.008, 0.002);
-    const m = mesh(plate, M.h2rAlu, { name: 'h2r-heel-plate' }); m.position.z = s * 0.205 - 0.004; g.add(m);
-    const peg = new THREE.CylinderGeometry(0.011, 0.011, 0.075, 12); peg.rotateX(Math.PI / 2); peg.translate(...PXY(800, 604), s * 0.215);
-    g.add(mesh(peg, M.h2rAlu, { name: 'h2r-footpeg' }));
-    const knurl = new THREE.CylinderGeometry(0.012, 0.012, 0.05, 12); knurl.rotateX(Math.PI / 2); knurl.translate(...PXY(800, 604), s * 0.225);
-    g.add(mesh(knurl, M.h2rGold, { name: 'h2r-peg-knurl' }));
   }
   // The Öhlins shock's gold reservoir and its black preload knob, under the seat inside the side
   // cover (it does not show in the right-side photograph).

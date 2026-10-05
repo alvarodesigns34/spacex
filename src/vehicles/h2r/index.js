@@ -6,6 +6,7 @@
  *  - wheels.js, brakes.js, steer.js (the fork, clamps, bars, front wheel), swingarm.js (with the chain and rear wheel);
  *  - trellis.js (the frame), engine/ (one module per part), intake.js (the ram-air duct), exhaust.js;
  *  - bodywork/: tank.js, seat.js, fairing.js (cowl, side panel, nose, wings, screen), decals.js, surfaces.js;
+ *  - rearsets.js: the hangers, heel guards, footpegs, brake pedal and gear lever;
  *  - details.js and dash.js: the rest.
  *
  * PROVENANCE
@@ -36,6 +37,7 @@ import { buildEngine as buildEngineParts } from './engine/index.js';
 import { buildDuct } from './intake.js';
 import { buildExhaust } from './exhaust.js';
 import { buildDetails } from './details.js';
+import { buildRearsets } from './rearsets.js';
 import { buildTank } from './bodywork/tank.js';
 import { buildSeatTail } from './bodywork/seat.js';
 import { buildFairing3 as buildFairing } from './bodywork/fairing.js';
@@ -55,7 +57,7 @@ export function buildH2r(M) {
   M.h2rTail ??= new THREE.MeshStandardMaterial({ name: 'h2r-tail-lamp', color: 0x8a0d10, emissive: 0xc0141a, emissiveIntensity: 0.5, roughness: 0.25, metalness: 0.2 });
   M.h2rSeat ??= new THREE.MeshStandardMaterial({ name: 'h2r-seat', color: 0x151617, metalness: 0, roughness: 0.85 });
   const fairing = buildFairing(M), tank = buildTank(M);
-  root.add(buildSteer(M), buildSwingarm(M), buildFrame(M), buildEngine(M), buildExhaust(M), tank, buildSeatTail(M), fairing, buildDetails(M));
+  root.add(buildSteer(M), buildSwingarm(M), buildFrame(M), buildEngine(M), buildExhaust(M), tank, buildSeatTail(M), fairing, buildDetails(M), buildRearsets(M));
   root.updateMatrixWorld(true);
   root.add(buildDecals(fairing.userData.panel, tank.getObjectByName('h2r-tank-top'), root.getObjectByName('h2r-tail')));
   root.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
@@ -75,7 +77,7 @@ function detailH2r(M) {
   D(M.h2rTyreWall, 'rubber', { size: 0.008, normal: 0.5, rough: 0.2 });
   D(M.h2rRubber, 'rubber', { size: 0.01, normal: 0.8, rough: 0.35 });
   for (const k of ['h2rSatin', 'h2rSatin2', 'h2rBlack2', 'h2rChain', 'h2rMeshDark']) D(M[k], 'stipple', { size: 0.008, normal: 0.6, rough: 0.25 });
-  for (const k of ['h2rEngine', 'h2rCaseGrey', 'h2rCast', 'h2rCaliper']) D(M[k], 'cast', { size: 0.018, normal: 0.8, rough: 0.35 });
+  for (const k of ['h2rEngine', 'h2rCover', 'h2rCast', 'h2rCaliper']) D(M[k], 'cast', { size: 0.018, normal: 0.8, rough: 0.35 });
   for (const k of ['h2rAlu', 'h2rMachined', 'h2rTi', 'h2rTiGold', 'h2rSilencer', 'h2rPlenum']) D(M[k], 'brushed', { size: 0.03, normal: 0.35, rough: 0.3 });
   D(M.h2rDiscF, 'brushed', { size: 0.015, normal: 0.6, rough: 0.35 });
   D(M.h2rSprocket, 'brushed', { size: 0.02, normal: 0.4, rough: 0.3 });

@@ -16,7 +16,7 @@
  * Frame: x forward from the middle of the wheelbase, y up from the ground, z to the right.
  */
 import * as THREE from 'three';
-import { mergeAll, mesh, TAU } from '../geometry.js';
+import { mergeAll, mesh } from '../geometry.js';
 import { PXY } from '../photo.js';
 import { ext, turned, bolt, boltRing, hose } from './parts.js';
 
@@ -24,13 +24,12 @@ const px = (u, v) => PXY(u, v);
 
 export function buildCore(M) {
   // Materials: the cases a dark satin charcoal (not black: the photographs show their form in
-  // grey); the covers a shade lighter; the castings bare aluminium.
+  // grey); the castings bare aluminium.
   M.h2rEngine ??= new THREE.MeshStandardMaterial({ name: 'h2r-engine', color: 0x34363a, metalness: 0.35, roughness: 0.52 });
-  M.h2rCaseGrey ??= new THREE.MeshStandardMaterial({ name: 'h2r-case-grey', color: 0x6c6f74, metalness: 0.45, roughness: 0.48 });
   M.h2rCast ??= new THREE.MeshStandardMaterial({ name: 'h2r-cast-aluminium', color: 0xa9adb2, metalness: 0.75, roughness: 0.46 });
   M.h2rRubber ??= new THREE.MeshStandardMaterial({ name: 'h2r-grip', color: 0x1a1b1c, metalness: 0, roughness: 0.9 });
   const g = new THREE.Group(); g.name = 'h2r-engine-core';
-  const dark = [], grey = [], cast = [], bright = [], rubber = [];
+  const dark = [], cast = [], bright = [], rubber = [];
 
   // ---- The crankcase: upper and lower halves, split along the crankshaft, the gearbox behind.
   const CASE = [[-0.1411, 0.5549], [0.0887, 0.5718], [0.1717, 0.5409], [0.2141, 0.4844], [0.2176, 0.3365], [0.1681, 0.3435], [-0.0455, 0.3385], [-0.0686, 0.2722], [-0.1179, 0.271], [-0.1386, 0.3116]];
@@ -94,25 +93,34 @@ export function buildCore(M) {
   // The oil filter, a black can on the front of the crankcase, below the cooler.
   { const f = new THREE.CylinderGeometry(0.034, 0.034, 0.075, 40); f.rotateZ(-1.2); f.translate(0.215, 0.275, -0.05); dark.push({ geometry: f }); }
 
-  // ---- The left side: the generator cover and the sprocket cover (with its slots), and the
+  // ---- The left side: the generator cover, the sprocket cover with the clutch's slave cylinder, and the
   // water pump at the front with the hoses to the radiator.
   // (The sprocket's cover centred on the gearbox's sprocket, where the chain starts: h2r.js.)
   const [gx, gy] = px(583, 578), [sx, sy] = [-0.065, 0.362];
-  dark.push({ geometry: turned([[0, 0.036], [0.05, 0.035], [0.07, 0.026], [0.08, 0.016], [0.085, 0.006], [0.086, 0]], gx, gy, -ZC, -1, 80) });
+  // (A flat face with a broad chamfer round it, as the photographs show it.)
+  dark.push({ geometry: turned([[0, 0.032], [0.066, 0.032], [0.074, 0.03], [0.081, 0.024], [0.085, 0.014], [0.087, 0.005], [0.087, 0]], gx, gy, -ZC, -1, 96) });
   boltRing(bright, gx, gy, -ZC - 0.006, -1, 0.081, 10, { head: 0.0045, h: 0.006 });
-  dark.push({ geometry: turned([[0, 0.03], [0.045, 0.029], [0.062, 0.02], [0.068, 0]], sx, sy, -ZC, -1, 64) });
-  for (let k = 0; k < 5; k++) {
-    const a = k / 5 * TAU, r0 = 0.03;
-    grey.push({ geometry: ext([[sx + Math.cos(a) * r0, sy + Math.sin(a) * r0], [sx + Math.cos(a + 0.4) * r0, sy + Math.sin(a + 0.4) * r0], [sx + Math.cos(a + 0.4) * 0.055, sy + Math.sin(a + 0.4) * 0.055], [sx + Math.cos(a) * 0.055, sy + Math.sin(a) * 0.055]], -ZC - 0.032, -ZC - 0.029, 0) });
+  // The sprocket's cover: black, angular (the photographs of the left side), its rounded edge, the
+  // round boss over the gearbox's shaft, its bolts; the chain runs out under its back edge.
+  {
+    const SPC = [[sx - 0.055, sy - 0.045], [sx + 0.05, sy - 0.058], [sx + 0.078, sy - 0.01], [sx + 0.07, sy + 0.05], [sx + 0.01, sy + 0.074], [sx - 0.045, sy + 0.055], [sx - 0.062, sy + 0.01]];
+    dark.push({ geometry: ext(SPC, -0.198, -ZC + 0.004, 0.009, 4) });
+    dark.push({ geometry: turned([[0.031, 0], [0.031, 0.006], [0.028, 0.009], [0.012, 0.0095], [0, 0.0095]], sx, sy, -0.198, -1, 64) });
+    for (const [x, y] of [SPC[0], SPC[1], SPC[3], SPC[5]]) bright.push({ geometry: bolt(x + (sx - x) * 0.16, y + (sy - y) * 0.16, -0.198, -1, 0.0042, 0.005) });
+    // The clutch's slave cylinder on its top front, round and black, its bleed nipple, and the
+    // hose up from it to the bar's master cylinder (controls.js ends it at the head's side).
+    const cs = [sx + 0.045, sy + 0.072];
+    dark.push({ geometry: turned([[0.024, 0], [0.024, 0.014], [0.021, 0.018], [0, 0.0185]], cs[0], cs[1], -0.19, -1, 48) });
+    boltRing(bright, cs[0], cs[1], -0.19, -1, 0.019, 3, { head: 0.0032, h: 0.004, a0: 0.5 });
+    const nip = new THREE.CylinderGeometry(0.003, 0.004, 0.014, 10); nip.translate(cs[0] - 0.012, cs[1] + 0.024, -0.2); bright.push({ geometry: nip });
+    rubber.push({ geometry: hose([[cs[0] + 0.01, cs[1] + 0.018, -0.205], [cs[0] + 0.05, cs[1] + 0.09, -0.2], [0.12, 0.58, -0.18], ...[PXY(560, 470)].map(([x, y]) => [x, y, -0.17])], 0.0085, 40) });
   }
-  boltRing(bright, sx, sy, -ZC - 0.004, -1, 0.064, 6, { head: 0.0042, h: 0.006 });
-  { const wp = turned([[0, 0.03], [0.034, 0.028], [0.042, 0.014], [0.044, 0]], 0.185, 0.43, -ZC, -1, 48); grey.push({ geometry: wp }); }
+  { const wp = turned([[0, 0.026], [0.03, 0.026], [0.036, 0.022], [0.04, 0.012], [0.042, 0]], 0.185, 0.43, -ZC, -1, 48); dark.push({ geometry: wp }); }
   boltRing(bright, 0.185, 0.43, -ZC - 0.004, -1, 0.04, 4, { head: 0.004, h: 0.005 });
   rubber.push({ geometry: hose([[0.2, 0.45, -0.19], [0.26, 0.5, -0.19], [0.31, 0.58, -0.17], [0.34, 0.66, -0.13]], 0.013) });
   rubber.push({ geometry: hose([[0.27, 0.72, 0.12], [0.33, 0.7, 0.15], [0.37, 0.66, 0.15]], 0.012) });
 
   g.add(mesh(mergeAll(dark), M.h2rEngine, { name: 'h2r-engine-cases' }));
-  g.add(mesh(mergeAll(grey), M.h2rCaseGrey, { name: 'h2r-engine-covers' }));
   g.add(mesh(mergeAll(cast), M.h2rCast, { name: 'h2r-engine-castings' }));
   g.add(mesh(mergeAll(bright), M.h2rMachined ?? M.h2rSatin, { name: 'h2r-engine-bolts' }));
   g.add(mesh(mergeAll(rubber), M.h2rRubber, { name: 'h2r-engine-hoses' }));

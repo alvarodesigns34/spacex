@@ -181,7 +181,8 @@ export function buildExhaust(M) {
       }
     }
     // The hanger's band round the cone under the rearset, its clamp lug and bolt.
-    const dh = 0.25 / 0.54 * outer.L;
+    // (Under the right hanger's lower arm, rearsets.js: its boss at x −0.24 m, 0.356 m up.)
+    const dh = 0.21 / 0.54 * outer.L;
     bands.push({ geometry: band(dh - 0.016, dh + 0.016, 0.0018) });
     const up = new THREE.Vector3(0, 0.6, 0.8).normalize();
     const radial = up.clone().sub(outer.ax.clone().multiplyScalar(up.dot(outer.ax))).normalize();
@@ -193,10 +194,10 @@ export function buildExhaust(M) {
     }
     g.add(mesh(mergeAll(bands), M.h2rAlu, { name: 'h2r-silencer-bands' }));
     g.add(mesh(mergeAll(springs), M.h2rAlu, { name: 'h2r-silencer-springs' }));
-    // The hanger: a pierced aluminium plate from the band's lug up to the inside of the right heel
-    // plate (details.js: its inner face at z ≈ 0.197, the peg at x −0.28 m, 0.37 m up), its
-    // triangular window, two socket-head bolts into the heel plate.
-    const top = V(foot.x - 0.005, 0.385, 0.193);
+    // The hanger: a pierced aluminium plate from the band's lug up to the inside of the right
+    // rearset's lower arm (rearsets.js: its boss at x −0.24 m, 0.356 m up, its inner face at z 0.209),
+    // its triangular window, two socket-head bolts into the arm.
+    const top = V(-0.236, 0.352, 0.205);
     const X = new THREE.Vector3(1, 0, 0), S = top.clone().sub(foot); S.addScaledVector(X, -S.dot(X)); const Ls = S.length(); S.normalize();
     const N = X.clone().cross(S);
     const sh = new THREE.Shape([[-0.02, 0.004], [0.02, 0.004], [0.032, Ls + 0.012], [-0.036, Ls + 0.012]].map(([x, y]) => new THREE.Vector2(x, y)));

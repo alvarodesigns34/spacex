@@ -881,6 +881,18 @@ El usuario pidió centrar esta tanda en la Ninja H2R, con detalle absoluto, y or
 - **Conducto de admisión de aire dinámico:** termina recto y redondo sobre la campana del compresor. **Corregido:** tenía las caras hacia dentro, y desde fuera solo se veía la pared del fondo, como una cinta.
 - Bloque, culata y cárter de aceite pasan a gris oscuro, como en las fotos sin carenado; los cantos redondeados de las piezas extruidas se sombrean ya suaves, sin facetas.
 
+**Paso 6: lado izquierdo del motor, estriberas y chasis:**
+- **Lado izquierdo del motor:** tapa del piñón negra y angulosa, con su resalte redondo sobre el eje y sus tornillos (como en las fotos, ya no redonda con ranuras). Encima, el cilindro receptor del embrague hidráulico con su purgador y la manguera hasta la bomba del manillar. La tapa del alternador lleva ahora la cara plana con un chaflán ancho.
+- **Estriberas** (`rearsets.js`, trazadas en la rejilla milimétrica de la foto derecha; el lado izquierdo es simétrico):
+  - en cada lado, un soporte de aluminio mecanizado en forma de X, atornillado al nudo de la pata trasera del chasis;
+  - encima, la talonera plana con su ranura;
+  - la estribera abatible, moleteada, con su horquilla y su muelle de retorno.
+  - A la derecha, el pedal de freno hasta su puntera, la bomba trasera vertical con su varilla y el depósito ámbar sujeto con su abrazadera al nudo superior.
+  - A la izquierda, la palanca de cambio y la varilla con sus dos rótulas hasta el brazo del eje del cambio, por fuera del chasis.
+  - El soporte del silenciador cuelga ahora del brazo inferior de la estribera derecha.
+- **Chasis:** el arriostramiento en V detrás de la pipa (figura 4 de la Kawasaki Technical Review n.º 180), las cartelas de la pipa, los aros de las tazas de dirección y un cordón de soldadura en el extremo de cada tubo.
+- **Corregido:** una malla vacía del motor, sin vértices, que había quedado tras mover las tapas.
+
 ### Encargo del 4 de octubre (cuarta sesión): F-16, Porsche y H2R a fondo. F-16, toma de aire y cúpula
 
 El usuario pidió una auditoría ambiciosa de los tres vehículos conducibles: modelos 3D mucho más detallados, conducción y vuelo más reales, entorno y una pasada final por las físicas. Se empezó por renderizar los tres de cerca. Lo más tosco era el F-16.
@@ -1733,7 +1745,8 @@ src/data/h2r.js            ficha de la Kawasaki Ninja H2R con la procedencia de 
 src/vehicles/h2r.js        punto de entrada del modelo de la H2R (lo construye vehicles/h2r/)
 src/vehicles/h2r/          la H2R pieza a pieza: index.js (montaje), geometry.js, photo.js (calibración de la foto),
                            materials.js, wheels.js, brakes.js, chain.js, steer.js (montaje de la dirección), fork.js,
-                           clamps.js, controls.js, swingarm.js, trellis.js (chasis), intake.js, exhaust.js, details.js, dash.js
+                           clamps.js, controls.js, swingarm.js, trellis.js (chasis), rearsets.js (estriberas), intake.js,
+                           exhaust.js, details.js, dash.js
 src/vehicles/h2r/engine/   el motor: index.js (montaje), parts.js (formas comunes y la rejilla en mm de la foto derecha),
                            core.js (cárteres, cilindros, culata, tapas izquierdas), right.js (tapa del embrague, emblema,
                            radiador de aceite), supercharger.js (rodete, voluta, acople), chamber.js (cámara de admisión)
