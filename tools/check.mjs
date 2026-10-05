@@ -981,12 +981,27 @@ try {
           if (Math.abs(q.z) < cw(s) - 0.035 && q.y - GROUND > top(s) - 0.05) inside++;
         }
       }
-      return { area: Math.abs(a / 2), published: LINES.inletArea, inside, checked };
+      // The blade antennas: every face turned out (the belly's, mirrored to hang down, had all
+      // twelve turned in and drew dark).
+      let inward = 0;
+      v.exhibits.f16.model.traverse(o => {
+        if (!o.name.startsWith('f16-antenna-')) return;
+        const g = o.geometry, pa = g.attributes.position, idx = g.index, N = idx ? idx.count : pa.count;
+        g.computeBoundingBox();
+        const c = g.boundingBox.getCenter(new THREE.Vector3()), A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3(), n = new THREE.Vector3(), m = new THREE.Vector3();
+        for (let t = 0; t < N; t += 3) {
+          A.fromBufferAttribute(pa, idx ? idx.getX(t) : t); B.fromBufferAttribute(pa, idx ? idx.getX(t + 1) : t + 1); C.fromBufferAttribute(pa, idx ? idx.getX(t + 2) : t + 2);
+          n.subVectors(B, A).cross(m.subVectors(C, A));
+          if (n.dot(m.copy(A).add(B).add(C).divideScalar(3).sub(c)) <= 0) inward++;
+        }
+      });
+      return { area: Math.abs(a / 2), published: LINES.inletArea, inside, checked, inward };
     });
     report(Math.abs(f16.area / f16.published - 1) < 0.02, 'F-16: área de captura en el borde del labio',
       `${f16.area.toFixed(3)} m² (TP-3355: ${f16.published.toFixed(3)} m²)`);
     report(f16.inside === 0 && f16.checked > 500, 'F-16: ningún vértice de la piel dentro de la abertura de la cabina',
       `${f16.inside} de ${f16.checked} vértices`);
+    report(f16.inward === 0, 'F-16: las antenas de pala con todas sus caras hacia fuera', `${f16.inward} caras hacia dentro`);
     report(zero.tris === 0, 'ningún triángulo con normal nula',
       `${zero.tris} triángulos${zero.meshes.length ? ` (${zero.meshes.join(', ')})` : ''} · saneados al arrancar: `
       + `${zero.sanitized?.triangles ?? '?'} en ${zero.sanitized?.meshes ?? '?'} geometrías`);

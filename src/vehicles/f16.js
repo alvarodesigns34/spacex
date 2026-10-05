@@ -410,7 +410,8 @@ function buildFuselage(M) {
       sh.moveTo(0, 0); sh.lineTo(len, 0); sh.lineTo(len * 0.75, h); sh.lineTo(len * 0.45, h); sh.closePath();
       const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.012, bevelEnabled: false });
       geo.translate(-len, 0, -0.006);
-      geo.scale(1, up, 1);
+      // Hanging down: turned over, not mirrored (a mirror turns its faces inside out, dark).
+      if (up < 0) geo.rotateX(Math.PI);
       const at = P(sp, zz, 0);
       geo.translate(at.x, at.y, at.z);
       return mesh(geo, M.f16Lower, { name, castShadow: false });

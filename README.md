@@ -853,6 +853,7 @@ El usuario pidió una auditoría ambiciosa de los tres vehículos conducibles: m
   - el panel, con los biseles y las esferas de los instrumentos, la pantalla del radar y el panel de mando bajo el parasol.
 - **El lanzador de punta de ala** (tipo LAU-129, ≈ en forma y tamaño) era una barra rectangular. Ahora es un raíl esbelto de sección redondeada, con el morro afilado, la cola en cuña, los dos carriles de lanzamiento por debajo y el adaptador perfilado que lo une a la punta del ala.
 - **El tren de morro, como en las fotos** (Commons, «Last 3 F-16's Twenthe Airbase» y «Vegas Strong F-16 Gear Down Pass», solo como referencia; medidas ≈): la pata va inclinada, con la rueda ≈16 cm por delante de su anclaje (antes era vertical y con la rueda atrasada); lleva el tirante largo en diagonal hacia atrás y arriba, con el muelle de su actuador; y una sola compuerta larga, a la derecha, detrás de la pata, con la esquina trasera redondeada (antes, dos placas rectangulares).
+- **La antena de pala del vientre se veía negra.** Para colgarla hacia abajo se reflejaba con una escala −1, y eso da la vuelta a sus caras (las 12 miraban hacia dentro). Ahora se gira 180°. `check.mjs` comprueba que las antenas tienen todas las caras hacia fuera (con el código anterior, 12 hacia dentro).
 - **Pruebas nuevas** (`tools/check.mjs`): el área de captura (±2 %) y que ningún vértice de la piel quede dentro de la abertura de la cabina. Con el código anterior, la segunda falla (31 vértices dentro).
 
 ### Fase 4 del encargo: física y entorno: el viento del sitio (4 de octubre de 2026)
