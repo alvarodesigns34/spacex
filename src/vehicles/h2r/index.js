@@ -72,11 +72,15 @@ export function buildH2r(M) {
 function detailH2r(M) {
   const D = (m, kind, o) => m && applyDetail(m, kind, o);
   D(M.h2rTyre, 'rubber', { size: 0.012, normal: 0.8, rough: 0.35 });
+  D(M.h2rTyreWall, 'rubber', { size: 0.008, normal: 0.5, rough: 0.2 });
   D(M.h2rRubber, 'rubber', { size: 0.01, normal: 0.8, rough: 0.35 });
   for (const k of ['h2rSatin', 'h2rSatin2', 'h2rBlack2', 'h2rChain', 'h2rMeshDark']) D(M[k], 'stipple', { size: 0.008, normal: 0.6, rough: 0.25 });
   for (const k of ['h2rEngine', 'h2rCaseGrey', 'h2rCast', 'h2rCaliper']) D(M[k], 'cast', { size: 0.018, normal: 0.8, rough: 0.35 });
   for (const k of ['h2rAlu', 'h2rMachined', 'h2rTi', 'h2rPlenum']) D(M[k], 'brushed', { size: 0.03, normal: 0.35, rough: 0.3 });
-  for (const k of ['h2rDiscF', 'h2rDiscR']) D(M[k], 'brushed', { size: 0.015, normal: 0.6, rough: 0.35 });
+  D(M.h2rDiscF, 'brushed', { size: 0.015, normal: 0.6, rough: 0.35 });
+  D(M.h2rSprocket, 'brushed', { size: 0.02, normal: 0.4, rough: 0.3 });
+  // The brake lines' stainless braid: a fine twill across the line (≈1.5 mm).
+  D(M.h2rBraid, 'twill', { size: 0.003, normal: 1, rough: 0.3 });
   D(M.h2rSeat, 'grain', { size: 0.02, normal: 1, rough: 0.4 });
   D(M.h2rCarbon, 'twill', { size: 0.032, normal: 0.6, rough: 0.2, color: 0.85 });
   for (const k of ['h2rChrome', 'h2rChrome2', 'h2rGreen', 'h2rRim', 'h2rBlack', 'h2rRedAnod']) D(M[k], 'peel', { size: 0.06, normal: 0.18, rough: 0.1 });

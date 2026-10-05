@@ -3,35 +3,21 @@
  * twill, the titanium's heat tint, the radiator's core, the ducts' mesh, the decals' type.
  */
 import * as THREE from 'three';
-import { canvasTexture, TAU } from './geometry.js';
+import { canvasTexture } from './geometry.js';
 
-/** The discs' braking bands: three staggered rows of holes, as an alpha map over a ring's UVs. */
-function discHoles(rows) {
-  const t = canvasTexture(1024, 1024, (g, w) => {
-    g.fillStyle = '#fff'; g.fillRect(0, 0, w, w);
-    g.fillStyle = '#000';
-    const c = w / 2;
-    for (const [n, r, off, size] of rows) {
-      for (let i = 0; i < n; i++) {
-        const a = (i / n + off) * TAU;
-        g.beginPath(); g.arc(c + Math.cos(a) * r * c, c + Math.sin(a) * r * c, w * size, 0, TAU); g.fill();
-      }
-    }
-  }, false);
-  return t;
-}
-
-// ---- Materials -----------------------------------------------------------------------------------
 export function partMaterials(M) {
   if (M.h2rTyre) return;
   M.h2rTyre = new THREE.MeshStandardMaterial({ name: 'h2r-tyre', color: 0x18191a, metalness: 0, roughness: 0.78 });
   M.h2rRim = new THREE.MeshPhysicalMaterial({ name: 'h2r-rim', color: 0x0b0b0c, metalness: 0.6, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.08 });
   M.h2rMachined = new THREE.MeshStandardMaterial({ name: 'h2r-machined', color: 0xd9dcdf, metalness: 1, roughness: 0.18 });
   M.h2rRimStripe = new THREE.MeshStandardMaterial({ name: 'h2r-rim-stripe', color: 0x3fae3a, metalness: 0.3, roughness: 0.35 });
-  M.h2rDiscF = new THREE.MeshStandardMaterial({ name: 'h2r-disc', color: 0xb2b4b6, metalness: 0.9, roughness: 0.28, side: THREE.DoubleSide,
-    alphaMap: discHoles([[30, 0.94, 0, 0.0085], [30, 0.87, 0.5 / 30, 0.0085], [30, 0.80, 0, 0.0085]]), alphaTest: 0.5 });
-  M.h2rDiscR = new THREE.MeshStandardMaterial({ name: 'h2r-disc-rear', color: 0xb2b4b6, metalness: 0.9, roughness: 0.28, side: THREE.DoubleSide,
-    alphaMap: discHoles([[24, 0.92, 0, 0.011], [24, 0.82, 0.5 / 24, 0.011]]), alphaTest: 0.5 });
+  // The discs: ground steel, drilled in the geometry; the faces' fine circular grinding (detail.js).
+  M.h2rDiscF = new THREE.MeshStandardMaterial({ name: 'h2r-disc', color: 0xb9bbbd, metalness: 0.92, roughness: 0.3 });
+  M.h2rDiscR = M.h2rDiscF;
+  // The slicks' sidewalls: a deeper, satin black than the scuffed tread.
+  M.h2rTyreWall = new THREE.MeshStandardMaterial({ name: 'h2r-tyre-wall', color: 0x0e0f10, metalness: 0, roughness: 0.6 });
+  // The sprocket: dark anodised aluminium (the left rear photograph).
+  M.h2rSprocket = new THREE.MeshStandardMaterial({ name: 'h2r-sprocket', color: 0x2a2b2e, metalness: 0.75, roughness: 0.4 });
   M.h2rCaliper = new THREE.MeshStandardMaterial({ name: 'h2r-calliper', color: 0x8e9196, metalness: 0.75, roughness: 0.42 });
   M.h2rPad = new THREE.MeshStandardMaterial({ name: 'h2r-pad', color: 0x9a6a3a, metalness: 0.6, roughness: 0.5 });
   M.h2rFork = new THREE.MeshPhysicalMaterial({ name: 'h2r-fork', color: 0x101112, metalness: 0.7, roughness: 0.18, clearcoat: 1 });
@@ -80,14 +66,6 @@ export function radiatorTexture() {
   return t;
 }
 
-export function bremboDecal() {
-  const t = canvasTexture(512, 150, (g, w, h) => {
-    g.clearRect(0, 0, w, h);
-    g.fillStyle = '#d0141c'; g.font = 'bold 128px Arial, Helvetica, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText('brembo', w / 2, h / 2 + 6);
-  });
-  return t && new THREE.MeshStandardMaterial({ name: 'h2r-decal-brembo', map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, roughness: 0.5 });
-}
 
 export function meshTexture() {
   const t = canvasTexture(64, 64, (x, w) => {

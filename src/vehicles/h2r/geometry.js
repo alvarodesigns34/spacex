@@ -162,6 +162,22 @@ export function mirrorZ(g) {
 }
 
 export { mergeVertices, mergeAll, mesh };
+/**
+ * Drops the triangles without area (a shape with many holes triangulates now and then three
+ * collinear points into one: its normal is (0, 0, 0), a NaN in the shading). Non-indexed or indexed.
+ */
+export function dropSlivers(g, eps = 1e-13) {
+  const p = g.attributes.position, idx = g.index, n = idx ? idx.count : p.count, keep = [];
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  for (let t = 0; t < n; t += 3) {
+    const i = idx ? idx.getX(t) : t, j = idx ? idx.getX(t + 1) : t + 1, k = idx ? idx.getX(t + 2) : t + 2;
+    a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, j); c.fromBufferAttribute(p, k);
+    if (b.sub(a).cross(c.sub(a)).lengthSq() > eps) keep.push(i, j, k);
+  }
+  if (keep.length === n) return g;
+  g.setIndex(keep);
+  return g;
+}
 
 // ---- Textures ------------------------------------------------------------------------------------
 export function canvasTexture(w, h, draw, color = true) {

@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import { T, AXLE_R, PIVOT, RR, D2R, TAU, slab, loft, mergeAll, mesh } from './geometry.js';
 import { PXY } from './photo.js';
 import { buildWheel } from './wheels.js';
-import { stylema } from './brakes.js';
+import { rearCalliper } from './brakes.js';
+import { buildChain } from './chain.js';
 
 /** The single-sided swingarm, on the left: tall at the pivot, sweeping down to its ring round the hub. */
 export function buildSwingarm(M) {
@@ -50,16 +51,12 @@ export function buildSwingarm(M) {
   const hugS = [];
   for (let i = 0; i <= 10; i++) { const a = (62 + 50 * i / 10) * D2R, r = RR + 0.014; hugS.push([[AXLE_R.x + Math.cos(a) * r, AXLE_R.y + Math.sin(a) * r, -0.1], [AXLE_R.x + Math.cos(a) * (r + 0.006), AXLE_R.y + Math.sin(a) * (r + 0.006), 0.0], [AXLE_R.x + Math.cos(a) * r, AXLE_R.y + Math.sin(a) * r, 0.1]]); }
   inner.add(mesh(loft(hugS, { steps: 2 }), M.h2rSatin2, { name: 'h2r-hugger' }));
-  // The chain, from the gearbox sprocket to the wheel's.
-  const front = T(-790, 362, -0.165), back = AXLE_R.clone().setZ(-0.165);
-  const r0 = 0.046, r1 = 0.106, pts = [];
-  const dir = new THREE.Vector3().subVectors(back, front).normalize(), nrm = new THREE.Vector3(-dir.y, dir.x, 0);
-  const arc = (c, r, a0, a1) => { for (let i = 0; i <= 20; i++) { const a = a0 + (a1 - a0) * i / 20; pts.push(c.clone().addScaledVector(dir, Math.cos(a) * r).addScaledVector(nrm, Math.sin(a) * r)); } };
-  arc(front, r0, Math.PI / 2, Math.PI * 1.5); arc(back, r1, -Math.PI / 2, Math.PI / 2);
-  inner.add(mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 240, 0.0055, 6, true), M.h2rChain, { name: 'h2r-chain' }));
+  // The chain, link by link, from the gearbox sprocket (≈18 teeth: 45.7 mm to the rollers' centres)
+  // to the wheel's 42 teeth (106.2 mm).
+  inner.add(buildChain(M, T(-790, 362, -0.165), AXLE_R.clone().setZ(-0.165), 0.0457, 0.1062));
   inner.add(buildWheel(M, 'r'));
   // The rear calliper under the swingarm, on the disc.
-  const rc = stylema(M, null); rc.scale.set(0.75, 0.75, 0.75); rc.position.set(AXLE_R.x + 0.02, AXLE_R.y - 0.105, 0.075); rc.rotation.z = Math.PI;
+  const rc = rearCalliper(M); rc.position.set(AXLE_R.x + 0.02, AXLE_R.y - 0.105, 0.075); rc.rotation.z = Math.PI;
   inner.add(rc);
   return g;
 }
