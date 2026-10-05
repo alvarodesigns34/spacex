@@ -17,8 +17,8 @@
  * Frame: x forward from the middle of the wheelbase, y up from the ground, z to the right.
  */
 import * as THREE from 'three';
-import { slab, mergeAll, mesh, TAU } from './h2rParts.js';
-import { PXY } from './h2rBody.js';
+import { slab, mergeAll, mesh, TAU } from './geometry.js';
+import { PXY } from './photo.js';
 
 /** A side outline (x, y in metres) extruded across the bike from z0 to z1, its edges rounded by `bevel`. */
 function ext(points, z0, z1, bevel = 0.008, seg = 3) {

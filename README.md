@@ -834,6 +834,12 @@ El usuario pidió una pasada decisiva sobre la H2R, el Porsche y el F-16: modelo
 - **Sonido:** las explosiones se redondean a muestras enteras (≈ −25 dB de ruido), el silbido de alivio de la H2R se rompe a los 30 s y no hay modelo espacial. El F-16 no tiene sonido.
 - **No se llegó a hacer:** la auditoría del detalle de los modelos y el presupuesto de rendimiento, y la del entorno y las físicas.
 
+### La H2R a nivel de proyecto de Blender (5 de octubre de 2026)
+
+El usuario pidió centrar esta tanda en la Ninja H2R, con detalle absoluto, y organizar el código por piezas.
+
+**Paso 1: el código, pieza a pieza.** Los cuatro archivos de la moto (`h2r.js`, `h2rParts.js`, `h2rBody.js`, `h2rEngine.js`, ≈1.800 líneas) pasan a un directorio, `src/vehicles/h2r/`, con un módulo por pieza o sistema: ruedas, frenos, dirección (horquilla, tijas, manillar), basculante, chasis, motor, admisión, escape, cuadro de instrumentos, detalles y, en `bodywork/`, depósito, asiento y colín, carenado, rótulos y las superficies que comparten. `src/vehicles/h2r.js` queda como punto de entrada. Cada función se movió literalmente; el modelo resultante es idéntico malla a malla (comprobado con una huella de cada malla: nombre, material, vértices y sumas de posiciones y normales), y en el navegador da los mismos 112.905 triángulos, 146 mallas, 43 materiales y 11 texturas. Se quitaron dos versiones del carenado que ya no se usaban.
+
 ### Encargo del 4 de octubre (cuarta sesión): F-16, Porsche y H2R a fondo. F-16, toma de aire y cúpula
 
 El usuario pidió una auditoría ambiciosa de los tres vehículos conducibles: modelos 3D mucho más detallados, conducción y vuelo más reales, entorno y una pasada final por las físicas. Se empezó por renderizar los tres de cerca. Lo más tosco era el F-16.
@@ -1683,9 +1689,11 @@ src/sim/gt3Damage.js       daños del Porsche en un choque: abolladuras, piezas 
 src/sim/gt3Camera.js       cámaras de la conducción del Porsche y vibración de la carretera, independientes de los fps
 src/sim/f16Flcs.js         leyes de control de vuelo del F-16 (FLCS), en su propio módulo
 src/data/h2r.js            ficha de la Kawasaki Ninja H2R con la procedencia de cada cifra
-src/vehicles/h2r.js        modelo de la H2R ajustado a las fotos de Kawasaki con cámaras calibradas
-src/vehicles/h2rParts.js   ruedas, frenos, horquilla y utilidades de superficie de la H2R
-src/vehicles/h2rBody.js    carrocería, rótulos y alas de la H2R
+src/vehicles/h2r.js        punto de entrada del modelo de la H2R (lo construye vehicles/h2r/)
+src/vehicles/h2r/          la H2R pieza a pieza: index.js (montaje), geometry.js, photo.js (calibración de la foto),
+                           materials.js, wheels.js, brakes.js, steer.js (horquilla, tijas, manillar), swingarm.js,
+                           trellis.js (chasis), engine.js, intake.js, exhaust.js, details.js, dash.js
+src/vehicles/h2r/bodywork/ carrocería: tank.js, seat.js, fairing.js (cúpula, panel, morro, alas, pantalla), decals.js, surfaces.js
 src/sim/h2rBike.js         dinámica de la moto: contramanillar, neumáticos, suspensión, embrague, caídas
 src/sim/h2rRide.js         modo de pilotaje: postura, cámaras, marcas, el piloto al caer
 src/sim/h2rSound.js        sonido del cuatro en línea por pulsos de escape (AudioWorklet) y su compresor
