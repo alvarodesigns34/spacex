@@ -1002,6 +1002,33 @@ try {
     report(f16.inside === 0 && f16.checked > 500, 'F-16: ningún vértice de la piel dentro de la abertura de la cabina',
       `${f16.inside} de ${f16.checked} vértices`);
     report(f16.inward === 0, 'F-16: las antenas de pala con todas sus caras hacia fuera', `${f16.inward} caras hacia dentro`);
+    // The drivable vehicles: no mesh whose faces are wound against its own normals (a geometry
+    // mirrored with a negative scale and not turned back draws from inside: the Porsche's left
+    // callipers and the H2R's left screen screws did; the F-16's belly antenna too).
+    const wound = await page.evaluate(async () => {
+      const v = window.__vc, THREE = await import('three'), list = [];
+      for (const id of ['f16', 'gt3rs', 'h2r']) {
+        v.exhibits[id].model.traverse(o => {
+          if (!o.isMesh || !o.geometry?.attributes?.normal) return;
+          const mats = Array.isArray(o.material) ? o.material : [o.material];
+          if (mats.every(m => m.side === THREE.DoubleSide)) return;
+          const g = o.geometry, p = g.attributes.position, nn = g.attributes.normal, idx = g.index, N = idx ? idx.count : p.count;
+          const A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3(), f = new THREE.Vector3(), e = new THREE.Vector3(), vn = new THREE.Vector3();
+          let bad = 0, tot = 0;
+          for (let t = 0; t < N; t += 3) {
+            const i = idx ? idx.getX(t) : t, j = idx ? idx.getX(t + 1) : t + 1, k = idx ? idx.getX(t + 2) : t + 2;
+            A.fromBufferAttribute(p, i); B.fromBufferAttribute(p, j); C.fromBufferAttribute(p, k);
+            f.subVectors(B, A).cross(e.subVectors(C, A));
+            if (f.lengthSq() < 1e-14) continue;
+            vn.fromBufferAttribute(nn, i).add(e.fromBufferAttribute(nn, j)).add(e.fromBufferAttribute(nn, k));
+            tot++; if (f.dot(vn) < 0) bad++;
+          }
+          if (tot && bad / tot > 0.2) list.push(`${o.name} ${bad}/${tot}`);
+        });
+      }
+      return list;
+    });
+    report(wound.length === 0, 'F-16, Porsche y H2R: ninguna malla con las caras del revés', wound.join(', ') || 'ninguna');
     report(zero.tris === 0, 'ningún triángulo con normal nula',
       `${zero.tris} triángulos${zero.meshes.length ? ` (${zero.meshes.join(', ')})` : ''} · saneados al arrancar: `
       + `${zero.sanitized?.triangles ?? '?'} en ${zero.sanitized?.meshes ?? '?'} geometrías`);

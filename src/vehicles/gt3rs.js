@@ -1504,6 +1504,19 @@ function buildWheel(M, axle, side, name, brakes) {
   const ca = new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.007, bevelSegments: 2, curveSegments: 24 });
   ca.translate(0, 0, zDisc - depth / 2);
   ca.scale(1, 1, side);
+  // The left side's mirror turns the faces inside out: turn them back (they drew from inside).
+  if (side < 0) {
+    const ix = ca.index;
+    if (ix) for (let i = 0; i < ix.count; i += 3) { const t = ix.getX(i + 1); ix.setX(i + 1, ix.getX(i + 2)); ix.setX(i + 2, t); }
+    else {
+      for (const A of Object.values(ca.attributes)) {
+        for (let i = 0; i < A.count; i += 3) for (let k = 0; k < A.itemSize; k++) {
+          const a = (i + 1) * A.itemSize + k, b = (i + 2) * A.itemSize + k, t = A.array[a];
+          A.array[a] = A.array[b]; A.array[b] = t;
+        }
+      }
+    }
+  }
   const cal = mesh(ca, M.gt3CalliperBlack, { name: `${name}-calliper` });
   g.add(cal);
   g.position.set(axle.x, axle.y, side * axle.track / 2);

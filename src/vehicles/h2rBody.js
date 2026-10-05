@@ -206,7 +206,7 @@ function buildScreen0(M) {
   const polys = []; for (let i = 0; i < 10; i++) polys.push([2 * i, 2 * i + 2, 2 * i + 3, 2 * i + 1]);
   out.add(facets(strip, polys, twoSided(M, 'h2rBlack2', M.h2rBlack, 'h2r-black-2s'), 'h2r-screen-strip'));
   const sg = screws.map(([x, y, z]) => ({ geometry: new THREE.SphereGeometry(0.0035, 8, 6).translate(x, y, z) }));
-  const sm = mergeAll([...sg, ...sg.map(({ geometry }) => ({ geometry: geometry.clone().scale(1, 1, -1) }))]);
+  const sm = mergeAll([...sg, ...sg.map(({ geometry }) => ({ geometry: mirrorZ(geometry) }))]);
   out.add(mesh(sm, M.h2rAlu ?? M.h2rBlack, { name: 'h2r-screen-screws' }));
   return out;
 }
