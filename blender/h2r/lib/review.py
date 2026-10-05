@@ -25,6 +25,32 @@ def _camera(name, loc, target, ortho=None, lens=50):
     return ob
 
 
+def lighting():
+    """A physical sky and its sun (late morning), and a ground, for Eevee and Cycles reviews."""
+    s = bpy.context.scene
+    w = s.world or bpy.data.worlds.new('review-world'); s.world = w
+    w.use_nodes = True
+    nt = w.node_tree; nt.nodes.clear()
+    sky = nt.nodes.new('ShaderNodeTexSky')
+    try:
+        sky.sky_type = 'NISHITA'; sky.sun_elevation = math.radians(38); sky.sun_rotation = math.radians(140)
+    except (TypeError, AttributeError):
+        pass
+    bg = nt.nodes.new('ShaderNodeBackground'); bg.inputs['Strength'].default_value = 0.35
+    out = nt.nodes.new('ShaderNodeOutputWorld')
+    nt.links.new(sky.outputs[0], bg.inputs[0]); nt.links.new(bg.outputs[0], out.inputs[0])
+    if not bpy.data.objects.get('review-ground'):
+        bpy.ops.mesh.primitive_plane_add(size=40, location=(0, 0, 0))
+        g = bpy.context.object; g.name = 'review-ground'
+        m = bpy.data.materials.new('review-asphalt'); m.use_nodes = True
+        m.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (0.08, 0.08, 0.085, 1)
+        m.node_tree.nodes['Principled BSDF'].inputs['Roughness'].default_value = 0.9
+        g.data.materials.append(m)
+        sun = bpy.data.lights.new('review-sun', 'SUN'); sun.energy = 3.5; sun.angle = math.radians(1.5)
+        so = bpy.data.objects.new('review-sun', sun); s.collection.objects.link(so)
+        so.rotation_euler = (math.radians(52), 0, math.radians(140))
+
+
 def blender_xyz(x, y, z):
     """The model's frame (three.js: x forward, y up, z right) in Blender's (z up): X = x, Y = -z, Z = y."""
     return (x, -z, y)

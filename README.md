@@ -913,6 +913,14 @@ Decisión del usuario: **el modelo 3D de la H2R se hace en Blender; las físicas
 - `tools/glb.mjs`: un lector de GLB para Node. `h2r-check.mjs` mide ya el `.glb` publicado (2,075 × 0,850 × 1,157 m), comprueba las piezas que mueve el pilotaje y que las ruedas giran sobre sus ejes (0,00 mm).
 - `GLTFLoader` y `GLTFExporter` de Three.js r170 en `vendor/`.
 
+**Fase 2: el carenado como piezas moldeadas y prensadas** (`blender/h2r/parts/bodywork.py`):
+- Cada panel es una sola superficie: vértices soldados y pliegues marcados donde las fotos muestran una arista.
+- Las piezas moldeadas y redondeadas (tapa y costados del depósito, colín, tapa lateral, asiento) se suavizan con subdivisión Catmull-Clark, conservando los pliegues. Antes, sus triángulos se reunían en cuadriláteros para que la superficie no ondule.
+- Los paneles prensados y facetados (cúpula, paneles laterales, alas, quilla, aletas inferiores) conservan sus planos.
+- Todos tienen pared (≈2,5 mm; el asiento, 12 mm) con su canto, un bisel fino que capta la luz como el borde de un panel real y normales endurecidas: los planos se ven planos y los pliegues, vivos.
+- Los rótulos se envuelven sobre la superficie terminada («shrinkwrap»), sin flotar.
+- La comparación lateral en Blender (`lib/review.py`: cámara ortográfica a 1 px = 1 mm sobre la misma rejilla que la foto calibrada) confirma que los contornos ajustados antes coinciden con la foto; lo que faltaba era la superficie.
+
 ### Encargo del 4 de octubre (cuarta sesión): F-16, Porsche y H2R a fondo. F-16, toma de aire y cúpula
 
 El usuario pidió una auditoría ambiciosa de los tres vehículos conducibles: modelos 3D mucho más detallados, conducción y vuelo más reales, entorno y una pasada final por las físicas. Se empezó por renderizar los tres de cerca. Lo más tosco era el F-16.
@@ -1764,7 +1772,8 @@ src/sim/f16Flcs.js         leyes de control de vuelo del F-16 (FLCS), en su prop
 src/data/h2r.js            ficha de la Kawasaki Ninja H2R con la procedencia de cada cifra
 src/vehicles/h2r.js        punto de entrada del modelo en código de la H2R (lo construye vehicles/h2r/)
 src/vehicles/h2rAsset.js   carga la H2R de Blender (assets/h2r/h2r.glb) y la prepara para el pilotaje
-blender/h2r/               la H2R en Blender: build.py (construye y exporta el .glb), lib/ (escena, utilidades)
+blender/h2r/               la H2R en Blender: build.py (construye y exporta el .glb), lib/ (escena, revisión),
+                           parts/ (bodywork.py: el carenado)
 assets/h2r/h2r.glb         la H2R que se carga, generada por blender/h2r/build.py
 src/vehicles/h2r/          la H2R pieza a pieza: index.js (montaje), geometry.js, photo.js (calibración de la foto),
                            materials.js, wheels.js, brakes.js, chain.js, steer.js (montaje de la dirección), fork.js,

@@ -28,6 +28,7 @@ sys.path.insert(0, HERE)
 import bpy  # noqa: E402
 
 from lib import scene  # noqa: E402
+from parts import bodywork  # noqa: E402
 
 ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
 SOURCE = os.path.join(HERE, 'source', 'code-parts.glb')
@@ -37,6 +38,7 @@ OUT = os.path.join(ROOT, 'assets', 'h2r', 'h2r.glb')
 def build():
     scene.reset()
     scene.import_code_parts(SOURCE)
+    print('bodywork refined:', len(bodywork.refine()))
     scene.export(OUT)
 
 
