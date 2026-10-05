@@ -193,3 +193,52 @@ export function canvasTexture(w, h, draw, color = true) {
 
 // ---- The engine ------------------------------------------------------------------------------------
 export function lathe(points, segs = 48) { return new THREE.LatheGeometry(points.map(([r, y]) => new THREE.Vector2(r, y)), segs); }
+
+/**
+ * A section swept along a curve through `points` (Vector3s): at each step a rounded box `w(t)`
+ * wide (across, ⟂ the curve and `up`) and `h(t)` tall (along the part of `up` ⟂ the curve),
+ * `e` its roundness (1 a diamond, 0.5 a rounded box, small a box). Caps close the ends unless
+ * `open`. Faces outward. Returns an indexed geometry with smooth normals.
+ */
+export function sweep(points, w, h, { up = new THREE.Vector3(0, 1, 0), n = 14, steps = 32, e = 0.45, open = false, tension = 'centripetal' } = {}) {
+  const curve = new THREE.CatmullRomCurve3(points, false, tension);
+  const W = typeof w === 'function' ? w : () => w, H = typeof h === 'function' ? h : () => h;
+  const pos = [], idx = [], centres = [];
+  const side = new THREE.Vector3(), upv = new THREE.Vector3();
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps, p = curve.getPoint(t), tan = curve.getTangent(t);
+    side.crossVectors(up, tan); if (side.lengthSq() < 1e-10) side.set(0, 0, 1); side.normalize();
+    upv.crossVectors(tan, side).normalize();
+    const ww = W(t) / 2, hh = H(t) / 2;
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * TAU, c = Math.cos(a), s = Math.sin(a);
+      const q = p.clone().addScaledVector(side, Math.sign(c) * Math.abs(c) ** e * ww).addScaledVector(upv, Math.sign(s) * Math.abs(s) ** e * hh);
+      pos.push(q.x, q.y, q.z);
+    }
+    centres.push(p);
+  }
+  for (let i = 0; i < steps; i++) for (let k = 0; k < n; k++) {
+    const a = i * n + k, b = i * n + (k + 1) % n, c = a + n, d = b + n;
+    idx.push(a, c, b, b, c, d);
+  }
+  if (!open) {
+    for (const [i, flipCap] of [[0, true], [steps, false]]) {
+      const ci = pos.length / 3; pos.push(centres[i].x, centres[i].y, centres[i].z);
+      for (let k = 0; k < n; k++) { const a = i * n + k, b = i * n + (k + 1) % n; if (flipCap) idx.push(ci, b, a); else idx.push(ci, a, b); }
+    }
+  }
+  let g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  // Outward: the first ring's normal away from its centre.
+  const nn = g.attributes.normal;
+  const v0 = new THREE.Vector3(nn.getX(n + 1), nn.getY(n + 1), nn.getZ(n + 1));
+  const q1 = new THREE.Vector3(pos[(n + 1) * 3], pos[(n + 1) * 3 + 1], pos[(n + 1) * 3 + 2]).sub(centres[1]);
+  if (v0.dot(q1) < 0) {
+    const ix = g.index;
+    for (let i = 0; i < ix.count; i += 3) { const t = ix.getX(i + 1); ix.setX(i + 1, ix.getX(i + 2)); ix.setX(i + 2, t); }
+    g.computeVertexNormals();
+  }
+  return g;
+}

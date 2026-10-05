@@ -852,6 +852,16 @@ El usuario pidió centrar esta tanda en la Ninja H2R, con detalle absoluto, y or
 - **Triángulos sin área:** una forma con muchos agujeros a veces une tres puntos alineados en un triángulo sin área, de normal nula. Se quitan tras la extrusión (`dropSlivers` en `geometry.js`).
 - La moto pasa de ≈113.000 a ≈357.000 triángulos.
 
+**Paso 3: horquilla, tijas y mandos** (`fork.js`, `clamps.js`, `controls.js`; `steer.js` queda como montaje), contrastados con «Kawasaki Ninja H2R exposed top right» y «… exposed left front» (Commons, solo referencia; medidas ≈, a escala de los tubos de 43 mm y los semimanillares de 22 mm):
+- **Barras:** el tubo interior de 43 mm cromado duro; el guardapolvos negro en la boca del retén; el portarretén escalonado en aros mecanizados; el tubo exterior (≈56 mm) anodizado en champán claro, con su chaflán arriba; los tapones verdes hexagonales con el regulador de precarga plateado y el tornillo de amortiguación dorado.
+- **Pies:** negros, fundidos alrededor del eje con su ranura de apriete y sus dos tornillos detrás; los dos anclajes radiales de la pinza, colocados exactamente bajo las orejas de la Stylema, con su eje radial.
+- **Tijas:** la superior, una pletina mecanizada con un reborde elevado que sigue su contorno alrededor de dos vaciados; cada abrazadera de barra partida por detrás y cerrada por su tornillo Allen; la tuerca de la pipa embutida en el centro, con sus cuatro ranuras. La inferior, más gruesa, con dos tornillos por abrazadera.
+- **Semimanillares:** la abrazadera alrededor de la barra, partida y con sus dos tornillos, y el manillar de 22 mm.
+- **Puños estriados**, el derecho sobre el tubo del gas con su pestaña, y contrapesos negros con sus ranuras.
+- **Piñas de mandos** con sus botones, el interruptor de parada en rojo, la carcasa del gas y sus dos cables.
+- **Bombas radiales** de freno (derecha) y de embrague (izquierda): la abrazadera, el cuerpo hacia delante, el eje de la maneta con su rueda de regulación y su anillo dorado, y la maneta negra, curvada delante del puño y con bola en la punta. Los depósitos redondos ahumados, con tapa negra estriada, sobre sus soportes, y el latiguillo corto hasta la bomba. La bomba de embrague baja su manguito hacia el motor.
+- El latiguillo de freno nace ahora en el racor de la bomba derecha.
+
 ### Encargo del 4 de octubre (cuarta sesión): F-16, Porsche y H2R a fondo. F-16, toma de aire y cúpula
 
 El usuario pidió una auditoría ambiciosa de los tres vehículos conducibles: modelos 3D mucho más detallados, conducción y vuelo más reales, entorno y una pasada final por las físicas. Se empezó por renderizar los tres de cerca. Lo más tosco era el F-16.
