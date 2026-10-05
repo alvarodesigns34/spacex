@@ -29,6 +29,13 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 - **Red:** Commons limita mucho (429). Las miniaturas de 960 px suelen estar en caché y bajan cuando las de 1280 px dan 429.
 - **Herramientas locales nuevas:** `mk.py` en la carpeta temporal (encuadres en el marco del vehículo: `python3 mk.py salida.js <expositor> nombre px py pz tx ty tz ...`, cámara con `v.rig.jumpTo`); el F-16 está centrado en su longitud: la estación s está en x = 7,52 − s.
 - **Check completo** local tras `0ebefe4`: código 0.
+- **Tras el despertador (00:23 UTC del 05-10):**
+  - `e8ce4fd`: tren de morro del F-16 como en las fotos de Twenthe (pata inclinada, rueda adelantada, tirante largo, una sola compuerta a la derecha).
+  - `ebc69b3`: la antena de pala del vientre del F-16 estaba reflejada con escala −1 (caras del revés, se veía negra).
+  - `41ac91a`: **detector de caras del revés** en `check.mjs` para F-16, Porsche y H2R (triángulos que giran al contrario que sus normales). Encontró y se corrigieron las pinzas de freno izquierdas del Porsche (`ca.scale(1, 1, side)` sin girar las caras) y los tornillos izquierdos de la cúpula de la H2R (ahora con `mirrorZ`). **Lección:** reflejar una geometría con escala negativa da la vuelta a sus caras; usa `mirrorZ` (h2rParts.js) o invierte el índice.
+  - `3190333`: prueba de la velocidad máxima del F-16 a nivel del mar (Mach 1,19 en 200 s; publicada ≈Mach 1,2). A 3.000 m Mach 1,43 y a 11.000 m Mach 2,06.
+  - **F-16 con mandos completos al azar** (`tools/_fuzz.mjs`, local): 20 recorridos de 120 s, todo finito, nunca bajo el suelo. En tierra, a ≈120 kt, el alabeo a fondo con la palanca adelante tumba el avión sobre un ala (α negativo, el tren principal descargado; en tierra el alerón ya va limitado a 10°). Sin datos primarios del modo en tierra del FLCS, no se ha cambiado. Con los mandos simples no pasa (en tierra centran los alerones).
+  - Foto libre de la H2R sin carenado (`Kawasaki_Ninja_H2R_exposed_left_rear.JPG`, 960 px): confirma el basculante y la cadena a la izquierda y el chasis en triángulos; sin corrección clara pendiente.
 - **Multiagente:** sigue la orden del usuario de no usar flujos de varios agentes; todo a mano.
 
 ### Cierre de la sesión del 04-10-2026 (tercera, rama `claude/pensive-ride-5sjdza`): LAS CUATRO FASES HECHAS
