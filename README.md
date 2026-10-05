@@ -928,6 +928,15 @@ Decisión del usuario: **el modelo 3D de la H2R se hace en Blender; las físicas
 - Se exporta como `occlusionTexture` de glTF, que en Three.js es el `aoMap`: oscurece solo la luz ambiental y la del entorno, como hace la oclusión real.
 - `verify.js` comprueba ya cada textura en el juego de coordenadas que usa: canal 0 para los mapas de superficie y canal 1 para el horneado. En el canal del horneado solo exige que el atributo exista.
 
+**Fase 3, resto: materiales (PENDIENTE; el usuario la deja aparcada por ahora).** Falta pasar a Blender los materiales de cada pieza, con sus mapas propios en lugar del detalle por proyección del navegador:
+- carbono con su trama en relieve y sus brillos propios;
+- titanio con el degradado de calor (pajizo, azul y violeta) pintado sobre la pieza;
+- goma del neumático y de los puños;
+- aluminio cepillado y mecanizado;
+- las dos capas del espejo ahumado (película de plata y barniz ahumado).
+
+Quedan además fuera de la fase 3 la mecánica refinada pieza a pieza y una pasada de la forma del carenado contra las fotos. Ver «Pendiente» en `TRASPASO.md`.
+
 ### Encargo del 4 de octubre (cuarta sesión): F-16, Porsche y H2R a fondo. F-16, toma de aire y cúpula
 
 El usuario pidió una auditoría ambiciosa de los tres vehículos conducibles: modelos 3D mucho más detallados, conducción y vuelo más reales, entorno y una pasada final por las físicas. Se empezó por renderizar los tres de cerca. Lo más tosco era el F-16.
