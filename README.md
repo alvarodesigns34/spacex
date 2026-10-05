@@ -893,6 +893,11 @@ El usuario pidió centrar esta tanda en la Ninja H2R, con detalle absoluto, y or
 - **Chasis:** el arriostramiento en V detrás de la pipa (figura 4 de la Kawasaki Technical Review n.º 180), las cartelas de la pipa, los aros de las tazas de dirección y un cordón de soldadura en el extremo de cada tubo.
 - **Corregido:** una malla vacía del motor, sin vértices, que había quedado tras mover las tapas.
 
+**Paso 7: acabado del carenado:**
+- **Mirror Coated Spark Black** como lo describe Kawasaki (Technical Review n.º 180, fig. 14): película de plata real bajo un barniz ahumado. Ahora es un espejo oscuro (color base más oscuro, rugosidad 0,07, barniz de 0,02): negro donde mira a la sombra y plateado donde le da la luz, como en las fotos del Petersen y de Goodwood. Antes se leía como un plateado claro casi mate.
+- **Tapón de combustible** (`bodywork/fasteners.js`) sobre el depósito, justo detrás de la pipa: aro mecanizado con chaflán, tapa negra con cerradura de llave, bisagra y respiradero. Se proyecta sobre la superficie del depósito y se orienta según su normal.
+- **Tornillería de los paneles laterales:** tornillos de cabeza abombada con arandela y hexágono interior, en la punta trasera, en el borde superior junto a la cúpula y en el borde inferior sobre las aletas (posiciones ≈, de las fotos). Se proyectan sobre los paneles y se reflejan al lado izquierdo.
+
 ### Encargo del 4 de octubre (cuarta sesión): F-16, Porsche y H2R a fondo. F-16, toma de aire y cúpula
 
 El usuario pidió una auditoría ambiciosa de los tres vehículos conducibles: modelos 3D mucho más detallados, conducción y vuelo más reales, entorno y una pasada final por las físicas. Se empezó por renderizar los tres de cerca. Lo más tosco era el F-16.
@@ -1750,7 +1755,8 @@ src/vehicles/h2r/          la H2R pieza a pieza: index.js (montaje), geometry.js
 src/vehicles/h2r/engine/   el motor: index.js (montaje), parts.js (formas comunes y la rejilla en mm de la foto derecha),
                            core.js (cárteres, cilindros, culata, tapas izquierdas), right.js (tapa del embrague, emblema,
                            radiador de aceite), supercharger.js (rodete, voluta, acople), chamber.js (cámara de admisión)
-src/vehicles/h2r/bodywork/ carrocería: tank.js, seat.js, fairing.js (cúpula, panel, morro, alas, pantalla), decals.js, surfaces.js
+src/vehicles/h2r/bodywork/ carrocería: tank.js, seat.js, fairing.js (cúpula, panel, morro, alas, pantalla), decals.js, surfaces.js,
+                           fasteners.js (tornillería de los paneles y tapón de combustible)
 src/sim/h2rBike.js         dinámica de la moto: contramanillar, neumáticos, suspensión, embrague, caídas
 src/sim/h2rRide.js         modo de pilotaje: postura, cámaras, marcas, el piloto al caer
 src/sim/h2rSound.js        sonido del cuatro en línea por pulsos de escape (AudioWorklet) y su compresor

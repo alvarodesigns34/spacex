@@ -5,7 +5,8 @@
  *  - geometry.js, photo.js, materials.js: the frame of reference, the photograph's calibration, the materials;
  *  - wheels.js, brakes.js, steer.js (the fork, clamps, bars, front wheel), swingarm.js (with the chain and rear wheel);
  *  - trellis.js (the frame), engine/ (one module per part), intake.js (the ram-air duct), exhaust.js;
- *  - bodywork/: tank.js, seat.js, fairing.js (cowl, side panel, nose, wings, screen), decals.js, surfaces.js;
+ *  - bodywork/: tank.js, seat.js, fairing.js (cowl, side panel, nose, wings, screen), decals.js, surfaces.js,
+ *    fasteners.js (the panels' screws and the fuel cap, cast onto the surfaces);
  *  - rearsets.js: the hangers, heel guards, footpegs, brake pedal and gear lever;
  *  - details.js and dash.js: the rest.
  *
@@ -42,6 +43,7 @@ import { buildTank } from './bodywork/tank.js';
 import { buildSeatTail } from './bodywork/seat.js';
 import { buildFairing3 as buildFairing } from './bodywork/fairing.js';
 import { buildDecals } from './bodywork/decals.js';
+import { buildFasteners } from './bodywork/fasteners.js';
 
 export { STEER_AXIS, AXLE_F, AXLE_R, PIVOT } from './geometry.js';
 
@@ -49,9 +51,11 @@ export function buildH2r(M) {
   partMaterials(M);
   const root = new THREE.Group();
   root.name = 'h2r';
-  // Mirror Coated Spark Black: a silver mirror layer under a smoked clear: dark where it faces the
-  // shadows, bright silver where it catches the light (≈).
-  M.h2rChrome ??= new THREE.MeshPhysicalMaterial({ name: 'h2r-mirror-coat', color: 0xc3c8cd, metalness: 1, roughness: 0.14, clearcoat: 1, clearcoatRoughness: 0.03 });
+  // Mirror Coated Spark Black: a real silver film (a silver-mirror reaction) under a shaded clear
+  // coat (Kawasaki Technical Review No. 180, Fig. 14): a dark mirror, black where it faces the
+  // shadows, bright where it catches the light (the shade's depth ≈, from the photographs: near
+  // black in the shade, silver under show lights).
+  M.h2rChrome ??= new THREE.MeshPhysicalMaterial({ name: 'h2r-mirror-coat', color: 0x80868c, metalness: 1, roughness: 0.07, clearcoat: 1, clearcoatRoughness: 0.02 });
   M.h2rVoid ??= new THREE.MeshStandardMaterial({ name: 'h2r-void', color: 0x0a0a0b, metalness: 0.2, roughness: 0.7 });
   M.h2rCarbon ??= carbonMaterial();
   M.h2rTail ??= new THREE.MeshStandardMaterial({ name: 'h2r-tail-lamp', color: 0x8a0d10, emissive: 0xc0141a, emissiveIntensity: 0.5, roughness: 0.25, metalness: 0.2 });
@@ -60,6 +64,7 @@ export function buildH2r(M) {
   root.add(buildSteer(M), buildSwingarm(M), buildFrame(M), buildEngine(M), buildExhaust(M), tank, buildSeatTail(M), fairing, buildDetails(M), buildRearsets(M));
   root.updateMatrixWorld(true);
   root.add(buildDecals(fairing.userData.panel, tank.getObjectByName('h2r-tank-top'), root.getObjectByName('h2r-tail')));
+  root.add(buildFasteners(M, root));
   root.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   detailH2r(M);
   return root;
