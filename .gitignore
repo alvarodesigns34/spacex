@@ -2,3 +2,5 @@
 .DS_Store
 node_modules/
 scratch/
+blender/h2r/source/
+__pycache__/

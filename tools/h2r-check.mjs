@@ -17,7 +17,7 @@ registerHooks({ resolve(specifier, context, next) {
 
 const { createH2rBike, BIKE } = await import('../src/sim/h2rBike.js');
 const { KMH_TOP, BODY, PRESS } = await import('../src/data/h2r.js');
-const { buildH2r } = await import('../src/vehicles/h2r.js');
+const { readGlb, nodes, worldBox } = await import('./glb.mjs');
 const THREE = await import('three');
 
 let failed = 0;
@@ -28,19 +28,25 @@ const report = (ok, name, detail = '') => {
 const DT = 1 / 240, D = 180 / Math.PI;
 const flat = (mu = 1, kind = 'track') => () => ({ h: 0, mu, roll: 0, kind });
 
-// ---- The model.
+// ---- The model: the asset the centre loads (assets/h2r/h2r.glb, built in Blender by
+// blender/h2r/build.py), read here without a browser.
 {
-  const root = buildH2r({});
-  root.updateMatrixWorld(true);
-  const box = new THREE.Box3().setFromObject(root);
+  const glb = await readGlb(new URL('../assets/h2r/h2r.glb', import.meta.url));
+  const box = worldBox(glb, 'h2r');
   const L = box.max.x - box.min.x, H = box.max.y, W = box.max.z - box.min.z;
   // (The width to verify.js's tolerance for a grade-A figure, ±0.5 %, so check:static catches it.)
   report(Math.abs(L - BODY.length) < 0.012 && Math.abs(H - BODY.height) < 0.008 && Math.abs(W - BODY.width) / BODY.width < 0.005 && box.min.y > -0.01,
-    'el modelo mide lo publicado: 2,070 × 0,850 × 1,160 m, sobre sus ruedas', `${L.toFixed(3)} × ${W.toFixed(3)} × ${H.toFixed(3)} m, lo más bajo a ${(box.min.y * 1000).toFixed(0)} mm`);
-  // (The decals are drawn on a canvas: in the browser only, checked there by ux-check.)
-  const names = ['h2r-steer', 'h2r-wheel-f-spin', 'h2r-wheel-r-spin', 'h2r-swingarm', 'h2r-trellis', 'h2r-tank', 'h2r-cowl', 'h2r-screen'];
-  const missing = names.filter(n => !root.getObjectByName(n));
+    'el modelo (el de Blender, h2r.glb) mide lo publicado: 2,070 × 0,850 × 1,160 m, sobre sus ruedas', `${L.toFixed(3)} × ${W.toFixed(3)} × ${H.toFixed(3)} m, lo más bajo a ${(box.min.y * 1000).toFixed(0)} mm · ${(glb.bytes / 1e6).toFixed(1)} MB`);
+  // The parts the ride moves, by their names (Blender's ".001" suffixes are taken off on loading).
+  const have = new Set(nodes(glb).map(n => n.name.replace(/\.\d{3}$/, '')));
+  const names = ['h2r', 'h2r-steer', 'h2r-wheel-f-spin', 'h2r-wheel-r-spin', 'h2r-swingarm', 'h2r-impeller', 'h2r-dash', 'h2r-trellis', 'h2r-tank', 'h2r-cowl', 'h2r-screen'];
+  const missing = names.filter(n => !have.has(n));
   report(!missing.length, 'el modelo tiene las piezas que mueve el pilotaje', missing.length ? `faltan ${missing.join(', ')}` : names.length + ' piezas');
+  // What moves turns about where the ride turns it: the wheels' spin groups on the axles.
+  const at = (n) => new THREE.Vector3().setFromMatrixPosition(nodes(glb).find(x => x.name === n).matrix);
+  const { AXLE_F, AXLE_R } = await import('../src/vehicles/h2r/geometry.js');
+  const ef = at('h2r-wheel-f-spin').distanceTo(AXLE_F), er = at('h2r-wheel-r-spin').distanceTo(AXLE_R);
+  report(ef < 0.001 && er < 0.001, 'las ruedas giran sobre sus ejes', `delantera a ${(ef * 1000).toFixed(2)} mm, trasera a ${(er * 1000).toFixed(2)} mm del eje`);
 }
 
 // ---- The wind (core/wind.js; Phase 4): the drag is the air's ----------------------------------------

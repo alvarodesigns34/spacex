@@ -29,7 +29,7 @@ import { buildRoadster } from './vehicles/roadster.js';
 import { buildEngineHall } from './vehicles/enginehall.js';
 import { buildF16 } from './vehicles/f16.js';
 import { buildGt3rs } from './vehicles/gt3rs.js';
-import { buildH2r } from './vehicles/h2r.js';
+import { loadH2r } from './vehicles/h2rAsset.js';
 import { buildRunway, runwaySurface } from './core/runway.js';
 import { buildCircuit, circuitSurface } from './core/circuit.js';
 import { SKIDPAD, toWorld as circuitToWorld } from './core/circuitPlan.js';
@@ -381,7 +381,7 @@ async function main() {
     engines: [buildEngineHall, 'Raptor 3, Raptor Vacuum and Merlin 1D…'],
     f16: [buildF16, 'F-16A Fighting Falcon…'],
     gt3rs: [buildGt3rs, 'Porsche 911 GT3 RS…'],
-    h2r: [buildH2r, 'Kawasaki Ninja H2R…'],
+    h2r: [loadH2r, 'Kawasaki Ninja H2R…'],
   };
   let step = 0;
   let complex = null;
@@ -397,7 +397,8 @@ async function main() {
     const group = new THREE.Group();
     group.name = `exhibit-${v.id}`;
     t0 = performance.now();
-    const model = fn(M);
+    // (The H2R comes from its Blender-built asset, loaded: every builder may be awaited.)
+    const model = await fn(M);
     timings[v.id] = performance.now() - t0;
     if (v.id === 'starlink') {
       // Starlink is presented on a slim post with the bus centred at the mount height.

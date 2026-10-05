@@ -21,7 +21,7 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const PORT = 8799;
 const TYPES = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
-  '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png', '.woff2': 'font/woff2',
+  '.json': 'application/json', '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image/png', '.woff2': 'font/woff2',
 };
 
 const server = createServer(staticHandler(ROOT, TYPES));

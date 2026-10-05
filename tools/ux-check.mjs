@@ -13,7 +13,7 @@ import { chromium } from 'playwright';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const OUT = join(ROOT, '..', 'ux-after');
 const PORT = 8807;
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png', '.woff2': 'font/woff2' };
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image/png', '.woff2': 'font/woff2' };
 const server = createServer(staticHandler(ROOT, TYPES));
 await mkdir(OUT, { recursive: true });
 await new Promise(r => server.listen(PORT, '127.0.0.1', r));

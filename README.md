@@ -898,6 +898,21 @@ El usuario pidió centrar esta tanda en la Ninja H2R, con detalle absoluto, y or
 - **Tapón de combustible** (`bodywork/fasteners.js`) sobre el depósito, justo detrás de la pipa: aro mecanizado con chaflán, tapa negra con cerradura de llave, bisagra y respiradero. Se proyecta sobre la superficie del depósito y se orienta según su normal.
 - **Tornillería de los paneles laterales:** tornillos de cabeza abombada con arandela y hexágono interior, en la punta trasera, en el borde superior junto a la cúpula y en el borde inferior sobre las aletas (posiciones ≈, de las fotos). Se proyectan sobre los paneles y se reflejan al lado izquierdo.
 
+### La H2R pasa a Blender (5 de octubre de 2026)
+
+Decisión del usuario: **el modelo 3D de la H2R se hace en Blender; las físicas, el pilotaje, el sonido y las animaciones siguen en código.**
+
+**Fase 1: la cadena de trabajo.**
+- `blender/h2r/build.py` construye la moto en Blender 5 (como módulo `bpy`, sin interfaz) y exporta `assets/h2r/h2r.glb`. Uso: `node tools/h2r-export.mjs` y después `python3 blender/h2r/build.py`.
+- Por ahora parte del modelo en código: `tools/h2r-export.mjs` lo exporta a glTF desde un navegador sin interfaz (`blender/h2r/source/code-parts.glb`, un intermedio que no va al repositorio). Lo ya hecho (motor, frenos, cadena, ruedas…) sirve así de base para refinarlo en Blender.
+- `src/vehicles/h2rAsset.js` carga el `.glb` al arrancar:
+  - quita los sufijos `.001` que Blender pone a los nombres repetidos, para que el código encuentre `h2r-steer`, `h2r-wheel-f-spin`, `h2r-wheel-r-spin`, `h2r-swingarm`, `h2r-impeller` y `h2r-dash` con su nombre exacto;
+  - vuelve a aplicar el detalle de superficie de cada material: su receta viaja como `extras` del glTF en `userData.detailSpec`;
+  - pone el salpicadero vivo, que redibuja el pilotaje.
+  - Si el archivo no se puede cargar, entra el modelo en código.
+- `tools/glb.mjs`: un lector de GLB para Node. `h2r-check.mjs` mide ya el `.glb` publicado (2,075 × 0,850 × 1,157 m), comprueba las piezas que mueve el pilotaje y que las ruedas giran sobre sus ejes (0,00 mm).
+- `GLTFLoader` y `GLTFExporter` de Three.js r170 en `vendor/`.
+
 ### Encargo del 4 de octubre (cuarta sesión): F-16, Porsche y H2R a fondo. F-16, toma de aire y cúpula
 
 El usuario pidió una auditoría ambiciosa de los tres vehículos conducibles: modelos 3D mucho más detallados, conducción y vuelo más reales, entorno y una pasada final por las físicas. Se empezó por renderizar los tres de cerca. Lo más tosco era el F-16.
@@ -1747,7 +1762,10 @@ src/sim/gt3Damage.js       daños del Porsche en un choque: abolladuras, piezas 
 src/sim/gt3Camera.js       cámaras de la conducción del Porsche y vibración de la carretera, independientes de los fps
 src/sim/f16Flcs.js         leyes de control de vuelo del F-16 (FLCS), en su propio módulo
 src/data/h2r.js            ficha de la Kawasaki Ninja H2R con la procedencia de cada cifra
-src/vehicles/h2r.js        punto de entrada del modelo de la H2R (lo construye vehicles/h2r/)
+src/vehicles/h2r.js        punto de entrada del modelo en código de la H2R (lo construye vehicles/h2r/)
+src/vehicles/h2rAsset.js   carga la H2R de Blender (assets/h2r/h2r.glb) y la prepara para el pilotaje
+blender/h2r/               la H2R en Blender: build.py (construye y exporta el .glb), lib/ (escena, utilidades)
+assets/h2r/h2r.glb         la H2R que se carga, generada por blender/h2r/build.py
 src/vehicles/h2r/          la H2R pieza a pieza: index.js (montaje), geometry.js, photo.js (calibración de la foto),
                            materials.js, wheels.js, brakes.js, chain.js, steer.js (montaje de la dirección), fork.js,
                            clamps.js, controls.js, swingarm.js, trellis.js (chasis), rearsets.js (estriberas), intake.js,

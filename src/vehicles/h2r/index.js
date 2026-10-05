@@ -77,7 +77,9 @@ export function buildH2r(M) {
  * peel under the mirror coat's and the frame's clear coats.
  */
 function detailH2r(M) {
-  const D = (m, kind, o) => m && applyDetail(m, kind, o);
+  // (Each material keeps its recipe in userData.detailSpec: it travels through glTF and Blender as
+  // the material's extras, and the asset's loader (vehicles/h2rAsset.js) lays it on again.)
+  const D = (m, kind, o = {}) => { if (!m) return; m.userData.detailSpec = { kind, ...o }; applyDetail(m, kind, o); };
   D(M.h2rTyre, 'rubber', { size: 0.012, normal: 0.8, rough: 0.35 });
   D(M.h2rTyreWall, 'rubber', { size: 0.008, normal: 0.5, rough: 0.2 });
   D(M.h2rRubber, 'rubber', { size: 0.01, normal: 0.8, rough: 0.35 });
