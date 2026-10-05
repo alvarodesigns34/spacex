@@ -36,6 +36,9 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
   const steer = bike.getObjectByName('h2r-steer');
   const spinF = bike.getObjectByName('h2r-wheel-f-spin'), spinR = bike.getObjectByName('h2r-wheel-r-spin');
   const swing = bike.getObjectByName('h2r-swingarm');
+  // The supercharger's impeller, geared 9.2 : 1 off the crank (engine/supercharger.js).
+  const impeller = bike.getObjectByName('h2r-impeller');
+  let impellerAngle = 0;
   const steerBase = steer?.quaternion.clone() ?? new THREE.Quaternion();
   const holder = new THREE.Group(); holder.name = 'h2r-ride'; holder.visible = false; scene.add(holder);
   const pitchG = new THREE.Group(), pitchIn = new THREE.Group(), leanG = new THREE.Group(), leanIn = new THREE.Group();
@@ -191,6 +194,7 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
     if (spinF) spinF.rotation.z = -(s.wheelAngleF % (Math.PI * 2));
     if (spinR) spinR.rotation.z = -(s.wheelAngleR % (Math.PI * 2));
     if (swing) swing.rotation.z = -s.susR * 1.2;
+    if (impeller) { impellerAngle = (impellerAngle + s.rpm / 60 * 9.2 * Math.PI * 2 * dt) % (Math.PI * 2); impeller.rotation.z = impellerAngle; }
     // The dash, redrawn at ≈15 Hz.
     if (dash?.userData.draw && (dashT += dt) > 1 / 15) { dashT = 0; dash.userData.draw(s.rpm, s.crashed ? '-' : s.gear + 1, s.u * 3.6, s.phi * R2D, s.aids); }
     void dt; void _p;
@@ -310,6 +314,7 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
     if (spinF) spinF.rotation.z = 0;
     if (spinR) spinR.rotation.z = 0;
     if (swing) swing.rotation.z = 0;
+    if (impeller) impeller.rotation.z = 0;
     fx.clear(); spray.clear(); marks.clear();
     saved.parent.add(bike);
     bike.position.copy(saved.position); bike.quaternion.copy(saved.quaternion);

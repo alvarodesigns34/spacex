@@ -869,6 +869,18 @@ El usuario pidió centrar esta tanda en la Ninja H2R, con detalle absoluto, y or
 - **Unión deslizante** tras el colector, con su manguito y dos muelles enganchados; abrazadera del soporte bajo la estribera derecha, con su orejeta, y la pletina calada que sube hasta la placa del talón con dos tornillos Allen.
 - **Corregido:** las caras del silenciador estaban al revés (por fuera se veía el interior oscuro, de ahí el «silenciador negro»).
 
+**Paso 5: motor y compresor, primera parte** (`engine/`, ahora una carpeta con un módulo por pieza):
+- **Calibración nueva:** la foto lateral derecha («Kawasaki Ninja H2R right», Commons, solo referencia) se proyecta sobre el plano lateral del modelo alineando los centros de los dos ejes (1,644 mm por píxel, 1,3° de giro). Sobre esa rejilla milimétrica se trazan las tapas del motor (≈ ±3 mm).
+- **Tapa del embrague** (`right.js`): contorno trazado, gris oscuro satinado, de cantos redondeados. Lleva el tambor del embrague en relieve (Ø ≈198 mm en la base, cara de Ø 141 mm) con la faceta plana de su parte trasera superior, la tapa del captador (Ø 70 mm) embutida con su ranura y su orificio central, el tapón de llenado de aceite plateado, el tapón de vaciado dorado y los tornillos con brida del borde, cada uno sobre su resalte.
+- **Cárter superior** de aluminio con el emblema «SUPER CHARGED» en su aro (rótulo de fábrica de la H2R, como en la moto). **Cárter inferior** fundido con sus nervios y tornillos, y el radiador de aceite con sus aletas verticales y sus racores.
+- **Compresor** (`supercharger.js`, con la Kawasaki Technical Review n.º 180, 2019, figs. 3 y 10):
+  - rodete de Ø 69 mm (dato de prensa, ≈) con 6 álabes completos y 6 intermedios de ≈1 mm de espesor, curvados en espiral, que gira a 9,2 veces el cigüeñal (lo anima el modo de pilotaje con las vueltas del motor);
+  - carcasa roja anodizada con la voluta que crece en espiral hasta la salida, la boca con su campana pulida mirando a la izquierda, la corona de tornillos y la caja de la transmisión detrás;
+  - salida vertical hasta el acople de silicona naranja, con dos abrazaderas sobre la boquilla de la cámara.
+- **Cámara de admisión** (`chamber.js`): fundición de cantos muy redondeados en dos mitades con pestaña atornillada en la cintura, raíl de inyectores encima (cuatro conectores, mazo de cables, sensor de presión) y los cuatro cuerpos de mariposa debajo, con el eje del acelerador y el sensor de posición.
+- **Conducto de admisión de aire dinámico:** termina recto y redondo sobre la campana del compresor. **Corregido:** tenía las caras hacia dentro, y desde fuera solo se veía la pared del fondo, como una cinta.
+- Bloque, culata y cárter de aceite pasan a gris oscuro, como en las fotos sin carenado; los cantos redondeados de las piezas extruidas se sombrean ya suaves, sin facetas.
+
 ### Encargo del 4 de octubre (cuarta sesión): F-16, Porsche y H2R a fondo. F-16, toma de aire y cúpula
 
 El usuario pidió una auditoría ambiciosa de los tres vehículos conducibles: modelos 3D mucho más detallados, conducción y vuelo más reales, entorno y una pasada final por las físicas. Se empezó por renderizar los tres de cerca. Lo más tosco era el F-16.
@@ -1720,8 +1732,11 @@ src/sim/f16Flcs.js         leyes de control de vuelo del F-16 (FLCS), en su prop
 src/data/h2r.js            ficha de la Kawasaki Ninja H2R con la procedencia de cada cifra
 src/vehicles/h2r.js        punto de entrada del modelo de la H2R (lo construye vehicles/h2r/)
 src/vehicles/h2r/          la H2R pieza a pieza: index.js (montaje), geometry.js, photo.js (calibración de la foto),
-                           materials.js, wheels.js, brakes.js, steer.js (horquilla, tijas, manillar), swingarm.js,
-                           trellis.js (chasis), engine.js, intake.js, exhaust.js, details.js, dash.js
+                           materials.js, wheels.js, brakes.js, chain.js, steer.js (montaje de la dirección), fork.js,
+                           clamps.js, controls.js, swingarm.js, trellis.js (chasis), intake.js, exhaust.js, details.js, dash.js
+src/vehicles/h2r/engine/   el motor: index.js (montaje), parts.js (formas comunes y la rejilla en mm de la foto derecha),
+                           core.js (cárteres, cilindros, culata, tapas izquierdas), right.js (tapa del embrague, emblema,
+                           radiador de aceite), supercharger.js (rodete, voluta, acople), chamber.js (cámara de admisión)
 src/vehicles/h2r/bodywork/ carrocería: tank.js, seat.js, fairing.js (cúpula, panel, morro, alas, pantalla), decals.js, surfaces.js
 src/sim/h2rBike.js         dinámica de la moto: contramanillar, neumáticos, suspensión, embrague, caídas
 src/sim/h2rRide.js         modo de pilotaje: postura, cámaras, marcas, el piloto al caer

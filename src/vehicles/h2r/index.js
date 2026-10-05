@@ -4,7 +4,7 @@
  * module per part or system in this directory:
  *  - geometry.js, photo.js, materials.js: the frame of reference, the photograph's calibration, the materials;
  *  - wheels.js, brakes.js, steer.js (the fork, clamps, bars, front wheel), swingarm.js (with the chain and rear wheel);
- *  - trellis.js (the frame), engine.js, intake.js (the ram-air duct), exhaust.js;
+ *  - trellis.js (the frame), engine/ (one module per part), intake.js (the ram-air duct), exhaust.js;
  *  - bodywork/: tank.js, seat.js, fairing.js (cowl, side panel, nose, wings, screen), decals.js, surfaces.js;
  *  - details.js and dash.js: the rest.
  *
@@ -32,7 +32,7 @@ import { partMaterials, carbonMaterial } from './materials.js';
 import { buildSteer } from './steer.js';
 import { buildSwingarm } from './swingarm.js';
 import { buildFrame } from './trellis.js';
-import { buildEngine as buildEngineParts } from './engine.js';
+import { buildEngine as buildEngineParts } from './engine/index.js';
 import { buildDuct } from './intake.js';
 import { buildExhaust } from './exhaust.js';
 import { buildDetails } from './details.js';
@@ -86,7 +86,7 @@ function detailH2r(M) {
   for (const k of ['h2rChrome', 'h2rChrome2', 'h2rGreen', 'h2rRim', 'h2rBlack', 'h2rRedAnod']) D(M[k], 'peel', { size: 0.06, normal: 0.18, rough: 0.1 });
 }
 
-/** The engine (engine.js) and the ram-air duct that feeds its supercharger. */
+/** The engine (engine/) and the ram-air duct that feeds its supercharger. */
 function buildEngine(M) {
   const g = buildEngineParts(M);
   g.add(buildDuct(M));

@@ -1,5 +1,5 @@
 /**
- * The exhaust, traced on the right-side photograph (engine.js's calibration) and detailed on the
+ * The exhaust, traced on the right-side photograph (engine/parts.js's calibration) and detailed on the
  * photographs of the bike without its bodywork (Wikimedia Commons, "Kawasaki Ninja H2R exposd right
  * front"; reference only; sizes ≈):
  *  - four titanium headers out of the head's front, each held to its port by a flange and two nuts,
