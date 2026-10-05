@@ -1149,37 +1149,50 @@ function torqueLinks(M, top, bot, ahead, name) {
 function buildGear(M) {
   const g = new THREE.Group();
   g.name = 'f16-landing-gear';
-  // Nose gear, on the inlet's floor aft of the lip: the oleo's white cylinder, its chrome piston (the shared bright metal)
-  // (≈ 18 cm showing at the static load), torque links ahead of it and a fork round the 18 in wheel
-  // trailing a little behind the strut's line (≈).
+  // Nose gear, on the inlet's floor aft of the lip, as photographed from the side and in flight
+  // (Commons, "Last 3 F-16's Twenthe Airbase" and "Vegas Strong F-16 Gear Down Pass"; read for
+  // reference only; sizes ≈): the leg raked forward, the wheel ahead of its trunnion; the oleo's
+  // white cylinder and its chrome piston (≈ 18 cm showing at the static load), the torque links
+  // ahead of it, the fork round the 18 in wheel; the long drag brace aft and up to the inlet's
+  // floor; one long door, on the right, hanging behind the leg.
   {
     const s = GEAR.nose.s, rw = GEAR.nose.d / 2, zFloor = intakeBottom(s) + GROUND, axleY = rw;
-    const axle = V(-(s + 0.08), axleY, 0);
-    const forkTop = V(-(s + 0.02), axleY + rw + 0.05, 0);
-    const pistonTop = V(-s, forkTop.y + 0.18, 0), top = V(-s, zFloor, 0);
+    const rake = 0.16;                                   // the axle ahead of the trunnion (≈)
+    const top = V(-s, zFloor, 0), axle = V(-s + rake, axleY, 0);
+    const along = top.clone().sub(axle).normalize();     // up the leg
+    const forkTop = axle.clone().addScaledVector(along, rw + 0.05);
+    const pistonTop = forkTop.clone().addScaledVector(along, 0.18);
     g.add(strut(pistonTop, top, 0.065, 0.06, M.f16GearWhite, 'f16-nose-strut'));
-    g.add(strut(forkTop, pistonTop.clone().add(V(0, 0.02, 0)), 0.042, 0.042, M.aluminum, 'f16-nose-piston'));
+    g.add(strut(forkTop, pistonTop.clone().addScaledVector(along, 0.02), 0.042, 0.042, M.aluminum, 'f16-nose-piston'));
     // The fork: a crown over the tyre and an arm down each side to the axle.
     const crown = new THREE.BoxGeometry(0.16, 0.05, GEAR.nose.w + 0.06);
     g.add(mesh(crown, M.f16GearWhite, { name: 'f16-nose-fork', position: [forkTop.x, forkTop.y, 0] }));
     for (const sd of [-1, 1]) {
       g.add(strut(V(forkTop.x, forkTop.y, sd * (GEAR.nose.w / 2 + 0.03)), V(axle.x, axle.y, sd * (GEAR.nose.w / 2 + 0.03)), 0.022, 0.026, M.f16GearWhite, `f16-nose-fork-${sd > 0 ? 'r' : 'l'}`));
     }
-    g.add(torqueLinks(M, V(-s, pistonTop.y + 0.04, 0), V(forkTop.x, forkTop.y + 0.02, 0), V(0.09, 0, 0), 'f16-nose-torque'));
-    // Taxi and landing lights on the strut (≈).
+    g.add(torqueLinks(M, pistonTop.clone().addScaledVector(along, 0.04), forkTop.clone().addScaledVector(along, 0.02), V(0.09, 0, 0), 'f16-nose-torque'));
+    // The drag brace: from the leg's lower part aft and up to the inlet's floor, its actuator's
+    // spring along it (≈).
+    const braceFoot = pistonTop.clone().addScaledVector(along, 0.06), braceTop = V(-(s + 0.9), intakeBottom(s + 0.9) + GROUND + 0.02, 0);
+    g.add(strut(braceFoot, braceTop, 0.026, 0.03, M.f16GearWhite, 'f16-nose-brace'));
+    g.add(strut(braceFoot.clone().lerp(braceTop, 0.45), braceFoot.clone().lerp(braceTop, 0.6), 0.034, 0.034, M.alumDark, 'f16-nose-brace-spring', 10));
+    // Taxi and landing lights on the leg (≈).
     const lamp = new THREE.CylinderGeometry(0.045, 0.04, 0.05, 16);
     lamp.rotateZ(Math.PI / 2);
-    g.add(mesh(lamp, M.alumDark, { name: 'f16-nose-lamp', position: [-s + 0.07, pistonTop.y + 0.2, 0] }));
+    const lampAt = pistonTop.clone().addScaledVector(along, 0.2);
+    g.add(mesh(lamp, M.alumDark, { name: 'f16-nose-lamp', position: [lampAt.x + 0.07, lampAt.y, 0] }));
     const w = wheel(M, GEAR.nose.d, GEAR.nose.w, 'f16-nose-wheel');
     w.position.copy(axle);
     g.add(w);
-    // The doors: a long one each side of the well, hanging open aft of the leg (DVIDS photographs
-    // 7682498 and 8138193 of F-16s on the ramp; sizes ≈).
-    for (const sd of [-1, 1]) {
-      const door = new THREE.BoxGeometry(0.80, 0.36, 0.01);
-      const dm = mesh(door, M.f16Lower, { name: `f16-nose-door-${sd > 0 ? 'r' : 'l'}`, position: [-(s + 0.47), zFloor - 0.17, sd * 0.2] });
-      dm.rotation.x = sd * 0.08;
-      g.add(dm);
+    // The door: one long panel on the right of the well, hanging behind the leg, its lower aft
+    // corner rounded (sizes ≈ from the photograph, scaled by the 18 in wheel).
+    {
+      const sh = new THREE.Shape();
+      sh.moveTo(0, 0); sh.lineTo(0.98, 0); sh.lineTo(0.98, -0.2); sh.quadraticCurveTo(0.98, -0.33, 0.85, -0.33);
+      sh.lineTo(0.1, -0.33); sh.quadraticCurveTo(0, -0.33, 0, -0.25); sh.closePath();
+      const door = new THREE.ExtrudeGeometry(sh, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.004, bevelSegments: 2, curveSegments: 6 });
+      door.rotateY(Math.PI);
+      g.add(mesh(door, M.f16Lower, { name: 'f16-nose-door', position: [-(s + 0.04), zFloor + 0.005, 0.2], rotation: [0.04, 0, 0] }));
     }
   }
   // Main gear: each leg from its trunnion in the lower fuselage's side out and down to the axle at
