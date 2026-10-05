@@ -16,6 +16,20 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
   3. entorno y realismo, a fondo;
   4. pasada final de bugs y mejora amplia de las físicas.
 - El usuario pidió un despertador a 1 h 47 min para seguir (programado para las 00:23 UTC del 05-10).
+- **Hecho en esta sesión (todo empujado a las seis ramas, CI en verde):**
+  - `29414b5`: errata del botón *Simple* y traspaso.
+  - `610307b`: F-16, toma de aire con la ranura del desviador (un surco de la misma superficie que se cierra en `SLOT.s1`), labio redondeado, conducto claro; corte de la cabina por una fila de vértices (índice `KC` del cuarto superior: sin dientes); secciones a 24 + 24 puntos. Pruebas nuevas en `check.mjs` (área de captura en el borde del labio, 0,531 m²; ningún vértice de la piel dentro de la abertura; con el código viejo, 31).
+  - `e17084a`: cabina del F-16 (ACES II, consolas, palanca lateral, gas, panel con esferas), material `f16-seat`.
+  - `0ebefe4`: lanzador de punta de ala como raíl perfilado.
+- **Auditoría visual hecha (renders cercanos de los tres):**
+  - F-16: lo más tosco; corregidos cúpula, toma, cabina y lanzador. Pendiente: tren (puertas planas, patas cilíndricas), luces de formación, receptáculo de repostaje, más paneles.
+  - Porsche: la disposición coincide con las fotos libres de Commons (`Porsche 911 GT3 RS (2022) 1X7A7164.jpg`, `Porsche 992 GT3 RS DSC 9055.jpg`): aletas negras delante y detrás de la rueda delantera y delante de la trasera, entradas del paragolpes, capó, barra de pilotos. Lo que lo hace parecer de juguete es la pintura casi mate en una llanura abierta; el mapa de entorno ya tiene cielo y suelo. Pendiente: afinar el frontal (paragolpes algo abombado en las esquinas).
+  - H2R: el escape ya estaba trazado sobre la foto lateral (silencioso a ≈21°, boca ≈0,15 m por delante del eje trasero: medido de nuevo, coincide). Pendiente: carenados laterales facetados, reflejo cromado.
+- **Física (punto 2), pendiente de fuente:** el despegue del F-16 con postcombustión en la prueba (rota a 135 kt, despega a 172 kt a 407 m, 20.500 lb). Una recopilación secundaria (migflug.com) da 725 m a 29.253 lb con depósitos; escalado por W², ≈360 m. Sin fuente primaria no se ha tocado.
+- **Red:** Commons limita mucho (429). Las miniaturas de 960 px suelen estar en caché y bajan cuando las de 1280 px dan 429.
+- **Herramientas locales nuevas:** `mk.py` en la carpeta temporal (encuadres en el marco del vehículo: `python3 mk.py salida.js <expositor> nombre px py pz tx ty tz ...`, cámara con `v.rig.jumpTo`); el F-16 está centrado en su longitud: la estación s está en x = 7,52 − s.
+- **Check completo** local tras `0ebefe4`: código 0.
+- **Multiagente:** sigue la orden del usuario de no usar flujos de varios agentes; todo a mano.
 
 ### Cierre de la sesión del 04-10-2026 (tercera, rama `claude/pensive-ride-5sjdza`): LAS CUATRO FASES HECHAS
 
