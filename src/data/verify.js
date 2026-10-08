@@ -449,8 +449,11 @@ export function verifyInterfaces(exhibits, complex, { log = true } = {}) {
     const hull = maxRadius(skirt, origin);
     const reach = minRadius(holds, origin);
     const gap = reach - hull;
-    add('hold-down clamps meet the skirt', gap >= -0.05 && gap <= 0.08,
-      `faldón ${hull.toFixed(2)} m, pinzas hasta ${reach.toFixed(2)} m (holgura ${(gap * 100).toFixed(0)} mm)`);
+    // Built, the shoes' inner faces stand ≈22 mm off the skirt's outermost vertex (08-10); the
+    // old clamp ring, 6 cm further out, reads ≈82 mm and has to fail. Up to +0.08 let it through
+    // by two millimetres, and the detail printed centimetres as millimetres (audit, 08-10).
+    add('hold-down clamps meet the skirt', gap >= -0.05 && gap <= 0.04,
+      `faldón ${hull.toFixed(2)} m, pinzas hasta ${reach.toFixed(2)} m (holgura ${(gap * 1000).toFixed(0)} mm)`);
   }
   // 3. The booster has to stand ON the deck, not in it or above it.
   if (skirt && seat) {
@@ -459,7 +462,9 @@ export function verifyInterfaces(exhibits, complex, { log = true } = {}) {
     seat.updateWorldMatrix(true, true);
     const tb = new THREE.Box3().setFromObject(seat);
     const step = sb.min.y - tb.max.y;
-    add('the booster seats on the deck', Math.abs(step) <= 0.35,
+    // Built, the step is 0. ±35 cm let a booster float a hand's breadth over the seat or sink
+    // into it; ±5 cm still allows for a rounded edge (audit, 08-10).
+    add('the booster seats on the deck', Math.abs(step) <= 0.05,
       `base del faldón ${sb.min.y.toFixed(2)} m, cota del asiento ${tb.max.y.toFixed(2)} m`);
   }
   // 4. The heat shield's backing layer must not stand past the tiles it backs.
@@ -593,13 +598,6 @@ export function verifyPad(complex, { log = true } = {}) {
     });
   };
 
-  const olit = complex.getObjectByName('olit');
-  if (olit) {
-    // The tower's declared height is measured from the pad surface it stands on, not grade.
-    olit.updateMatrixWorld(true);
-    _box.setFromObject(olit);
-    add('towerH', _box.max.y - (complex.position.y + EXPECTED_PAD.padY.value));
-  }
   const arm = complex.getObjectByName('arm-north');
   if (arm) add('armLen', geoSpan(arm, 'x'));
 
@@ -615,6 +613,15 @@ export function verifyPad(complex, { log = true } = {}) {
     _box.setFromObject(ground);
     padY = _box.max.y - complex.position.y;
     add('padY', padY);
+  }
+  const olit = complex.getObjectByName('olit');
+  if (olit) {
+    // The tower's declared height is measured from the pad surface it stands on, not grade:
+    // the surface as built, not as declared, or a pad built at the wrong level would move the
+    // tower's reading with it and hide one error inside the other (audit, 08-10).
+    olit.updateMatrixWorld(true);
+    _box.setFromObject(olit);
+    add('towerH', _box.max.y - (complex.position.y + (isFinite(padY) ? padY : EXPECTED_PAD.padY.value)));
   }
   // This used to be padY - 0.8, which is the same arithmetic the builder does: a regression
   // that left the trench 2 m deep would have passed. Measure the clad floor instead.

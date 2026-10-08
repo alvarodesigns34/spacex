@@ -91,7 +91,9 @@ function detailH2r(M) {
   // The brake lines' stainless braid: a fine twill across the line (≈1.5 mm).
   D(M.h2rBraid, 'twill', { size: 0.003, normal: 1, rough: 0.3 });
   D(M.h2rSeat, 'grain', { size: 0.02, normal: 1, rough: 0.4 });
-  D(M.h2rCarbon, 'twill', { size: 0.032, normal: 0.6, rough: 0.2, color: 0.85 });
+  // The two-sided clone too (bodywork/fairing.js: the screen, nose and louvres): Material.clone
+  // does not carry the detail's onBeforeCompile, so it was smooth carbon (audit, 08-10).
+  for (const k of ['h2rCarbon', 'h2rCarbon2']) D(M[k], 'twill', { size: 0.032, normal: 0.6, rough: 0.2, color: 0.85 });
   for (const k of ['h2rChrome', 'h2rChrome2', 'h2rGreen', 'h2rRim', 'h2rBlack', 'h2rRedAnod']) D(M[k], 'peel', { size: 0.06, normal: 0.18, rough: 0.1 });
 }
 

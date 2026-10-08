@@ -142,7 +142,7 @@ export const PAD_FIGURES = {
   // Starbase), but a planning one stated as "approximately 480 feet" plus a 10 ft rod, so it is
   // shown with ≈ and held to the reporting tolerance rather than the maker's. It replaced a fan
   // wiki's 474 ft (≈144,5 m, grade D).
-  towerH: { value: 149.45, grade: 'C', approx: true, ref: 'faa_pea2022', label: 'torre · altura total sobre la explanada (≈480 ft + pararrayos de 10 ft, FAA 2022)', sheet: 'Pad 2 · integration tower' },
+  towerH: { value: 149.35, grade: 'C', approx: true, ref: 'faa_pea2022', label: 'torre · altura total sobre la explanada (≈480 ft + pararrayos de 10 ft, FAA 2022)', sheet: 'Pad 2 · integration tower' },
   armLen: { value: 26, grade: 'C', ref: 'nsf_pad2', label: 'brazo de captura · longitud (≈36 del Pad 1 − 10)', sheet: 'Pad 2 · catch arms' },
   deckTop: { value: 18, grade: 'D', label: 'mesa · cota de la cubierta', sheet: 'Pad 2 · plan dimensions' },
   padY: { value: 5, grade: 'D', label: 'explanada · cota' },

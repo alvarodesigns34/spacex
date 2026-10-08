@@ -361,14 +361,13 @@ function gt3Materials(M) {
   M.gt3Plastic = new THREE.MeshStandardMaterial({ name: 'gt3-black-plastic', color: 0x222326, metalness: 0, roughness: 0.6 });
   M.gt3Interior = new THREE.MeshStandardMaterial({ name: 'gt3-interior', color: 0x161718, metalness: 0, roughness: 0.9, side: THREE.DoubleSide });
   M.gt3Tyre = new THREE.MeshStandardMaterial({ name: 'gt3-tyre', color: 0x18191a, metalness: 0, roughness: 0.86 });
-  // The wheels: forged, in a satin dark finish (≈: the colour is a choice for this car).
-  // The wheels painted red and the callipers black, as on the car in Porsche's studio photographs (≈ the colours).
+  // The wheels: forged, painted red, and the callipers black, as on the car in Porsche's studio photographs (≈ the colours).
   M.gt3Wheel = new THREE.MeshPhysicalMaterial({ name: 'gt3-wheel', color: 0xb8211f, metalness: 0.35, roughness: 0.34, clearcoat: 0.8, clearcoatRoughness: 0.12 });
   M.gt3WheelDS = M.gt3Wheel.clone(); M.gt3WheelDS.name = 'gt3-wheel-rim'; M.gt3WheelDS.side = THREE.DoubleSide;
   M.gt3WheelBarrel = new THREE.MeshStandardMaterial({ name: 'gt3-wheel-barrel', color: 0x3a0d0c, metalness: 0.3, roughness: 0.6, side: THREE.DoubleSide });
   // Cast iron, dark and dull behind the spokes as in the photographs.
   M.gt3Disc = new THREE.MeshStandardMaterial({ name: 'gt3-disc', color: 0x45423f, metalness: 0.7, roughness: 0.58 });
-  // Cast-iron brakes carry red callipers (ceramic ones are yellow).
+  // Red, now used only for the wing's DRS cylinders: the callipers are gt3CalliperBlack, below.
   M.gt3Calliper = new THREE.MeshStandardMaterial({ name: 'gt3-calliper', color: 0xb3141a, metalness: 0.15, roughness: 0.36 });
   M.gt3CalliperBlack = new THREE.MeshStandardMaterial({ name: 'gt3-calliper-black', color: 0x121314, metalness: 0.2, roughness: 0.4 });
   M.gt3Carbon = new THREE.MeshStandardMaterial({ name: 'gt3-carbon', color: 0x17181a, metalness: 0.3, roughness: 0.3 });

@@ -183,6 +183,8 @@ export function createLaunchSound({ launch, camera }) {
     s.connect(f); f.connect(g);
     if (pan) g.connect(pan); else g.connect(master);
     g.connect(reverbIn);
+    // Let go of the chain once it has played, so one-shots do not pile up on the graph.
+    s.onended = () => { s.disconnect(); f.disconnect(); g.disconnect(); };
     s.start(ctx.currentTime + at + delay);
   }
 

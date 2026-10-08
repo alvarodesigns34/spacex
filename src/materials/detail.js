@@ -30,11 +30,15 @@ function makeNoise(seed) {
   for (let i = 0; i < lat.length; i++) lat[i] = rnd();
   return {
     rnd,
-    /** Value noise, period `per` lattice cells over the tile (u, v in 0..1). */
-    at(u, v, per) {
-      const x = u * per, y = v * per, ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+    /**
+     * Value noise, period `per` lattice cells over the tile (u, v in 0..1), `perV` across v when
+     * it differs (a streak). Both whole numbers, or the tile does not wrap: scaling u before the
+     * call (u * 0.1 at a period of 256) stopped at 25.6 cells and left a seam at every repeat.
+     */
+    at(u, v, per, perV = per) {
+      const x = u * per, y = v * perV, ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
       const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
-      const L = (a, b) => lat[(((b % per) + per) % per) * P + (((a % per) + per) % per)];
+      const L = (a, b) => lat[(((b % perV) + perV) % perV) * P + (((a % per) + per) % per)];
       const a = L(ix, iy), b = L(ix + 1, iy), c = L(ix, iy + 1), d = L(ix + 1, iy + 1);
       return (a + (b - a) * sx) * (1 - sy) + (c + (d - c) * sx) * sy;
     },
@@ -65,7 +69,7 @@ const KINDS = {
   }),
   // Brushed or machined metal: long fine lines along one direction.
   brushed: (n) => ({
-    h: field((u, v) => 0.6 * n.at(u * 0.02, v, 256) + 0.3 * n.at(u * 0.05, v, 128) + 0.1 * n.at(u, v, 64)),
+    h: field((u, v) => 0.6 * n.at(u, v, 5, 256) + 0.3 * n.at(u, v, 6, 128) + 0.1 * n.at(u, v, 64)),
     strength: 1.6, rough: (h) => 0.4 + 0.2 * h,
   }),
   // A powder coat, a satin paint or a moulded plastic: a fine stipple.
@@ -109,7 +113,7 @@ const KINDS = {
         const warp = ((i + j) & 3) < 2;
         const across = warp ? fu : fv;
         const along = warp ? fv : fu;
-        return Math.sin(Math.PI * across) * 0.8 + 0.15 * n.at(warp ? u * 0.1 : u, warp ? v : v * 0.1, 256) + 0.05 * Math.sin(Math.PI * along);
+        return Math.sin(Math.PI * across) * 0.8 + 0.15 * n.at(u, v, warp ? 26 : 256, warp ? 256 : 26) + 0.05 * Math.sin(Math.PI * along);
       }),
       strength: 2.6, rough: (h) => 0.5 + 0.1 * h,
       color: (h, i) => { const x = i % SIZE, y = Math.floor(i / SIZE), a = Math.floor(x / SIZE * T), b = Math.floor(y / SIZE * T), warp = ((a + b) & 3) < 2, k = 0.55 + 0.45 * h; const c = warp ? 92 : 62; return [c * k, c * k, (c + 6) * k]; },

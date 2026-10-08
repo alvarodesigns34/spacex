@@ -110,7 +110,9 @@ export const THRUST = {
 /** TP-1538 appendix A: the control system's published limits and dynamics. */
 export const FCS = {
   stab: { limit: 25, rate: 60, tau: 0.0495 },
-  diffTail: { limit: 5.38, rate: 60, tau: 0.0495, ratio: 4 },   // 4° of aileron per 1° of differential tail
+  // 5.375° is 21.5° of aileron over the ratio of 4; it was 5.38 here and 5.375 in f16.js, which
+  // now reads this one (audit, 08-10).
+  diffTail: { limit: 5.375, rate: 60, tau: 0.0495, ratio: 4 },   // 4° of aileron per 1° of differential tail
   aileron: { limit: 21.5, rate: 80, tau: 0.0495 },
   rudder: { limit: 30, rate: 120, tau: 0.0495, fade: [20, 30] },  // pilot rudder faded to zero 20–30° α
   // δlef = 1.38·(2s + 7.25)/(s + 7.25)·α − 9.05·q̄/ps + 1.45 (deg): a lead on α, the q̄/ps term and a bias.

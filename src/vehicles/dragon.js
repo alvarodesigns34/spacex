@@ -350,6 +350,9 @@ export function buildDragon(M) {
   const FIN_SPAN = 0.74, FIN_FULL = 1.55, FIN_ROOT = 2.55;
   for (let i = 0; i < 4; i++) {
     const a = HATCH + (i * Math.PI) / 2;
+    // With plate()'s bevel added, as built: 83 mm thick and 14 mm larger on every edge (0.754 m
+    // of span from the root line). Neither the 55 mm nor the span is a published figure, so nothing
+    // is moved to "correct" it (audit, 08-10).
     const fin = plate([[0, 0.02], [FIN_SPAN, 0.02], [FIN_SPAN, FIN_FULL], [0, FIN_ROOT]], 0.055, 0.014);
     const e1 = new THREE.Vector3(Math.sin(a), 0, Math.cos(a));
     const e3 = new THREE.Vector3().crossVectors(e1, new THREE.Vector3(0, 1, 0));

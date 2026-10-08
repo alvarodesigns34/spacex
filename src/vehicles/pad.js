@@ -846,7 +846,7 @@ function buildField(M) {
   const fx = PAD.farmX;
   // What the shared tank farm holds today, from OpenStreetMap's traced footprints (© OpenStreetMap
   // contributors, ODbL; content tags on each tank): rows of long horizontal tanks on saddles,
-  // ≈48.6 m by ≈5.8 m, side by side at ≈6.45 m — ten of liquid oxygen, eight of liquid
+  // ≈48.6 m by ≈5.8 m, side by side at ≈6.45 m (the wider ones further apart) — ten of liquid oxygen, eight of liquid
   // nitrogen, and methane in four of those plus two ≈50.3 × 6.5 m and two ≈31.5 × 8.0 m — with
   // banks of ambient vaporizers (≈2.4 × 2.2 m footprints). Pad 2 shares these tanks with Pad 1
   // and has its own pumps and subcoolers (NASASpaceflight). The row is laid straight here and
@@ -859,15 +859,21 @@ function buildField(M) {
     ...Array(4).fill(['ln2', 48.6, 5.7]), ...Array(2).fill(['ch4', 50.3, 6.5]), ...Array(4).fill(['ch4', 48.6, 5.7]),
     ...Array(2).fill(['ch4', 31.5, 8.0]),
   ];
-  const PITCH = 6.45, y0 = 1.2;
-  const z0 = -((ROW.length - 1) * PITCH) / 2;
+  // The traced pitch, ≈6.45 m, is that of the ≈5.8 m tanks: 0.65 m between shells. At one fixed
+  // pitch the 8.0 m tanks ran 1.55 m into each other, and the 6.5 m and 5.7–8.0 m pairs
+  // 0.05 and 0.40 m (audit, 08-10). A wider pair keeps the same 0.65 m between shells (≈: their
+  // own spacing is not traced).
+  const PITCH = 6.45, GAP = PITCH - 5.8, y0 = 1.2;
+  const rowAt = [0];
+  for (let i = 1; i < ROW.length; i++) rowAt.push(rowAt[i - 1] + Math.max(PITCH, (ROW[i - 1][2] + ROW[i][2]) / 2 + GAP));
+  const z0 = -rowAt[ROW.length - 1] / 2;
   const cxRow = fx + 27;     // the row's near heads 2.7 m past farmX, where the pipe bridge lands
   const slab = [block(fx - 4, fx + 58, -0.4, y0, z0 - 8, -z0 + 8)];
   farm.add(mesh(boxUV(mergeAll(slab)), M.concrete));
   const horiz = [], saddles = [], pipes = [], rails = [];
   const rowZ = { lox: [], ln2: [], ch4: [] };
   ROW.forEach(([kind, len, dia], i) => {
-    const r = dia / 2, z = z0 + i * PITCH, body = len - 2 * r, y = y0 + 1.1 + r;
+    const r = dia / 2, z = z0 + rowAt[i], body = len - 2 * r, y = y0 + 1.1 + r;
     rowZ[kind].push(z);
     horiz.push({ geometry: new THREE.CylinderGeometry(r, r, body, 36), matrix: mat4([cxRow, y, z], [0, 0, Math.PI / 2]) });
     for (const e of [-1, 1]) {

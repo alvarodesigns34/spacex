@@ -24,7 +24,12 @@ registerHooks({
     if (!mutant || !url.endsWith('/src/sim/launch.js')) return result;
     let source = String(result.source).replace(/\r\n/g, '\n');
     if (mutant === 'random') source = source.replace('cloud.reset(seeded(11))', 'cloud.reset()');
-    if (mutant === 'frozen') source = source.replace('advanceCloud(t);', 'advanceCloud(Math.min(t, CLOUD_UNTIL));');
+    // Both paths, seek() and update(): freezing only the first left playback live, so the
+    // mutant was caught by playback ≠ seek rather than by the frozen cloud (audit, 08-10).
+    if (mutant === 'frozen') {
+      if (source.split('advanceCloud(t);').length !== 3) throw new Error('frozen mutation must reach seek() and update()');
+      source = source.replaceAll('advanceCloud(t);', 'advanceCloud(Math.min(t, CLOUD_UNTIL));');
+    }
     if (mutant === 'speed') source = source.replace('    advanceCloud(t);\n\n    if (t >=', '    advanceCloud(prev + Math.min(dt * state.speed, 0.12));\n\n    if (t >=');
     if (mutant === 'staging') source = source.replace('PROFILE.down[EVENTS.separation / PROFILE.step]', '84000');
     // The defect found in review: positions met at staging but the velocity did not.

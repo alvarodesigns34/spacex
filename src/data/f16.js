@@ -17,6 +17,8 @@
  * (TP-3355 figure 2, the line the wing lies on); y = metres to the right. The 1/15 model's inches
  * are full-size feet × 0.8 (1 in model = 15 in): its 39.47 in overall length is 15.04 m.
  */
+import { FCS } from './f16Aero.js';
+
 const IN = 0.0254, FT = 0.3048;
 const SCALE = 15 * IN;   // one model inch, full size, in metres
 
@@ -141,7 +143,7 @@ export const MASS = {
   weight: 91188 / 9.80665,                      // 20,500 lb
   ixx: 12875, iyy: 75674, izz: 85552, ixz: 1331,
   cgRef: 0.35,                                  // fraction of c̄
-  limits: { stab: 25, stabDiff: 5.375, aileron: 21.5, rudder: 30, lef: 25, speedBrake: 60 },
+  limits: { stab: 25, stabDiff: FCS.diffTail.limit, aileron: 21.5, rudder: 30, lef: 25, speedBrake: 60 },
 };
 
 /** NACA 64A006 basic thickness form (TN-1368 figure 7), percent chord: x, half-thickness. */

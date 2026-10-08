@@ -781,6 +781,8 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
     clearTimeout(coachTimer);
     try { localStorage.setItem(COACH_KEY, '1'); } catch { /* storage unavailable */ }
     for (const [t, f] of coachListeners) window.removeEventListener(t, f, true);
+    // Emptied too, or each showCoach() would add its listeners on top of the stale ones.
+    coachListeners.length = 0;
   };
   const coachListeners = [];
   const showCoach = (ms = 20000) => {

@@ -18,12 +18,16 @@
  *
  * Part of `npm run check`. It also fails if the scene registers a swap this file has no
  * camera for — a new swap cannot slip in unmeasured — and it runs one negative control: the
- * far picture of the first swap brightened by a third must be caught.
+ * far picture of the first swap brightened by a third must be caught. Each camera must also
+ * see its swap: a frame that missed it would change nothing and pass with nothing measured,
+ * so the far stand-in has to cover a minimum of pixels, with a camera turned away from the
+ * vehicle as the control that must fall short.
  *
  * Reports, per switch, at its own threshold distance:
  *   changed   share of pixels that differ at all
  *   mean|Δ|   average luminance change over those pixels, 0-255
  *   outline   share of pixels where one state drew the vehicle and the other drew sky
+ *   seen      pixels the far stand-in covers (the frame with it hidden differs there)
  */
 import { createServer } from 'node:http';
 import { staticHandler } from './static.mjs';
@@ -70,7 +74,12 @@ const missing = swaps.filter(n => !CASES.some(c => c.entry === n));
 console.log(`${missing.length ? ' FAIL ' : '  ok  '} cada intercambio de detalle tiene su encuadre — ${swaps.length} registrados${missing.length ? `, sin encuadre: ${missing.join(', ')}` : ''}`);
 if (missing.length) failed++;
 
-const measure = (c, mutate = false) => page.evaluate(([c, mutate]) => {
+// The swap must cover at least this many pixels of the 900 × 600 frame to count as measured.
+// The smallest case, the Roadster at ≈40 m, covers ≈1,400 (08-10); a frame that misses the
+// vehicle covers none.
+const MIN_SEEN = 150;
+
+const measure = (c, mutate = false, away = false) => page.evaluate(([c, mutate, away]) => {
     const v = window.__vc;
     const e = v.exhibits[c.exhibit];
     const yaw = e.model.rotation.y, cy = Math.cos(yaw), sy = Math.sin(yaw);
@@ -85,7 +94,9 @@ const measure = (c, mutate = false) => page.evaluate(([c, mutate]) => {
     // exactly `enter` pixels. That is where the change happens, so that is where to judge it.
     const mpp = (2 * Math.tan((v.camera.fov * Math.PI / 180) / 2)) / window.innerHeight;
     const d = entry.feature / (v.lod.pixels * entry.bias * mpp);
-    v.rig.jumpTo([ox + dir[0] * d, oy + dir[1] * d, oz + dir[2] * d], [ox, oy, oz]);
+    const eye = [ox + dir[0] * d, oy + dir[1] * d, oz + dir[2] * d];
+    // `away`: the same spot, looking straight away from the vehicle (the coverage's control).
+    v.rig.jumpTo(eye, away ? [eye[0] + dir[0] * d, eye[1] + dir[1] * d, eye[2] + dir[2] * d] : [ox, oy, oz]);
     v.camera.updateMatrixWorld(true);
 
     const cv = document.createElement('canvas');
@@ -107,7 +118,21 @@ const measure = (c, mutate = false) => page.evaluate(([c, mutate]) => {
     }
     const A = grab(false), B = grab(true);
     for (const [m, col] of farMats) m.color.copy(col);
+    // The far picture again with the stand-in hidden: where it differs is what the far state
+    // draws, so a camera that does not see the swap reads zero.
+    v.lod.pin(c.entry, false);
+    entry.far.visible = false;
+    v.composer.render();
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.drawImage(v.renderer.domElement, 0, 0);
+    const C = ctx.getImageData(0, 0, cv.width, cv.height).data;
     v.lod.pin(c.entry, null);
+    let seen = 0;
+    for (let i = 0; i < A.length; i += 4) {
+      const la = (A[i] * 0.299 + A[i + 1] * 0.587 + A[i + 2] * 0.114);
+      const lc = (C[i] * 0.299 + C[i + 1] * 0.587 + C[i + 2] * 0.114);
+      if (Math.abs(la - lc) >= 3) seen++;
+    }
 
     let changed = 0, sum = 0, outline = 0, signed = 0;
     const n = A.length / 4;
@@ -127,8 +152,9 @@ const measure = (c, mutate = false) => page.evaluate(([c, mutate]) => {
       meanDelta: +(sum / Math.max(changed, 1)).toFixed(1),
       signedDelta: +(signed / Math.max(changed, 1)).toFixed(1),
       outlinePct: +(100 * outline / n).toFixed(3),
+      seen,
     };
-  }, [c, mutate]);
+  }, [c, mutate, away]);
 
 for (const c of CASES) {
   const r = await measure(c);
@@ -138,11 +164,11 @@ for (const c of CASES) {
   // pixel by pixel — that is the point of it — so |Δ| is reported and the gate is on the two
   // things that read as a switch: the mean SIGNED change, which is the whole surface getting
   // lighter or darker at once, and any change of outline at all.
-  const ok = Math.abs(r.signedDelta) <= 6 && r.outlinePct <= 0.05;
+  const ok = Math.abs(r.signedDelta) <= 6 && r.outlinePct <= 0.05 && r.seen >= MIN_SEEN;
   if (!ok) failed++;
   worst = Math.max(worst, Math.abs(r.signedDelta));
   console.log(`${ok ? '  ok  ' : ' FAIL '} ${c.entry} a ${r.d} m — ${r.changedPct} % de píxeles cambian, `
-    + `|Δ| medio ${r.meanDelta}/255 (detalle ${r.signedDelta > 0 ? 'más claro' : 'más oscuro'} en ${Math.abs(r.signedDelta)}), silueta ${r.outlinePct} %`);
+    + `|Δ| medio ${r.meanDelta}/255 (detalle ${r.signedDelta > 0 ? 'más claro' : 'más oscuro'} en ${Math.abs(r.signedDelta)}), silueta ${r.outlinePct} %, ${r.seen} px del lejano a la vista${r.seen < MIN_SEEN ? ` (mínimo ${MIN_SEEN}: el encuadre no ve el intercambio)` : ''}`);
 }
 
 // Negative control: the same measurement must reject a far picture a third too bright.
@@ -150,6 +176,13 @@ for (const c of CASES) {
   const r = await measure(CASES[0], true);
   const caught = !r.error && (Math.abs(r.signedDelta) > 6 || r.outlinePct > 0.05);
   console.log(`${caught ? '  ok  ' : ' FAIL '} control negativo: mosaico lejano un 33 % más claro — Δ con signo ${r.signedDelta}/255`);
+  if (!caught) failed++;
+}
+// Negative control for the coverage: each camera turned away from its vehicle must fall short.
+for (const c of CASES) {
+  const r = await measure(c, false, true);
+  const caught = !r.error && r.seen < MIN_SEEN;
+  console.log(`${caught ? '  ok  ' : ' FAIL '} control negativo: ${c.entry} con la cámara de espaldas — ${r.seen ?? '?'} px del lejano a la vista`);
   if (!caught) failed++;
 }
 

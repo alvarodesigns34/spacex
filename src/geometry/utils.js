@@ -485,7 +485,12 @@ export function seeded(seed) {
   };
 }
 
-/** Extrudes a 2D outline (array of [x,y]) into a plate of given thickness centred on z=0. */
+/**
+ * Extrudes a 2D outline (array of [x,y]) into a plate of given thickness centred on z=0.
+ * A bevel is ADDED to both: the plate comes out `thickness + 2 * bevel` thick and its outline
+ * `bevel` larger on every edge (ExtrudeGeometry bevels outwards). Callers that want a finished
+ * size have to take the bevel off themselves.
+ */
 export function plate(outline, thickness, bevel = 0) {
   const shape = new THREE.Shape();
   outline.forEach(([x, y], i) => (i === 0 ? shape.moveTo(x, y) : shape.lineTo(x, y)));

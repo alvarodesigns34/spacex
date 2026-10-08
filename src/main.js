@@ -251,6 +251,9 @@ async function main() {
   // ---- HUD ----
   let sunRaf = 0, pendingSun = 20;
   let sound = null;
+  // The environment is built after the HUD, and the Sun slider can be reached with Tab while the
+  // page is still loading: a `const` read before then threw from the frame callback (audit, 08-10).
+  let env = null;
   const hud = createHUD({
     vehicles: VEHICLES,
     onSelect: (id) => select(id),
@@ -265,7 +268,7 @@ async function main() {
     onSun: (elev) => {
       pendingSun = elev;
       if (sunRaf) return;
-      sunRaf = requestAnimationFrame(() => { sunRaf = 0; env.setSun(pendingSun, 34); });
+      sunRaf = requestAnimationFrame(() => { sunRaf = 0; env?.setSun(pendingSun, 34); });
     },
     onReset: () => select(null),
     onLaunch: () => toggleLaunch(),
@@ -299,7 +302,9 @@ async function main() {
   timings.materials = performance.now() - t0;
   hud.setProgress('Lighting and environment…', 0.25);
   await nextFrame();
-  const env = createEnvironment(renderer, scene, M, quality);
+  env = createEnvironment(renderer, scene, M, quality);
+  // It starts at the slider's default of 20°; a value chosen while loading is applied now.
+  if (pendingSun !== 20) env.setSun(pendingSun, 34);
   dressCampus(scene, M, { stops: Object.values(LAYOUT).filter(l => !l.pad && !l.remote).map(l => l.x), quality: quality.name });
   scene.add(buildRunway(M));
   // The runway's windsock follows the site's wind (core/wind.js), each frame.
@@ -608,6 +613,9 @@ async function main() {
     // started any other way flew under an "Overview" header with the overview's rail lit.
     onStart: () => {
       if (reentry?.running) reentry.reset(false);
+      // The flight and the drives hold the camera as 'launch' too, so the claim below changes
+      // no owner and would leave them running under the sequence (audit, 08-10).
+      for (const k of ['f16', 'gt3', 'h2r']) if (sequences[k]?.running) sequences[k].reset(false);
       if (view.exhibit !== 'starship') { enforce(view.select('starship', 'launch')); syncHud(); }
       enforce(view.claim('launch'));
       hud.setMissionText(null);
@@ -652,6 +660,7 @@ async function main() {
     scene, exhibits, complex, env, rig, camera, M,
     onStart: () => {
       if (launch.running) launch.reset(false);
+      for (const k of ['f16', 'gt3', 'h2r']) if (sequences[k]?.running) sequences[k].reset(false);
       if (view.exhibit !== 'starship') { enforce(view.select('starship', 'launch')); syncHud(); }
       enforce(view.claim('launch'));
       hud.setMissionText(REENTRY_TEXT);
@@ -694,11 +703,14 @@ async function main() {
     scene, exhibit: exhibits.f16, env, rig, camera, ground: f16Ground, hud: f16Hud,
     solid: (a, b) => f16Grid?.hits(a, b) ?? false,
     onStart: () => {
-      if (!f16Grid) f16Grid = buildColliders(scene, { exclude: [exhibits.f16.model], level: true });
       if (launch.running) launch.reset(false);
       if (reentry.running) reentry.reset(false);
       if (view.exhibit !== 'f16') { enforce(view.select('f16', 'launch')); syncHud(); }
       enforce(view.claim('launch'));
+      // Built after the selection has settled the scene: started from the Roadster's orbital
+      // view, the campus and the other exhibits were still hidden, and colliders.js skips what
+      // is hidden, so the grid missed them for the rest of the session (audit, 08-10).
+      if (!f16Grid) f16Grid = buildColliders(scene, { exclude: [exhibits.f16.model], level: true });
       hudRoot.classList.add('is-f16');
     },
     onFinish: () => { hudRoot.classList.remove('is-f16'); goPreset('f16', 'overview'); },
@@ -789,14 +801,15 @@ async function main() {
     // Where it waits: its own spot on the skid pad, nose to the east.
     home: () => ({ x: exhibits.gt3rs.lay.x, z: exhibits.gt3rs.lay.z, psi: THREE.MathUtils.degToRad(exhibits.gt3rs.lay.yaw ?? 0) }),
     onStart: () => {
-      // The scene's solid geometry, once, without the car (it moves).
-      if (!gt3Grid) { gt3Grid = buildColliders(scene, { exclude: [exhibits.gt3rs.model], maxY: 30 }); near = null; nearKey = ''; }
       if (launch.running) launch.reset(false);
       if (reentry.running) reentry.reset(false);
       if (f16fly.running) f16fly.reset(false);
       if (sequences.h2r?.running) sequences.h2r.reset(false);
       if (view.exhibit !== 'gt3rs') { enforce(view.select('gt3rs', 'launch')); syncHud(); }
       enforce(view.claim('launch'));
+      // The scene's solid geometry, once, without the car (it moves), and only once the
+      // selection has brought back whatever the orbital view hid.
+      if (!gt3Grid) { gt3Grid = buildColliders(scene, { exclude: [exhibits.gt3rs.model], maxY: 30 }); near = null; nearKey = ''; }
       hudRoot.classList.add('is-gt3');
     },
     onFinish: () => { hudRoot.classList.remove('is-gt3'); goPreset('gt3rs', 'overview'); },
@@ -846,13 +859,14 @@ async function main() {
     scene, exhibit: exhibits.h2r, rig, camera, ground: gt3Ground, obstacles: h2rObstacles, hud: h2rHud, M,
     home: () => ({ x: exhibits.h2r.lay.x, z: exhibits.h2r.lay.z, psi: THREE.MathUtils.degToRad(exhibits.h2r.lay.yaw ?? 0) }),
     onStart: () => {
-      if (!h2rGrid) { h2rGrid = buildColliders(scene, { exclude: [exhibits.h2r.model], maxY: 30 }); h2rNear = null; h2rKey = ''; }
       if (launch.running) launch.reset(false);
       if (reentry.running) reentry.reset(false);
       if (f16fly.running) f16fly.reset(false);
       if (gt3drive.running) gt3drive.reset(false);
       if (view.exhibit !== 'h2r') { enforce(view.select('h2r', 'launch')); syncHud(); }
       enforce(view.claim('launch'));
+      // After the selection, for the same reason as the Porsche's grid.
+      if (!h2rGrid) { h2rGrid = buildColliders(scene, { exclude: [exhibits.h2r.model], maxY: 30 }); h2rNear = null; h2rKey = ''; }
       hudRoot.classList.add('is-gt3');
     },
     onFinish: () => { hudRoot.classList.remove('is-gt3'); goPreset('h2r', 'overview'); },
@@ -1169,7 +1183,10 @@ async function main() {
 
   function select(id) {
     // Picking a vehicle is a request to look at the museum, so it ends whatever was driving.
-    enforce(view.select(id, 'user'));
+    // Asked of whatever is running, not of the previous owner: a click or a scroll during the
+    // launch hands the camera to 'user' and lets the rocket fly on, and the claim alone then
+    // reported nothing to stop, so the sequence went on under the other exhibit (audit, 08-10).
+    enforce({ ...view.select(id, 'user'), launch: true });
     syncHud();
     if (!id) { const o = overviewFor(freeAspect(), camera.fov); rig.flyTo(o.pos, o.target, 2.0); lastOverview = new THREE.Vector3(...o.pos); return; }
     const w = worldPreset(id, view.preset);
@@ -1254,7 +1271,9 @@ async function main() {
   }
   function startTour() {
     if (tourAt >= 0) return;
-    enforce(view.claim('tour'));
+    // Same rule as select(): the tour ends a running sequence even after a drag gave the
+    // camera to 'user' (audit, 08-10).
+    enforce({ ...view.claim('tour'), launch: true });
     tourAt = -1;
     tourStep();
   }

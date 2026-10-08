@@ -286,7 +286,9 @@ export function createF16Sound() {
         if (gate && boomArmed) {
           const src = ctx.createBufferSource(); src.buffer = N.boom;
           const g = ctx.createGain(); g.gain.value = Math.min(1, 1500 / Math.max(d, 300));
-          src.connect(g); g.connect(N.boomLp); src.start(t);
+          src.connect(g); g.connect(N.boomLp);
+          src.onended = () => { src.disconnect(); g.disconnect(); };
+          src.start(t);
         }
         boomArmed = !gate;
       } else boomArmed = true;

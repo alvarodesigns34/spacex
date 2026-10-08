@@ -801,7 +801,7 @@ export function buildCabin(M) {
     if (idx.length) g.add(mesh(mergeAll(idx.map(o => ({ geometry: o.geometry.toNonIndexed() }))), MAT[k], { name: `gt3-cabin-${k}`, castShadow: k !== 'screen' }));
     if (flat.length) g.add(mesh(mergeAll(flat), MAT[k], { name: `gt3-cabin-${k}-x`, castShadow: k !== 'screen' }));
   }
-  // Live instruments: the needle over 300° (0 to 10,000 /min), the digits, the wheel at 14.1:1.
+  // Live instruments: the needle over 295° (1.64π, 0 to 10,000 /min), the digits, the wheel at 14.1:1.
   const A0 = 0.68 * Math.PI, SPAN = 1.64 * Math.PI;
   g.userData.instruments = {
     update({ rpm = 0, gear = 'N', kmh = 0, steer = 0 } = {}) {

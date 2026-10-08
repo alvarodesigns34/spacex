@@ -27,6 +27,9 @@ const report = (ok, label, detail) => {
   results.push({ ok, label, detail });
   console.log(`${ok ? 'PASS' : 'FAIL'} ${label}${detail ? ` ${JSON.stringify(detail)}` : ''}`);
 };
+// A wait that runs out is not a failure by itself (the check after it decides), but it is
+// the cause when that check fails, so it is logged rather than swallowed.
+const timedOut = (what) => (e) => console.log(`WAIT ${what} timed out: ${e.message.split('\n')[0]}`);
 const bounds = () => page.evaluate(() => {
   const selectors = ['.hud-header', '.sheet', '.rail', '.tools', '.presets', '.mission', '.coach', '.tour-card'];
   const boxes = {};
@@ -245,14 +248,14 @@ try {
   await page.evaluate(() => document.activeElement?.blur?.());
   await page.keyboard.press('k');
   // Software frames take seconds at this size: wait for the clock to move, not a fixed delay.
-  await page.waitForFunction((p0) => window.__vc.launch.state.t > p0, p0, { timeout: 60000 }).catch(() => {});
+  await page.waitForFunction((p0) => window.__vc.launch.state.t > p0, p0, { timeout: 60000 }).catch(timedOut('launch clock advancing'));
   const resumed = await page.evaluate(() => ({ t: window.__vc.launch.state.t, p: window.__vc.launch.state.paused }));
   report(!resumed.p && resumed.t > p0, 'K resumes the clock', { p0, resumed });
   await page.click('#mission-speeds button[data-k="0.25"]');
   report(await page.evaluate(() => window.__vc.launch.state.speed === 0.25 && document.querySelector('#mission-speeds button[data-k="0.25"]').getAttribute('aria-pressed') === 'true'), 'Slow motion ×¼ is applied and pressed');
   const box = await page.locator('#mission-plot').boundingBox();
   await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
-  await page.waitForFunction(() => window.__vc.launch.state.t > 150, null, { timeout: 60000 }).catch(() => {});
+  await page.waitForFunction(() => window.__vc.launch.state.t > 150, null, { timeout: 60000 }).catch(timedOut('launch past T+150 s'));
   const seekT = await page.evaluate(() => window.__vc.launch.state.t);
   const ev = await page.evaluate(async () => { const { EVENTS } = await import('/src/sim/launch.js'); return EVENTS; });
   const mid = ev.start + 0.5 * (ev.end - ev.start);
@@ -566,7 +569,7 @@ try {
     // what riding means: the orbit's centre on the ship, at an unchanged distance, as it falls.
     const offset = () => page.evaluate(() => { const v = window.__vc, h = v.scene.getObjectByName('reentry-ship').position; return { t: v.reentry.state.t, y: Math.round(h.y), dist: v.camera.position.distanceTo(h), centre: v.rig.target.distanceTo(h), external: v.rig.external, cam: document.getElementById('mission-cam').textContent }; });
     const o1 = await offset();
-    await page.waitForFunction((t) => window.__vc.reentry.state.t > t + 1.5, o1.t, { timeout: 60000 }).catch(() => {});
+    await page.waitForFunction((t) => window.__vc.reentry.state.t > t + 1.5, o1.t, { timeout: 60000 }).catch(timedOut('re-entry clock advancing'));
     const o2 = await offset();
     const drift = Math.abs(o2.dist - o1.dist);
     // Under 1 000 m: the orbit's 1 600 m ceiling was what a ride starting late clamped to.
@@ -592,7 +595,7 @@ try {
     await page.waitForFunction(() => window.__vc.reentry.running);
     await page.evaluate(() => { const v = window.__vc; v.reentry.setSpeed(0); v.reentry.seek(34400); document.activeElement?.blur?.(); });
     await page.keyboard.press('3');
-    await page.waitForFunction(() => !window.__vc.reentry.running, null, { timeout: 30000 }).catch(() => {});
+    await page.waitForFunction(() => !window.__vc.reentry.running, null, { timeout: 30000 }).catch(timedOut('re-entry ending'));
     const back = await page.evaluate(() => {
       const v = window.__vc, ship = v.exhibits.starship.model.getObjectByName('ship');
       const hidden = v.scene.children.filter(o => (o.name.startsWith('exhibit-') || o.name === 'campus' || o === v.complex) && !o.visible).map(o => o.name);
@@ -792,7 +795,7 @@ try {
     await page.keyboard.press('b');
     // Until the car has taken its first steps (under a loaded software renderer the first frames
     // after the start can take longer than a fixed wait).
-    await page.waitForFunction(() => window.__vc.gt3drive.sim.state.t > 0.05, null, { timeout: 5000 }).catch(() => {});
+    await page.waitForFunction(() => window.__vc.gt3drive.sim.state.t > 0.05, null, { timeout: 5000 }).catch(timedOut('Porsche simulation starting'));
     const started = await page.evaluate(() => {
       const v = window.__vc, D = v.gt3drive, s = D.sim.state;
       return {
@@ -914,7 +917,7 @@ try {
     await page.evaluate(() => { window.__vc.jump('h2r', 'overview'); });
     await page.waitForTimeout(1200);
     await page.keyboard.press('n');
-    await page.waitForFunction(() => window.__vc.h2rRide.sim.state.t > 0.05, null, { timeout: 5000 }).catch(() => {});
+    await page.waitForFunction(() => window.__vc.h2rRide.sim.state.t > 0.05, null, { timeout: 5000 }).catch(timedOut('H2R simulation starting'));
     const lean = await page.evaluate(() => {
       const D = window.__vc.h2rRide, s = D.sim.state;
       const key = (type, code) => document.body.dispatchEvent(new KeyboardEvent(type, { code, key: code.startsWith('Key') ? code.slice(3).toLowerCase() : code, bubbles: true }));

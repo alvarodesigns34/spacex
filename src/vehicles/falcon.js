@@ -97,6 +97,9 @@ function landingLeg(M, { length = 9.6, wrapR = R + 0.12 } = {}) {
   // square section reads as a plank bolted to the stage rather than as a moulded leg. Here the
   // same planform is bent round the stage axis (local z = −wrapR) and its outer face bulges by
   // up to 9 cm at the centreline, the rounded-triangle section the stowed legs photograph as.
+  // plate()'s bevel adds 5 cm to the outline on every edge (1.22 m across the foot, not 1.12)
+  // and 10 cm to the 0.24 m slab. The planform is not a published figure; left as built
+  // (audit, 08-10).
   const geo = boxUV(plate(outline, 0.24, 0.05));
   const p = geo.attributes.position;
   for (let i = 0; i < p.count; i++) {

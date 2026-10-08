@@ -107,7 +107,7 @@ const clA = (lb, mph) => 2 * lb * LB * 9.80665 / (RHO * (mph * MPH) ** 2);
 export const AERO = {
   src: 'Porsche press kit 2022 (downforce); DERIVED (drag)', tag: 'DERIVED',
   downforce: [[124 * MPH, 901 * LB], [177 * MPH, 1896 * LB]],   // PUBLISHED, kg
-  clA: (clA(901, 124) + clA(1896, 177)) / 2,                    // DERIVED ≈ 2.15 m²
+  clA: (clA(901, 124) + clA(1896, 177)) / 2,                    // DERIVED ≈ 2.16 m²
   frontShareDownforce: 0.40,              // ESTIMATE ≈
   cdA: 0.89,                              // DERIVED from 296 km/h, wings flat (see tools/gt3rs-check.mjs)
   cdAHigh: 1.10,                          // ESTIMATE ≈: wings at the high-downforce setting
