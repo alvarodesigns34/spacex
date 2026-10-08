@@ -4,12 +4,31 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ---
 
-## ⭐ Empieza aquí (estado real al 05-10-2026: lee primero «Sesión del 05-10-2026 (quinta)», después «Sesión del 04-10-2026 (cuarta)» y «Cierre de la sesión del 04-10-2026 (tercera)»)
+## ⭐ Empieza aquí (estado real al 08-10-2026: lee primero «Estado actual (08-10-2026)», después «Sesión del 05-10-2026 (quinta)», «Sesión del 04-10-2026 (cuarta)» y «Cierre de la sesión del 04-10-2026 (tercera)»)
+
+### Estado actual (08-10-2026): léelo primero
+
+- **Qué es:** «SpaceX Vehicle Center 3D», una experiencia 3D a escala 1:1 en Three.js r170 (sin dependencias de CDN), publicada en https://alvarodesigns34.github.io/spacex/ (repositorio `alvarodesigns34/spacex`). Once expositores: Falcon 1, Starship, Falcon 9, Falcon Heavy, Dragon, Starlink, Roadster, Engine Row, F-16A, Porsche 911 GT3 RS y Kawasaki Ninja H2R. Los tres últimos se pilotan (F-16 en vuelo, Porsche y H2R en pista). No hay un objetivo fijo: el usuario dice en cada sesión qué toca.
+- **Ramas y despliegue (comprobado el 08-10):** las seis ramas de trabajo están en el mismo commit (`a52cea1`), el árbol limpio, y el CI y el despliegue de Pages en verde en las seis. Pages despliega desde `claude/spacex-vehicle-center-3d-48zlkm`. Al empezar, comprueba otra vez ramas y CI.
+- **H2R: su modelo viene de Blender.** `assets/h2r/h2r.glb` (35,6 MB) lo genera `blender/h2r/build.py` y lo carga `src/vehicles/h2rAsset.js`; las físicas, el pilotaje, el sonido y las animaciones siguen en código y encuentran sus piezas por nombre (`h2r-steer`, `h2r-wheel-f-spin`, `h2r-wheel-r-spin`, `h2r-swingarm`, `h2r-impeller`, `h2r-dash`). Si el archivo no carga, entra el modelo en código (`src/vehicles/h2r/`), que además es la base de la que parte Blender. El resto de vehículos siguen siendo procedurales (sin binarios).
+  - **Rehacer el `.glb`** (solo si cambia el modelo): `pip install bpy==5.0.1` (Python 3.11), `node tools/h2r-export.mjs` (navegador sin interfaz: escribe `blender/h2r/source/code-parts.glb`, que no está en el repositorio) y `python3 blender/h2r/build.py` (≈30 min con 4 núcleos, por el horneado de la oclusión ambiental). Para renders de revisión con Workbench o Eevee hace falta `libegl1` (`apt-get install libegl1 libegl-mesa0 libgl1-mesa-dri`); Cycles va sin él.
+  - **Después de tocar el `.glb` o `blender/`**, pasa también `node tools/check.mjs` (escena), no solo `check:static`. El despliegue copia `assets/` (`h2r-check` lo vigila).
+- **Comprobaciones:** `npm run check:static` antes de cada commit (≈2–3 min); `npm run check` completo (≈25–30 min, con navegador) al cerrar un bloque o la sesión; el CI hace el completo en cada push y no despliega si falla.
+- **Presupuesto de la escena** (CI del 05-10): 3.900.168 triángulos construidos, 2.793.371 dibujados en la vista general, 1.681 mallas, 312 materiales y 153 texturas, frente a los límites de `tools/check.mjs` (4,5 M, 2.200, 340 y 220). Se pueden subir si hace falta.
+- **Pendiente, con el orden que decida el usuario:**
+  - **H2R, aparcado:** el resto de la fase 3 (materiales con mapas propios: carbono, titanio, goma, aluminio y el espejo ahumado en dos capas), la mecánica refinada pieza a pieza y la forma del carenado contra las fotos. No retomarlo sin que lo pida. Sin fotos del amortiguador trasero, no se ha inventado su disposición.
+  - **F-16:** tren (puertas planas, patas cilíndricas), luces de formación, receptáculo de repostaje, más paneles. El despegue con postcombustión (172 kt a 407 m) puede ser ≈15 % largo según una fuente secundaria; sin fuente primaria no se ha tocado. En tierra, a ≈120 kt, el alabeo a fondo con la palanca adelante tumba el avión sobre un ala (con los mandos simples no pasa).
+  - **Porsche:** afinar el frontal (paragolpes algo abombado en las esquinas).
+  - **Física y entorno en general:** el encargo amplio del 04-10 (conducción y vuelo, entorno, pasada final de bugs y físicas) sigue abierto.
+  - **Decisión abierta del usuario:** la orientación del Pad 2 está en espejo respecto a la geografía real (ver «Lo que NO se terminó»).
+  - **Galería de capturas:** sin regenerar; esperar a que el usuario lo apruebe.
+- **Reglas que más se rompen:** español siempre; no crear pull requests; empujar cada commit a las seis ramas y comprobar el despliegue; escala 1:1 y solo medidas verificables, lo aproximado marcado con ≈; nada de flujos multiagente (el usuario lo pidió expresamente y manda aunque `ultracode` esté activo en `.claude/settings.json`). Detalle en la sección 0 y en `CLAUDE.md`.
+- **Herramientas locales:** el Anexo de abajo recrea `_frames.mjs`, `_probe.mjs`, `mk.py`, `ortho.py`, `blend.py`, `seg.py`, `mgrid.py`, `p2m.py`, `vol.js` y `empty.js`. Los scripts `tools/_*.mjs` no se suben (están en `.git/info/exclude`).
 
 ### Sesión del 05-10-2026 (quinta, rama `claude/youthful-noether-0ihafx`): la H2R «nivel Blender, literalmente»
 
 - **Orden del usuario:** «En esta iteración quiero que te centres al máximo en la H2R. Ahora sí, nivel blender pero literalmente. Organiza el código en diferentes archivos por piezas si es más cómodo. DETALLE ABSOLUTO.» El encargo amplio (F-16, Porsche, entorno, físicas) sigue de fondo.
-- **Método, sistema a sistema** (un commit por sistema, todos empujados a las seis ramas con CI en verde salvo el último, en marcha al escribir esto):
+- **Método, sistema a sistema** (un commit por sistema, todos empujados a las seis ramas, con CI y despliegue en verde):
   - `2fbf921`: refactor: `src/vehicles/h2r.js` reexporta desde `src/vehicles/h2r/` (un archivo por pieza). Verificado idéntico (huella y recuentos).
   - `f117abe`: ruedas (neumático con banda y flanco, llanta, radios), discos flotantes con taladros reales, pinzas Stylema por lado (`mirrorZ`), pinza trasera, latiguillos, cadena 525 eslabón a eslabón (`chain.js`).
   - `ffd6e45`: horquilla (`fork.js`), tijas (`clamps.js`), mandos (`controls.js`); `steer.js` es el montaje.
@@ -30,9 +49,7 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
   - El empaquetado UV conjunto de 37.000 islas deja el atlas casi vacío: atlas por pieza con estantes (`parts/bake.py`).
   - Con 4 núcleos, un horneado de oclusión tarda >30 min: en segundo plano y sin pruebas a la vez.
   - `pkill -f` con un patrón que aparece en la propia orden mata el shell (código 144).
-- **Pendiente (orden propuesto):** sistema 6, carenado (lo que más se ve y lo que más difiere de la foto: depósito más bajo con su toma lateral hundida, costado en capas facetadas, carbono, aletas inferiores, juntas y tornillería); sistema 7, materiales (cromo espejo, carbono); después el `npm run check` completo y cerrar.
 - **Estado de la H2R en Blender (05-10, tarde):** fases 1 (cadena de trabajo), 2 (carenado con grosor y bisel) y la oclusión ambiental de la 3, hechas y empujadas (`727baff`); el `.glb` pesa 35,6 MB. **PENDIENTE, aparcado por el usuario:** el resto de la fase 3 (materiales con mapas propios: carbono, titanio, goma, aluminio, espejo ahumado en dos capas), la mecánica refinada pieza a pieza y la forma del carenado contra las fotos. No retomarlo sin que lo pida.
-- **Nueva forma de trabajar los modelos nuevos (orden del usuario):** cuando dé un vehículo u objeto, se modela **solo en Blender, fuera del repositorio** (carpeta del scratchpad, sin entorno, físicas ni movimiento), se le **enseña** como un artefacto de claude.ai (visor de Three.js con el `.glb` como archivo del artefacto, más renders de Cycles) y **solo con su visto bueno** se mete en el repositorio y se le añaden físicas, animación y pruebas. Límites del artefacto: 15 MB por archivo binario y 16 MB la página, así que un modelo muy detallado va comprimido (Draco o meshopt) o con texturas reducidas, y el que va al repositorio es el completo.
 
 ### Sesión del 04-10-2026 (cuarta, rama `claude/youthful-noether-0ihafx`): encargo nuevo, solo F-16, Porsche y H2R
 
