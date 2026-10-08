@@ -53,7 +53,7 @@ npm run serve          # http://127.0.0.1:8080/  (o: npx serve .)
 
 y abrir la URL que indique. `npm run serve` es un servidor en Node (`tools/serve.mjs`, admite `--port N`), así que funciona igual en Windows, donde antes hacía falta Python. Requiere WebGL 2.
 
-`.claude/settings.json` guarda unos ajustes de Claude Code (esfuerzo, *ultracode*, flujos de trabajo), pero no son una regla: el usuario decide en cada tarea los flujos de trabajo, los subagentes y el nivel de esfuerzo, sin configuración fija. No afecta a la web.
+El proyecto no lleva configuración propia de Claude Code (no hay `.claude/settings.json`): el usuario decide en cada tarea los flujos de trabajo, los subagentes y el nivel de esfuerzo.
 
 **Comprobaciones:** `npm run check:static` (lint, procedencia y las pruebas de física de todos los vehículos, ≈2–3 min) y `npm run check` (la completa, con navegador, ≈25–30 min). El CI ejecuta la completa en cada push y no despliega si falla.
 
