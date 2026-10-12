@@ -7,7 +7,7 @@ import { SOURCES, SOURCE_LABEL } from '../data/specs.js';
 const fmtHeight = (h) => `${h >= 10 ? Math.round(h) : h} m`;
 const THREE_DEG20 = Math.PI / 9;
 
-export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWalk, onSun, onReset, onLaunch, onReentry, onFly, onDrive, onRide, onLaunchAbort, onLaunchSpeed, onLaunchSound, onLaunchPause, onLaunchSeek, onLaunchRestart, onLaunchCamera, onTour, onHelp }) {
+export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWalk, onSun, onReset, onLaunch, onReentry, onFly, onDrive, onRide, onAudi, onLaunchAbort, onLaunchSpeed, onLaunchSound, onLaunchPause, onLaunchSeek, onLaunchRestart, onLaunchCamera, onTour, onHelp }) {
   const root = document.getElementById('hud');
   root.innerHTML = `
     <header class="hud-header">
@@ -49,6 +49,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
       <button class="tool tool-btn" id="fly-btn" title="Fly the F-16 from runway 28: take off, fly anywhere, land (J)">F-16 · Fly <kbd>J</kbd></button>
       <button class="tool tool-btn" id="drive-btn" title="Drive the Porsche 911 GT3 RS from its skid pad, on its circuit or anywhere (B)">Porsche · Drive <kbd>B</kbd></button>
       <button class="tool tool-btn" id="ride-btn" title="Ride the Kawasaki Ninja H2R from the skid pad, on the circuit or anywhere (N)">H2R · Ride <kbd>N</kbd></button>
+      <button class="tool tool-btn" id="audi-btn" title="Audi Lab: the Audi A3 Sportback on its own, with an exploded view of its parts (U)">Audi A3 · Lab <kbd>U</kbd></button>
       <button class="tool tool-btn" id="tour-btn" title="Guided tour of the centre (P)">Tour <kbd>P</kbd></button>
       <button class="tool tool-btn" id="mode-btn" title="Switch camera mode (F)">Orbit <kbd>F</kbd></button>
       <button class="tool tool-btn" id="walk-btn" type="button" aria-pressed="false" title="Walk the apron at eye height, 1.7 m (V)">Walk <kbd>V</kbd></button>
@@ -421,6 +422,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
   el('#fly-btn').addEventListener('click', () => onFly?.());
   el('#drive-btn').addEventListener('click', () => onDrive?.());
   el('#ride-btn').addEventListener('click', () => onRide?.());
+  el('#audi-btn').addEventListener('click', () => onAudi?.());
   el('#mission-abort').addEventListener('click', () => onLaunchAbort?.());
   el('#mission-restart').addEventListener('click', () => onLaunchRestart?.());
   const camBtn = el('#mission-cam');

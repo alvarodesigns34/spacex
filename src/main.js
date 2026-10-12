@@ -19,6 +19,7 @@ import { ViewState } from './core/viewState.js';
 import { pickQuality, applyQuality } from './core/quality.js';
 import { LODManager } from './core/lod.js';
 import { createHUD } from './ui/hud.js';
+import { createAudiLab } from './ui/audiLab.js';
 import { VEHICLES } from './data/specs.js';
 import { buildStarship, STACK_YAW_DEG, BOOSTER_AFT } from './vehicles/starship.js';
 import { buildFalcon9, buildFalconHeavy } from './vehicles/falcon.js';
@@ -276,6 +277,7 @@ async function main() {
     onFly: () => toggleFly(),
     onDrive: () => toggleDrive(),
     onRide: () => toggleRide(),
+    onAudi: () => toggleAudi(),
     // The panel drives whichever sequence is playing: the launch, or the re-entry chapter.
     onLaunchAbort: () => seq()?.reset(),
     onLaunchSpeed: (k) => seq()?.setSpeed(k),
@@ -877,6 +879,17 @@ async function main() {
     if (h2rRide.running) { h2rRide.reset(); return; }
     h2rRide.start();
   }
+  // ---- Audi Lab ----
+  // The Audi A3 on its own, in a studio (ui/audiLab.js): its asset is fetched when the lab is
+  // first opened, and while it is open the site's frame is not drawn. Not from the middle of a
+  // sequence or with a vehicle in hand: those own the camera and the keys.
+  const audiLab = createAudiLab({ renderer, onExit: () => { clock.getDelta(); document.getElementById('audi-btn')?.focus(); } });
+  function toggleAudi() {
+    if (audiLab.active) { audiLab.close(); return; }
+    if (launch.running || reentry.running || f16fly.running || gt3drive.running || h2rRide.running) return;
+    rig.keys.clear(); rig.velocity.set(0, 0, 0);
+    audiLab.open();
+  }
   function seq() { return reentry?.running ? reentry : launch; }
 
   // Zero-length normals (sliver triangles of zero area in extrusions and ribbons) shade as NaN;
@@ -1355,6 +1368,7 @@ async function main() {
     else if (k === 'j') toggleFly();
     else if (k === 'b') toggleDrive();
     else if (k === 'n') toggleRide();
+    else if (k === 'u') toggleAudi();
     else if (k === 'f') toggleMode();
     else if (k === 'v') toggleWalk();
     else if (k === 'g') toggleLaunch();
@@ -1656,6 +1670,8 @@ async function main() {
   })() : null;
 
   function frame() {
+    // The Audi Lab draws its own scene with this renderer; the site waits as it was left.
+    if (audiLab.active) { audiLab.render(clock.getDelta()); requestAnimationFrame(frame); return; }
     perf?.begin();
     const steps = missionClock.step(clock.getDelta());
     const dt = steps.view;
@@ -1791,6 +1807,7 @@ async function main() {
   }
 
   window.__vc = {
+    audiLab,
     M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, h2rRide, select, goPreset, jump, renderer, env,
     setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour,
     claimUserControl, tourRunToEnd, toggleMode, toggleWalk,
