@@ -900,7 +900,10 @@ try {
     // the shared surface detail (materials/detail.js: a normal and a roughness map per kind of
     // surface). At 286 materials and 110 textures before it: 4.5 M triangles, 2,200 meshes, 340
     // materials and 220 textures.
-    const LIMITS = { tris: 4_500_000, meshes: 2200, materials: 340, textures: 220 };
+    // And again with the Tesla Model Y beside the Porsche (October 2026: ≈1.17 M triangles in
+    // ≈130 meshes and ≈40 materials from its Blender-built asset), at 5.07 M triangles, 1,810
+    // meshes, 354 materials and 157 textures: 6 M, 2,600, 420 and 260.
+    const LIMITS = { tris: 6_000_000, meshes: 2600, materials: 420, textures: 260 };
     const over = Object.entries(LIMITS).filter(([k, max]) => budget[k] > max);
     report(over.length === 0, 'presupuesto de escena',
       `${budget.tris.toLocaleString('es-ES')} triángulos construidos, ${budget.drawnTris.toLocaleString('es-ES')} dibujados `
