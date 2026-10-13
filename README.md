@@ -15,6 +15,7 @@ Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones
 | F-16A | Block 15 con motor F100-PW-200, sobre su tren en la cabecera de su pista; geometría de los informes NASA TP-1538 y TP-3355 | 15,038 m de largo · 9,144 m de envergadura · 5,01 m de alto |
 | Porsche 911 GT3 RS | 992 de 2023 en el gris casi blanco y las llantas rojas de las fotos de estudio de Porsche, conducible, en la explanada junto a su circuito; cotas de la ficha técnica de Porsche | 4,572 m de largo · 1,900 m de ancho · 1,322 m de alto (al ala) |
 | Kawasaki Ninja H2R | Modelo 2027 en Mirror Coated Spark Black con el chasis verde de las fotos de estudio de Kawasaki, pilotable, junto al Porsche; cotas de la ficha de Kawasaki | 2,070 m de largo · 0,850 m de ancho · 1,160 m de alto |
+| Tesla Model Y | Modelo 2025 en Ultra Red, expositor estático junto al Porsche, construido en Blender (primera pasada: cotas generales de la ficha, superficies estimadas, llantas de diseño propio) | 4,790 m de largo · 1,920 m de ancho · 1,624 m de alto |
 
 **Starship** encabeza la lista, porque es el expositor principal y el del lanzamiento (tecla **1**). Le sigue el **Falcon 1** (tecla **2**), que abre la línea histórica: Falcon 1 → Falcon 9 → Falcon Heavy.
 

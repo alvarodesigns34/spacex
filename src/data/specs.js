@@ -102,6 +102,8 @@ export const SOURCES = {
   ams_gt3rs_supertest: { label: 'auto motor und sport — Porsche 911 (992) GT3 RS Supertest, technical data and measurements (September 2023)', url: 'https://www.auto-motor-und-sport.de/test/porsche-911-992-gt3-rs-supertest-nordschleife-schnellster-porsche/technische-daten/' },
   commons_h2r_photos: { label: 'Wikimedia Commons — photographs of the Ninja H2R at shows (right side, head-on, three-quarters, without the fairing; free licences; reference only)', url: 'https://commons.wikimedia.org/wiki/Category:Kawasaki_Ninja_H2R' },
   kawasaki_h2r_photos: { label: 'Kawasaki Motors Europe — Ninja H2R studio photographs, Mirror Coated Spark Black (left side, right side, right front; reference only)', url: 'https://www.kawasaki.eu/en/Motorcycles/Hypersport/NinjaH2R_2027.html' },
+  evspec_modely: { label: 'EVSpecifications — 2025 Tesla Model Y Long Range AWD, specifications (dimensions, track, overhangs, tyres, brakes, colours)', url: 'https://www.evspecifications.com/en/model/583c331' },
+  commons_modely_photos: { label: 'Wikimedia Commons — photographs of the 2025 Tesla Model Y in Ultra Red (front, rear, interior; free licences; reference only)', url: 'https://commons.wikimedia.org/wiki/Category:Tesla_Model_Y_(2025)' },
   tesla_roadster_sm: { label: 'Tesla — Roadster Service Manual, Technical Data (dimensions and weights)', url: 'https://service.tesla.com/docs/Public/Roadster/ServiceManual/en-us/GUID-4E037ADB-D0F4-48A0-9261-1083193D4C1B.html' },
 };
 
@@ -594,6 +596,35 @@ export const VEHICLES = [
       { id: 'engine', label: 'Engine and frame', pos: [-0.2, 0.75, -1.9], target: [-0.05, 0.5, 0] },
       { id: 'rear', label: 'Tail and swingarm', pos: [-2.6, 1.2, 1.6], target: [-0.6, 0.55, 0] },
       { id: 'top', label: 'From above', pos: [0.2, 4.5, 0.2], target: [0, 0, 0] },
+    ],
+  },
+  {
+    id: 'modely',
+    name: 'Tesla Model Y',
+    subtitle: 'Tesla Model Y, 2025 · Ultra Red, a first pass built in Blender',
+    height: FIGURES.modely.height.value,
+    footprint: FIGURES.modely.footprint.value,
+    summary: 'Tesla\'s five-door electric crossover as restyled for 2025: a light bar across the nose, another across the tailgate, a glass roof and a cabin with one screen. A static exhibit, built in Blender and still a first pass: its overall dimensions are the listed ones, its surfaces an estimate.',
+    specs: [
+      { fig: 'footprint', label: 'Length', value: '4.790 m', source: 'press', ref: 'evspec_modely' },
+      { fig: 'breadth', label: 'Width', value: '1.920 m', source: 'press', ref: 'evspec_modely' },
+      { fig: 'height', label: 'Height', value: '1.624 m', source: 'press', ref: 'evspec_modely' },
+      { label: 'Wheelbase and track', value: 'wheelbase 2.890 m; track 1.636 m front and rear', source: 'press', ref: 'evspec_modely' },
+    ],
+    approximations: [
+      'Listed and used as given: the length, width, height, wheelbase, track and overhangs (a specifications database, not Tesla\'s own sheet).',
+      'Estimated (≈): the body\'s surfaces, from one side photograph and the listed dimensions, then the nose and the tail against photographs from Wikimedia Commons; the car reads lower and plainer than the real one.',
+      'Not the car\'s own (≈): the wheels are a five-double-spoke design of this model\'s, on 255/40 R20 tyres; the headlamps\' optics, the cabin\'s details and the screen\'s picture are generic; the plates read "MODEL Y" as a placeholder.',
+      'Tesla\'s own markings — the "T" on the wheels and the steering wheel, "TESLA" across the tail — at the visitor\'s request: drawn as shapes, not copied artwork.',
+    ],
+    sources: ['evspec_modely', 'commons_modely_photos'],
+    presets: [
+      { id: 'overview', label: 'Overview', pos: [5.6, 1.9, 4.6], target: [0, 0.7, 0] },
+      { id: 'side', label: 'Side', pos: [0, 1.0, -7.5], target: [0, 0.8, 0] },
+      { id: 'front', label: 'Front three-quarter', pos: [5.2, 1.3, -3.4], target: [0.6, 0.7, 0] },
+      { id: 'rear', label: 'Rear three-quarter', pos: [-5.4, 1.5, 3.8], target: [-0.5, 0.75, 0] },
+      { id: 'cabin', label: 'Cabin through the glass', pos: [0.4, 1.45, -2.7], target: [0.1, 0.95, 0] },
+      { id: 'top', label: 'From above', pos: [0.2, 9.0, 0.2], target: [0, 0, 0] },
     ],
   },
 ];

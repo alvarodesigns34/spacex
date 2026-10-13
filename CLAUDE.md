@@ -7,7 +7,7 @@
 - **Flujos, subagentes y esfuerzo:** Flujos de trabajo (`Workflow`), subagentes (`Agent`), nivel de esfuerzo, `ultracode` y demás modos o ajustes de Claude Code: **los decide el usuario en cada tarea y punto; no hay configuración fija ni regla permanente.** Haz lo que diga en ese momento y, si no dice nada, trabaja directamente tú.
 - **Commits y código:** los mensajes de commit van en inglés, con el pie de atribución que indique el sistema; los comentarios del código siguen el estilo del que hay. Lee el código de alrededor antes de añadir nada.
 - No regenerar la galería de capturas hasta que el usuario lo apruebe.
-- Escala 1:1, solo medidas verificables, y las aproximaciones marcadas como tales. Sin banderas ni logotipos nuevos, sin plataformas de lanzamiento extra, sin modo noche, sin plantas ni objetos nuevos en el entorno. (Única excepción a los logotipos: los rótulos de fábrica de la Kawasaki Ninja H2R.)
+- Escala 1:1, solo medidas verificables, y las aproximaciones marcadas como tales. Sin banderas ni logotipos nuevos, sin plataformas de lanzamiento extra, sin modo noche, sin plantas ni objetos nuevos en el entorno. (Únicas excepciones a los logotipos: los rótulos de fábrica de la Kawasaki Ninja H2R y los del Tesla Model Y.)
 - Las fotos con derechos de autor solo como referencia, nunca en el repositorio; nunca eludir protecciones antibots ni límites de peticiones; el email del usuario nunca va a servicios externos.
 - **Comprobación por niveles** (orden del usuario del 03-10-2026):
   - Antes de cada commit, `npm run check:static` (lint, procedencia y las pruebas de física de todos los vehículos, ≈2–3 min) tiene que terminar con código 0.

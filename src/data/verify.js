@@ -33,6 +33,8 @@ const MEASURE = {
   // The bike: the height is the screen's top, the length tyre to tail tip, the width across the
   // carbon wings (its outermost points, the published 0.850 m).
   h2r: { fromHull: true },
+  // The Model Y: the painted shell and its roof glass, without the mirrors.
+  modely: { fromHull: true },
 };
 
 /** Declared reference dimensions, keyed by vehicle id, with the tolerance their grade earns. */
@@ -120,6 +122,7 @@ const HULLS = {
   f16: ['f16-fin-skin', 'f16-rudder-skin'],
   gt3rs: ['gt3-body-paint', 'gt3-nose-face', 'gt3-tail-face', 'gt3-wing-main-skin', 'gt3-wing-flap-skin', 'gt3-wing-endplate-l', 'gt3-wing-endplate-r', 'gt3-wing-neck-l', 'gt3-wing-neck-r'],
   h2r: ['h2r-screen', 'h2r-wings', 'h2r-tyre-f', 'h2r-tyre-r', 'h2r-tail'],
+  modely: ['Bumper_Front', 'Bumper_Rear', 'BodySide_L', 'BodySide_R', 'Glass_Roof', 'Cladding_Arches_Rocker_L', 'Cladding_Arches_Rocker_R'],
   falcon1: ['falcon1-stage1', 'falcon1-stage2', 'falcon1-fairing'],
   starship: ['skirt', 'tanks', 'hull'],
   falcon9: ['stage1', 'interstage', 'stage2', 'fairing'],

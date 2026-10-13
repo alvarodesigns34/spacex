@@ -105,6 +105,14 @@ export const FIGURES = {
     breadth: { value: 0.850, grade: 'A', ref: 'kawasaki_h2r', note: 'overall width' },
     readme: ['footprint', 'breadth', 'height'],
   },
+  modely: {
+    // The overall dimensions as listed for the 2025 Long Range AWD (a specifications database,
+    // not Tesla's own sheet).
+    height: { value: 1.624, grade: 'C', ref: 'evspec_modely', note: 'overall height' },
+    footprint: { value: 4.790, grade: 'C', ref: 'evspec_modely', note: 'overall length' },
+    breadth: { value: 1.920, grade: 'C', ref: 'evspec_modely', note: 'body width without mirrors' },
+    readme: ['footprint', 'breadth', 'height'],
+  },
   engines: {
     height: { value: 4.4, grade: 'A', ref: 'spacex_starship', note: 'Raptor Vacuum' },
     footprint: { value: 2.3, grade: 'A', ref: 'spacex_starship', note: 'Raptor Vacuum nozzle exit' },

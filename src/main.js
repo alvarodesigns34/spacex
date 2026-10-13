@@ -31,6 +31,7 @@ import { buildEngineHall } from './vehicles/enginehall.js';
 import { buildF16 } from './vehicles/f16.js';
 import { buildGt3rs } from './vehicles/gt3rs.js';
 import { loadH2r } from './vehicles/h2rAsset.js';
+import { loadModelY } from './vehicles/modelyAsset.js';
 import { buildRunway, runwaySurface } from './core/runway.js';
 import { buildCircuit, circuitSurface } from './core/circuit.js';
 import { SKIDPAD, toWorld as circuitToWorld } from './core/circuitPlan.js';
@@ -142,6 +143,11 @@ const LAYOUT = {
     const [x, z] = circuitToWorld(SKIDPAD.u0 + 19, (SKIDPAD.v0 + SKIDPAD.v1) / 2 - 4.5);
     return { x, z, mount: circuitSurface(x, z)?.y ?? 0.06, yaw: -90, remote: true, people: [] };
   })(),
+  // The Model Y on the car's other side, 4.5 m to its right, facing the same way.
+  modely: (() => {
+    const [x, z] = circuitToWorld(SKIDPAD.u0 + 18, (SKIDPAD.v0 + SKIDPAD.v1) / 2 + 4.5);
+    return { x, z, mount: circuitSurface(x, z)?.y ?? 0.06, yaw: -90, remote: true, people: [] };
+  })(),
 };
 // Recomposed when the Roadster became the sixth exhibit: the old frame was centred on x = -14
 // and the car sat at the right-hand edge, so the first thing a visitor saw did not contain it.
@@ -192,6 +198,8 @@ const OCCLUDER = {
   gt3rs: [[1.4, 0, 0.95, 1.0], [0, 0, 0.95, 1.3], [-1.5, 0, 0.95, 1.33]],
   // The bike along its own X: front wheel and cowl, the tank, the tail.
   h2r: [[0.6, 0, 0.42, 1.16], [-0.1, 0, 0.3, 1.02], [-0.75, 0, 0.3, 1.02]],
+  // The Model Y along its own X: the nose, the cabin, the tail.
+  modely: [[1.5, 0, 0.95, 1.1], [0, 0, 0.95, 1.62], [-1.5, 0, 0.95, 1.3]],
 };
 
 const nextFrame = () => new Promise(r => requestAnimationFrame(r));
@@ -389,6 +397,7 @@ async function main() {
     f16: [buildF16, 'F-16A Fighting Falcon…'],
     gt3rs: [buildGt3rs, 'Porsche 911 GT3 RS…'],
     h2r: [loadH2r, 'Kawasaki Ninja H2R…'],
+    modely: [loadModelY, 'Tesla Model Y…'],
   };
   let step = 0;
   let complex = null;
@@ -440,7 +449,7 @@ async function main() {
       group.add(ped);
       model.position.y = lay.mount + 0.6;
       env.addStation(lay.x, lay.z, 5);
-    } else if (v.id === 'f16' || v.id === 'gt3rs' || v.id === 'h2r') {
+    } else if (v.id === 'f16' || v.id === 'gt3rs' || v.id === 'h2r' || v.id === 'modely') {
       // On its wheels on its own pavement, no plinth and no apron ring.
       model.position.y = lay.mount;
     } else if (v.id === 'engines') {
