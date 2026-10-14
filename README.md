@@ -43,6 +43,7 @@ La interfaz de la simulación (menús, ficha técnica, etiquetas y vistas) está
 - **Pendiente en el resto:** el tren y los detalles del F-16, el frontal del Porsche, la pasada de físicas y entorno, la orientación del Pad 2 (en espejo respecto a la geografía real; decide el usuario) y regenerar la galería de capturas (sin hacer, a la espera de su aprobación).
 - Presupuesto de la escena (CI del 13 de octubre, con el Tesla Model Y): 5,07 M de triángulos construidos y 3,96 M dibujados en la vista general, 1 810 mallas, 354 materiales y 157 texturas; los límites de `tools/check.mjs` son 6 M, 2 600, 420 y 260. El Model Y (≈1,17 M de triángulos y ≈40 materiales) dejó la escena por encima de los anteriores (4,5 M y 340 materiales) y CI no desplegó su commit (`8728971`); se subieron los techos, como prevé el propio `check.mjs` (detectan una duplicación, no un aumento deliberado).
 - **Auditoría del 8 de octubre de 2026:** corregidos los fallos confirmados de cámara, sonido, interfaz, herramientas de comprobación, datos y textos; pendientes la geometría de la H2R (aparcada), dos datos sin fuente en el repositorio y la costura del acero. Detalle en la sección «Auditoría del 8 de octubre de 2026».
+- **Encargo del 14 de octubre de 2026:** mejorar los vehículos uno a uno en Blender (formas, piezas, texturas, acabados y proporciones a escala 1:1) y añadir los logotipos y rótulos del vehículo real, que ya se permiten.
 - El detalle del trabajo en curso y de cómo retomarlo está en `TRASPASO.md`, sección «Empieza aquí».
 
 ## Ejecutar

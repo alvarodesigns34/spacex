@@ -19,6 +19,7 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
   - **Corregido:** B1–B9 (cámara y secuencias, rejillas de colisión tras elegir el expositor, sol durante la carga, nodos de audio, consejos, esperas de `ux-check`, cobertura y controles negativos de `lod-pop`, sabotaje «frozen» de `cloud-check`); A1 (carbono de dos caras de la H2R en código, sin tocar el `.glb`), A2 y A18 (la ficha separa lo trazado en OSM de lo construido, sin cifras nuevas), A3 (torre 149,35 m), A10, A11 (ruido periódico en `detail.js`, también el del cepillado), A16 y A19 (solo documentado en `plate()`), A17 y A22 (ventanas medidas sin navegador: pinzas a 22 mm, ventana hasta +4 cm; asiento a 0, ±5 cm), A20 (paso por par en la granja), A21, A23, A26, A27.
   - **Pendiente:** A4, A5, A6 y el código muerto del basculante (H2R aparcada; obligan a regenerar el `.glb`); A24 (año del Roadster, sin la fuente en el repositorio); A28 (costura del acero: todo el ruido de `makeSteel` es no periódico, la frecuencia entera no basta y el arreglo cambia todos los cascos). **No reproducido:** A25. A12, retirado.
   - `npm run check` completo en verde antes de empujar (código 0, 23 min; 3.900.168 triángulos construidos y 2.790.671 dibujados en la vista general, 1.681 mallas, 314 materiales y 156 texturas).
+- **Encargo del 14-10-2026 (en curso):** mejorar los vehículos uno a uno en Blender (Blender 5.2.2 del usuario por MCP, RTX 3070 con OptiX): formas, piezas que faltan, texturas, acabados y proporciones 1:1, con el máximo detalle; se añaden los logotipos y rótulos que faltan; si hace falta, se sube el presupuesto de la escena. Repositorio local en `C:\Users\Álvaro\Documents\spacex`.
 - **Pendiente, con el orden que decida el usuario:**
   - **H2R, aparcado:** el resto de la fase 3 (materiales con mapas propios: carbono, titanio, goma, aluminio y el espejo ahumado en dos capas), la mecánica refinada pieza a pieza y la forma del carenado contra las fotos. No retomarlo sin que lo pida. Sin fotos del amortiguador trasero, no se ha inventado su disposición.
   - **F-16:** tren (puertas planas, patas cilíndricas), luces de formación, receptáculo de repostaje, más paneles. El despegue con postcombustión (172 kt a 407 m) puede ser ≈15 % largo según una fuente secundaria; sin fuente primaria no se ha tocado. En tierra, a ≈120 kt, el alabeo a fondo con la palanca adelante tumba el avión sobre un ala (con los mandos simples no pasa).
@@ -560,7 +561,7 @@ Lo hecho en 1 y 2 (detalle en el README, sección del 2 de octubre):
   - comprobación por niveles: **`npm run check:static` con código 0 antes de cada commit**; el `npm run check` completo al cerrar cada bloque o la sesión; CI lo repite en cada push;
   - README en español, actualizado con cada cambio;
   - solo medidas verificables, con las aproximaciones marcadas (≈);
-  - sin banderas ni logotipos, sin plataformas extra, sin modo noche, sin plantas ni objetos nuevos en el entorno;
+  - logotipos y rótulos del vehículo real permitidos desde el 14-10-2026 (antes prohibidos); sin plataformas extra, sin modo noche, sin plantas ni objetos nuevos en el entorno;
   - galería solo con mi aprobación;
   - no eludir nunca protecciones antibots;
   - fotos con derechos, solo como referencia (nunca al repo);
@@ -651,8 +652,7 @@ Commits, del más antiguo al más reciente, en las cuatro ramas; el detalle est�
 4. **Tras cada push, comprueba que GitHub Pages sirve la versión nueva:** https://alvarodesigns34.github.io/spacex/
 5. **No regenerar la galería de capturas** (`docs/screenshots`, `docs/hud`, `npm run shots`) **hasta que yo lo apruebe explícitamente** en cada ocasión. Estado: ver la sección 4.
 6. **Escala 1:1, solo medidas verificables, y las aproximaciones marcadas como tales** (≈, `approx: true`, «reconstruido»).
-7. **Prohibido:**
-   - banderas o logotipos nuevos;
+7. **Prohibido** (los logotipos y rótulos del vehículo real se permiten desde el 14-10-2026, orden del usuario):
    - plataformas de lanzamiento extra;
    - modo noche;
    - plantas u objetos nuevos en el entorno.
