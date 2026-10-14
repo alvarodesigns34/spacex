@@ -1,8 +1,13 @@
-# Tesla Model Y 2025 - wheels (20" five-spoke alloy, 255/40R20), brakes, wheel wells, underbody.
+# Tesla Model Y 2025 - wheels (19" Crossflow, 255/45R19), brakes, wheel wells, underbody.
+# The Crossflow is the standard wheel of the 2025 car: ten broad blades swept like a turbine over a shallow dish, light
+# silver-grey, read off Commons photographs of the Juniper (First Edition, Pearl White, Stealth Grey); the blade count is
+# counted there, the sweep and the dish depth are approximate (≈). It replaced a 20" five-spoke of the first pass that the
+# car does not have.
 # Wheel local frame: axis = Y, outer face towards +Y, centre at the origin.
 RUBBER, ALLOY, ALLOY_DARK = "TY_Rubber_Tire", "TY_Alloy_Graphite", "TY_Alloy_Barrel"
 DISC, CALIPER, CHROME, LINER = "TY_Brake_Disc", "TY_Caliper", "TY_Chrome", "TY_Liner_Black"
-RIM_R = 0.254   # 20" bead seat radius
+RIM_R = 0.2413  # 19" bead seat radius
+SIDE_K = (TIRE_R - 0.2475) / (TIRE_R - 0.262)   # 45-series sidewall over the 40-series profile the tyre was drawn as
 
 
 def lathe(prof, nseg, a0=0.0, a1=2 * math.pi, closed=True):
@@ -101,6 +106,7 @@ def build_tire_mesh():
                     (0.3040, 0.1345), (0.2900, 0.1325), (0.2830, 0.1318), (0.2795, 0.1345), (0.2760, 0.1340),
                     (0.2732, 0.1290), (0.2690, 0.1240), (0.2620, 0.1210)], 26)
     side = polyline(side, 22)
+    side[:, 0] = R - (R - side[:, 0]) * SIDE_K
     nso = len(side) - 1
     prof_r = np.r_[side[::-1][:-1, 0], crown, side[1:, 0]]
     prof_y = np.r_[side[::-1][:-1, 1], ys, -side[1:, 1]]
@@ -135,9 +141,9 @@ def build_tire_mesh():
     mb.grid(V, closed_u=True)
     # raised sidewall lettering on both sides
     sw_r, sw_y = side[::-1][:, 0], side[::-1][:, 1]
-    for txt, ang, Rt, size in (("255/40 R20 101W XL", 90, 0.3170, 0.0125), ("255/40 R20 101W XL", 270, 0.3170, 0.0125),
-                               ("RADIAL  TUBELESS", 0, 0.3010, 0.0080), ("RADIAL  TUBELESS", 180, 0.3010, 0.0080),
-                               ("T0", 45, 0.3020, 0.0090), ("T0", 225, 0.3020, 0.0090)):
+    for txt, ang, Rt, size in (("255/45 R19", 90, 0.3120, 0.0130), ("255/45 R19", 270, 0.3120, 0.0130),
+                               ("RADIAL  TUBELESS", 0, 0.2950, 0.0080), ("RADIAL  TUBELESS", 180, 0.2950, 0.0080),
+                               ("T0", 45, 0.2960, 0.0090), ("T0", 225, 0.2960, 0.0090)):
         tv_, tf_ = text_mesh(txt, size, 0.0006)
         xc = (tv_[:, 0].min() + tv_[:, 0].max()) / 2
         yc = (tv_[:, 1].min() + tv_[:, 1].max()) / 2
@@ -153,41 +159,48 @@ def build_tire_mesh():
 # ---------------------------------------------------------------- rim
 def build_rim_mesh():
     mb = MeshB()
+    d19 = 0.0127   # the 20" barrel drawn first, half an inch smaller in radius
     barrel = [(0.2500, 0.1180), (0.2545, 0.1205), (0.2700, 0.1235), (0.2735, 0.1270), (0.2738, 0.1320), (0.2715, 0.1362),
               (0.2640, 0.1375), (0.2555, 0.1340), (0.2500, 0.1270), (0.2450, 0.1150), (0.2405, 0.0900), (0.2370, 0.0500),
               (0.2360, 0.0000), (0.2360, -0.0900), (0.2420, -0.1150), (0.2520, -0.1290), (0.2640, -0.1345), (0.2715, -0.1340),
               (0.2735, -0.1290), (0.2700, -0.1235), (0.2545, -0.1205), (0.2500, -0.1180), (0.2400, -0.0900), (0.2340, 0.0000),
               (0.2400, 0.0900)]
-    mb.grid(lathe(barrel, 96), closed_u=True, closed_v=True, mat=1)
-    # hub / centre section
-    hub = [(0.0000, 0.0880), (0.0300, 0.0880), (0.0340, 0.0860), (0.0345, 0.0800), (0.0370, 0.0790), (0.0720, 0.0800),
-           (0.0800, 0.0830), (0.0880, 0.0900), (0.0900, 0.0700), (0.0860, 0.0500), (0.0780, 0.0450), (0.0000, 0.0450)]
-    mb.grid(lathe(hub, 60), closed_u=True, mat=0)
-    # spokes: 5 pairs, twisting from the hub to the barrel
-    r0, r1 = 0.074, 0.2440
-    nt, ns = 28, 16
-    for i in range(5):
-        base = i * 2 * math.pi / 5
-        for sgn in (-1, 1):
-            t = np.linspace(0, 1, nt)
-            r = r0 + (r1 - r0) * t
-            phi = base + 0.22 * t ** 1.2 + sgn * (0.085 + 0.105 * t ** 1.1)
-            yf = 0.0935 + 0.0330 * t ** 1.6 - 0.006 * np.sin(math.pi * t)
-            w = 0.052 - 0.014 * t + 0.014 * np.exp(-t / 0.10) + 0.016 * np.exp(-(1 - t) / 0.07)
-            hgt = 0.032 - 0.008 * t + 0.010 * np.exp(-(1 - t) / 0.08)
-            C = np.stack([r * np.cos(phi), yf - hgt / 2, r * np.sin(phi)], 1)
-            T = np.gradient(C, axis=0); T[:, 1] = 0
-            T /= np.linalg.norm(T, axis=1)[:, None]
-            Bn = np.stack([-T[:, 2], 0 * T[:, 0], T[:, 0]], 1)            # in-plane normal to the path
-            a = np.linspace(0, 2 * math.pi, ns, endpoint=False)
-            e = 6.0
-            cx = np.sign(np.cos(a)) * np.abs(np.cos(a)) ** (2 / e)
-            cy = np.sign(np.sin(a)) * np.abs(np.sin(a)) ** (2 / e)
-            # trapezoid: narrower on the outer face for a chamfered look
-            taper = 1.0 - 0.22 * (cy > 0) * cy
-            V = (C[:, None, :] + Bn[:, None, :] * (cx * taper)[None, :, None] * (w / 2)[:, None, None]
-                 + np.array([0, 1, 0])[None, None, :] * cy[None, :, None] * (hgt / 2)[:, None, None])
-            mb.grid(V, closed_u=True, mat=0)
+    mb.grid(lathe([(r - d19, y) for r, y in barrel], 120), closed_u=True, closed_v=True, mat=1)
+    # Hub: a shallow boss under the centre cap, and the ring the blades start from.
+    hub = [(0.0000, 0.0880), (0.0300, 0.0880), (0.0340, 0.0860), (0.0345, 0.0800), (0.0370, 0.0790), (0.0640, 0.0815),
+           (0.0700, 0.0850), (0.0760, 0.0905), (0.0790, 0.0700), (0.0760, 0.0500), (0.0700, 0.0450), (0.0000, 0.0450)]
+    mb.grid(lathe(hub, 80), closed_u=True, mat=0)
+    # The lip: a silver ring round the face that the blades run into (on the photographs the face reads as one disc
+    # cut by ten slots, not as free spokes).
+    lip = [(0.2050, 0.1060), (0.2120, 0.1105), (0.2210, 0.1140), (0.2262, 0.1150), (0.2290, 0.1120), (0.2290, 0.0950), (0.2050, 0.0950)]
+    mb.grid(lathe(lip, 160), closed_u=True, closed_v=True, mat=0)
+    # Ten blades, each a wide ribbon from the hub into the lip, swept ≈22° round the wheel and widening outwards so that
+    # at the lip they nearly close the face, as on the photographs; the face is a shallow dish (≈2 cm deep).
+    NB = 10
+    r0, r1 = 0.074, 0.2120
+    nt, ns = 30, 20
+    for i in range(NB):
+        base = i * 2 * math.pi / NB
+        t = np.linspace(0, 1, nt)
+        r = r0 + (r1 - r0) * t
+        phi = base + 0.38 * t ** 1.25
+        yf = 0.0925 + 0.0150 * t ** 1.5
+        fill = 0.46 + 0.42 * t ** 1.2                 # share of the pitch the blade covers: the slots close outwards
+        w = r * (2 * math.pi / NB) * fill
+        hgt = 0.026 - 0.004 * t
+        C = np.stack([r * np.cos(phi), yf - hgt / 2, r * np.sin(phi)], 1)
+        T = np.gradient(C, axis=0); T[:, 1] = 0
+        T /= np.linalg.norm(T, axis=1)[:, None]
+        Bn = np.stack([-T[:, 2], 0 * T[:, 0], T[:, 0]], 1)
+        a = np.linspace(0, 2 * math.pi, ns, endpoint=False)
+        e = 8.0
+        cx = np.sign(np.cos(a)) * np.abs(np.cos(a)) ** (2 / e)
+        cy = np.sign(np.sin(a)) * np.abs(np.sin(a)) ** (2 / e)
+        # The leading edge of each blade stands a little proud of the trailing one: the facet that catches the light.
+        lift = 0.004 * cx * (cy > 0)
+        V = (C[:, None, :] + Bn[:, None, :] * cx[None, :, None] * (w / 2)[:, None, None]
+             + np.array([0, 1, 0])[None, None, :] * (cy[None, :, None] * (hgt / 2)[:, None, None] + lift[None, :, None]))
+        mb.grid(V, closed_u=True, mat=0)
     return mb
 
 
@@ -202,7 +215,7 @@ def build_wheel_parts():
         bpy.data.objects.remove(ob)
         parts[name] = me
     stash("Tire", build_tire_mesh(), [RUBBER], recalc=True, sharp=28)
-    stash("Rim", build_rim_mesh(), [ALLOY, ALLOY_DARK], sharp=40)
+    stash("Rim", build_rim_mesh(), ["TY_Alloy_Silver", ALLOY_DARK], sharp=40)
     # centre cap + emblem
     mb = MeshB()
     cap = [(0.0, 0.0915), (0.012, 0.0914), (0.024, 0.0908), (0.0295, 0.0895), (0.0300, 0.0870), (0.0, 0.0870)]

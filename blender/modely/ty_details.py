@@ -192,7 +192,8 @@ def build_details(BODY):
     V, fl = cap_patch(CF, 0.0, 0.016, CF.v_from_z(0.565), CF.v_from_z(0.590), 0.002, 4, 4)
     mb = MeshB(); mb.grid(V, flip=fl)
     finish(mb.build("Camera_Front_Bumper", "Details", BLK_GLOSS), gap=0, thick=0.006, bevel=0.002, mirror=True)
-    V, fl = cap_patch(CF, 0.83, 0.90, CF.v_from_z(0.345), CF.v_from_z(0.535), 0.0008, 5, 14)
+    # The dark blade that drops from the outer end of each headlamp to the grille: the "L" of the Juniper's lamps.
+    V, fl = cap_patch(CF, 0.845, 0.90, CF.v_from_z(0.300), CF.v_from_z(0.612), 0.0008, 5, 18)
     mb = MeshB(); mb.grid(V, flip=fl)
     for o in (mb.build("Bumper_Front_AirCurtain_R", "Details", BLK_PLASTIC), mb.mirrored().build("Bumper_Front_AirCurtain_L", "Details", BLK_PLASTIC)):
         add_shell(o, thick=0.004, bevel=0.0008)
@@ -217,6 +218,17 @@ def build_details(BODY):
         Pt = O[None, :] + Nn[None, :] * (0.0052 + tv_[:, 2:3]) + ex[None, :] * tv_[:, 0:1] + ey[None, :] * (tv_[:, 1:2] - yc)
         mb.raw(Pt, tf_, 1)
         mb.build("Plate_" + nm, "Details", [PLATE_W, PLATE_K], weld=0)
+        if nm == "Front":
+            # TESLA under the front plate, light letters on the black lower bar of its holder, as on every photograph
+            # of the car; the letter height (≈12 mm) and spacing are read off them.
+            mb = MeshB()
+            rects_mesh(mb, [(-0.120, 0.120, -0.0745, -0.0595)], O, ex, ey, Nn, 0.0045, 1)
+            hgt, pitch = 0.0105, 0.034
+            for k, ch in enumerate("TESLA"):
+                w = 1.2 if ch == 'T' else 1.1
+                Oc = O + ex * ((k - 2) * pitch - w * hgt / 2) + ey * (-0.0670 - hgt / 2) + Nn * 0.0046
+                rects_mesh(mb, [(a * hgt, b * hgt, c * hgt, d * hgt) for a, b, c, d in WORDMARK[ch]], Oc, ex, ey, Nn, 0.0006, 0)
+            mb.build("Badge_TESLA_Front", "Details", [CHROME, PLATE_K], weld=0)
 
     # ------------------------------------------------ door handles, side cameras, charge port
     for nm, xc, zc in (("Front", 1.535, 0.968), ("Rear", 2.585, 1.022)):

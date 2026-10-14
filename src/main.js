@@ -29,7 +29,7 @@ import { buildStarlink } from './vehicles/starlink.js';
 import { buildRoadster } from './vehicles/roadster.js';
 import { buildEngineHall } from './vehicles/enginehall.js';
 import { buildF16 } from './vehicles/f16.js';
-import { buildGt3rs } from './vehicles/gt3rs.js';
+import { loadGt3rs } from './vehicles/gt3rsMarkings.js';
 import { loadH2r } from './vehicles/h2rAsset.js';
 import { loadModelY } from './vehicles/modelyAsset.js';
 import { buildRunway, runwaySurface } from './core/runway.js';
@@ -395,7 +395,7 @@ async function main() {
     roadster: [buildRoadster, 'Tesla Roadster and Starman…'],
     engines: [buildEngineHall, 'Raptor 3, Raptor Vacuum and Merlin 1D…'],
     f16: [buildF16, 'F-16A Fighting Falcon…'],
-    gt3rs: [buildGt3rs, 'Porsche 911 GT3 RS…'],
+    gt3rs: [loadGt3rs, 'Porsche 911 GT3 RS…'],
     h2r: [loadH2r, 'Kawasaki Ninja H2R…'],
     modely: [loadModelY, 'Tesla Model Y…'],
   };

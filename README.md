@@ -15,7 +15,7 @@ Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones
 | F-16A | Block 15 con motor F100-PW-200, sobre su tren en la cabecera de su pista; geometría de los informes NASA TP-1538 y TP-3355 | 15,038 m de largo · 9,144 m de envergadura · 5,01 m de alto |
 | Porsche 911 GT3 RS | 992 de 2023 en el gris casi blanco y las llantas rojas de las fotos de estudio de Porsche, conducible, en la explanada junto a su circuito; cotas de la ficha técnica de Porsche | 4,572 m de largo · 1,900 m de ancho · 1,322 m de alto (al ala) |
 | Kawasaki Ninja H2R | Modelo 2027 en Mirror Coated Spark Black con el chasis verde de las fotos de estudio de Kawasaki, pilotable, junto al Porsche; cotas de la ficha de Kawasaki | 2,070 m de largo · 0,850 m de ancho · 1,160 m de alto |
-| Tesla Model Y | Modelo 2025 en Ultra Red, expositor estático junto al Porsche, construido en Blender (primera pasada: cotas generales de la ficha, superficies estimadas, llantas de diseño propio) | 4,790 m de largo · 1,920 m de ancho · 1,624 m de alto |
+| Tesla Model Y | Modelo 2025 en Ultra Red, expositor estático junto al Porsche, construido en Blender (cotas generales de la ficha y superficies estimadas; llantas Crossflow de 19" y frontal contrastados con fotos) | 4,790 m de largo · 1,920 m de ancho · 1,624 m de alto |
 
 **Starship** encabeza la lista, porque es el expositor principal y el del lanzamiento (tecla **1**). Le sigue el **Falcon 1** (tecla **2**), que abre la línea histórica: Falcon 1 → Falcon 9 → Falcon Heavy.
 
@@ -311,6 +311,20 @@ Un capítulo nuevo (**X**) con la vuelta de la nave del vuelo 14, **el primero o
   - los tres planos de la retransmisión: **cámara a bordo** mirando el alerón de popa, **persecución** y **boya** sobre el agua;
   - el encendido 3 → 2 → 1, el **amerizaje** con vapor y espuma, y el Pacífico abierto (genérico, sin costa).
 - La nave sale del expositor para el capítulo, en un escenario de origen flotante: la nave queda sobre el origen y el océano y el globo se mueven bajo ella, para que ≈5 400 km de planeo no hagan temblar los vértices. Al terminar vuelve a su sitio.
+
+### Pasada en Blender del 14 de octubre de 2026: Model Y, H2R y Porsche
+
+Encargo del usuario: mejorar los vehículos uno a uno en Blender (formas, piezas, texturas, acabados) y añadir los logotipos y rótulos del vehículo real, que ya se permiten. Orden pedido: Tesla Model Y, Kawasaki H2R y Porsche 911 GT3 RS. Todo se construye ahora con Blender sin interfaz (`blender.exe -b`): dentro de la sesión abierta del usuario, unir objetos y suavizar por ángulo con operadores dejaba referencias colgando y Blender se cerraba al evaluar la escena.
+
+- **Tesla Model Y.** `blender/modely/build.py` ejecuta por orden los módulos `ty_*.py`, que eran fragmentos de una sesión sin programa que los lanzara, y reproduce exacto el `.glb` anterior (1 173 032 triángulos) antes de cambiar nada. Contra fotografías libres de Wikimedia Commons del modelo 2025 (First Edition, Pearl White, Stealth Grey; solo como referencia):
+  - Las llantas pasan a ser las **Crossflow de 19"** de serie sobre neumáticos **255/45 R19**: diez álabes anchos curvados en turbina sobre un disco poco profundo, que acaban en un aro plateado, en gris plata. Antes eran unas de cinco radios dobles y 20" que el coche no lleva. El número de álabes está contado en las fotos; el giro y la profundidad son ≈. El diámetro exterior (0,712 m) no cambia.
+  - Frontal: la **rejilla inferior** ocupa casi todo el ancho entre las dos láminas oscuras de los faros (antes era una ranura bajo la matrícula), y la lámina baja desde el faro hasta la rejilla, la «L» del Model Y de 2025.
+  - El rótulo **TESLA** bajo la matrícula delantera, en claro sobre la barra negra del soporte, como en todas las fotos.
+  - Resultado: 1 194 512 triángulos (+21 000), 39 materiales.
+- **Kawasaki Ninja H2R.** La pintura *Mirror Coated Spark Black* estaba definida como un cromo plateado claro (`0x80868c`) que al aire libre se leía como cromo; ahora es un espejo oscuro (`0x4c5157`), negro en la sombra y plateado donde da la luz, como la describe la *Kawasaki Technical Review* n.º 180. Los paneles prensados (cúpula, laterales, alas, quilla, frontal) se subdividen entre sus pliegues, que se conservan: sin subdividir, cada faceta pequeña del lofteado devolvía su propio reflejo y la pintura de espejo parecía un mosaico de esquirlas. El horneado de la oclusión ambiental corre en la GPU cuando hay una tarjeta RTX: el `.glb` entero se rehace en 7,4 min (antes, unos 30 min con cuatro núcleos). Resultado: 687 683 triángulos (+42 000), 37,6 MB.
+- **Porsche 911 GT3 RS.** Lleva ya sus **rótulos**, construidos en Blender (`blender/gt3rs/markings.py` → `assets/gt3rs/markings.glb`): el escudo en la tapa delantera, el rótulo **PORSCHE** en la banda negra de la luz trasera y el escudo en el tapón de cada tuerca central. Se colocan lanzando rayos contra la superficie del propio coche construido por código, así que asientan exactos sobre ella. Posición y tamaño salen de las fotos de estudio de Porsche (≈ ±1 cm). El escudo está dibujado con formas (escudo, cuarteles con barras rojas y negras sobre oro, escudete central), no copiado, y la tipografía es una sans genérica. Los rótulos del cuerpo cuelgan de `gt3-sprung` (siguen a la suspensión) y los de las ruedas del grupo que gira (`vehicles/gt3rsMarkings.js`). Si el archivo no carga, el coche se queda sin rótulos, como antes.
+- Herramientas nuevas: `tools/vehicle-export.mjs` exporta un vehículo construido por código a glTF para abrirlo en Blender (`starship`, `gt3rs`); `blender/common/review.py` saca cifras y renders de revisión en Cycles con la misma iluminación para todos los vehículos; `sheet.py` monta hojas de contactos y `probe.py` ejecuta consultas sobre un `.blend`.
+- Aparcado: el Raptor 3 en Blender (`blender/raptor3/`, sin subir), empezado antes de que el usuario fijara el orden.
 
 ### Auditoría del 8 de octubre de 2026
 
@@ -1820,6 +1834,10 @@ src/vehicles/h2rAsset.js   carga la H2R de Blender (assets/h2r/h2r.glb) y la pre
 blender/h2r/               la H2R en Blender: build.py (construye y exporta el .glb), lib/ (escena, revisión),
                            parts/ (bodywork.py: el carenado)
 assets/h2r/h2r.glb         la H2R que se carga, generada por blender/h2r/build.py
+blender/modely/            el Tesla Model Y: build.py ejecuta los módulos ty_*.py en orden y exporta assets/modely/modely.glb
+blender/gt3rs/markings.py  los rótulos del Porsche (escudos, PORSCHE) → assets/gt3rs/markings.glb, que carga vehicles/gt3rsMarkings.js
+blender/common/            herramientas de revisión sin interfaz: review.py (cifras y renders en Cycles), sheet.py, probe.py
+tools/vehicle-export.mjs   un vehículo construido por código, exportado a glTF para trabajarlo en Blender
 src/vehicles/h2r/          la H2R pieza a pieza: index.js (montaje), geometry.js, photo.js (calibración de la foto),
                            materials.js, wheels.js, brakes.js, chain.js, steer.js (montaje de la dirección), fork.js,
                            clamps.js, controls.js, swingarm.js, trellis.js (chasis), rearsets.js (estriberas), intake.js,

@@ -51,6 +51,9 @@ def build_materials_v2():
     add_bump(nt, b, 2600.0, 0.35, 'VORONOI', dist=0.00025)
     m, nt, b, out = pbr("TY_Alloy_Graphite", base=(0.20, 0.205, 0.215, 1), metal=1.0, rough=0.26, coat=0.8, coat_rough=0.06)
     add_bump(nt, b, 9000.0, 0.10, 'VORONOI', dist=0.0001)
+    # The 19" Crossflow's face: the light silver-grey of the photographs (Commons, Juniper First Edition), clear-coated.
+    m, nt, b, out = pbr("TY_Alloy_Silver", base=(0.56, 0.575, 0.59, 1), metal=1.0, rough=0.24, coat=0.7, coat_rough=0.05)
+    add_bump(nt, b, 9000.0, 0.08, 'VORONOI', dist=0.0001)
     pbr("TY_Emit_DRL_White", base=(0.9, 0.9, 0.9, 1), emit=(1.0, 0.97, 0.93, 1), emit_s=32.0, rough=0.2)
     pbr("TY_Emit_Tail_Red", base=(0.5, 0.0, 0.0, 1), emit=(1.0, 0.010, 0.004, 1), emit_s=20.0, rough=0.2)
 

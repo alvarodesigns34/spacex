@@ -54,8 +54,9 @@ export function buildH2r(M) {
   // Mirror Coated Spark Black: a real silver film (a silver-mirror reaction) under a shaded clear
   // coat (Kawasaki Technical Review No. 180, Fig. 14): a dark mirror, black where it faces the
   // shadows, bright where it catches the light (the shade's depth ≈, from the photographs: near
-  // black in the shade, silver under show lights).
-  M.h2rChrome ??= new THREE.MeshPhysicalMaterial({ name: 'h2r-mirror-coat', color: 0x80868c, metalness: 1, roughness: 0.07, clearcoat: 1, clearcoatRoughness: 0.02 });
+  // black in the shade, silver under show lights). 0x80868c read as plain chrome under the open
+  // sky; the shade is deeper now (review of 14-10-2026).
+  M.h2rChrome ??= new THREE.MeshPhysicalMaterial({ name: 'h2r-mirror-coat', color: 0x4c5157, metalness: 1, roughness: 0.07, clearcoat: 1, clearcoatRoughness: 0.02 });
   M.h2rVoid ??= new THREE.MeshStandardMaterial({ name: 'h2r-void', color: 0x0a0a0b, metalness: 0.2, roughness: 0.7 });
   M.h2rCarbon ??= carbonMaterial();
   M.h2rTail ??= new THREE.MeshStandardMaterial({ name: 'h2r-tail-lamp', color: 0x8a0d10, emissive: 0xc0141a, emissiveIntensity: 0.5, roughness: 0.25, metalness: 0.2 });

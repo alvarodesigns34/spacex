@@ -545,7 +545,7 @@ export const VEHICLES = [
       'The wheels painted red and the callipers black, as on the car in Porsche\'s studio photographs (≈ the shades).',
       'Reconstructed (≈) from the interior photographs: the cabin\'s layout — dashboard, cluster, centre screen, steering wheel (its 360 mm diameter published), console, seats, belts, roll cage; the cluster\'s faces are drawn, not copied.',
       'The engine sound is synthesised (≈, by ear): the flat six\'s firing order 3 and its half and double orders, induction and exhaust under load, overrun crackle, the tyres and the wind. It is not a recording.',
-      'No badges, script, crests or number plates.',
+      'Porsche\'s own markings, built in Blender (blender/gt3rs/markings.py): the crest on the front lid, the PORSCHE lettering across the rear light band, the crest on each centre-lock cap; placed and sized on the studio photographs (≈ ±1 cm), drawn as shapes in a plain font, not copied artwork. No number plates.',
     ],
     sources: ['porsche_techdata', 'porsche_presskit', 'porsche_photos', 'ams_gt3rs_supertest'],
     presets: [
@@ -614,8 +614,9 @@ export const VEHICLES = [
     approximations: [
       'Listed and used as given: the length, width, height, wheelbase, track and overhangs (a specifications database, not Tesla\'s own sheet).',
       'Estimated (≈): the body\'s surfaces, from one side photograph and the listed dimensions, then the nose and the tail against photographs from Wikimedia Commons; the car reads lower and plainer than the real one.',
-      'Not the car\'s own (≈): the wheels are a five-double-spoke design of this model\'s, on 255/40 R20 tyres; the headlamps\' optics, the cabin\'s details and the screen\'s picture are generic; the plates read "MODEL Y" as a placeholder.',
-      'Tesla\'s own markings — the "T" on the wheels and the steering wheel, "TESLA" across the tail — at the visitor\'s request: drawn as shapes, not copied artwork.',
+      'From photographs of the 2025 car (Wikimedia Commons, reference only): the 19" Crossflow wheels on 255/45 R19 tyres (ten blades counted there; their sweep and dish ≈), the lower grille between the two dark lamp blades, and the wordmark under the front plate.',
+      'Not the car\'s own (≈): the headlamps\' optics, the cabin\'s details and the screen\'s picture are generic; the plates read "MODEL Y", as the showroom cars\' plates do.',
+      'Tesla\'s own markings — the "T" on the wheels and the steering wheel, "TESLA" across the tail and under the front plate — drawn as shapes, not copied artwork.',
     ],
     sources: ['evspec_modely', 'commons_modely_photos'],
     presets: [

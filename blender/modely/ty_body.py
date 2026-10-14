@@ -242,9 +242,12 @@ def build_body():
     v_i0, v_i1, v_s0, v_s1 = float(vz(0.285)), float(vz(0.395)), float(vz(0.617)), float(vz(0.668))
     vbf = [0.0, vz(0.262), v_i0, v_i1, v_sa_f, v_s0, v_s1, 1.0]
     assert all(b > a + 0.01 for a, b in zip(vbf[:-1], vbf[1:])), vbf
-    b_int = lambda v: np.interp(v, [v_i0, v_i1], [0.46, 0.40])
+    # The lower grille runs almost the width of the nose, between the two dark lamp blades (Commons photographs of the
+    # Juniper, ≈): ±0.80 of the half-width at its foot, ±0.74 at its top edge. It was ±0.46, a slot under the plate.
+    b_int = lambda v: np.interp(v, [v_i0, v_i1], [0.80, 0.74])
     b_pod = lambda v: np.interp(v, [v_s0, v_s1], [0.585, 0.47])
-    shf = cap_sheet(CF, vbf, [0.0, b_int, b_pod, 0.87, xe_f])
+    b_mid = lambda v: np.where(np.asarray(v) >= v_s0, b_pod(v), np.maximum(b_pod(v), np.interp(v, [v_i0, v_i1, v_s0], [0.83, 0.79, 0.585])))
+    shf = cap_sheet(CF, vbf, [0.0, b_int, b_mid, 0.87, xe_f])
     out['shf'] = shf
     # bumper cover (everything except intake + headlamp pods)
     mb = MeshB()

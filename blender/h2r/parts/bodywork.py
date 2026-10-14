@@ -20,10 +20,13 @@ PANELS = {
     'h2r-tank-top': (0.0025, 2, 38), 'h2r-tank-side': (0.0025, 2, 38),
     'h2r-tail': (0.0025, 2, 34), 'h2r-tail-panel': (0.0025, 2, 34), 'h2r-side-cover': (0.0025, 1, 34),
     'h2r-seat': (0.012, 2, 50),
-    'h2r-cowl': (0.0025, 0, 20), 'h2r-cowl-horn': (0.0025, 0, 20), 'h2r-side-panel': (0.0025, 0, 12),
-    'h2r-wings': (0.003, 0, 20), 'h2r-keel': (0.0025, 0, 20), 'h2r-lower-cowl': (0.0025, 0, 20),
-    'h2r-lower-wing-plate': (0.0025, 0, 20), 'h2r-lower-wing-slats': (0.002, 0, 20), 'h2r-under-eye': (0.002, 0, 20),
-    'h2r-chevron': (0.002, 0, 20), 'h2r-lower-face': (0.0025, 0, 20), 'h2r-mouth-lip': (0.0025, 0, 20),
+    # The pressed panels keep their folds (creased past the fold angle) but are subdivided between them: unsubdivided,
+    # the lofts' small facets each threw their own reflection, and the mirror paint read as a mosaic of shards
+    # (review of 14-10-2026).
+    'h2r-cowl': (0.0025, 2, 20), 'h2r-cowl-horn': (0.0025, 2, 20), 'h2r-side-panel': (0.0025, 2, 16),
+    'h2r-wings': (0.003, 1, 20), 'h2r-keel': (0.0025, 2, 20), 'h2r-lower-cowl': (0.0025, 2, 20),
+    'h2r-lower-wing-plate': (0.0025, 1, 20), 'h2r-lower-wing-slats': (0.002, 1, 20), 'h2r-under-eye': (0.002, 1, 20),
+    'h2r-chevron': (0.002, 1, 20), 'h2r-lower-face': (0.0025, 2, 20), 'h2r-mouth-lip': (0.0025, 1, 20),
 }
 DECALS = {'h2r-decal-kawasaki': 'h2r-tank-top', 'h2r-decal-ninja': 'h2r-side-panel', 'h2r-decal-h2r': 'h2r-side-panel',
           'h2r-decal-ninja-tail': 'h2r-tail-panel'}

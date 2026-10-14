@@ -148,6 +148,17 @@ def bake(cache_dir, samples=48):
     _wire(mats, image)
     s = bpy.context.scene
     s.render.engine = 'CYCLES'; s.cycles.device = 'CPU'; s.cycles.samples = samples
+    # On a machine with an RTX card the bake runs there (minutes, not the half hour of four cores).
+    try:
+        prefs = bpy.context.preferences.addons['cycles'].preferences
+        prefs.compute_device_type = 'OPTIX'
+        prefs.refresh_devices()
+        if any(d.type == 'OPTIX' for d in prefs.devices):
+            for d in prefs.devices:
+                d.use = d.type == 'OPTIX'
+            s.cycles.device = 'GPU'
+    except (TypeError, KeyError):
+        pass
     s.render.bake.margin = 6
     if s.world is None:
         s.world = bpy.data.worlds.new('bake-world')

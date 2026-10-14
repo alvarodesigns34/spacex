@@ -17,7 +17,8 @@
  *    half-widths read off them are ≈ ±2 cm. The cross-sections between the traced lines, the
  *    lamps, vents, louvres, intakes, the wing, the wheels and the cabin are reconstructed from
  *    the photographs (≈).
- *  - No badges, script, crests or number plates: the centre adds no logos.
+ *  - Its markings (the crest on the lid, PORSCHE across the tail, the crests on the centre locks)
+ *    are a Blender-built asset hung on this model (gt3rsMarkings.js); no number plates.
  *
  * Frame: X forward from the middle of the wheelbase, Y up from the ground the tyres stand on,
  * Z to the right. The body is one master surface: cross-sections across the car, each a
