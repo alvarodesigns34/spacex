@@ -1,8 +1,9 @@
 /**
  * The Porsche 911 GT3 RS's markings from their Blender-built asset (assets/gt3rs/markings.glb, made
- * by blender/gt3rs/markings.py): the crest on the front lid and the PORSCHE lettering across the
- * rear light band, hung in gt3-sprung so they ride the springs with the body; and the crest on each
- * centre-lock cap, put on the wheel's spinning part so it turns with the wheel. The body markings
+ * by blender/gt3rs/markings.py): the crest on the front lid, the PORSCHE lettering across the rear
+ * light band and the red GT3 RS decal on each flank, hung in gt3-sprung so they ride the springs
+ * with the body; and the crest on each centre-lock cap, put on the wheel's spinning part so it
+ * turns with the wheel. The body markings
  * were placed in Blender on the code-built body's own surface, in the car's frame; the cap crest is
  * built facing +Z and set on the face of each cap here.
  * If the asset cannot be had, the car stands without its markings, as it did before.
@@ -24,7 +25,8 @@ export function applyMarkings(car, scene) {
     o.traverse(m => { if (m.isMesh) { m.castShadow = false; m.receiveShadow = true; } });
     return o;
   };
-  for (const name of ['gt3-mark-crest-front', 'gt3-mark-porsche-rear']) {
+  const body = ['gt3-mark-crest-front', 'gt3-mark-porsche-rear', 'gt3-mark-rs-left', 'gt3-mark-rs-right'];
+  for (const name of body) {
     const o = take(name);
     if (o && sprung) sprung.add(o);
   }
@@ -48,7 +50,7 @@ export function applyMarkings(car, scene) {
       caps++;
     });
   }
-  car.userData.markings = { body: 2, caps };
+  car.userData.markings = { body: body.filter(n => sprung?.getObjectByName(n)).length, caps };
   return car;
 }
 

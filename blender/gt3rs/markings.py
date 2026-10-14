@@ -210,6 +210,71 @@ def lettering(name, text, size, coll, M, place, mat_key, depth=0.0015, spacing=1
     return build(name, [(mat_key, bm)], coll, M, place)
 
 
+def text_bm(text, size, shear=0.0, spacing=1.0, bold=True):
+    """Flat (unextruded) text in its own x/y plane, left-aligned on the baseline."""
+    cu = bpy.data.curves.new('_txt', 'FONT')
+    cu.body = text
+    cu.size = size
+    cu.shear = shear
+    cu.space_character = spacing
+    cu.offset = 0.004 * size / 0.1 if bold else 0.0     # a bolder stroke than the stock face
+    tmp = bpy.data.objects.new('_txt', cu)
+    bpy.context.scene.collection.objects.link(tmp)
+    dg = bpy.context.evaluated_depsgraph_get()
+    me = bpy.data.meshes.new_from_object(tmp.evaluated_get(dg))
+    bpy.data.objects.remove(tmp)
+    bpy.data.curves.remove(cu)
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bpy.data.meshes.remove(me)
+    return bm
+
+
+def onto_side(bm, side, lift=0.0006):
+    """A flat decal drawn in the x/z plane carried onto the body's flank: every vertex is cast at the car
+    from outside along y and set a hair proud of the paint where it lands, so the decal follows the door's
+    curvature and tumblehome. `side` is +1 for the car's left (Blender +Y), -1 for its right."""
+    keep = []
+    for v in bm.verts:
+        hit = body_hit((v.co.x, side * 2.0, v.co.z), (0, -side, 0), required=False)
+        if hit is None:
+            keep.append(v)
+            continue
+        loc, nrm, _ = hit
+        v.co = loc + nrm * lift
+    if keep:
+        bmesh.ops.delete(bm, geom=keep, context='VERTS')
+    bm.normal_update()
+    return bm
+
+
+def rs_side(coll, M, side):
+    """The red GT3 RS decal on one flank (≈ from Commons photographs of an Arctic Grey car on Pyro Red wheels, the
+    car's configuration): a band along the bottom of the doors from the rear arch to behind the front wheel, and
+    the slanted GT3RS over its front end, ≈11 cm tall."""
+    parts = []
+    x_front, x_rear, z0, z1 = 0.70, -0.98, 0.312, 0.356
+    band = bmesh.new()
+    nx, nz = 60, 3
+    rows = [[band.verts.new((x_rear + (x_front - x_rear) * i / nx, 0.0, z0 + (z1 - z0) * j / nz)) for i in range(nx + 1)] for j in range(nz + 1)]
+    for j in range(nz):
+        for i in range(nx):
+            band.faces.new((rows[j][i], rows[j][i + 1], rows[j + 1][i + 1], rows[j + 1][i]))
+    parts.append(('red', onto_side(band, side)))
+    t = text_bm('GT3RS', 0.135, shear=0.28, spacing=0.95)
+    xs = [v.co.x for v in t.verts]
+    w = max(xs) - min(xs)
+    # Seen from the car's left the reader's right is the car's rear (-x), so the text runs from the front backwards
+    # and is mirrored in x; from its right the reader's right is the front. Either way the word starts 8 cm short of
+    # the band's front end, just behind the front wheel.
+    for v in t.verts:
+        x, y = v.co.x - min(xs), v.co.y
+        xx = (x_front - 0.08 - x) if side > 0 else (x_front - 0.08 - w + x)
+        v.co = Vector((xx, 0.0, z0 - 0.004 + y))
+    parts.append(('red', onto_side(t, side, lift=0.0009)))
+    return build(f"gt3-mark-rs-{'left' if side > 0 else 'right'}", parts, coll, M, Matrix.Identity(4))
+
+
 def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     if not os.path.exists(SOURCE):
@@ -227,6 +292,7 @@ def main():
         'red': mat('gt3-mark-red', (0.55, 0.02, 0.02), 0.0, 0.2, 1.0),
         'black': mat('gt3-mark-black', (0.015, 0.015, 0.016), 0.0, 0.2, 1.0),
         'chrome': mat('gt3-mark-letters', (0.80, 0.80, 0.80), 1.0, 0.12),
+        'red': mat('gt3-mark-red-decal', (0.62, 0.035, 0.04), 0.0, 0.32, 0.9),
     }
     coll = bpy.data.collections.new('GT3RS_MARKINGS')
     bpy.context.scene.collection.children.link(coll)
@@ -250,6 +316,9 @@ def main():
     place = frame(loc + nrm * 0.0004, nrm, (0, 0, 1))
     b = lettering('gt3-mark-porsche-rear', 'PORSCHE', 0.041, coll, M, place, 'chrome', spacing=2.3)
     b['surface'] = nm
+    for side in (1, -1):
+        d = rs_side(coll, M, side)
+        d['source'] = 'blender/gt3rs/markings.py'
     # Cap crest: built at the origin facing +z (the wheel's own frame: the runtime puts it on each cap).
     c = crest('gt3-mark-crest-cap', 0.036, coll, M, Matrix.Identity(4))
     for o in (a, b, c):

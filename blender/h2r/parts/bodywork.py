@@ -28,8 +28,10 @@ PANELS = {
     'h2r-lower-wing-plate': (0.0025, 1, 20), 'h2r-lower-wing-slats': (0.002, 1, 20), 'h2r-under-eye': (0.002, 1, 20),
     'h2r-chevron': (0.002, 1, 20), 'h2r-lower-face': (0.0025, 2, 20), 'h2r-mouth-lip': (0.0025, 1, 20),
 }
+# (The cowl's pinstripes too: laid by rays on the code's cowl, they floated over the subdivided one and read as
+# broad green tapes standing off it at their ends.)
 DECALS = {'h2r-decal-kawasaki': 'h2r-tank-top', 'h2r-decal-ninja': 'h2r-side-panel', 'h2r-decal-h2r': 'h2r-side-panel',
-          'h2r-decal-ninja-tail': 'h2r-tail-panel'}
+          'h2r-decal-ninja-tail': 'h2r-tail-panel', 'h2r-pinstripe-cowl': 'h2r-cowl'}
 
 
 def _base(name):

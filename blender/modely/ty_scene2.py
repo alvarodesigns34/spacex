@@ -69,7 +69,7 @@ def build_materials_v2():
     add_bump(nt, b, 2400.0, 0.7, 'NOISE', 8.0, 0.0005)
     m, nt, b, out = pbr("TY_Int_Headliner", base=(0.13, 0.13, 0.135, 1), rough=0.95, sheen=0.6, spec=0.12)
     add_bump(nt, b, 3500.0, 0.5, 'NOISE', 6.0, 0.0003)
-    pbr("TY_Emit_Ambient", base=(0.8, 0.8, 0.8, 1), emit=(0.55, 0.75, 1.0, 1), emit_s=6.0)
+    pbr("TY_Emit_Ambient", base=(0.05, 0.12, 0.35, 1), emit=(0.10, 0.32, 1.0, 1), emit_s=3.0)   # the blue of the photographs
 
     # ---- studio surfaces
     m, nt, b, out = pbr("TY_Studio_Floor", base=(0.16, 0.16, 0.165, 1), rough=0.16, spec=0.5)

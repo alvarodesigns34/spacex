@@ -552,7 +552,9 @@ export const VEHICLES = [
       { id: 'overview', label: 'Overview', pos: [5.6, 2.1, 4.6], target: [0, 0.6, 0] },
       { id: 'front', label: 'Front three-quarter', pos: [5.4, 0.9, 2.6], target: [1.2, 0.55, 0] },
       { id: 'rear', label: 'Rear and wing', pos: [-5.6, 2.0, 3.4], target: [-1.8, 0.9, 0] },
-      { id: 'side', label: 'Side', pos: [0, 0.8, 7.5], target: [0, 0.65, 0] },
+      // (Its flank away from the Model Y: since the Model Y stood 4.5 m to that side, the side view
+      // 7.5 m out showed the Model Y. 4.4 m out on this side, the H2R stands just ahead of the frame.)
+      { id: 'side', label: 'Side', pos: [-0.4, 0.85, -4.4], target: [-0.1, 0.6, 0] },
       { id: 'wheel', label: 'Front wheel and brake', pos: [2.2, 0.55, 2.4], target: [1.23, 0.36, 0.8] },
       { id: 'top', label: 'From above', pos: [0.3, 9.5, 0.3], target: [0, 0, 0] },
       { id: 'circuit', label: 'The circuit', pos: [60, 120, -140], target: [-40, 0, 330] },
@@ -613,7 +615,7 @@ export const VEHICLES = [
     ],
     approximations: [
       'Listed and used as given: the length, width, height, wheelbase, track and overhangs (a specifications database, not Tesla\'s own sheet).',
-      'Estimated (≈): the body\'s surfaces, from one side photograph and the listed dimensions, then the nose and the tail against photographs from Wikimedia Commons; the car reads lower and plainer than the real one.',
+      'Estimated (≈): the body\'s surfaces, from one side photograph and the listed dimensions, then checked against two Commons photographs with a camera fitted to the plate and the wheels (≈3.7 px rms): roof, glass, tail and arches agree; the nose was 5–7 cm high and was lowered. The cabin\'s dash, ambient strip, screen and steering wheel are drawn from photographs of the 2025 interior.',
       'From photographs of the 2025 car (Wikimedia Commons, reference only): the 19" Crossflow wheels on 255/45 R19 tyres (ten blades counted there; their sweep and dish ≈), the lower grille between the two dark lamp blades, and the wordmark under the front plate.',
       'Not the car\'s own (≈): the headlamps\' optics, the cabin\'s details and the screen\'s picture are generic; the plates read "MODEL Y", as the showroom cars\' plates do.',
       'Tesla\'s own markings — the "T" on the wheels and the steering wheel, "TESLA" across the tail and under the front plate — drawn as shapes, not copied artwork.',
@@ -621,7 +623,8 @@ export const VEHICLES = [
     sources: ['evspec_modely', 'commons_modely_photos'],
     presets: [
       { id: 'overview', label: 'Overview', pos: [5.6, 1.9, 4.6], target: [0, 0.7, 0] },
-      { id: 'side', label: 'Side', pos: [0, 1.0, -7.5], target: [0, 0.8, 0] },
+      // (Its outer flank: 7.5 m out on the other, the camera stood beyond the Porsche, which hid it.)
+      { id: 'side', label: 'Side', pos: [0, 1.0, 7.5], target: [0, 0.8, 0] },
       { id: 'front', label: 'Front three-quarter', pos: [5.2, 1.3, -3.4], target: [0.6, 0.7, 0] },
       { id: 'rear', label: 'Rear three-quarter', pos: [-5.4, 1.5, 3.8], target: [-0.5, 0.75, 0] },
       { id: 'cabin', label: 'Cabin through the glass', pos: [0.4, 1.45, -2.7], target: [0.1, 0.95, 0] },

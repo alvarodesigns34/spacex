@@ -15,7 +15,7 @@ import bpy
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
 OUT = os.path.join(ROOT, 'assets', 'modely', 'modely.glb')
-ORDER = ['ty_core', 'ty_design', 'ty_scene', 'ty_scene2', 'ty_body', 'ty_details', 'ty_wheels', 'ty_interior', 'ty_preview']
+ORDER = ['ty_core', 'ty_design', 'ty_scene', 'ty_scene2', 'ty_body', 'ty_details', 'ty_wheels', 'ty_interior', 'ty_interior2', 'ty_preview']
 
 
 def load():
@@ -33,6 +33,7 @@ def build(ns):
     ns['build_wheels']()
     ns['build_underbody']()
     ns['build_interior'](body)
+    ns['refine_interior'](body)
     return body
 
 

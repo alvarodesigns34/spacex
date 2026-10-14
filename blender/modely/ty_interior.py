@@ -127,6 +127,7 @@ def make_ui_image():
     rect(60, 22, 150, 50, (0.85, 0.85, 0.87), 8); rect(1120, 22, 1220, 50, (0.85, 0.85, 0.87), 8)
     im = bpy.data.images.get("TY_Screen_UI") or bpy.data.images.new("TY_Screen_UI", W, Hh)
     im.pixels.foreach_set(img.ravel())
+    im.update()   # without it the packed image is the blank one the image was created as
     im.pack()
     m, nt, b, out = _new("TY_Int_Screen_UI", (0.8, 0.8, 0.85, 1))
     tx = nt.nodes.new('ShaderNodeTexImage'); tx.image = im; tx.location = (-300, 0)
