@@ -546,6 +546,7 @@ export const VEHICLES = [
       'Reconstructed (≈) from the interior photographs: the cabin\'s layout — dashboard, cluster, centre screen, steering wheel (its 360 mm diameter published), console, seats, belts, roll cage; the cluster\'s faces are drawn, not copied.',
       'The engine sound is synthesised (≈, by ear): the flat six\'s firing order 3 and its half and double orders, induction and exhaust under load, overrun crackle, the tyres and the wind. It is not a recording.',
       'Porsche\'s own markings, built in Blender (blender/gt3rs/markings.py): the crest on the front lid, the PORSCHE lettering across the rear light band, the crest on each centre-lock cap; placed and sized on the studio photographs (≈ ±1 cm), drawn as shapes in a plain font, not copied artwork. No number plates.',
+      'Refined in Blender (blender/gt3rs/build.py, from the code-built car): the forged wheels as five Y-spokes (the code had ten; photographs of the rear wheel side-on show five stems forking into ten arms; widths and depths ≈) with a machined lip; the tyres\' sidewall markings (MICHELIN, PILOT SPORT CUP 2 R and the published sizes — the Cup 2 R is one of the tyres fitted to the car, ≈ which; a plain font, not the maker\'s artwork); the ambient occlusion baked into the model.',
     ],
     sources: ['porsche_techdata', 'porsche_presskit', 'porsche_photos', 'ams_gt3rs_supertest'],
     presets: [

@@ -347,7 +347,7 @@ export function region(x, t) {
 }
 
 // ---- Materials -------------------------------------------------------------------------------
-function gt3Materials(M) {
+export function gt3Materials(M) {
   if (M.gt3Paint) return M;
   // The photographs' near-white grey: a solid (non-metallic) paint under a deep clearcoat.
   M.gt3Paint = new THREE.MeshPhysicalMaterial({
