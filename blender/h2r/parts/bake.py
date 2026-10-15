@@ -61,6 +61,11 @@ def _unwrap(objs, pad=1.5 / SIZE):
     tiles, skipped = [], []
     for o in objs:
         me = o.data
+        # The occlusion is always the second set (glTF TEXCOORD_1, three.js uv1): a part without UVs of its own
+        # (the silencer, the collector, the River Mark) gets a first set to stand in that place, or its 'ao'
+        # became the first and the material's aoMap read a set the mesh did not have.
+        if not me.uv_layers:
+            me.uv_layers.new(name='UVMap')
         if 'ao' not in me.uv_layers:
             me.uv_layers.new(name='ao')
         me.uv_layers.active = me.uv_layers['ao']

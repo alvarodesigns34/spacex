@@ -28,7 +28,7 @@ sys.path.insert(0, HERE)
 import bpy  # noqa: E402
 
 from lib import scene  # noqa: E402
-from parts import bodywork, bake, emblem  # noqa: E402
+from parts import bodywork, bake, emblem, wheels  # noqa: E402
 
 ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
 SOURCE = os.path.join(HERE, 'source', 'code-parts.glb')
@@ -41,6 +41,7 @@ def build():
     scene.import_code_parts(SOURCE)
     print('bodywork refined:', len(bodywork.refine()))
     emblem.add()
+    wheels.rebuild()
     # (≈25 min on four cores: the atlas's unwrapping, then Cycles.)
     print('ambient occlusion baked:', bake.bake(CACHE, samples=32))
     scene.export(OUT)

@@ -590,6 +590,7 @@ export const VEHICLES = [
       'The torque curve between the published points, the limiter (14,500 rpm) and the tyres\' grip are estimates (≈); the centre of mass\'s height (0.68 m with the rider), the drag area (0.39 m² with the wings and the rider tucked) and the drivetrain losses (0.85) are fitted to MOTORRAD\'s GPS-timed runs, and the top speed follows from the drag.',
       'Measured (≈ ±2 cm) on photographs from Wikimedia Commons with their cameras solved on the published wheelbase and tyre diameters (right side ≈1.9 px; head-on, near orthographic): the wings (a flat blade, ≈15–18° of dihedral, ≈23° of sweep, ≈20° nose down), the screen widening upwards to ±0.16 m and the carbon horns along its edges, the eyes, chevrons and ram-air mouth under the nose, the lower cowls and lower wings, the radiator shrouds, the triple clamps\' height and the engine\'s right-side covers.',
       'Kawasaki\'s own markings as on the photographed bike — "Kawasaki", "Ninja", "H2R", "brembo" — at the visitor\'s request: drawn as type, not copied artwork.',
+      'Refined in Blender (blender/h2r/parts/wheels.py): the wheels\' spokes as broad folded arms, one face machined and the other black, as close photographs of the wheels show (≈ their widths); the tyres\' sidewall markings — BRIDGESTONE, BATTLAX V01 (the slicks on the photographed bikes) and the published sizes — in a plain font, not the maker\'s artwork.',
     ],
     sources: ['kawasaki_h2r', 'kawasaki_h2r_photos', 'commons_h2r_photos', 'motorrad_h2r_test'],
     presets: [

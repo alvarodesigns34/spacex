@@ -44,7 +44,7 @@ La interfaz de la simulación (menús, ficha técnica, etiquetas y vistas) está
 - Presupuesto de la escena (CI del 13 de octubre, con el Tesla Model Y): 5,07 M de triángulos construidos y 3,96 M dibujados en la vista general, 1 810 mallas, 354 materiales y 157 texturas; los límites de `tools/check.mjs` son 6 M, 2 600, 420 y 260. El Model Y (≈1,17 M de triángulos y ≈40 materiales) dejó la escena por encima de los anteriores (4,5 M y 340 materiales) y CI no desplegó su commit (`8728971`); se subieron los techos, como prevé el propio `check.mjs` (detectan una duplicación, no un aumento deliberado).
 - **Auditoría del 8 de octubre de 2026:** corregidos los fallos confirmados de cámara, sonido, interfaz, herramientas de comprobación, datos y textos; pendientes la geometría de la H2R (aparcada), dos datos sin fuente en el repositorio y la costura del acero. Detalle en la sección «Auditoría del 8 de octubre de 2026».
 - **Encargo del 14 de octubre de 2026:** mejorar los vehículos uno a uno en Blender (formas, piezas, texturas, acabados y proporciones a escala 1:1) y añadir los logotipos y rótulos del vehículo real, que ya se permiten.
-- **Encargo del 15 de octubre de 2026 (en curso):** pasada profunda en el Blender del usuario, por MCP, de Model Y → Porsche → H2R → Roadster (con Starman), con el peso limitado solo por GitHub. **Model Y y Porsche hechos** (ver «Pasada profunda en Blender del 15 de octubre de 2026: Model Y» y «…: Porsche 911 GT3 RS»).
+- **Encargo del 15 de octubre de 2026 (en curso):** pasada profunda en el Blender del usuario, por MCP, de Model Y → Porsche → H2R → Roadster (con Starman), con el peso limitado solo por GitHub. **Model Y, Porsche y H2R hechos** (ver «Pasada profunda en Blender del 15 de octubre de 2026: Model Y», «…: Porsche 911 GT3 RS» y «…: Kawasaki Ninja H2R»).
 - El detalle del trabajo en curso y de cómo retomarlo está en `TRASPASO.md`, sección «Empieza aquí».
 
 ## Ejecutar
@@ -372,6 +372,14 @@ El Porsche sigue la vía de la H2R. El coche construido por código (`gt3rs.js`)
   - la cabina con sus instrumentos vivos la construye el código donde el archivo deja su hueco;
   - se recuperan las partes que giran de cada rueda y se cuelgan los rótulos como antes;
   - si el archivo no carga, aparece el coche de código con sus rótulos.
+
+### Pasada profunda en Blender del 15 de octubre de 2026: Kawasaki Ninja H2R
+
+La H2R ya se construía en Blender (`blender/h2r/build.py`), y sus materiales llevan en la web sus recetas de detalle: sarga del carbono, cepillado, fundición, goma y piel de naranja bajo el espejo. Esta pasada, revisada en la escena `H2R` del Blender del usuario contra fotos de Commons:
+
+- **Llantas** (`parts/wheels.py`). El código tenía bien la disposición (cinco radios; los delanteros se abren en una «Y» estrecha en el aro y los traseros forman una estrella), pero los dibujaba como barras finas que se leían como alambre. Las fotos de las ruedas de cerca muestran brazos anchos que se afilan hacia el aro, ≈52 mm junto al buje, plegados a lo largo: una cara mecanizada en plata y la otra negra, los dos tonos de la llanta real. Anchuras, pliegue y fondo son ≈.
+- **Neumáticos:** las marcas en relieve del flanco, BRIDGESTONE y BATTLAX V01 (los slicks de las motos fotografiadas) y las medidas publicadas 120/600 R17 y 190/650 R17, con una letra genérica.
+- **Oclusión en el canal correcto:** el silenciador, el colector, el cable de la sonda lambda y el emblema River Mark no tenían UV propias, así que el horneado ponía la oclusión en su primer juego de UV mientras sus materiales la leían del segundo. Ahora toda malla sin UV recibe primero un juego vacío. El `.glb` pasa a 40,2 MB.
 
 ### Auditoría del 8 de octubre de 2026
 
@@ -1879,7 +1887,7 @@ src/data/h2r.js            ficha de la Kawasaki Ninja H2R con la procedencia de 
 src/vehicles/h2r.js        punto de entrada del modelo en código de la H2R (lo construye vehicles/h2r/)
 src/vehicles/h2rAsset.js   carga la H2R de Blender (assets/h2r/h2r.glb) y la prepara para el pilotaje
 blender/h2r/               la H2R en Blender: build.py (construye y exporta el .glb), lib/ (escena, revisión),
-                           parts/ (bodywork.py: el carenado)
+                           parts/ (bodywork.py: el carenado; wheels.py: llantas y neumáticos; bake.py; emblem.py)
 assets/h2r/h2r.glb         la H2R que se carga, generada por blender/h2r/build.py
 blender/modely/            el Tesla Model Y: build.py ejecuta los módulos ty_*.py en orden y exporta assets/modely/modely.glb;
                            ty_front3.py (frontal), ty_rear3.py (zaga), ty_bake.py (UV, texturas de detalle y oclusión horneada)
