@@ -1,8 +1,8 @@
 # Tesla Model Y 2025 - wheels (19" Crossflow, 255/45R19), brakes, wheel wells, underbody.
-# The Crossflow is the standard wheel of the 2025 car: ten broad blades swept like a turbine over a shallow dish, light
-# silver-grey, read off Commons photographs of the Juniper (First Edition, Pearl White, Stealth Grey); the blade count is
-# counted there, the sweep and the dish depth are approximate (≈). It replaced a 20" five-spoke of the first pass that the
-# car does not have.
+# The Crossflow is the standard wheel of the 2025 car: ten slim folded spokes round a black centre, light silver-grey,
+# read off Commons photographs of the Juniper (First Edition, Pearl White, Stealth Grey, Quicksilver); the spoke count is
+# counted there, the widths, sweep and fold are approximate (≈) - see build_rim_mesh. It replaced a 20" five-spoke of the
+# first pass that the car does not have, and then (v3) a disc of broad blades that read as a fan.
 # Wheel local frame: axis = Y, outer face towards +Y, centre at the origin.
 RUBBER, ALLOY, ALLOY_DARK = "TY_Rubber_Tire", "TY_Alloy_Graphite", "TY_Alloy_Barrel"
 DISC, CALIPER, CHROME, LINER = "TY_Brake_Disc", "TY_Caliper", "TY_Chrome", "TY_Liner_Black"
@@ -166,40 +166,44 @@ def build_rim_mesh():
               (0.2735, -0.1290), (0.2700, -0.1235), (0.2545, -0.1205), (0.2500, -0.1180), (0.2400, -0.0900), (0.2340, 0.0000),
               (0.2400, 0.0900)]
     mb.grid(lathe([(r - d19, y) for r, y in barrel], 120), closed_u=True, closed_v=True, mat=1)
-    # Hub: a shallow boss under the centre cap, and the ring the blades start from.
-    hub = [(0.0000, 0.0880), (0.0300, 0.0880), (0.0340, 0.0860), (0.0345, 0.0800), (0.0370, 0.0790), (0.0640, 0.0815),
-           (0.0700, 0.0850), (0.0760, 0.0905), (0.0790, 0.0700), (0.0760, 0.0500), (0.0700, 0.0450), (0.0000, 0.0450)]
+    # v3 (15-10-2026): the face redrawn from close crops of Commons photographs of the Juniper (Stealth Grey, Quicksilver).
+    # The Crossflow is ten slim spokes, not a disc of blades: each runs from the black centre to the lip, ≈2 cm wide at the
+    # centre and ≈6.5 cm at the lip, swept ≈10° round the wheel, and folded along its length - one half faces out and
+    # catches the light, the other turns back into the wheel and reads dark - with deep dark windows between them.
+    # Widths, sweep and fold are read off the photographs (≈); the count and the black centre are plain to see.
+    # Hub: a recessed boss under the centre cap.
+    hub = [(0.0000, 0.0840), (0.0560, 0.0840), (0.0640, 0.0870), (0.0700, 0.0905), (0.0730, 0.0880), (0.0730, 0.0500),
+           (0.0000, 0.0500)]
     mb.grid(lathe(hub, 80), closed_u=True, mat=0)
-    # The lip: a silver ring round the face that the blades run into (on the photographs the face reads as one disc
-    # cut by ten slots, not as free spokes).
-    lip = [(0.2050, 0.1060), (0.2120, 0.1105), (0.2210, 0.1140), (0.2262, 0.1150), (0.2290, 0.1120), (0.2290, 0.0950), (0.2050, 0.0950)]
-    mb.grid(lathe(lip, 160), closed_u=True, closed_v=True, mat=0)
-    # Ten blades, each a wide ribbon from the hub into the lip, swept ≈22° round the wheel and widening outwards so that
-    # at the lip they nearly close the face, as on the photographs; the face is a shallow dish (≈2 cm deep).
+    # The lip: a narrow silver ring round the face that the spokes run into.
+    lip = [(0.2150, 0.1040), (0.2190, 0.1092), (0.2250, 0.1128), (0.2282, 0.1122), (0.2296, 0.1095), (0.2296, 0.0960),
+           (0.2150, 0.0960)]
+    mb.grid(lathe(lip, 200), closed_u=True, closed_v=True, mat=0)
     NB = 10
-    r0, r1 = 0.074, 0.2120
-    nt, ns = 30, 20
+    r0, r1 = 0.060, 0.2205
+    nt = 40
+    SW = math.radians(10.0)
     for i in range(NB):
         base = i * 2 * math.pi / NB
         t = np.linspace(0, 1, nt)
         r = r0 + (r1 - r0) * t
-        phi = base + 0.38 * t ** 1.25
-        yf = 0.0925 + 0.0150 * t ** 1.5
-        fill = 0.46 + 0.42 * t ** 1.2                 # share of the pitch the blade covers: the slots close outwards
-        w = r * (2 * math.pi / NB) * fill
-        hgt = 0.026 - 0.004 * t
-        C = np.stack([r * np.cos(phi), yf - hgt / 2, r * np.sin(phi)], 1)
-        T = np.gradient(C, axis=0); T[:, 1] = 0
+        phi = base + SW * t
+        yf = 0.0930 + 0.0135 * t ** 0.85           # the face rises ≈1.4 cm from the centre to the lip
+        h = (0.0100 + 0.0225 * t ** 1.25) * (1 + 0.25 * np.clip((t - 0.9) / 0.1, 0, 1) ** 2)   # half width, flaring into the lip
+        th = 0.036 - 0.014 * t                     # spoke depth
+        s = 0.62                                   # the fold: the trailing half turns back ≈32°
+        C = np.stack([r * np.cos(phi), 0 * r, r * np.sin(phi)], 1)
+        T = np.gradient(C, axis=0)
         T /= np.linalg.norm(T, axis=1)[:, None]
-        Bn = np.stack([-T[:, 2], 0 * T[:, 0], T[:, 0]], 1)
-        a = np.linspace(0, 2 * math.pi, ns, endpoint=False)
-        e = 8.0
-        cx = np.sign(np.cos(a)) * np.abs(np.cos(a)) ** (2 / e)
-        cy = np.sign(np.sin(a)) * np.abs(np.sin(a)) ** (2 / e)
-        # The leading edge of each blade stands a little proud of the trailing one: the facet that catches the light.
-        lift = 0.004 * cx * (cy > 0)
-        V = (C[:, None, :] + Bn[:, None, :] * cx[None, :, None] * (w / 2)[:, None, None]
-             + np.array([0, 1, 0])[None, None, :] * (cy[None, :, None] * (hgt / 2)[:, None, None] + lift[None, :, None]))
+        Bn = np.stack([-T[:, 2], 0 * T[:, 0], T[:, 0]], 1)      # across the spoke, in the wheel plane (leading side +)
+        # cross-section (across, depth) from the leading edge round the face, the fold, the trailing edge and the back
+        sec = lambda hh, tt: [(hh, -0.0045), (hh - 0.0018, -0.0002), (hh * 0.35, 0.0), (0.0, 0.0006),
+                              (-hh * 0.35, -s * hh * 0.35), (-hh + 0.0018, -s * (hh - 0.0018)), (-hh, -s * hh - 0.004),
+                              (-hh * 0.8, -tt), (hh * 0.8, -tt)]
+        V = np.zeros((nt, 9, 3))
+        for k in range(nt):
+            for j, (a, d) in enumerate(sec(h[k], th[k])):
+                V[k, j] = C[k] + Bn[k] * a + np.array([0, yf[k] + d, 0])
         mb.grid(V, closed_u=True, mat=0)
     return mb
 
@@ -215,24 +219,15 @@ def build_wheel_parts():
         bpy.data.objects.remove(ob)
         parts[name] = me
     stash("Tire", build_tire_mesh(), [RUBBER], recalc=True, sharp=28)
-    stash("Rim", build_rim_mesh(), ["TY_Alloy_Silver", ALLOY_DARK], sharp=40)
-    # centre cap + emblem
+    stash("Rim", build_rim_mesh(), ["TY_Alloy_Silver", ALLOY_DARK], sharp=16)
+    # centre cap + emblem: on the photographs the whole centre is black, ⌀ ≈0.13 m, over the lug nuts
     mb = MeshB()
-    cap = [(0.0, 0.0915), (0.012, 0.0914), (0.024, 0.0908), (0.0295, 0.0895), (0.0300, 0.0870), (0.0, 0.0870)]
-    mb.grid(lathe(cap, 48), closed_u=True, mat=0)
+    cap = [(0.0, 0.1000), (0.020, 0.0996), (0.040, 0.0982), (0.056, 0.0958), (0.064, 0.0935), (0.0675, 0.0905),
+           (0.0680, 0.0860), (0.0, 0.0860)]
+    mb.grid(lathe(cap, 72), closed_u=True, mat=0)
     v, f = curve_mesh(tesla_t(0.030), 0.0005)
-    mb.raw(np.stack([-v[:, 0], 0.0916 + v[:, 2] + 0.0003, v[:, 1]], 1), f, mat=1)
-    stash("CenterCap", mb, [ALLOY_DARK, CHROME], sharp=30)
-    # lug nuts
-    mb = MeshB()
-    for i in range(5):
-        a = math.radians(36 + i * 72)
-        cx, cz = 0.05715 * math.cos(a), 0.05715 * math.sin(a)
-        nut = np.array([(0.0105, 0.0795), (0.0105, 0.0925), (0.0085, 0.0945), (0.0, 0.0945)])
-        V = lathe(nut, 6)
-        V[:, :, 0] += cx; V[:, :, 2] += cz
-        mb.grid(V, closed_u=True)
-    stash("LugNuts", mb, [ALLOY_DARK], sharp=20)
+    mb.raw(np.stack([-v[:, 0], 0.1001 + v[:, 2] + 0.0003, v[:, 1]], 1), f, mat=1)
+    stash("CenterCap", mb, ["TY_Plastic_Satin", CHROME], sharp=30)
     # valve stem
     mb = MeshB()
     st = np.array([(0.0045, 0.0), (0.0045, 0.018), (0.0032, 0.020), (0.0032, 0.030), (0.0040, 0.031), (0.0040, 0.040), (0.0, 0.040)])

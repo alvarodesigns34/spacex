@@ -466,3 +466,40 @@ def build_lr(mb, name, coll, mats, **shell):
     for o in (a, b):
         add_shell(o, **shell)
     return a, b
+
+
+# ----------------------------------------------------------------------------
+# Polyline and mesh-builder utilities shared by the v3 modules
+# ----------------------------------------------------------------------------
+
+
+def rs2(P, n):
+    """Arc-length resample of a 2D/3D polyline to n points."""
+    P = np.asarray(P, float)
+    d = np.r_[0, np.cumsum(np.linalg.norm(np.diff(P, axis=0), axis=1))]
+    t = np.linspace(0, d[-1], n)
+    return np.stack([np.interp(t, d, P[:, i]) for i in range(P.shape[1])], 1)
+
+
+def rounded(pts, r, n=6):
+    """Open polyline through pts with its inner corners rounded over a distance r."""
+    P = np.asarray(pts, float)
+    out = [P[0]]
+    for i in range(1, len(P) - 1):
+        a, b, c = P[i - 1], P[i], P[i + 1]
+        la, lc = np.linalg.norm(b - a), np.linalg.norm(c - b)
+        d = min(r, 0.45 * la, 0.45 * lc)
+        p0, p1 = b + (a - b) / la * d, b + (c - b) / lc * d
+        out += [(1 - t) ** 2 * p0 + 2 * (1 - t) * t * b + t * t * p1 for t in np.linspace(0, 1, n)]
+    out.append(P[-1])
+    return np.array(out)
+
+
+def merge(*mbs):
+    out = MeshB()
+    for src in mbs:
+        base = len(out.v)
+        out.v.extend(src.v)
+        out.f.extend(tuple(base + i for i in f) for f in src.f)
+        out.mi.extend(src.mi)
+    return out

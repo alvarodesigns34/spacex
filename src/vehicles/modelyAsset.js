@@ -4,7 +4,10 @@
  *  - the model is turned nose to +X, as the other cars stand (Blender built it nose to −X);
  *  - a part with several materials, which glTF splits into one primitive per material, is one
  *    mesh again with its material array;
- *  - the materials that do not travel in a file are laid on again by name: the paint's flake
+ *  - the asset carries what Blender's shaders drew procedurally as images (blender/modely/ty_bake.py):
+ *    an ambient-occlusion atlas on the second UV set and tiled detail normal maps (leather grain,
+ *    plastic stipple, rubber, felt, weave, carpet, brushed aluminium, perforations, metallic flake);
+ *  - the materials that do not travel in a file are laid on again by name: the paint's
  *    base under its clear coat (Blender mixes it by view angle), and the glazing and lenses
  *    (Blender's panes pass shadow rays by a light-path switch; here they are thin transparent
  *    panes, each with its own tint);
@@ -19,10 +22,12 @@ export const MODELY_ASSET = new URL('../../assets/modely/modely.glb', import.met
 
 // [tint, opacity]: what Blender's two tinted surfaces of each pane let through, as one pane.
 const PANES = {
-  TY_Glass_Clear: [[0.62, 0.72, 0.68], 0.20],
+  // A light tint lit by the sun read as frosted plastic: a clear pane is a dark film over what is behind it.
+  TY_Glass_Clear: [[0.10, 0.125, 0.12], 0.24],
   TY_Glass_Tinted: [[0.05, 0.06, 0.06], 0.62],
   TY_Glass_Roof: [[0.03, 0.035, 0.035], 0.80],
   TY_Lens_Clear: [[0.85, 0.88, 0.92], 0.22],
+  TY_Lens_Smoke_Dark: [[0.03, 0.03, 0.035], 0.82],
   TY_Lens_Smoke: [[0.20, 0.02, 0.02], 0.55],
   TY_Lens_Red: [[0.45, 0.0, 0.01], 0.70],
 };
@@ -37,9 +42,12 @@ function adapt(m) {
     });
   }
   if (m.name === 'TY_Paint_UltraRed') {
+    // The flake (normal map) and the baked occlusion come from the file; the flakes tilt the base under a
+    // smooth clear coat, as in the paint itself.
     return new THREE.MeshPhysicalMaterial({
       name: m.name, color: new THREE.Color().setRGB(0.30, 0.004, 0.008), metalness: 0.5, roughness: 0.27,
       clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.3,
+      normalMap: m.normalMap, normalScale: m.normalScale, aoMap: m.aoMap, aoMapIntensity: m.aoMapIntensity,
     });
   }
   return m;

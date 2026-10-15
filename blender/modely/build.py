@@ -4,8 +4,12 @@ written as fragments of one session and share their names) and exports assets/mo
 
 Run headless, never inside an open session (the build adds and removes thousands of objects):
     "C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe" -b --factory-startup -P blender/modely/build.py
-Options after `--`: `--no-export` (build only), `--save <file.blend>` (keep the scene for inspection),
-`--render <dir>` (review stills from the cameras of ty_scene2.py).
+Options after `--`: `--no-export` (build only), `--no-bake` (skip the ambient-occlusion bake), `--save <file.blend>`
+(keep the scene for inspection).
+
+v3 (15-10-2026): the front fascia (ty_front3), the rear's light and badge (ty_rear3), and the finish for the web
+(ty_bake: modifiers applied, UVs in metres, tiled detail normal maps, the ambient occlusion baked on the GPU into an atlas).
+The baked images are cached in blender/modely/source/ (not in the repository: they travel inside the .glb).
 """
 import os
 import sys
@@ -15,7 +19,9 @@ import bpy
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
 OUT = os.path.join(ROOT, 'assets', 'modely', 'modely.glb')
-ORDER = ['ty_core', 'ty_design', 'ty_scene', 'ty_scene2', 'ty_body', 'ty_details', 'ty_wheels', 'ty_interior', 'ty_interior2', 'ty_preview']
+CACHE = os.path.join(HERE, 'source')
+ORDER = ['ty_core', 'ty_design', 'ty_scene', 'ty_scene2', 'ty_body', 'ty_details', 'ty_wheels', 'ty_interior', 'ty_interior2',
+         'ty_preview', 'ty_front3', 'ty_rear3', 'ty_bake']
 
 
 def load():
@@ -30,6 +36,8 @@ def build(ns):
     ns['build_materials_v2']()
     body = ns['build_body']()
     ns['build_details'](body)
+    ns['build_front3'](body)
+    ns['build_rear3'](body)
     ns['build_wheels']()
     ns['build_underbody']()
     ns['build_interior'](body)
@@ -56,6 +64,7 @@ def main(argv):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     ns = load()
     build(ns)
+    ns['finish_for_web'](CACHE, bake='--no-bake' not in argv)
     if '--save' in argv:
         bpy.ops.wm.save_as_mainfile(filepath=argv[argv.index('--save') + 1])
     if '--no-export' not in argv:

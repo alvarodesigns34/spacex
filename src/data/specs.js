@@ -603,10 +603,10 @@ export const VEHICLES = [
   {
     id: 'modely',
     name: 'Tesla Model Y',
-    subtitle: 'Tesla Model Y, 2025 · Ultra Red, a first pass built in Blender',
+    subtitle: 'Tesla Model Y, 2025 · Ultra Red, Dual Motor, built in Blender',
     height: FIGURES.modely.height.value,
     footprint: FIGURES.modely.footprint.value,
-    summary: 'Tesla\'s five-door electric crossover as restyled for 2025: a light bar across the nose, another across the tailgate, a glass roof and a cabin with one screen. A static exhibit, built in Blender and still a first pass: its overall dimensions are the listed ones, its surfaces an estimate.',
+    summary: 'Tesla\'s five-door electric crossover as restyled for 2025: a light bar across the nose, another across the tailgate, a glass roof and a cabin with one screen. A static exhibit, built in Blender: its overall dimensions are the listed ones, its surfaces an estimate checked against photographs, its ambient occlusion and surface detail baked into the model.',
     specs: [
       { fig: 'footprint', label: 'Length', value: '4.790 m', source: 'press', ref: 'evspec_modely' },
       { fig: 'breadth', label: 'Width', value: '1.920 m', source: 'press', ref: 'evspec_modely' },
@@ -616,9 +616,9 @@ export const VEHICLES = [
     approximations: [
       'Listed and used as given: the length, width, height, wheelbase, track and overhangs (a specifications database, not Tesla\'s own sheet).',
       'Estimated (≈): the body\'s surfaces, from one side photograph and the listed dimensions, then checked against two Commons photographs with a camera fitted to the plate and the wheels (≈3.7 px rms): roof, glass, tail and arches agree; the nose was 5–7 cm high and was lowered. The cabin\'s dash, ambient strip, screen and steering wheel are drawn from photographs of the 2025 interior.',
-      'From photographs of the 2025 car (Wikimedia Commons, reference only): the 19" Crossflow wheels on 255/45 R19 tyres (ten blades counted there; their sweep and dish ≈), the lower grille between the two dark lamp blades, and the wordmark under the front plate.',
-      'Not the car\'s own (≈): the headlamps\' optics, the cabin\'s details and the screen\'s picture are generic; the plates read "MODEL Y", as the showroom cars\' plates do.',
-      'Tesla\'s own markings — the "T" on the wheels and the steering wheel, "TESLA" across the tail and under the front plate — drawn as shapes, not copied artwork.',
+      'From photographs of the 2025 car (Wikimedia Commons, reference only): the 19" Crossflow wheels on 255/45 R19 tyres (ten folded spokes round a black centre, counted there; their widths, sweep and fold ≈), the front fascia (the slit headlamps with the dark "J" below each, the lower grille with its slats, the light bar), the steering wheel, the wordmark under the front plate and the DUAL MOTOR badge on the tailgate.',
+      'Not the car\'s own (≈): the headlamps\' optics, the cabin\'s details and the screen\'s picture are generic; the plates read "MODEL Y", as the showroom cars\' plates do; the surface detail (leather grain, plastic stipple, paint flake) is generic in kind and size.',
+      'Tesla\'s own markings — the "T" on the wheels, "TESLA" on the steering wheel, across the tail and under the front plate, DUAL MOTOR on the tailgate — drawn as shapes in a plain font, not copied artwork.',
     ],
     sources: ['evspec_modely', 'commons_modely_photos'],
     presets: [

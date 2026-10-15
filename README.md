@@ -15,7 +15,7 @@ Experiencia 3D interactiva, a escala real (1 unidad = 1 metro), con recreaciones
 | F-16A | Block 15 con motor F100-PW-200, sobre su tren en la cabecera de su pista; geometría de los informes NASA TP-1538 y TP-3355 | 15,038 m de largo · 9,144 m de envergadura · 5,01 m de alto |
 | Porsche 911 GT3 RS | 992 de 2023 en el gris casi blanco y las llantas rojas de las fotos de estudio de Porsche, conducible, en la explanada junto a su circuito; cotas de la ficha técnica de Porsche | 4,572 m de largo · 1,900 m de ancho · 1,322 m de alto (al ala) |
 | Kawasaki Ninja H2R | Modelo 2027 en Mirror Coated Spark Black con el chasis verde de las fotos de estudio de Kawasaki, pilotable, junto al Porsche; cotas de la ficha de Kawasaki | 2,070 m de largo · 0,850 m de ancho · 1,160 m de alto |
-| Tesla Model Y | Modelo 2025 en Ultra Red, expositor estático junto al Porsche, construido en Blender (cotas generales de la ficha y superficies estimadas; llantas Crossflow de 19" y frontal contrastados con fotos) | 4,790 m de largo · 1,920 m de ancho · 1,624 m de alto |
+| Tesla Model Y | Modelo 2025 (Dual Motor) en Ultra Red, expositor estático junto al Porsche, construido en Blender (cotas generales de la ficha y superficies estimadas; llantas Crossflow de 19", frontal, zaga y volante contrastados con fotos; oclusión ambiental y texturas de detalle horneadas) | 4,790 m de largo · 1,920 m de ancho · 1,624 m de alto |
 
 **Starship** encabeza la lista, porque es el expositor principal y el del lanzamiento (tecla **1**). Le sigue el **Falcon 1** (tecla **2**), que abre la línea histórica: Falcon 1 → Falcon 9 → Falcon Heavy.
 
@@ -44,6 +44,7 @@ La interfaz de la simulación (menús, ficha técnica, etiquetas y vistas) está
 - Presupuesto de la escena (CI del 13 de octubre, con el Tesla Model Y): 5,07 M de triángulos construidos y 3,96 M dibujados en la vista general, 1 810 mallas, 354 materiales y 157 texturas; los límites de `tools/check.mjs` son 6 M, 2 600, 420 y 260. El Model Y (≈1,17 M de triángulos y ≈40 materiales) dejó la escena por encima de los anteriores (4,5 M y 340 materiales) y CI no desplegó su commit (`8728971`); se subieron los techos, como prevé el propio `check.mjs` (detectan una duplicación, no un aumento deliberado).
 - **Auditoría del 8 de octubre de 2026:** corregidos los fallos confirmados de cámara, sonido, interfaz, herramientas de comprobación, datos y textos; pendientes la geometría de la H2R (aparcada), dos datos sin fuente en el repositorio y la costura del acero. Detalle en la sección «Auditoría del 8 de octubre de 2026».
 - **Encargo del 14 de octubre de 2026:** mejorar los vehículos uno a uno en Blender (formas, piezas, texturas, acabados y proporciones a escala 1:1) y añadir los logotipos y rótulos del vehículo real, que ya se permiten.
+- **Encargo del 15 de octubre de 2026 (en curso):** pasada profunda en el Blender del usuario, por MCP, de Model Y → Porsche → H2R → Roadster (con Starman), con el peso limitado solo por GitHub. **Model Y hecho** (ver «Pasada profunda en Blender del 15 de octubre de 2026: Model Y»).
 - El detalle del trabajo en curso y de cómo retomarlo está en `TRASPASO.md`, sección «Empieza aquí».
 
 ## Ejecutar
@@ -333,6 +334,31 @@ Encargo del usuario: mejorar los vehículos uno a uno en Blender (formas, piezas
 - **H2R:** el emblema **River Mark** de Kawasaki en el carenado superior, bajo la pantalla, colocado con un rayo sobre el carenado ya refinado (`parts/emblem.py`, dibujado con formas, ≈6 cm). Las líneas verdes del carenado se colocaban con rayos sobre el carenado del código y, una vez subdividido en Blender, flotaban sobre él y se leían como cintas anchas despegadas: ahora se proyectan sobre el carenado final, como los rótulos.
 - **Porsche:** el adhesivo rojo **GT3 RS** de cada costado (la banda por la parte baja de las puertas y el GT3RS inclinado tras la rueda delantera), como en las fotos de Commons de un coche Arctic Grey con llantas Pyro Red, la configuración del nuestro; proyectado vértice a vértice sobre la carrocería para que siga su curva.
 - **Vistas «Side» del Porsche y del Model Y:** desde que el Model Y se aparcó a 4,5 m del Porsche, la vista lateral del Porsche mostraba el Model Y y la del Model Y quedaba tapada por el Porsche. Cada una mira ahora desde el costado libre.
+
+### Pasada profunda en Blender del 15 de octubre de 2026: Model Y
+
+Encargo del usuario: rehacer a fondo en su Blender (5.2, por MCP), uno a uno y en este orden, el Tesla Model Y, el Porsche, la H2R y el Roadster (con Starman), con el máximo realismo visual y sin límite de peso más allá del que admite GitHub (100 MB por archivo). El diseño y la revisión se hacen en la escena `MODEL_Y` del Blender del usuario, renderizando en Cycles sobre su RTX 3070 y comparando con fotografías libres de Wikimedia Commons (solo como referencia, nunca en el repositorio). La construcción final la hace `blender/modely/build.py` sin interfaz, con el mismo Blender, para que el `.glb` se pueda reproducir: el horneado usa operadores que, dentro de la sesión abierta, la tumbaban.
+
+- **Llantas Crossflow de 19", rehechas.** Eran diez aspas anchas que cerraban la cara como un ventilador. Las fotos ampliadas del Juniper (Stealth Grey y Quicksilver) muestran diez radios finos: ≈2 cm junto al centro y ≈6,5 cm en el aro, barridos ≈10° y plegados a lo largo, con una mitad que mira afuera y brilla y otra que se vuelve hacia dentro y se lee oscura, con ventanas grandes entre ellos y el centro negro (⌀ ≈0,13 m) sobre las tuercas. El número de radios y el centro negro se ven sin duda; anchuras, barrido y pliegue son ≈.
+- **Frontal nuevo** (`ty_front3.py`), contra la foto frontal del Juniper Stealth Grey (la matrícula de 520 × 110 mm da la escala):
+  - la tapa del paragolpes es ahora una sola pieza con las aberturas cortadas por un modificador booleano, de modo que cada hueco enseña el canto de la propia pieza. Las normales se toman de la tapa sin cortar, para que los triángulos largos del corte no rompan el sombreado;
+  - el **faro** es una ranura de cristal ahumado de ≈0,25 × 0,05 m en cada esquina, recta por fuera y en punta por dentro, con su fondo negro, dos proyectores y una línea de LED. Antes, la superficie del paragolpes tapaba el faro y solo asomaban los proyectores, como una cajita de ≈6 × 3 cm;
+  - la **«J»**: una ranura oscura de ≈2,4 cm que baja del extremo exterior del faro y gira hacia dentro abajo;
+  - la **rejilla inferior**: un trapecio ancho con los extremos inclinados, seis lamas horizontales y nervios cada ≈0,11 m, apoyado directamente en el labio negro, con la cámara delantera en el centro de su borde superior (estaba encima de la matrícula);
+  - la **barra de luz** ya no se retuerce en los extremos: sus dos bordes se emparejaban por longitud de arco, pero el borde del capó gira hacia atrás mucho antes que el del paragolpes. Ahora se emparejan por la anchura en el centro y por longitud de arco solo en la esquina;
+  - fuera el pliegue de la superficie: dos columnas de la rejilla de parámetros del morro se cruzaban por encima de la rejilla (154 caras plegadas). Eso dejaba la «pajarita» oscura y la hilera de puntitos junto a los faros.
+- **Zaga** (`ty_rear3.py`): el LED de la barra es una línea roja fina (≈8 mm) dentro del cristal ahumado, no el tubo ancho y quemado que era. Se añade el rótulo **DUAL MOTOR** abajo a la derecha del portón, el de los coches de tracción total fotografiados (letra de ≈14 mm, posición ≈).
+- **Volante** contra las fotos del interior del modelo 2025:
+  - aro lleno de ≈36 mm;
+  - cojín cuadrado redondeado con su cara interior y TESLA;
+  - radios laterales negros brillantes con ruedecillas moleteadas y dos botones;
+  - el embellecedor plateado que rodea cada radio y baja, en un solo trazo con el del otro lado, hasta formar la «V» inferior hueca, rellena de negro.
+- **Lo que viaja a la web** (`ty_bake.py`). Los materiales de Blender eran nodos procedurales que no se exportan: en la simulación el cuero, los plásticos, la goma y la pintura salían lisos y planos. Ahora el `.glb` lleva:
+  - una **oclusión ambiental horneada** por Cycles en la GPU en un atlas de 4096 × 4096 sobre un segundo juego de UV (84 mallas, texel ≈4 mm, a 35 cm). Da las sombras de contacto en juntas, pasos de rueda, rejillas y habitáculo. Los cristales, ópticas y luces quedan fuera del horneado para que el interior y el fondo de los faros reciban luz;
+  - **mapas de normales de detalle** que se repiten sin costura (ruido periódico), sobre UV en metros, a su tamaño real (≈): grano del cuero, punteado de los plásticos, goma, fieltro de los pasos de rueda y del techo, tejido del salpicadero, moqueta, aluminio cepillado, perforaciones de los altavoces y la escama metálica de la pintura (≈0,4 mm, bajo un barniz liso);
+  - la rugosidad conectada a un ruido se fija en el centro de su rango, y el peso del brillo de tejido pasa al color: el exportador lo escribía a intensidad completa y el cuero salía como terciopelo.
+- **En la web** (`modelyAsset.js`): la pintura y los cristales que se sustituyen por nombre conservan la oclusión y las escamas. Los cristales delanteros, que el sol volvía lechosos, son una película oscura.
+- Resultado: `assets/modely/modely.glb` pasa de 15,1 a 32,6 MB (las imágenes ≈7 MB y dos juegos de UV); el atlas y los mapas se guardan en `blender/modely/source/`, que no va al repositorio.
 
 ### Auditoría del 8 de octubre de 2026
 
@@ -1842,7 +1868,8 @@ src/vehicles/h2rAsset.js   carga la H2R de Blender (assets/h2r/h2r.glb) y la pre
 blender/h2r/               la H2R en Blender: build.py (construye y exporta el .glb), lib/ (escena, revisión),
                            parts/ (bodywork.py: el carenado)
 assets/h2r/h2r.glb         la H2R que se carga, generada por blender/h2r/build.py
-blender/modely/            el Tesla Model Y: build.py ejecuta los módulos ty_*.py en orden y exporta assets/modely/modely.glb
+blender/modely/            el Tesla Model Y: build.py ejecuta los módulos ty_*.py en orden y exporta assets/modely/modely.glb;
+                           ty_front3.py (frontal), ty_rear3.py (zaga), ty_bake.py (UV, texturas de detalle y oclusión horneada)
 blender/gt3rs/markings.py  los rótulos del Porsche (escudos, PORSCHE) → assets/gt3rs/markings.glb, que carga vehicles/gt3rsMarkings.js
 blender/common/            herramientas de revisión sin interfaz: review.py (cifras y renders en Cycles), sheet.py, probe.py
 tools/vehicle-export.mjs   un vehículo construido por código, exportado a glTF para trabajarlo en Blender

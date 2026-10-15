@@ -88,35 +88,47 @@ def build_wheel2():
     Rw = np.stack([a_, e1, e2], 1)
     Cw = np.array([1.065, DRV_Y, 0.990])
     mb = MeshB()
-    th = np.linspace(0, 2 * math.pi, 96, endpoint=False)
-    ph = np.linspace(0, 2 * math.pi, 20, endpoint=False)
-    Rr = 0.180
-    # Rim: a rounded section, a little deeper than wide, thicker at quarter-to-three where the hands go.
-    rt = 0.0160 + 0.0018 * np.cos(2 * th) ** 2
+    th = np.linspace(0, 2 * math.pi, 128, endpoint=False)
+    ph = np.linspace(0, 2 * math.pi, 24, endpoint=False)
+    Rr = 0.182
+    # Rim: a full, round grip (≈36 mm), a little deeper than wide, fuller at quarter-to-three where the hands go.
+    rt = 0.0172 + 0.0016 * np.cos(2 * th) ** 2
     ring = (Cw[None, None] + (e1[None, None] * np.cos(th)[:, None, None] + e2[None, None] * np.sin(th)[:, None, None])
             * (Rr + (rt[:, None] * np.cos(ph)[None, :]))[:, :, None]
-            + a_[None, None] * (rt[:, None] * 1.25 * np.sin(ph)[None, :])[:, :, None])
+            + a_[None, None] * (rt[:, None] * 1.18 * np.sin(ph)[None, :])[:, :, None])
     mb.grid(ring, closed_u=True, closed_v=True, mat=0)
-    # Hub: the airbag cover, a rounded square, and its TESLA.
-    rbox(mb, Cw - a_ * 0.028, (0.050, 0.150, 0.132), Rw, 0.038, 5, 0)
-    tv_, tf_ = text_mesh("TESLA", 0.0105, 0.0004)
+    w2 = lambda u, v, d=0.0: Cw + e1 * u + e2 * v + a_ * d      # a point in the wheel's plane (u across, v up, d out)
+    # v3 (15-10-2026), from the showroom photographs of the 2025 car (Commons): the hub is a rounded square a little
+    # taller than wide with an inset cushion carrying TESLA; each side spoke is a gloss-black pad, framed by a bright
+    # trim that runs round its top, its outer end and its foot and then drops, as one stroke with the other side's, into
+    # the lower spoke - a hollow silver V filled with black. Sizes are ≈, read against the rim.
+    rbox(mb, Cw - a_ * 0.030, (0.052, 0.138, 0.152), Rw, 0.040, 6, 0)
+    rbox(mb, Cw - a_ * 0.0035, (0.004, 0.106, 0.118), Rw, 0.030, 4, 0)                 # the cushion's inset face
+    tv_, tf_ = text_mesh("TESLA", 0.0100, 0.0003)
     xc = (tv_[:, 0].min() + tv_[:, 0].max()) / 2
-    P = Cw[None] - a_[None] * 0.0025 + a_[None] * (0.0004 + tv_[:, 2:3]) + e1[None] * (tv_[:, 0:1] - xc) + e2[None] * (tv_[:, 1:2] + 0.018)
-    mb.raw(P, tf_, 2)
-    # Horizontal spokes: gloss-black pads framed in a thin bright trim, a scroll wheel and a button each (the "smile").
+    P = Cw[None] + a_[None] * (0.0002 + tv_[:, 2:3]) + e1[None] * (tv_[:, 0:1] - xc) + e2[None] * (tv_[:, 1:2] + 0.020)
+    mb.raw(P, tf_, 1)
     for s in (-1, 1):
-        c = Cw + e1 * s * 0.112 - a_ * 0.020 - e2 * 0.006
-        rbox(mb, c, (0.026, 0.092, 0.050), Rw, 0.014, 4, 1)
-        rbox(mb, c + a_ * 0.0135, (0.002, 0.080, 0.040), Rw, 0.010, 3, 3)
-        cyl(mb, c + e1 * s * -0.018 + a_ * 0.010, c + e1 * s * -0.018 + a_ * 0.020, 0.0105, 20, 1)
-        cyl(mb, c + e1 * s * 0.016 + a_ * 0.010 + e2 * 0.006, c + e1 * s * 0.016 + a_ * 0.016 + e2 * 0.006, 0.0055, 14, 1)
-        # the bright trim's lower sweep that makes the smile
-        P = np.array([Cw + e1 * s * (0.040 + 0.05 * k) - e2 * (0.040 - 0.010 * k * k) - a_ * 0.004 for k in np.linspace(0, 1, 10)])
-        mb.grid(tube(P, 0.0030, 6), closed_u=True, mat=2)
-    # The lower spoke: a silver V from the hub to the rim's bottom.
-    for s in (-1, 1):
-        P = np.array([Cw - e2 * 0.060 + e1 * s * 0.020 - a_ * 0.020, Cw - e2 * 0.120 + e1 * s * 0.030 - a_ * 0.016, Cw - e2 * 0.168 + e1 * s * 0.024 - a_ * 0.010])
-        mb.grid(tube(polyline(P, 12), 0.0085, 10, 0.55, up=a_), closed_u=True, mat=2)
+        # the pad, from the hub out to the rim
+        rbox(mb, w2(s * 0.112, 0.004, -0.022), (0.030, 0.100, 0.060), Rw, 0.016, 4, 1)
+        cyl(mb, w2(s * 0.096, 0.006, -0.010), w2(s * 0.096, 0.006, 0.0035), 0.0110, 24, 1)      # scroll wheel
+        for k in range(18):                                                                       # its knurl
+            a = 2 * math.pi * k / 18
+            p0 = w2(s * 0.096 + 0.0108 * math.cos(a), 0.006 + 0.0108 * math.sin(a), -0.004)
+            cyl(mb, p0, p0 + a_ * 0.0072, 0.0009, 4, 1)
+        cyl(mb, w2(s * 0.132, 0.014, -0.010), w2(s * 0.132, 0.014, 0.0005), 0.0055, 16, 1)      # buttons
+        cyl(mb, w2(s * 0.132, -0.010, -0.010), w2(s * 0.132, -0.010, 0.0005), 0.0055, 16, 1)
+        # the bright trim: round the pad and down into the V
+        path = rounded([(s * 0.066, 0.034), (s * 0.158, 0.034), (s * 0.166, -0.006), (s * 0.150, -0.030), (s * 0.080, -0.034),
+                        (s * 0.052, -0.080), (s * 0.026, -0.150), (0.0, -0.172)], 0.014, 6)
+        P = np.array([w2(u, v, -0.006) for u, v in path])
+        mb.grid(tube(polyline(P, 90), 0.0042, 8, 0.75, up=a_), closed_u=True, mat=2)
+    # the black infill of the V, a little behind the trim
+    V = []
+    for v in np.linspace(-0.040, -0.168, 14):
+        half = np.interp(v, [-0.168, -0.150, -0.080, -0.040], [0.0, 0.022, 0.048, 0.060])
+        V.append([w2(u, v, -0.012) for u in np.linspace(-half, half, 9)])
+    mb.grid(np.array(V), mat=1)
     # Column shroud and the right-hand stalk-free column (the 2025 car has stalks again: one on the left, ≈).
     cyl(mb, Cw - a_ * 0.050, Cw - a_ * 0.26, 0.044, 24, 1, r1=0.052)
     cyl(mb, Cw - a_ * 0.11 - e1 * 0.045 + e2 * 0.010, Cw - a_ * 0.10 - e1 * 0.170 + e2 * 0.026, 0.008, 10, 1, r1=0.011)
