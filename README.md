@@ -45,6 +45,7 @@ La interfaz de la simulación (menús, ficha técnica, etiquetas y vistas) está
 - **Auditoría del 8 de octubre de 2026:** corregidos los fallos confirmados de cámara, sonido, interfaz, herramientas de comprobación, datos y textos; pendientes la geometría de la H2R (aparcada), dos datos sin fuente en el repositorio y la costura del acero. Detalle en la sección «Auditoría del 8 de octubre de 2026».
 - **Encargo del 14 de octubre de 2026:** mejorar los vehículos uno a uno en Blender (formas, piezas, texturas, acabados y proporciones a escala 1:1) y añadir los logotipos y rótulos del vehículo real, que ya se permiten.
 - **Encargo del 15 de octubre de 2026 (en curso):** pasada profunda en el Blender del usuario, por MCP, de Model Y → Porsche → H2R → Roadster (con Starman), con el peso limitado solo por GitHub. **Model Y, Porsche y H2R hechos** (ver «Pasada profunda en Blender del 15 de octubre de 2026: Model Y», «…: Porsche 911 GT3 RS» y «…: Kawasaki Ninja H2R»).
+- **Audi Lab (16 de octubre de 2026):** el Audi A3 Sportback 8V pasa a la v0.4 del repositorio `audi` (zaga rehecha, retrovisores medidos, faros, volante) y el GLB trae las bisagras reales de puertas, capó y portón, que el Lab usa en lugar de estimarlas. Ver «Audi Lab: modelo v0.4 y bisagras del GLB».
 - El detalle del trabajo en curso y de cómo retomarlo está en `TRASPASO.md`, sección «Empieza aquí».
 
 ## Ejecutar
@@ -380,6 +381,15 @@ La H2R ya se construía en Blender (`blender/h2r/build.py`), y sus materiales ll
 - **Llantas** (`parts/wheels.py`). El código tenía bien la disposición (cinco radios; los delanteros se abren en una «Y» estrecha en el aro y los traseros forman una estrella), pero los dibujaba como barras finas que se leían como alambre. Las fotos de las ruedas de cerca muestran brazos anchos que se afilan hacia el aro, ≈52 mm junto al buje, plegados a lo largo: una cara mecanizada en plata y la otra negra, los dos tonos de la llanta real. Anchuras, pliegue y fondo son ≈.
 - **Neumáticos:** las marcas en relieve del flanco, BRIDGESTONE y BATTLAX V01 (los slicks de las motos fotografiadas) y las medidas publicadas 120/600 R17 y 190/650 R17, con una letra genérica.
 - **Oclusión en el canal correcto:** el silenciador, el colector, el cable de la sonda lambda y el emblema River Mark no tenían UV propias, así que el horneado ponía la oclusión en su primer juego de UV mientras sus materiales la leían del segundo. Ahora toda malla sin UV recibe primero un juego vacío. El `.glb` pasa a 40,2 MB.
+
+### Audi Lab: modelo v0.4 y bisagras del GLB (16 de octubre de 2026)
+
+El Audi Lab (tecla **U** o botón *Audi A3 · Lab*, `src/ui/audiLab.js`, carga diferida) muestra el Audi A3 Sportback 8V del repositorio `audi`, generado por código en Blender. `assets/audi/a3_sportback_8v.glb` (≈57,7 MB, sin comprimir ni simplificar) es una copia de `docs/models/a3_sportback_8v.glb` de ese repositorio, ahora en su v0.4:
+
+- **Zaga rehecha:** la luneta y el portón ya no salen rasgados ni con cuñas negras en las esquinas, y el alerón no ondula. La causa estaba en la malla del cierre trasero y en cómo se proyectaba el contorno de la luneta; el detalle está en `docs/STATUS.md` de `audi`.
+- Retrovisores con las cotas medidas en fotos (cabeza más baja, brazo atornillado a la puerta), faros con la guía de luz blanca completa, pilotos con su reflector y volante con cuero de napa.
+- **Bisagras reales:** los grupos `puerta_di`, `puerta_dd`, `puerta_ti`, `puerta_td`, `capo` y `porton` llevan en el GLB el extra `hinge` (`pivot` y `axis` en los ejes del Lab, X adelante, Y arriba, Z a la derecha; `angle` en grados). Los pivotes están en las líneas de junta reales del coche, unos 30 mm por dentro de la chapa; los ángulos son estimaciones (`source: "E"`). El Lab abre cada panel sobre esa bisagra y solo recurre a la estimación por la caja envolvente (`HINGES`) si el modelo no la trae.
+- Los 45 grupos y sus ids no cambian: `CATEGORIES`, `HINGES` y `VIEWS` siguen valiendo.
 
 ### Auditoría del 8 de octubre de 2026
 

@@ -12,7 +12,8 @@
  * and comes back as it was left.
  *
  * What moves is animation, not simulation: the groups slide along their explode vectors and the
- * doors, bonnet and tailgate turn about hinge lines estimated from each panel's bounding box.
+ * doors, bonnet and tailgate turn about the hinges the asset carries (the group's `hinge` extra),
+ * or, for an asset without them, about hinge lines estimated from each panel's bounding box.
  *
  * The lab's own text is in Spanish (the asset's labels are), by the owner's choice.
  */
@@ -42,7 +43,8 @@ const CATEGORIES = [
 /**
  * Hinged panels. `edge` says where on the group's bounding box the hinge line is, `axis` its
  * direction (lab axes: X forward, Y up, Z to the car's right) and `open` the angle in degrees.
- * Estimates: the asset carries no hinge data.
+ * Fallback only: since v0.4 the asset carries each hinge (pivot, axis and angle in the same axes)
+ * as the `hinge` extra of its group, and that one wins.
  */
 const HINGES = {
   puerta_di: { edge: ['max', 'mid', 'min'], axis: [0, 1, 0], open: -58 },
@@ -254,8 +256,10 @@ export function createAudiLab({ renderer, onExit }) {
         const delay = /puerta|rueda|faro|piloto|capo|porton/.test(g) ? 0 : (/carroceria|suelo/.test(g) ? 0.25 : 0.1);
         const e = { id: g, node: o, label: o.userData.label ?? g, p0: o.position.clone(), q0: o.quaternion.clone(),
           dir: new THREE.Vector3(d[0], d[1], d[2]).multiplyScalar(EXPLODE_GAIN), delay, hinge: null, open: 0, openTo: 0, visible: true, row: null };
-        const h = HINGES[g];
-        if (h) {
+        const h = HINGES[g], hx = o.userData.hinge;
+        if (hx?.pivot && hx?.axis && Number.isFinite(hx.angle)) {
+          e.hinge = { pivot: new THREE.Vector3(...hx.pivot), axis: new THREE.Vector3(...hx.axis).normalize(), angle: THREE.MathUtils.degToRad(hx.angle) };
+        } else if (h) {
           _b.setFromObject(o);
           if (!_b.isEmpty()) {
             const c = _b.getCenter(new THREE.Vector3());
