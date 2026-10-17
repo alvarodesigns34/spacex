@@ -1,6 +1,6 @@
 # Rondas de trabajo (septiembre y octubre de 2026)
 
-Aquí está el diario detallado de cada ronda de trabajo que antes ocupaba el `README.md`: qué se cambió, con qué fuentes, qué se midió y qué quedó pendiente. Se sacó del README el 17 de octubre de 2026 para que éste describa solo el estado actual; **ninguna sección perdió una línea** (solo bajó un nivel su título, de `###` a `##`).
+Aquí está el diario detallado de cada ronda de trabajo que antes ocupaba el `README.md`: qué se cambió, con qué fuentes, qué se midió y qué quedó pendiente. Se sacó del README el 17 de octubre de 2026 para que éste describa solo el estado actual; **ninguna sección perdió una línea** (solo bajó un nivel su título, de `###` a `##`). Las rondas posteriores al 17 de octubre de 2026 se añaden al final del archivo de su tema.
 
 El resto de la documentación (`TRASPASO.md`, `CLAUDE.md`, comentarios de `tools/`) cita estas secciones por su nombre, como «*Auditoría del 8 de octubre de 2026*». La segunda tabla dice en qué archivo está cada una.
 
@@ -11,7 +11,7 @@ El resto de la documentación (`TRASPASO.md`, `CLAUDE.md`, comentarios de `tools
 | Septiembre de 2026: el complejo, el lanzamiento, las fuentes y la reentrada | [sept-2026-complejo.md](sept-2026-complejo.md) | 9 |
 | Pasadas en Blender de octubre de 2026 | [blender-oct-2026.md](blender-oct-2026.md) | 4 |
 | Auditorías | [auditorias.md](auditorias.md) | 3 |
-| F-16A Block 15 | [f16.md](f16.md) | 11 |
+| F-16A Block 15 | [f16.md](f16.md) | 12 |
 | Porsche 911 GT3 RS | [porsche.md](porsche.md) | 14 |
 | Kawasaki Ninja H2R | [h2r.md](h2r.md) | 5 |
 | Encargo del 4 de octubre (cuarta sesión) y pasada decisiva | [encargo-04-oct.md](encargo-04-oct.md) | 13 |
@@ -85,3 +85,4 @@ Más antiguo: [../historial.md](../historial.md).
 | Flight 14: una sola misión del corte a la entrada (2 de octubre de 2026) | [fisicas-y-flight14.md](fisicas-y-flight14.md) |
 | F-16: Tierra redonda, combustible y límites del modelo; telemetría en vivo (2 de octubre de 2026) | [f16.md](f16.md) |
 | Auditoría técnica externa del 2 de octubre de 2026 (ChatGPT): lo corregido | [auditorias.md](auditorias.md) |
+| F-16: la banda oscura del fuselaje y un repaso de texturas y acabados (17 de octubre de 2026) | [f16.md](f16.md) |

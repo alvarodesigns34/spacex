@@ -8,11 +8,13 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ### Estado actual (17-10-2026): léelo primero
 
-Tres órdenes del usuario ese día, en este orden, todas hechas:
+Cuatro órdenes del usuario ese día, en este orden, todas hechas:
 
 1. **Retirar el Audi A3** (el modelo 3D, el Audi Lab y su documentación). Ya no existen `assets/audi/`, `src/ui/audiLab.js`, `tools/audi-lab-check.mjs` ni el documento de auditoría del 16-10. La historia de git no se reescribió: el Audi está en el commit `8e6a633`.
 2. **Arreglar el rendimiento sin bajar la calidad de nada.** Cuatro cambios, todos con prueba: la descarga anticipada de los `.glb` (`core/prefetch.js`), la caché del mapa de sombras (`core/shadowCache.js`), la caché del buffer geométrico de la oclusión ambiental (`core/gbufferCache.js`, con `core/sceneSignature.js`) y el marcado de las piezas pequeñas de los tres coches de Blender para el gestor de detalle (`vehicles/lodParts.js`). Las cifras, lo que se midió y lo que se descartó (comprimir los `.glb`, niveles de detalle por sustitución de los neumáticos, texturas en hilos de trabajo) están en el README, «Ronda de rendimiento del 17 de octubre de 2026». **Sigue sin medirse en una GPU real ni en un móvil**: todo se midió en SwiftShader, que sirve para comparar versiones, no para dar FPS.
 3. **Reorganizar la estructura de archivos sin perder documentación.** El README solo describe el estado actual; el diario de las rondas está en `docs/rondas/` (con un índice de dónde está cada sección que se cita por su nombre) y lo antiguo de este traspaso en `docs/traspaso/`. Se comprobó línea a línea que no falta ninguna del original (la única que cambió es el párrafo «Historial» del README, a propósito). De `main.js` salieron `core/layout.js`, `core/boot.js`, `ui/ruler.js` y `data/tour.js`; `tools/provenance-check.mjs` lee ahora las paradas de la visita de `data/tour.js` y el README junto con `docs/rondas/`.
+
+4. **F-16: arreglar la banda oscura del fuselaje y repasar texturas y acabados** (después de las tres anteriores). Hecho solo en `src/materials/f16Textures.js`: líneas de pintura nítidas sobre costuras, paneles escalonados con registros, mosaico de alas sin cuadrícula. El usuario aconsejó usar Blender propio (no su escena por MCP): se instaló `bpy` 5.0.1 en un entorno aparte (`python3.11 -m venv` + `pip install bpy==5.0.1`) y se usó `blender/common/review.py` para revisar el F-16 exportado a glTF. Detalle en `docs/rondas/f16.md`.
 
 **Comprobaciones nuevas** (todas en `npm run check`): `tools/perf-check.mjs` y `tools/render-cache-check.mjs` (sin navegador, en `check:static`), `tools/render-cache-equal.mjs` (`check:cache`, un trabajo más en CI: ya son cinco) y `tools/lod-parts.mjs` (dentro de `check:lod`).
 
