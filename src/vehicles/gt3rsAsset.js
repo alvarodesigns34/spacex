@@ -16,6 +16,8 @@
  */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { takeBytes } from '../core/prefetch.js';
+import { markSmallParts } from './lodParts.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BODY } from '../data/gt3rs.js';
 import { gt3Materials } from './gt3rs.js';
@@ -73,6 +75,7 @@ export function adoptGt3rs(scene, M, associations = null) {
   }
   root.userData.length = BODY.length;
   root.userData.height = BODY.height;
+  root.userData.lodMarked = markSmallParts(root);
   root.userData.source = 'blender';
   return root;
 }
@@ -81,18 +84,14 @@ export function adoptGt3rs(scene, M, associations = null) {
 export async function loadGt3rsAsset(M) {
   let car;
   try {
-    const res = await fetch(GT3RS_ASSET);
-    if (!res.ok) throw new Error(`${res.status}`);
-    const gltf = await new GLTFLoader().parseAsync(await res.arrayBuffer(), '');
+    const gltf = await new GLTFLoader().parseAsync(await takeBytes(GT3RS_ASSET), '');
     car = adoptGt3rs(gltf.scene, M, gltf.parser.associations);
   } catch (e) {
     console.warn(`GT3 RS asset not loaded (${e.message}): the code-built car stands in`);
     return loadGt3rs(M);
   }
   try {
-    const res = await fetch(GT3RS_MARKINGS);
-    if (!res.ok) throw new Error(`${res.status}`);
-    const gltf = await new GLTFLoader().parseAsync(await res.arrayBuffer(), '');
+    const gltf = await new GLTFLoader().parseAsync(await takeBytes(GT3RS_MARKINGS), '');
     applyMarkings(car, gltf.scene);
   } catch (e) {
     console.warn(`GT3 RS markings not loaded (${e.message}): the car stands without them`);

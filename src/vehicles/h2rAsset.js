@@ -16,6 +16,8 @@
  */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { takeBytes } from '../core/prefetch.js';
+import { markSmallParts } from './lodParts.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { applyDetail } from '../materials/detail.js';
 import { partMaterials } from './h2r/materials.js';
@@ -58,6 +60,7 @@ export function adoptH2r(scene, M, associations = null) {
     const dash = buildDash(M), parent = old.parent;
     parent.remove(old); parent.add(dash);
   }
+  root.userData.lodMarked = markSmallParts(root);
   root.userData.source = 'blender';
   return root;
 }
@@ -65,9 +68,7 @@ export function adoptH2r(scene, M, associations = null) {
 /** Loads the asset; falls back to the code-built model. */
 export async function loadH2r(M) {
   try {
-    const res = await fetch(H2R_ASSET);
-    if (!res.ok) throw new Error(`${res.status}`);
-    const gltf = await new GLTFLoader().parseAsync(await res.arrayBuffer(), '');
+    const gltf = await new GLTFLoader().parseAsync(await takeBytes(H2R_ASSET), '');
     return adoptH2r(gltf.scene, M, gltf.parser.associations);
   } catch (e) {
     console.warn(`H2R asset not loaded (${e.message}): the code-built model stands in`);

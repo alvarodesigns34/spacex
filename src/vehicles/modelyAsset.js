@@ -16,6 +16,8 @@
  */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { takeBytes } from '../core/prefetch.js';
+import { markSmallParts } from './lodParts.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export const MODELY_ASSET = new URL('../../assets/modely/modely.glb', import.meta.url);
@@ -82,6 +84,7 @@ export function adoptModelY(scene, associations = null) {
     o.castShadow = !pane; o.receiveShadow = !pane;
     if (pane) o.renderOrder = 2;
   });
+  root.userData.lodMarked = markSmallParts(root);
   root.userData.source = 'blender';
   return root;
 }
@@ -89,9 +92,7 @@ export function adoptModelY(scene, associations = null) {
 /** Loads the asset; an empty group stands in if it cannot be had. */
 export async function loadModelY() {
   try {
-    const res = await fetch(MODELY_ASSET);
-    if (!res.ok) throw new Error(`${res.status}`);
-    const gltf = await new GLTFLoader().parseAsync(await res.arrayBuffer(), '');
+    const gltf = await new GLTFLoader().parseAsync(await takeBytes(MODELY_ASSET), '');
     return adoptModelY(gltf.scene, gltf.parser.associations);
   } catch (e) {
     console.warn(`Model Y asset not loaded (${e.message}): the exhibit stands empty`);

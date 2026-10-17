@@ -28,9 +28,13 @@ import { buildStarlink } from './vehicles/starlink.js';
 import { buildRoadster } from './vehicles/roadster.js';
 import { buildEngineHall } from './vehicles/enginehall.js';
 import { buildF16 } from './vehicles/f16.js';
-import { loadGt3rsAsset } from './vehicles/gt3rsAsset.js';
-import { loadH2r } from './vehicles/h2rAsset.js';
-import { loadModelY } from './vehicles/modelyAsset.js';
+import { loadGt3rsAsset, GT3RS_ASSET } from './vehicles/gt3rsAsset.js';
+import { GT3RS_MARKINGS } from './vehicles/gt3rsMarkings.js';
+import { loadH2r, H2R_ASSET } from './vehicles/h2rAsset.js';
+import { loadModelY, MODELY_ASSET } from './vehicles/modelyAsset.js';
+import { prefetch } from './core/prefetch.js';
+import { createShadowCache } from './core/shadowCache.js';
+import { createGBufferCache } from './core/gbufferCache.js';
 import { buildRunway, runwaySurface } from './core/runway.js';
 import { buildCircuit, circuitSurface } from './core/circuit.js';
 import { SKIDPAD, toWorld as circuitToWorld } from './core/circuitPlan.js';
@@ -234,6 +238,11 @@ async function main() {
   const params = new URLSearchParams(location.search);
   const quality = pickQuality(renderer, params.get('quality'));
   applyQuality(renderer, quality);
+  // The Blender assets (~100 MB between them) start downloading now, while the procedural textures
+  // are generated and the other exhibits built; their loaders pick the bytes up when their turn comes.
+  // Held in memory until then, so the weakest tier asks for the first car only and fetches the
+  // others when their turn comes, one at a time, as before.
+  for (const url of quality.name === 'low' ? [GT3RS_ASSET, GT3RS_MARKINGS] : [GT3RS_ASSET, GT3RS_MARKINGS, H2R_ASSET, MODELY_ASSET]) prefetch(url);
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -326,11 +335,15 @@ async function main() {
   // software renderer the checks use measured no difference. The shadow uses depth instead.
   const rt = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { samples: quality.msaa, type: THREE.HalfFloatType });
   const composer = new EffectComposer(renderer, rt);
+  // The sun's shadow map is drawn when something that changes it has changed, once a frame at most.
+  const shadowCache = createShadowCache(renderer, scene, env.sun);
   const renderPass = new RenderPass(scene, camera);
   composer.addPass(renderPass);
   // Contact shadow in the creases the sun does not reach; before bloom, so it acts on light.
   const ao = quality.ao ? createAO(scene, camera, window.innerWidth, window.innerHeight) : null;
   if (ao) composer.addPass(ao.pass);
+  // Its depth and normal buffer is drawn again only when the camera or something in view changed.
+  const gbufferCache = ao ? createGBufferCache(ao.pass, scene, camera) : null;
   // Bloom is the first thing a weak machine gives up: it costs a full-resolution blur chain
   // and the scene reads correctly without it.
   const bloom = quality.bloom
@@ -1475,7 +1488,7 @@ async function main() {
   // A lost and restored context comes back without the reflection probe (a render target has
   // no source to re-upload), which darkened the whole ground by half. Named so the gate can
   // take it away and prove that its own test notices.
-  function onContextRestored() { env.rebuildProbe(); }
+  function onContextRestored() { env.rebuildProbe(); shadowCache.invalidate(); gbufferCache?.invalidate(); }
   canvas.addEventListener('webglcontextrestored', onContextRestored);
 
   window.addEventListener('resize', () => {
@@ -1712,6 +1725,9 @@ async function main() {
     ao?.update(dist, camera.far < 20000 && !view.orbital && renderPass.camera === camera && !launch.running);
     updateLabelOcclusion();
     lod.update();
+    const moving = launch.running || reentry.running || f16fly.running || gt3drive.running || h2rRide.running;
+    shadowCache.prepare(performance.now(), moving);
+    gbufferCache?.prepare(performance.now(), moving);
     composer.render();
     labelRenderer.render(scene, camera);
     settleLabels();
@@ -1800,7 +1816,7 @@ async function main() {
   }
 
   window.__vc = {
-    M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, h2rRide, select, goPreset, jump, renderer, env,
+    shadowCache, gbufferCache, M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, h2rRide, select, goPreset, jump, renderer, env,
     setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour,
     claimUserControl, tourRunToEnd, toggleMode, toggleWalk,
     walkRouteFor: (hit) => { const r = walkRoute(hit); rig.travelTo(r.route, r.look); return r; },

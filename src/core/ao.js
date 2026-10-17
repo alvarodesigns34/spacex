@@ -23,6 +23,8 @@ import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 class SceneAOPass extends GTAOPass {
   constructor(...args) {
     super(...args);
+    this.reuseGBuffer = false;
+    this.gbufferStale = true;
     // A zero-length normal (normalize(vec3(0)) is NaN) wrote NaN into the normal buffer, and the
     // denoiser's neighbour weights spread it to a ≈9 px patch of the image before the firefly
     // clamp could catch one pixel. A non-finite normal is packed as (0.5, 0.5, 0.5), the
@@ -38,6 +40,20 @@ class SceneAOPass extends GTAOPass {
     };
   }
 
+  /**
+   * The depth and normal buffer is drawn again only when `reuseGBuffer` is false (core/gbufferCache.js
+   * sets it each frame): GTAOPass's `_renderGBuffer` is the switch that stage already has, and with
+   * it off the AO and the denoise still run on the buffer the last draw left. The buffer is lost
+   * when the target is resized, so a resize always draws it.
+   */
+  render(renderer, writeBuffer, readBuffer, deltaTime, maskActive) {
+    const draw = this._renderGBuffer;
+    if (this.reuseGBuffer && !this.gbufferStale) this._renderGBuffer = false;
+    super.render(renderer, writeBuffer, readBuffer, deltaTime, maskActive);
+    if (this._renderGBuffer) this.gbufferStale = false;
+    this._renderGBuffer = draw;
+  }
+
   // Full resolution. It ran at half, on the grounds that occlusion is low-frequency; it is not
   // at a silhouette. The half-resolution term, blended up bilinearly, bled across every depth
   // edge, and on a bright surface in front of a dark one — Starman's white suit against the
@@ -45,6 +61,7 @@ class SceneAOPass extends GTAOPass {
   // round the helmet and the arms. This pass only runs on the high tier.
   setSize(width, height) {
     super.setSize(Math.max(1, Math.round(width)), Math.max(1, Math.round(height)));
+    this.gbufferStale = true;
   }
 
   overrideVisibility() {

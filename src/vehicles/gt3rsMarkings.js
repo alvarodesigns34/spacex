@@ -10,6 +10,7 @@
  */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { takeBytes } from '../core/prefetch.js';
 import { buildGt3rs } from './gt3rs.js';
 
 export const GT3RS_MARKINGS = new URL('../../assets/gt3rs/markings.glb', import.meta.url);
@@ -58,9 +59,7 @@ export function applyMarkings(car, scene) {
 export async function loadGt3rs(M) {
   const car = buildGt3rs(M);
   try {
-    const res = await fetch(GT3RS_MARKINGS);
-    if (!res.ok) throw new Error(`${res.status}`);
-    const gltf = await new GLTFLoader().parseAsync(await res.arrayBuffer(), '');
+    const gltf = await new GLTFLoader().parseAsync(await takeBytes(GT3RS_MARKINGS), '');
     applyMarkings(car, gltf.scene);
   } catch (e) {
     console.warn(`GT3 RS markings not loaded (${e.message}): the car stands without them`);

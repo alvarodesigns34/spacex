@@ -19,9 +19,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The gate in four parts that run side by side: one runner took ~13 min for the whole of
+  # The gate in five parts that run side by side: one runner took ~13 min for the whole of
   # `npm run check`, most of it the scene walk and the interface checks one after the other.
-  # The deploy waits for all four; `npm run check` still runs the lot locally.
+  # The deploy waits for all five; `npm run check` still runs the lot locally.
   check:
     runs-on: ubuntu-latest
     strategy:
@@ -32,6 +32,7 @@ jobs:
           - { name: scene, run: 'npm run check:scene', browser: true }
           - { name: interface, run: 'npm run check:ux', browser: true }
           - { name: level-of-detail, run: 'npm run check:lod', browser: true }
+          - { name: render-cache, run: 'npm run check:cache', browser: true }
     name: check (${{ matrix.part.name }})
     steps:
       - uses: actions/checkout@v4

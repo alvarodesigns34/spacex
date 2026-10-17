@@ -288,7 +288,9 @@ function buildFixtures(g, M, lensMat, sockMat) {
   frame.name = 'runway-windsock-frame';
   frame.position.set(0, mast, 0);
   frame.rotation.order = 'YZX';
-  frame.add(mesh(new THREE.TorusGeometry(0.46, 0.02, 6, 20), M.aluminum, { rotation: [0, Math.PI / 2, 0], name: 'runway-windsock-ring' }));
+  const ring = mesh(new THREE.TorusGeometry(0.46, 0.02, 6, 20), M.aluminum, { rotation: [0, Math.PI / 2, 0], name: 'runway-windsock-ring' });
+  ring.userData.shadowLocal = true;      // turns every frame: core/shadowCache.js only redraws for it when it is in the frustum
+  frame.add(ring);
   const L = 12 * FT;
   const cloth = new THREE.CylinderGeometry(0.46, 0.23, L, 20, 6, true);
   cloth.rotateZ(Math.PI / 2);
@@ -297,7 +299,9 @@ function buildFixtures(g, M, lensMat, sockMat) {
   const p = cloth.attributes.position;
   for (let i = 0; i < p.count; i++) { const x = -p.getX(i); p.setY(i, p.getY(i) - 0.012 * x * x); }
   cloth.computeVertexNormals();
-  frame.add(mesh(cloth, sockMat, { name: 'runway-windsock-sock' }));
+  const clothMesh = mesh(cloth, sockMat, { name: 'runway-windsock-sock' });
+  clothMesh.userData.shadowLocal = true;
+  frame.add(clothMesh);
   sock.add(frame);
   g.add(sock);
   const w = { x: 0, y: 0, z: 0 }, at = new THREE.Vector3();
