@@ -20,7 +20,7 @@ import { pickQuality, applyQuality } from './core/quality.js';
 import { LODManager } from './core/lod.js';
 import { createHUD } from './ui/hud.js';
 import { VEHICLES } from './data/specs.js';
-import { buildStarship, STACK_YAW_DEG, BOOSTER_AFT } from './vehicles/starship.js';
+import { buildStarship } from './vehicles/starship.js';
 import { buildFalcon9, buildFalconHeavy } from './vehicles/falcon.js';
 import { buildFalcon1, buildFalcon1GroundEquipment } from './vehicles/falcon1.js';
 import { buildDragon } from './vehicles/dragon.js';
@@ -37,7 +37,10 @@ import { createShadowCache } from './core/shadowCache.js';
 import { createGBufferCache } from './core/gbufferCache.js';
 import { buildRunway, runwaySurface } from './core/runway.js';
 import { buildCircuit, circuitSurface } from './core/circuit.js';
-import { SKIDPAD, toWorld as circuitToWorld } from './core/circuitPlan.js';
+import { LAYOUT, OVERVIEW, overviewFor, OCCLUDER } from './core/layout.js';
+import { nextFrame, reportNoWebGL2 } from './core/boot.js';
+import { buildRuler } from './ui/ruler.js';
+import { TOUR } from './data/tour.js';
 import { createF16Fly } from './sim/f16Fly.js';
 import { createF16Hud } from './ui/f16Hud.js';
 import { createGt3Drive } from './sim/gt3Drive.js';
@@ -48,7 +51,7 @@ import { groundSample } from './core/environment.js';
 import { f16Ground } from './core/f16Ground.js';
 import { waterAt } from './core/water.js';
 import { buildColliders, CELL } from './core/colliders.js';
-import { RUNWAY, fromRunway, toRunway } from './core/terrain.js';
+import { toRunway } from './core/terrain.js';
 import { buildOrbitalBackdrop } from './core/backdrop.js';
 import { buildLaunchMount, buildPedestal, buildHumanCrowd } from './vehicles/common.js';
 import { seeded, mergeAll, sanitizeNormals } from './geometry/utils.js';
@@ -60,170 +63,6 @@ import { createMissionClock } from './sim/missionClock.js';
 import { createLaunchSound } from './sim/sound.js';
 import { createReentry } from './sim/reentry.js';
 import { CHAPTER as REENTRY_CHAPTER, MILESTONES_RE, reentryAltAt } from './sim/reentryFlight.js';
-
-// Exhibit layout (world X, metres). Mount heights are presentation choices.
-// `yaw` turns an exhibit on its mount. Starship is asymmetric — heat shield on the belly,
-// bare steel on the lee side — and facing its belly straight at the default camera shows
-// nothing but the black shield. Turning it puts the tile line across the vehicle, which is
-// how it is almost always photographed and how the two finishes read against each other.
-// The seven museum exhibits stand in a row on z = 0. Starship does not: it sits on a launch
-// complex of its own, set back behind the row, because a ≈149,5 m tower and a flame trench do
-// not belong in a line of display mounts and because the launch sequence needs the room.
-// `people` is declared per exhibit rather than inferred. It used to fall through to a generic
-// branch that read lay.mountRadius, which Engine Row does not have — undefined + 3.5 is NaN,
-// and three visitors were being planted at (NaN, 0, NaN). Inferring "is there a plinth?" from
-// a radius that only some layouts carry is the kind of thing that breaks the next time an
-// exhibit is added, so the layout says it outright.
-const LAYOUT = {
-  // Falcon 1 is the small historical bookend of the row, immediately outside Falcon 9.
-  // The Falcons stand on launch mounts (common.js, buildLaunchMount): `mount` is the deck
-  // height, `lift` how far above it the nozzle exits hang when the vehicle sits on its clamps.
-  falcon1: {
-    x: -153, z: 0, mount: 2.0, lift: 0.3, mountRadius: 3.1, people: [[4.2, 0, 2, 0.5], [-4.2, 0, 2, -0.5]],
-    launchMount: {
-      halfX: 3.1, halfZ: 3.1, tunnelHalf: 0.9, tunnelH: 1.05, opening: { hx: 0.6, hz: 0.6 },
-      // Bearing on the stage's aft ring, which Figure 2-5 of the 2008 guide labels as the
-      // launch-mount interface: station 133.3 in, 2.72 m above the nozzle exit, r ≈ 0.75 m. The
-      // Merlin and its thrust frame hang free inside the four clamp pedestals.
-      cores: [{ x: 0, z: 0, r: 0.75, seatY: 0.3 + 2.718, scale: 0.5, clamps: [1, 3, 5, 7].map(i => i * Math.PI / 4) }],
-    },
-  },
-  falcon9: {
-    x: -135, z: 0, mount: 6.5, lift: 0.35, mountRadius: 6.5,
-    people: [[10, 0, 2, 0.5], [8.5, 0, -4, -2.0], [-9.5, 0, 3, 2.2]],
-    launchMount: {
-      halfX: 6.5, halfZ: 6.5, tunnelHalf: 2.6, tunnelH: 4.2, opening: { hx: 1.95, hz: 1.95 },
-      cores: [{ x: 0, z: 0, r: 1.83, seatY: 0.35 + 1.0, clamps: [0, 1, 2, 3].map(i => i * Math.PI / 2), tsm: [Math.PI * 7 / 8, Math.PI * 9 / 8] }],
-    },
-  },
-  falconheavy: {
-    x: -62, z: 0, mount: 6.5, lift: 0.35, mountRadius: 10,
-    people: [[15, 0, 2, 0.5], [13.5, 0, -4, -2.0], [-14.5, 0, 3, 2.2]],
-    launchMount: {
-      halfX: 10, halfZ: 7, tunnelHalf: 7, tunnelH: 4.2, opening: { hx: 6.2, hz: 1.95 },
-      cores: [
-        { x: 0, z: 0, r: 1.83, seatY: 1.35, clamps: [0, Math.PI], tsm: [Math.PI * 7 / 8, Math.PI * 9 / 8] },
-        { x: -4.27, z: 0, r: 1.83, seatY: 1.35, clamps: [0, Math.PI, Math.PI * 1.5], tsm: [Math.PI * 7 / 8, Math.PI * 9 / 8] },
-        { x: 4.27, z: 0, r: 1.83, seatY: 1.35, clamps: [0, Math.PI / 2, Math.PI], tsm: [Math.PI * 7 / 8, Math.PI * 9 / 8] },
-      ],
-    },
-  },
-  starship: {
-    // The stack's origin is the engines' exit plane; the deck carries the thrust ring's edge,
-    // BOOSTER_AFT above it, with the 33 Raptors hanging down into the mount's throat.
-    x: 0, z: -185, mount: PAD.deckTop - BOOSTER_AFT, yaw: STACK_YAW_DEG, pad: true,
-    people: [[26, PAD.padY, 16, 0.8], [30, PAD.padY, -10, -1.6], [-19, PAD.padY, 24, 2.4]],
-  },
-  dragon: { x: 18, z: 0, mount: 1.6, people: [[3.4, 0, 1.6, 0.6], [-2.8, 0, 2.6, -0.8]] },
-  starlink: { x: 78, z: 0, mount: 6.2, people: [[3.2, 0, 2.4, 0.4], [-2.6, 0, 3.0, -1.2]] },
-  // Figures stand clear of every authored view: at [2.8, 1.8] one was 2.7 m in front of the
-  // Roadster's overview camera, a hard hat cut off by the bottom of the frame (another
-  // filled the left of the Selfie Cam view, 6 m out), and at
-  // [3.4, 2.6] another filled the right third of the RVac close-up.
-  roadster: { x: 118, z: 0, mount: 1.4, yaw: 25, people: [[5.3, 0, 1.4, 0.5], [-6.3, 0, -1.7, -1.8]] },
-  engines: {
-    x: 163, z: 0, mount: 0, yaw: -12,
-    people: [[4.8, 0, -2.8, -0.6], [-5.8, 0, 2.2, -1.4], [1.2, 0, -3.0, 2.6]],
-  },
-  // The F-16 stands on its own runway (terrain.js RUNWAY), as Starship stands on its pad: lined
-  // up on runway 28's threshold (the east end, next to the site), 40 m in, ready to roll. Not in the row (`remote`): the row's
-  // lecterns and its overview leave it out.
-  f16: (() => {
-    // People are placed by world offsets; each stands on the pavement where it falls.
-    const a = RUNWAY.length / 2 - 40 - 7.52, [x, z] = fromRunway(a, 0);
-    const person = (dx, dz, ry) => [dx, runwaySurface(...toRunway(x + dx, z + dz)), dz, ry];
-    return { x, z, mount: runwaySurface(a, 0), yaw: 180 - RUNWAY.angleDeg, remote: true, people: [person(3.5, 6.5, 0.6), person(-8.0, -6.0, -2.2)] };
-  })(),
-  // The Porsche waits on its skid pad (core/circuitPlan.js), beside the circuit's main straight:
-  // at the pad's north end, nose to the south along its 160 m, with the lane to the circuit on
-  // its right. Not in the row either.
-  gt3rs: (() => {
-    const [x, z] = circuitToWorld(SKIDPAD.u0 + 18, (SKIDPAD.v0 + SKIDPAD.v1) / 2);
-    return { x, z, mount: circuitSurface(x, z)?.y ?? 0.06, yaw: -90, remote: true, people: [[-6.0, 0.06, -3.4, 0.9], [5.5, 0.06, -5.0, -2.0]] };
-  })(),
-  // The Ninja H2R beside it, 4.5 m to the car's left and a metre ahead, facing the same way.
-  h2r: (() => {
-    const [x, z] = circuitToWorld(SKIDPAD.u0 + 19, (SKIDPAD.v0 + SKIDPAD.v1) / 2 - 4.5);
-    return { x, z, mount: circuitSurface(x, z)?.y ?? 0.06, yaw: -90, remote: true, people: [] };
-  })(),
-  // The Model Y on the car's other side, 4.5 m to its right, facing the same way.
-  modely: (() => {
-    const [x, z] = circuitToWorld(SKIDPAD.u0 + 18, (SKIDPAD.v0 + SKIDPAD.v1) / 2 + 4.5);
-    return { x, z, mount: circuitSurface(x, z)?.y ?? 0.06, yaw: -90, remote: true, people: [] };
-  })(),
-};
-// Recomposed when the Roadster became the sixth exhibit: the old frame was centred on x = -14
-// and the car sat at the right-hand edge, so the first thing a visitor saw did not contain it.
-// Recomposed again when Engine Row became the seventh exhibit at x = 163: the row now spans
-// nearly 300 m, so the frame has to sit further back and centre on the middle of it.
-const OVERVIEW = { pos: [3, 72, 330], target: [-1, 39, -68] };
-/**
- * The overview for the window actually open. The authored frame spans the row for a landscape
- * window; on a phone held upright the horizontal field of view is a third of that, and the
- * overview showed the pad and a quarter of the row under a title promising eight exhibits.
- * The camera backs off along its own line of sight until the row's ends (plus a margin) fit
- * the horizontal field of view, and never comes closer than authored.
- */
-// Half the row's width about the camera's line: Falcon 1's mount at x ≈ −159 to Engine Row's
-// cradles at ≈ +166 m, seen from x = 3. At 1440 × 900 with the rail showing that is exactly the
-// authored frame, so a desktop window keeps it.
-const ROW_HALF = 166;
-function overviewFor(aspect, fovDeg = 42) {
-  const [px, py, pz] = OVERVIEW.pos, [tx, ty, tz] = OVERVIEW.target;
-  const d0 = Math.hypot(px - tx, py - ty, pz - tz);
-  const tanH = Math.tan(THREE.MathUtils.degToRad(fovDeg / 2)) * aspect;
-  // The camera's distance to the row (z = 0) is tz + (pz − tz)·k along the scaled line of sight.
-  const need = ROW_HALF / tanH;
-  const k = THREE.MathUtils.clamp((need - tz) / (pz - tz), 1, 3.4);
-  const pos = [tx + (px - tx) * k, ty + (py - ty) * k, tz + (pz - tz) * k];
-  return { pos, target: OVERVIEW.target, scale: k, d: d0 * k };
-}
-
-// Cylinders used to hide annotations that sit behind a vehicle. CSS2D labels always draw on
-// top of the scene, so without this the far-side callouts read as if they were in front.
-//
-// A number is one cylinder of that radius on the exhibit's axis, which is what a rocket is.
-// Engine Row is not: it is three separate engines standing side by side over nine metres, and
-// a single cylinder at the origin would both hide labels nothing is in front of and fail to
-// hide the ones behind the vacuum bell. It gets one cylinder per stand, given as [x, z, r, top]
-// in the exhibit's own frame — each with its own height, because a 2.9 m Raptor must not
-// occlude to the 4.8 m of the vacuum engine standing next to it. Starlink is a flat panel and
-// needs none.
-const OCCLUDER = {
-  falcon1: 0.8402,
-  starship: 4.5, falcon9: 1.9, falconheavy: 1.9, dragon: 2.0, starlink: 0, roadster: 1.0,
-  engines: [[-4.15, 0, 0.50, 2.6], [-1.75, 0, 0.70, 3.4], [1.55, 0, 1.20, 4.9]],
-  // The F-16 along its own X: the fuselage as a chain of cylinders, a wing and a stabilator each
-  // side, the fin. Also the walking visitor's obstacles.
-  f16: [[5.8, 0, 0.6, 2.2], [3.2, 0, 0.9, 3.0], [0.6, 0, 1.0, 2.2], [-2.2, 0, 1.0, 2.4], [-5.0, 0, 1.0, 2.6], [-6.5, 0, 0.9, 5.0],
-    [-1.6, 2.6, 1.6, 2.0], [-1.6, -2.6, 1.6, 2.0], [-6.2, 1.9, 0.9, 2.0], [-6.2, -1.9, 0.9, 2.0]],
-  // The car along its own X: three cylinders from the nose to the wing.
-  gt3rs: [[1.4, 0, 0.95, 1.0], [0, 0, 0.95, 1.3], [-1.5, 0, 0.95, 1.33]],
-  // The bike along its own X: front wheel and cowl, the tank, the tail.
-  h2r: [[0.6, 0, 0.42, 1.16], [-0.1, 0, 0.3, 1.02], [-0.75, 0, 0.3, 1.02]],
-  // The Model Y along its own X: the nose, the cabin, the tail.
-  modely: [[1.5, 0, 0.95, 1.1], [0, 0, 0.95, 1.62], [-1.5, 0, 0.95, 1.3]],
-};
-
-const nextFrame = () => new Promise(r => requestAnimationFrame(r));
-
-/**
- * Without WebGL 2 the WebGLRenderer constructor throws, the loading card freezes on
- * "Starting…" and the only explanation is in the console. The <noscript> covers a browser with
- * scripting off; this covers the commoner case of scripting on and no WebGL 2 — an old
- * browser, a locked-down machine, or hardware acceleration switched off, which is a setting
- * the visitor can go and change if someone tells them that is what is wrong.
- */
-function reportNoWebGL2() {
-  const card = document.querySelector('#loading .loading-card');
-  if (!card) return;
-  card.querySelector('.loading-title').textContent = 'This experience needs WebGL 2';
-  card.querySelector('.loading-track')?.remove();
-  card.querySelector('.loading-text').textContent =
-    'Your browser did not provide a WebGL 2 context. Enabling hardware acceleration in the '
-    + 'browser settings, or opening the page in an up-to-date Chrome, Edge, Firefox or Safari, '
-    + 'is usually enough.';
-}
 
 async function main() {
   const canvas = document.getElementById('scene');
@@ -1235,45 +1074,6 @@ async function main() {
     const w = worldPreset(id, view.preset);
     rig.jumpTo(w.pos, w.target);
   }
-  // ---- Guided tour ----------------------------------------------------------------------
-  // A museum has a route through it. This one walks every exhibit, stopping where the authored
-  // views already point, and hands the camera straight back the moment the visitor touches it —
-  // the same courtesy the launch sequence extends.
-  // Each stop says one thing worth knowing about what is on screen, and where it comes from.
-  // Every figure here is one the data sheet already carries with that source; an estimate or a
-  // reconstruction says so.
-  const TOUR = [
-    ['starship', 'site', 8, 'Pad 2 at Starbase, rebuilt at 1:1: a square, water-cooled launch mount with 20 hold-down clamps over a bidirectional flame trench, and catch arms of ≈26 m. The tower is ≈480 ft with a 10 ft lightning rod, the FAA\'s planning figure.', 'nsf_pad2'],
-    ['starship', 'engines', 6, '33 Raptor 3 hang in the open below Super Heavy\'s thrust ring. Each Raptor 3 is 1.3 m across, 2.9 m tall and gives 250 tf.', 'spacex_starship'],
-    ['starship', 'tiles', 6, 'The real ship carries about 18,000 hexagonal tiles; 13,267 are modelled here, each 0.26 m across the flats.', 'wiki_starship'],
-    ['starship', 'flaps', 6, 'Two forward flaps on the leeward side and two aft flaps steer the ship back through the atmosphere. On V3 each aft flap has one actuator with three motors.', 'spacex_v3'],
-    ['starship', 'trench', 6, 'The flame trench: a concrete bathtub lined with stainless steel, open at both ends, with a deflector of steel pipes in the middle. Its 22 m width and 4.2 m depth are reconstructed.', 'nsf_pad2'],
-    ['falcon9', 'overview', 6, 'Falcon 9 Block 5: 70 m tall and 3.66 m across (12 ft), nine Merlin 1D on the first stage and one Merlin Vacuum above.', 'spacex_f9'],
-    ['falcon9', 'octaweb', 5, 'The Octaweb: eight Merlin 1D round a centre engine, 845 kN each at sea level.', 'wiki_merlin'],
-    ['falcon9', 'interstage', 5, 'The black interstage carries the four titanium grid fins at its base and the pneumatic pushers that separate the stages.', 'wiki_f9b5'],
-    ['falconheavy', 'overview', 6, 'Falcon Heavy: three first-stage cores, 27 Merlins, 12.2 m wide and 70 m tall.', 'spacex_fh'],
-    ['falconheavy', 'engines', 5, '27 Merlin 1D: 22,819 kN together at sea level.', 'spacex_fh'],
-    ['dragon', 'overview', 6, 'Crew Dragon: 8.1 m with its trunk and 4 m across the heat shield; up to seven crew, four on space-station missions.', 'spacex_dragon'],
-    ['dragon', 'superdraco', 5, 'Eight SuperDraco escape engines in four pairs, 71 kN each. The two windows sit either side of the hatch.', 'spacex_dragon'],
-    ['dragon', 'trunk', 5, 'The trunk is half solar array and half radiator, and is jettisoned before re-entry.', 'nasa_ccp_presskit'],
-    ['starlink', 'overview', 6, 'Starlink V2 Mini: two solar wings of 52.5 m² each, about 30 m tip to tip.', 'teslarati_v2mini'],
-    ['starlink', 'antennas', 5, 'The Earth-facing side of the bus, where the phased-array antennas are.', null],
-    ['roadster', 'overview', 6, 'Tesla Roadster, first generation: 3.946 m long and 1.851 m across the mirrors. It flew on the first Falcon Heavy on 6 February 2018.', 'tesla_roadster_sm'],
-    ['roadster', 'detail', 5, 'An 871 mm front overhang and a 2,351 mm wheelbase, from Tesla\'s own service manual.', 'tesla_roadster_sm'],
-    ['roadster', 'starman', 5, 'Starman: a mannequin in a SpaceX pressure suit, at the wheel.', 'wiki_roadster'],
-    ['roadster', 'earth', 7, 'In orbit, on its payload adapter. The Earth behind it is illustrative, not a map.', 'spacex_fh_demo'],
-    ['engines', 'overview', 6, 'Raptor 3, Raptor Vacuum and Merlin 1D side by side, all at 1:1.', 'spacex_starship'],
-    ['engines', 'raptor', 5, 'Raptor 3: 1.3 m across, 2.9 m tall, 250 tf. Its plumbing is folded into the housings: a charcoal bell, the chamber rings, the manifold disc and the turbopump block.', 'spacex_starship'],
-    ['engines', 'rvac', 5, 'Raptor Vacuum: a 2.3 m exit, 4.4 m tall, 275 tf. Its extension is cooled by radiating heat away.', 'spacex_starship'],
-    ['falcon1', 'overview', 6, 'Falcon 1, 2008 configuration: 21.98 m from nozzle exit to tip and 1.681 m across, from the dimensioned drawing in its 2008 user\'s guide.', 'spacex_falcon1_2008'],
-    ['falcon1', 'cutaway', 6, 'An educational cutaway of the second stage, with its pressure-fed Kestrel engine inside the interstage.', 'spacex_falcon1_2008'],
-    ['gt3rs', 'overview', 6, 'Porsche 911 GT3 RS (992), 2023: 4.572 m long, 1.900 m wide and 1.322 m tall to the rear wing\'s upper edge, which stands above the roof.', 'porsche_techdata'],
-    ['gt3rs', 'side', 5, 'Behind the rear axle, a naturally aspirated flat six of 3,996 cm³: 386 kW (525 PS) at 8,500 rpm, 9,000 rpm maximum. Press B to drive it.', 'porsche_techdata'],
-    ['gt3rs', 'rear', 5, 'The swan-neck wing, with the first DRS on a production Porsche: 409 kg of downforce at 200 km/h and 860 kg at 285 km/h.', 'porsche_presskit'],
-    ['gt3rs', 'wheel', 5, 'Centre-lock wheels on 275/35 ZR 20 tyres in front and 335/30 ZR 21 behind; 408 × 36 mm cast iron discs with six-piston callipers.', 'porsche_techdata'],
-    ['h2r', 'overview', 6, 'Kawasaki Ninja H2R, 2027: 2.070 m long, 0.850 m wide across its carbon wings, 1.160 m tall; 216 kg ready to ride. Closed-course only.', 'kawasaki_h2r'],
-    ['h2r', 'engine', 5, 'A supercharged 998 cm³ inline four in a green steel trellis: 228 kW at 14,000 rpm, 240 kW with ram air, 165 Nm at 12,500 rpm. Press N to ride it.', 'kawasaki_h2r'],
-  ];
   let tourAt = -1, tourTimer = 0;
 
   function tourStep() {
@@ -1854,37 +1654,6 @@ async function main() {
   }
 }
 
-function buildRuler(M, height, id) {
-  const g = new THREE.Group();
-  g.name = `ruler-${id}`;
-  const mat = new THREE.MeshStandardMaterial({ color: 0xd7a24a, roughness: 0.6, metalness: 0.2 });
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, height, 8), mat);
-  pole.position.y = height / 2;
-  g.add(pole);
-  const stepM = height > 40 ? 10 : height > 12 ? 5 : 1;
-  for (let y = 0; y <= height + 0.001; y += stepM) {
-    const tick = new THREE.Mesh(new THREE.BoxGeometry(height > 40 ? 1.6 : 0.5, 0.06, 0.06), mat);
-    tick.position.set(0, y, 0);
-    g.add(tick);
-    // The total is printed at the top already; a tick label that lands on (or within a step
-    // of) the top printed "70 m" twice, one over the other.
-    if (height - y < stepM * 0.6 && y > 0) continue;
-    const div = document.createElement('div');
-    div.className = 'ruler-label';
-    div.textContent = `${y} m`;
-    const o = new CSS2DObject(div);
-    o.position.set(height > 40 ? 1.2 : 0.45, y, 0);
-    g.add(o);
-  }
-  // top marker with the total height
-  const top = document.createElement('div');
-  top.className = 'ruler-label ruler-top';
-  top.textContent = `${height} m`;
-  const o = new CSS2DObject(top);
-  o.position.set(0, height + (height > 40 ? 2.5 : 0.6), 0);
-  g.add(o);
-  return g;
-}
 
 main().catch((err) => {
   console.error(err);

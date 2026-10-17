@@ -957,7 +957,7 @@ try {
       });
       return { tris, meshes: [...names].slice(0, 5).map(([m, c]) => `${m} ${c}`), sanitized: v.sanitized };
     });
-    // The F-16's inlet and canopy (README, «Encargo del 4 de octubre (cuarta sesión)»): the capture
+    // The F-16's inlet and canopy (docs/rondas/encargo-04-oct.md, «Encargo del 4 de octubre (cuarta sesión)»): the capture
     // area at the lip's leading edge is TP-3355's 0.53 m², and no vertex of the fuselage's skin is
     // left inside the cockpit's opening (the old cut, by the triangles' centroids, left teeth there).
     const f16 = await page.evaluate(async () => {

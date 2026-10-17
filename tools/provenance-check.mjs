@@ -22,7 +22,7 @@
  *
  * Mutations of the inputs must fail, so the gate cannot pass by checking nothing.
  */
-import { readFileSync as readRaw } from 'node:fs';
+import { readFileSync as readRaw, readdirSync } from 'node:fs';
 // Line endings normalised at the boundary: on a Windows checkout (CRLF) the mutations below,
 // written with \n, did not apply and two controls reported a detector failure that was the
 // injector's (audit of 2 Oct 2026, H52).
@@ -31,7 +31,11 @@ import { fileURLToPath } from 'node:url';
 
 const { FIGURES, PAD_FIGURES, COUNTS, GRADES } = await import('../src/data/figures.js');
 const { VEHICLES, SOURCES } = await import('../src/data/specs.js');
-const README = readFileSync(fileURLToPath(new URL('../README.md', import.meta.url)), 'utf8');
+// The README and the round diaries moved out of it (docs/rondas/): the table at the top is the README's,
+// and the current-state rules are read over all of it, as they were when it was one file.
+const rondas = fileURLToPath(new URL('../docs/rondas/', import.meta.url));
+const README = [readFileSync(fileURLToPath(new URL('../README.md', import.meta.url)), 'utf8'),
+  ...readdirSync(rondas).filter(f => f.endsWith('.md')).sort().map(f => readFileSync(rondas + f, 'utf8'))].join('\n');
 // Which exhibit's sheet each builder's labels answer to.
 const LABEL_FILES = {
   'pad.js': ['starship'], 'starship.js': ['starship'], 'falcon.js': ['falcon9', 'falconheavy'],
@@ -39,9 +43,9 @@ const LABEL_FILES = {
   'roadster.js': ['roadster'], 'enginehall.js': ['engines'], 'f16.js': ['f16'],
   'gt3rs.js': ['gt3rs'], 'h2r.js': ['h2r'], 'modelyAsset.js': ['modely'],
 };
-// The guided tour's captions (main.js): each stop names an exhibit, so each figure it states
+// The guided tour's captions (data/tour.js): each stop names an exhibit, so each figure it states
 // answers to that exhibit's sheet, exactly as a 3-D label does.
-const MAIN = readFileSync(fileURLToPath(new URL('../src/main.js', import.meta.url)), 'utf8');
+const MAIN = readFileSync(fileURLToPath(new URL('../src/data/tour.js', import.meta.url)), 'utf8');
 export function tourStops(main) {
   const body = main.slice(main.indexOf('const TOUR = ['), main.indexOf('];', main.indexOf('const TOUR = [')));
   const out = [];
@@ -244,7 +248,7 @@ const report = (ok, name, detail = '') => {
 };
 
 const base = { figures: FIGURES, pad: PAD_FIGURES, counts: COUNTS, vehicles: VEHICLES, sources: SOURCES, readme: README, builders: BUILDERS, tour: TOUR };
-if (TOUR.length < 20) { console.log(`FAIL la visita guiada: solo se leyeron ${TOUR.length} paradas de main.js`); process.exit(1); }
+if (TOUR.length < 20) { console.log(`FAIL la visita guiada: solo se leyeron ${TOUR.length} paradas de data/tour.js`); process.exit(1); }
 const found = audit(base);
 report(found.length === 0, 'Cifras, ficha y README coinciden, con fuente según su grado', found.length ? `\n  ${found.join('\n  ')}` : '');
 
