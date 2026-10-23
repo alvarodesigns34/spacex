@@ -544,3 +544,8 @@ body.cybertruck-lab-open #hud, body.cybertruck-lab-open #labels { display: none;
   #cybertruck-lab .ctl-stage-chip span { display: none; }
   #cybertruck-lab .ctl-stages { grid-template-columns: repeat(6, auto); justify-content: start; }
 }
+
+/* ?perf=log: the measurement's result, to copy or download (main.js). */
+.perf-log { position: fixed; z-index: 60; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(560px, calc(100vw - 48px)); display: flex; flex-direction: column; gap: 10px; padding: 16px; color: var(--ink); background: var(--surface-solid); border: 1px solid var(--surface-line); border-radius: var(--radius-panel); box-shadow: var(--shadow-panel); font-family: var(--font-sans); }
+.perf-log textarea { height: 320px; font-family: var(--font-mono); font-size: 11.5px; color: var(--ink); background: rgba(255, 255, 255, 0.04); border: 1px solid var(--surface-line); border-radius: var(--radius-ctl); resize: vertical; }
+.perf-log a { text-decoration: none; }

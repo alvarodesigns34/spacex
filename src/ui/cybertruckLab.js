@@ -870,7 +870,6 @@ export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
     // AgX, as the cybertruck viewer and its Blender renders, so the truck looks as it does there.
     renderer.toneMapping = THREE.AgXToneMapping;
     renderer.shadowMap.autoUpdate = false;
-    renderer.info.autoReset = true;
     document.body.classList.add('cybertruck-lab-open');
     root.classList.remove('hidden');
     window.addEventListener('keydown', onKey, true);

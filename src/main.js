@@ -1470,7 +1470,9 @@ async function main() {
       end() {
         const now = performance.now();
         times.push(now - last); last = now;
-        while (times.length > 240 || times.reduce((a, b) => a + b, 0) > 2000) times.shift();
+        // Always the last frame, even one longer than the window: a frame over 2 s (a software
+        // renderer) emptied it, and the readout threw on an undefined p95.
+        while (times.length > 1 && (times.length > 240 || times.reduce((a, b) => a + b, 0) > 2000)) times.shift();
         out.calls = renderer.info.render.calls; out.tris = renderer.info.render.triangles;
         if (now - shown < 500) return;
         shown = now;
@@ -1483,9 +1485,48 @@ async function main() {
     };
   })() : null;
 
+  // ---- ?perf=log: a fixed measurement on real hardware (audit M-FL8) ----
+  // The same views every time, so two machines or two versions can be compared: each is jumped
+  // to, left to settle, then measured over the meter's two-second window. The Cybertruck Lab is
+  // measured with its exploded view animating (at rest it draws nothing). The figures end in a
+  // panel as JSON, to copy or download and paste into the README; nothing is sent anywhere.
+  if (perf && params.get('perf') === 'log') {
+    const VIEWS_LOG = [[null], ['starship', 'site'], ['starship', 'engines'], ['falcon9', 'overview'], ['roadster', 'detail'],
+      ['engines', 'overview'], ['f16', 'overview'], ['gt3rs', 'overview'], ['h2r', 'overview'], ['modely', 'overview']];
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    (async () => {
+      while (document.getElementById('loading')) await wait(500);
+      await wait(4000);
+      const rows = [];
+      const sample = async (id) => { await wait(2500); const o = perf.out; rows.push({ view: id, fps: +o.fps.toFixed(1), meanMs: +o.mean.toFixed(2), p95Ms: +o.p95.toFixed(2), calls: o.calls, triangles: o.tris }); };
+      for (const [id, preset] of VIEWS_LOG) { jump(id, preset); await sample(id ? `${id}/${preset}` : 'overview'); }
+      toggleCybertruck();
+      while (!ctLab.loaded) await wait(500);
+      ctLab.setPlaying(true);
+      await sample('cybertruck-lab/exploding');
+      ctLab.setPlaying(false); ctLab.close();
+      const report = {
+        date: new Date().toISOString(), userAgent: navigator.userAgent, gpu: quality.probe?.renderer || 'not reported',
+        quality: quality.name, forced: !!quality.forced, devicePixelRatio: window.devicePixelRatio,
+        viewport: [window.innerWidth, window.innerHeight], views: rows,
+      };
+      const json = JSON.stringify(report, null, 2);
+      console.log(json);
+      const box = document.createElement('div');
+      box.className = 'perf-log';
+      box.innerHTML = '<b>Performance log</b><textarea readonly></textarea><div><button type="button" class="tool tool-btn" data-act="copy">Copy</button> <a class="tool tool-btn" download="vehicle-center-perf.json">Download</a> <button type="button" class="tool tool-btn" data-act="close">Close</button></div>';
+      box.querySelector('textarea').value = json;
+      box.querySelector('a').href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+      box.querySelector('[data-act="copy"]').addEventListener('click', () => navigator.clipboard?.writeText(json));
+      box.querySelector('[data-act="close"]').addEventListener('click', () => box.remove());
+      document.body.appendChild(box);
+      window.__vc.perfLog = report;
+    })();
+  }
+
   function frame() {
     // The Cybertruck Lab draws its own scene with this renderer; the site waits as it was left.
-    if (ctLab.active) { ctLab.render(clock.getDelta()); requestAnimationFrame(frame); return; }
+    if (ctLab.active) { perf?.begin(); ctLab.render(clock.getDelta()); perf?.end(); requestAnimationFrame(frame); return; }
     perf?.begin();
     const steps = missionClock.step(clock.getDelta());
     const dt = steps.view;
