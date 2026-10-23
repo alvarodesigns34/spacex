@@ -5,19 +5,25 @@
  * commit in cybertruck.json): 1:1, metres, glTF axes with +Y up and −Z forward, origin on the
  * ground at the middle of the wheelbase. Its meshes are Draco-compressed, so it is read with
  * three r170's DRACOLoader and the decoder in vendor/. Each of its 1,138 parts carries glTF
- * extras — system, staged explosion (explode_*), fidelity grade (V/R/A) and a Spanish label —
- * that the later phases of the Lab use; this one shows the truck as built.
+ * extras: system, staged explosion (explode_dir in Blender's axes, explode_dist, explode_stage,
+ * explode_group), fidelity grade (V/R/A) and a Spanish label and note; the root carries the
+ * stages' windows.
  *
- * The Cybertruck is not part of the site: it is not in VEHICLES, not prefetched, and never
- * added to the site's scene, so the scene budget in tools/check.mjs does not see it. Nothing
- * is downloaded until the Lab is first opened. The Lab has its own scene, camera, lights,
- * environment map and composer and draws with the site's renderer while it is open (main.js
- * skips its own frame); the renderer state it changes is saved on opening and put back on
- * closing, so the site comes back exactly as it was left. Closing keeps the model in memory
- * (the owner's choice): opening again is instant.
+ * What it does is the cybertruck viewer's (web/src/main.js), rebuilt for the centre: a staged
+ * exploded view that is a pure function of its parameter (no drift however often it moves),
+ * picking with a data card, isolate, hide and frame, systems and a searchable parts list, three
+ * floors, two lighting settings and a planar reflection on the high tier (ui/cybertruckStudio.js).
  *
- * The Lab's interface is in English, like the site's; the parts' names are the asset's own,
- * in Spanish (the owner's choice, audit of 20-10-2026, §9).
+ * The Cybertruck is not part of the site: it is not in VEHICLES, not prefetched, and never added
+ * to the site's scene, so the scene budget in tools/check.mjs does not see it. Nothing is
+ * downloaded until the Lab is first opened. The Lab has its own scene, camera, lights,
+ * environment maps and composer and draws with the site's renderer while it is open (main.js
+ * skips its own frame), and only when something changed; the renderer state it changes is saved
+ * on opening and put back on closing, so the site comes back exactly as it was left. Closing
+ * keeps the model in memory (the owner's choice): opening again is instant.
+ *
+ * The Lab's interface is in English, like the site's; the parts' names and notes are the
+ * asset's own, in Spanish (the owner's choice, audit of 20-10-2026, §9).
  */
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -26,6 +32,8 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ENVIRONMENTS, environmentMaps, createFloors, createFloorReflector, finishMaterial } from './cybertruckStudio.js';
+import { CT_FIGURES, CT_SOURCES, CT_SYSTEMS, CT_STAGES, CT_FIDELITY } from '../data/cybertruck.js';
 
 export const CYBERTRUCK_ASSET = new URL('../../assets/cybertruck/cybertruck.glb', import.meta.url);
 /** What tools/cybertruck-sync.mjs recorded: the GLB's uncompressed size is the progress bar's total. */
@@ -33,161 +41,132 @@ export const CYBERTRUCK_RECORD = new URL('../../assets/cybertruck/cybertruck.jso
 const DRACO_PATH = new URL('../../vendor/three/examples/jsm/libs/draco/gltf/', import.meta.url).href;
 
 /** Camera stations, from the cybertruck viewer (glTF axes: +Y up, the nose to −Z, the driver at −X). */
-const VIEWS = [
-  ['Front ¾', [-6.4, 2.1, -6.9], [0, 0.75, -0.1]],
-  ['Side', [-10.5, 0.95, 0.15], [0, 0.85, 0.15]],
-  ['Rear ¾', [6.2, 2.4, 7.4], [0, 0.8, 0.5]],
-  ['Top', [0.001, 11.5, 0.15], [0, 0, 0.15]],
-];
-const FIDELITY = { V: 'Verified', R: 'Reconstructed', A: 'Approximate' };
+export const VIEWS = {
+  front34: { label: 'Front ¾', pos: [-6.4, 2.1, -6.9], target: [0, 0.75, -0.1] },
+  rear34: { label: 'Rear ¾', pos: [6.2, 2.4, 7.4], target: [0, 0.8, 0.5] },
+  side: { label: 'Side', pos: [-10.5, 0.95, 0.15], target: [0, 0.85, 0.15] },
+  top: { label: 'Top', pos: [0.001, 11.5, 0.15], target: [0, 0, 0.15] },
+  interior: { label: 'Interior', pos: [0.40, 1.22, -0.36], target: [-0.34, 1.00, -1.05], fov: 72 },
+  under: { label: 'Underside', pos: [-3.4, -1.1, -4.8], target: [0, 0.35, -0.2], below: true },
+  exploded: { label: 'Exploded', pos: [-9.0, 5.2, -8.6], target: [0, 0.8, 0.2] },
+};
+const FLOORS = { glass: 'Glass', opaque: 'Opaque', hidden: 'Hidden' };
+const AMP = { min: 0.6, max: 2.4, init: 1.5 };     // the viewer's amplitude range and default
+const PLAY_SECONDS = 4;                            // 0 → 100 % when animating, as in the viewer
+const HIGHLIGHT = new THREE.Color(0xff8a3d);
 
+const smoothstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const ease = (t) => t * t * (3 - 2 * t);
+// Blender (+X right, +Y forward, +Z up) → glTF (+X, +Y up, −Z forward): explode_dir is in Blender's axes.
+const b2g = (v) => new THREE.Vector3(v[0], v[2], -v[1]);
+/** For the search: lower case and without accents, so "suspension" finds "Suspensión". */
+const fold = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const mm = (m) => `${(m * 1000).toLocaleString('en-GB', { maximumFractionDigits: 1 })} mm`;
 
-/**
- * The cybertruck viewer's material finishing (web/src/materials.js), by Blender material-name
- * prefix: the parameters glTF does not carry (environment intensity, glass thickness, the LEDs'
- * and screens' emission) on top of the exported maps, which are kept. Its random brushed-steel
- * fallback is not carried over: the GLB has had its own roughness maps since version 2 (audit, C13).
- */
-function glass(m, color, transmission, thickness = 0.005) {
-  m.color = new THREE.Color(color);
-  m.metalness = 0;
-  m.roughness = Math.min(m.roughness ?? 0.03, 0.05);
-  m.transmission = transmission;
-  m.ior = 1.52;
-  m.thickness = thickness;
-  m.transparent = false;
-  m.envMapIntensity = 1.2;
-  m.specularIntensity = 1.0;
-}
-const FINISH = [
-  ['CT_Stainless_Steel', (m) => { m.metalness = 1.0; if (!m.anisotropy) m.anisotropy = 0.55; m.envMapIntensity = 1.15; }],
-  ['CT_Glass_Windshield', (m) => glass(m, 0xdfe7e5, 0.92, 0.0055)],
-  ['CT_Glass_Side', (m) => glass(m, 0x8a9294, 0.80, 0.004)],
-  ['CT_Glass_Roof', (m) => glass(m, 0x23272a, 0.55, 0.006)],
-  ['CT_Lens_Clear', (m) => glass(m, 0xffffff, 0.9, 0.003)],
-  ['CT_Lens_Red', (m) => { glass(m, 0xc8100c, 0.6, 0.003); m.attenuationColor = new THREE.Color(0xff1a10); }],
-  ['CT_Lens_Smoked', (m) => glass(m, 0x1c1c1e, 0.5, 0.003)],
-  ['CT_Mirror_Glass', (m) => { m.metalness = 1; m.roughness = 0.03; m.color.setRGB(0.92, 0.92, 0.92); }],
-  ['CT_LED_White', (m) => { m.emissive = new THREE.Color(0xfff6ea); m.emissiveIntensity = 4.0; }],
-  ['CT_LED_Red', (m) => { m.emissive = new THREE.Color(0xff1408); m.emissiveIntensity = 3.0; }],
-  ['CT_LED_Amber', (m) => { m.emissive = new THREE.Color(0xff7a10); m.emissiveIntensity = 2.0; }],
-  ['CT_Screen', (m) => {
-    m.color.setRGB(0.01, 0.012, 0.016); m.roughness = 0.08; m.metalness = 0;
-    m.emissive = new THREE.Color(0x1d2836); m.emissiveIntensity = 0.9; m.clearcoat = 1;
-  }],
-  ['CT_Upholstery', (m) => { m.sheenRoughness = 0.6; m.envMapIntensity = 0.8; }],
-  ['CT_Headliner', (m) => { m.sheenRoughness = 0.8; m.envMapIntensity = 0.7; }],
-  ['CT_Carpet', (m) => { m.sheenRoughness = 0.9; m.envMapIntensity = 0.6; }],
-  ['CT_Tire', (m) => { m.envMapIntensity = 0.7; }],
-  ['CT_Aluminium', (m) => { m.envMapIntensity = 1.05; }],
-];
-/** Every material as a MeshPhysicalMaterial with its finish; each source material is done once. */
-function finishMaterial(mat, cache, maxAnisotropy) {
-  if (!mat) return mat;
-  let m = cache.get(mat);
-  if (m) return m;
-  m = mat;
-  if (!m.isMeshPhysicalMaterial) {
-    m = new THREE.MeshPhysicalMaterial();
-    THREE.MeshStandardMaterial.prototype.copy.call(m, mat);
-    m.name = mat.name;
-    mat.dispose();
-  }
-  FINISH.find(([prefix]) => m.name?.startsWith(prefix))?.[1](m);
-  for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap']) if (m[k]) m[k].anisotropy = Math.max(m[k].anisotropy, Math.min(8, maxAnisotropy));
-  m.needsUpdate = true;
-  cache.set(mat, m);
-  return m;
-}
+/** Per-viewer conveniences only (floor, light, reflection); a blocked storage is not an error. */
+const pref = {
+  get: (k) => { try { return localStorage.getItem(`ct-lab-${k}`); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(`ct-lab-${k}`, v); } catch { /* storage unavailable */ } },
+};
 
-/** The panel helper of the viewer's studio: a flat light source that faces `look`. */
-function emissive(color, k) {
-  const m = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
-  m.color.multiplyScalar(k);            // above 1: the PMREM works in floating point (HDR)
-  return m;
-}
-
-/**
- * The cybertruck viewer's "Studio" (web/src/lighting.js), unchanged: a dark room with long
- * softboxes on the ceiling and the sides, which draw long, sharp highlights along the
- * stainless steel's facets, a key box and a cold backlight. Procedural: no image is shipped.
- */
-function studioEnvironment(renderer) {
-  const s = new THREE.Scene();
-  const panel = (w, h, pos, look, mat) => {
-    const p = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
-    p.position.set(...pos); p.lookAt(new THREE.Vector3(...look)); s.add(p);
-  };
-  const room = new THREE.Mesh(new THREE.BoxGeometry(36, 16, 36), new THREE.MeshBasicMaterial({ color: 0x0b0c0e, side: THREE.BackSide }));
-  room.position.y = 7; s.add(room);
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(36, 36), new THREE.MeshBasicMaterial({ color: 0x15171a }));
-  floor.rotation.x = -Math.PI / 2; floor.position.y = -0.95; s.add(floor);
-  // Three ceiling strips along the truck (glTF Z) and one across.
-  for (const x of [-3.2, 0, 3.2]) panel(1.1, 18, [x, 13.5, 0], [x, 0, 0], emissive(0xffffff, 5.5));
-  panel(14, 0.9, [0, 13.4, -6], [0, 0, -6], emissive(0xfff6ec, 3.5));
-  // Upright strips on both sides: the long lines on the slanted faces.
-  for (const z of [-5, 1, 7]) {
-    panel(0.8, 7, [-16, 4.5, z], [0, 4.5, z], emissive(0xf3f6ff, 3.2));
-    panel(0.8, 7, [16, 4.5, z], [0, 4.5, z], emissive(0xfff4ea, 2.4));
-  }
-  // Key box (front three-quarter, driver's side) and a cold backlight.
-  panel(7, 4.5, [-11, 6, -12], [0, 1, 0], emissive(0xffffff, 4.0));
-  panel(9, 3, [8, 5, 14], [0, 1, 0], emissive(0xdde8ff, 2.2));
-  // A faint horizon band, which separates the lower edge of the panels from the floor.
-  const band = new THREE.Mesh(new THREE.CylinderGeometry(17.5, 17.5, 0.6, 64, 1, true), emissive(0x9aa3ad, 0.9));
-  band.position.y = 0.6; s.add(band);
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const tex = pmrem.fromScene(s, 0.015).texture;
-  pmrem.dispose();
-  s.traverse(o => { o.geometry?.dispose(); o.material?.dispose(); });
-  return tex;
-}
-
-/** The viewer's studio floor: a dark radial gradient, drawn once (deterministic). */
-function floorTexture() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 512;
-  const g = c.getContext('2d');
-  const grd = g.createRadialGradient(256, 256, 10, 256, 256, 256);
-  grd.addColorStop(0, '#2a2e34'); grd.addColorStop(0.55, '#16191d'); grd.addColorStop(1, '#0d0f12');
-  g.fillStyle = grd; g.fillRect(0, 0, 512, 512);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
 }
 
 /**
  * @param renderer the site's renderer, shared (one WebGL context)
- * @param quality  the site's tier (core/quality.js): shadow resolution and MSAA follow it
+ * @param quality  the site's tier (core/quality.js): shadow resolution, MSAA, anisotropy and the reflection follow it
  * @param onExit   called after closing, once the renderer is back as the site left it
  */
 export function createCybertruckLab({ renderer, quality, onExit }) {
-  const lab = { active: false, loaded: false, loading: false, requests: 0, stats: null };
+  const lab = { active: false, loaded: false, loading: false, requests: 0, stats: null, frames: 0 };
+  const state = {
+    explode: 0, amp: AMP.init, stageMask: { 1: true, 2: true, 3: true, 4: true, 5: true, 6: true },
+    playing: false, playDir: 1, selected: null, isolated: null,
+    hiddenSystems: new Set(), hiddenParts: new Set(),
+    floor: FLOORS[pref.get('floor')] ? pref.get('floor') : 'glass',
+    env: ENVIRONMENTS[pref.get('env')] ? pref.get('env') : 'studio',
+    reflections: pref.get('refl') !== 'off',
+  };
+  let windows = {};
+  const parts = [];                   // the exploding parts: { obj, base, dir, dist, stage }
+  const comps = new Map();            // every part by node name
+  const rows = new Map();             // name → its row in the parts list
+  const chips = new Map();            // system → its chip
+  const highlights = new Map();       // source material → its highlight copy (shared, audit C12)
   let root = null, stage = null, ui = null;
-  let scene = null, camera = null, controls = null, composer = null, rt = null;
+  let scene = null, camera = null, controls = null, composer = null, rt = null, key = null, hemi = null;
+  let floors = null, reflector = null, envMaps = null;
   let truck = null;
-  let camTween = null, noteTimer = 0;
+  let camTween = null, explodeTween = null, noteTimer = 0;
   let dirty = true, shadowDirty = true;
   let saved = null;
 
   // ---- DOM ----
   function buildDom() {
-    root = document.createElement('div');
+    root = el('div');
     root.id = 'cybertruck-lab';
     root.className = 'hidden';
     root.innerHTML = `
-      <div class="ctl-stage" role="img" aria-label="Tesla Cybertruck: 3D view. Drag to orbit, scroll or pinch to zoom, right-drag to pan"></div>
+      <div class="ctl-stage" role="img" aria-label="Tesla Cybertruck: 3D view. Drag to orbit, scroll to zoom, right-drag to pan, click a part to pick it"></div>
       <header class="ctl-head">
         <button class="tool tool-btn ctl-back" type="button" title="Back to the vehicle centre (Esc)">← Back</button>
         <div class="ctl-title">
           <div class="eyebrow">Cybertruck Lab</div>
           <div class="ctl-name">Tesla Cybertruck Cyberbeast</div>
-          <div class="ctl-sub">1:1 Blender model, as built</div>
+          <div class="ctl-sub">1:1 Blender model</div>
         </div>
       </header>
-      <nav class="ctl-views" aria-label="Views"></nav>
       <div class="ctl-note hidden" role="status" aria-live="polite"></div>
+      <aside class="ctl-panel" aria-label="Systems, parts and data">
+        <div class="ctl-tabs" role="group" aria-label="Panel">
+          <button type="button" class="ctl-tab" data-tab="systems" aria-pressed="true">Systems</button>
+          <button type="button" class="ctl-tab" data-tab="parts" aria-pressed="false">Parts <span class="ctl-count"></span></button>
+          <button type="button" class="ctl-tab" data-tab="data" aria-pressed="false">Data</button>
+        </div>
+        <section class="ctl-pane" data-pane="systems">
+          <div class="ctl-pane-head"><span>Click a system to hide or show it.</span><button type="button" class="ctl-link" data-act="showall">Show all</button></div>
+          <div class="ctl-systems"></div>
+        </section>
+        <section class="ctl-pane hidden" data-pane="parts">
+          <input class="ctl-search" type="search" placeholder="Search parts (Spanish names)…" aria-label="Search parts">
+          <div class="ctl-tree"></div>
+        </section>
+        <section class="ctl-pane hidden" data-pane="data"></section>
+      </aside>
+      <div class="ctl-info hidden" role="region" aria-label="Selected part">
+        <div class="ctl-info-top"><span class="ctl-pill"></span><button type="button" class="ctl-x" data-act="deselect" aria-label="Close the part's card">×</button></div>
+        <h3 class="ctl-info-title"></h3>
+        <div class="ctl-info-name"></div>
+        <dl class="ctl-info-dl"><dt>System</dt><dd data-f="system"></dd><dt>Group</dt><dd data-f="group"></dd><dt>Stage</dt><dd data-f="stage"></dd></dl>
+        <p class="ctl-info-note"></p>
+        <div class="ctl-info-acts">
+          <button type="button" class="tool tool-btn" data-act="isolate" title="Show only this part">Isolate</button>
+          <button type="button" class="tool tool-btn" data-act="hide" title="Hide this part">Hide</button>
+          <button type="button" class="tool tool-btn" data-act="frame" title="Frame this part (F)">Frame <kbd>F</kbd></button>
+        </div>
+      </div>
+      <div class="ctl-dock" aria-label="Views and exploded view">
+        <nav class="ctl-views" aria-label="Views"></nav>
+        <div class="ctl-dock-row">
+          <label class="ctl-explode"><span>Exploded view</span><output>0 %</output>
+            <input type="range" min="0" max="100" step="1" value="0" aria-label="Explosion"></label>
+          <button type="button" class="tool tool-btn ctl-play" aria-pressed="false" title="Animate the explosion (space)">Play <kbd>Space</kbd></button>
+          <button type="button" class="tool tool-btn" data-act="assemble" title="Assemble: no explosion, everything shown">Assemble</button>
+          <button type="button" class="tool tool-btn ctl-scene-btn" aria-expanded="false" title="Floor, light, reflection and amplitude">Scene</button>
+        </div>
+        <div class="ctl-stages" role="group" aria-label="Stages: click one to keep it assembled"></div>
+        <div class="ctl-status" aria-live="off"></div>
+      </div>
+      <div class="ctl-pop hidden" role="dialog" aria-label="Scene settings">
+        <div class="ctl-pop-row"><span>Floor</span><div class="ctl-seg" data-seg="floor"></div></div>
+        <div class="ctl-pop-row"><span>Light</span><div class="ctl-seg" data-seg="env"></div></div>
+        <div class="ctl-pop-row" data-row="refl"><span>Reflection</span><div class="ctl-seg" data-seg="refl"></div></div>
+        <label class="ctl-pop-row"><span>Amplitude</span><input type="range" class="ctl-amp" min="${AMP.min}" max="${AMP.max}" step="0.05" value="${AMP.init}" aria-label="Explosion amplitude"><output class="ctl-amp-out"></output></label>
+      </div>
       <div class="ctl-loading" role="status" aria-live="polite">
         <div class="loading-card">
           <div class="eyebrow">Cybertruck Lab</div>
@@ -197,56 +176,108 @@ export function createCybertruckLab({ renderer, quality, onExit }) {
         </div>
       </div>`;
     document.body.appendChild(root);
-    stage = root.querySelector('.ctl-stage');
+    const q = (s) => root.querySelector(s);
+    stage = q('.ctl-stage');
     ui = {
-      views: root.querySelector('.ctl-views'), sub: root.querySelector('.ctl-sub'), note: root.querySelector('.ctl-note'),
-      loading: root.querySelector('.ctl-loading'), fill: root.querySelector('.ctl-loading .loading-fill'),
-      text: root.querySelector('.ctl-loading .loading-text'), back: root.querySelector('.ctl-back'),
+      views: q('.ctl-views'), sub: q('.ctl-sub'), note: q('.ctl-note'), back: q('.ctl-back'),
+      loading: q('.ctl-loading'), fill: q('.ctl-loading .loading-fill'), text: q('.ctl-loading .loading-text'),
+      systems: q('.ctl-systems'), tree: q('.ctl-tree'), search: q('.ctl-search'), count: q('.ctl-count'), data: q('[data-pane="data"]'),
+      info: q('.ctl-info'), slider: q('.ctl-explode input'), out: q('.ctl-explode output'), play: q('.ctl-play'),
+      stages: q('.ctl-stages'), status: q('.ctl-status'), pop: q('.ctl-pop'), sceneBtn: q('.ctl-scene-btn'),
+      amp: q('.ctl-amp'), ampOut: q('.ctl-amp-out'),
     };
     ui.back.addEventListener('click', () => lab.close());
-    for (const [name, pos, target] of VIEWS) {
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'tool tool-btn'; b.textContent = name;
-      b.addEventListener('click', () => flyTo(pos, target));
+    for (const [id, v] of Object.entries(VIEWS)) {
+      const b = el('button', 'tool tool-btn', v.label);
+      b.type = 'button'; b.dataset.view = id;
+      b.addEventListener('click', () => goView(id));
       ui.views.appendChild(b);
     }
-    stage.addEventListener('pointerdown', () => { camTween = null; });
+    for (const t of root.querySelectorAll('.ctl-tab')) t.addEventListener('click', () => setTab(t.dataset.tab));
+    root.addEventListener('click', (e) => {
+      const act = e.target.closest('[data-act]')?.dataset.act;
+      if (!act) return;
+      if (act === 'showall') showAll();
+      else if (act === 'deselect') select(null);
+      else if (act === 'isolate' && state.selected) isolate(state.selected.name);
+      else if (act === 'hide' && state.selected) { const n = state.selected.name; select(null); setPartVisible(n, false); }
+      else if (act === 'frame' && state.selected) frame(state.selected);
+      else if (act === 'assemble') assemble();
+    });
+    ui.slider.addEventListener('input', () => { setPlaying(false); explodeTween = null; setExplode(ui.slider.value / 100); stepBack(); });
+    ui.play.addEventListener('click', () => setPlaying(!state.playing));
+    ui.search.addEventListener('input', () => filterTree(ui.search.value));
+    ui.sceneBtn.addEventListener('click', () => setPopover(ui.pop.classList.contains('hidden')));
+    ui.amp.addEventListener('input', () => { state.amp = Number(ui.amp.value); syncAmp(); applyExplode(); });
+    for (const [k, l] of Object.entries(CT_STAGES)) {
+      const b = el('button', 'ctl-stage-chip');
+      b.type = 'button'; b.dataset.stage = k; b.setAttribute('aria-pressed', 'true');
+      b.title = `${l}: click to keep this stage assembled`;
+      b.append(el('b', '', k), el('span', '', l));
+      b.addEventListener('click', () => { state.stageMask[k] = !state.stageMask[k]; applyExplode(); });
+      ui.stages.appendChild(b);
+    }
+    segment('floor', FLOORS, (v) => setFloor(v));
+    segment('env', Object.fromEntries(Object.entries(ENVIRONMENTS).map(([k, e]) => [k, e.label])), (v) => setEnvironment(v));
+    segment('refl', { on: 'On', off: 'Off' }, (v) => setReflections(v === 'on'));
+    // The reflection draws the whole truck again: only offered where the tier builds it.
+    if (quality.name !== 'high') q('[data-row="refl"]').classList.add('hidden');
+    syncAmp();
+    // A click that did not drag picks the part under it.
+    let down = null;
+    stage.addEventListener('pointerdown', (e) => { down = [e.clientX, e.clientY]; camTween = null; setPopover(false); });
+    stage.addEventListener('pointerup', (e) => {
+      if (down && Math.hypot(e.clientX - down[0], e.clientY - down[1]) < 5) pick(e.clientX, e.clientY);
+      down = null;
+    });
   }
+
+  function segment(name, options, on) {
+    const seg = root.querySelector(`[data-seg="${name}"]`);
+    for (const [v, label] of Object.entries(options)) {
+      const b = el('button', 'ctl-seg-btn', label);
+      b.type = 'button'; b.dataset.value = v; b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', () => on(v));
+      seg.appendChild(b);
+    }
+  }
+  function markSegment(name, value) {
+    for (const b of root.querySelectorAll(`[data-seg="${name}"] .ctl-seg-btn`)) b.setAttribute('aria-pressed', String(b.dataset.value === value));
+  }
+  function setTab(tab) {
+    for (const t of root.querySelectorAll('.ctl-tab')) t.setAttribute('aria-pressed', String(t.dataset.tab === tab));
+    for (const p of root.querySelectorAll('.ctl-pane')) p.classList.toggle('hidden', p.dataset.pane !== tab);
+    if (tab === 'parts') ui.search.focus({ preventScroll: true });
+  }
+  function setPopover(open) {
+    ui.pop.classList.toggle('hidden', !open);
+    ui.sceneBtn.setAttribute('aria-expanded', String(open));
+  }
+  function syncAmp() { ui.ampOut.textContent = `${state.amp.toFixed(2)}×`; }
 
   // ---- Scene ----
   function buildScene() {
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0d0f12);
-    // Nearer than the viewer's (22–60 m): its floor is usually the glass one, and this opaque disc's
-    // far rim, 35–37 m from the default cameras, drew a hard horizon against the dark room.
-    scene.fog = new THREE.Fog(0x0d0f12, 12, 30);
-    scene.environment = studioEnvironment(renderer);
+    envMaps = environmentMaps(renderer);
     camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.05, 200);
-    camera.position.set(...VIEWS[0][1]);
+    camera.position.set(...VIEWS.front34.pos);
     controls = new OrbitControls(camera, stage);
-    controls.target.set(...VIEWS[0][2]);
+    controls.target.set(...VIEWS.front34.target);
     controls.enableDamping = true; controls.dampingFactor = 0.08;
     controls.minDistance = 0.4; controls.maxDistance = 30;
-    // Not under the floor: the floor is opaque in this phase (the glass floor comes with the
-    // exploded view, which takes 124 parts below it).
-    controls.maxPolarAngle = Math.PI * 0.495;
     controls.screenSpacePanning = true;
     controls.addEventListener('change', () => { dirty = true; });
 
-    const key = new THREE.DirectionalLight(0xffffff, 2.2);
-    key.position.set(-6, 9, -5);
+    key = new THREE.DirectionalLight(0xffffff, 2.2);
     key.castShadow = quality.shadows;
     key.shadow.mapSize.set(quality.shadowMap, quality.shadowMap);
+    // Room for the exploded truck: the farthest part, at full amplitude, stays inside ±6.5 m.
     Object.assign(key.shadow.camera, { left: -6.5, right: 6.5, top: 6.5, bottom: -6.5, near: 1, far: 30 });
     key.shadow.bias = -0.0003; key.shadow.normalBias = 0.02;
-    scene.add(key);
-    scene.add(new THREE.HemisphereLight(0xdfe6ee, 0x1a1c20, 0.25));
-
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(26, 96),
-      new THREE.MeshStandardMaterial({ map: floorTexture(), roughness: 0.9, metalness: 0, envMapIntensity: 0.35 }));
-    floor.rotation.x = -Math.PI / 2; floor.position.y = -0.002; floor.receiveShadow = true;
-    floor.name = 'cybertruck-lab-floor';
-    scene.add(floor);
+    hemi = new THREE.HemisphereLight(0xdfe6ee, 0x1a1c20, 0.25);
+    scene.add(key, hemi);
+    floors = createFloors(scene);
+    if (quality.name === 'high') { reflector = createFloorReflector(14, Math.min(window.devicePixelRatio, 2) * 0.5); scene.add(reflector); }
 
     // As the site's: a multisampled half-float target (MSAA by tier) and one output pass, which
     // applies the tone mapping set on opening.
@@ -254,6 +285,46 @@ export function createCybertruckLab({ renderer, quality, onExit }) {
     composer = new EffectComposer(renderer, rt);
     composer.addPass(new RenderPass(scene, camera));
     composer.addPass(new OutputPass());
+    setFloor(state.floor); setReflections(state.reflections);
+  }
+
+  function setEnvironment(name) {
+    const e = ENVIRONMENTS[name] ?? ENVIRONMENTS.studio;
+    state.env = ENVIRONMENTS[name] ? name : 'studio';
+    scene.environment = envMaps[state.env];
+    scene.environmentIntensity = e.envIntensity;
+    scene.background = new THREE.Color(e.background);
+    scene.fog = new THREE.Fog(...e.fog);
+    renderer.toneMappingExposure = e.exposure;
+    key.color.set(e.key.color); key.intensity = e.key.intensity; key.position.set(...e.key.pos);
+    hemi.intensity = e.hemi;
+    floors.set(state.floor, state.env);
+    root.dataset.env = state.env;
+    markSegment('env', state.env);
+    pref.set('env', state.env);
+    shadowDirty = dirty = true;
+  }
+  function setFloor(mode) {
+    state.floor = FLOORS[mode] ? mode : 'glass';
+    floors.set(state.floor, state.env);
+    // With the floor see-through or hidden the camera can go round underneath, as in the viewer.
+    controls.maxPolarAngle = state.floor === 'opaque' ? Math.PI * 0.495 : Math.PI;
+    updateReflector();
+    markSegment('floor', state.floor);
+    pref.set('floor', state.floor);
+    shadowDirty = dirty = true;
+  }
+  function setReflections(on) {
+    state.reflections = !!on;
+    updateReflector();
+    markSegment('refl', state.reflections ? 'on' : 'off');
+    pref.set('refl', state.reflections ? 'on' : 'off');
+    dirty = true;
+  }
+  function updateReflector() {
+    if (!reflector) return;
+    reflector.visible = state.reflections && state.floor !== 'hidden';
+    reflector.setStrength(state.floor === 'glass' ? 0.24 : 0.14);
   }
 
   // ---- Asset ----
@@ -291,11 +362,20 @@ export function createCybertruckLab({ renderer, quality, onExit }) {
   function adopt(gltf) {
     truck = gltf.scene;
     truck.name = 'cybertruck';
+    windows = {};                     // from CYBERTRUCK_ROOT's extras, met in the traversal
     const fid = { V: 0, R: 0, A: 0 };
-    let parts = 0, meshes = 0, tris = 0;
+    let meshes = 0, tris = 0;
     const finished = new Map();
     truck.traverse((o) => {
-      if (o.userData?.label_es) { parts++; if (fid[o.userData.fidelity] !== undefined) fid[o.userData.fidelity]++; }
+      const ud = o.userData;
+      if (ud?.explode_stage_windows) windows = ud.explode_stage_windows;
+      if (ud?.label_es) {
+        comps.set(o.name, o);
+        if (fid[ud.fidelity] !== undefined) fid[ud.fidelity]++;
+        if (ud.explode_dir && ud.explode_dist) {
+          parts.push({ obj: o, base: o.position.clone(), dir: b2g(ud.explode_dir).normalize(), dist: Number(ud.explode_dist), stage: Number(ud.explode_stage) || 1 });
+        }
+      }
       if (!o.isMesh) return;
       meshes++;
       const g = o.geometry;
@@ -311,8 +391,14 @@ export function createCybertruckLab({ renderer, quality, onExit }) {
       }
     });
     scene.add(truck);
-    lab.stats = { parts, meshes, triangles: Math.round(tris), fidelity: fid };
-    ui.sub.textContent = `1:1 Blender model, as built · ${parts.toLocaleString('en-GB')} parts · ${FIDELITY.V} ${fid.V} · ${FIDELITY.R} ${fid.R} · ${FIDELITY.A} ${fid.A}`;
+    truck.updateMatrixWorld(true);
+    // Measured on the decoded vertices, assembled: what the data card shows next to Tesla's figures.
+    const size = new THREE.Box3().setFromObject(truck, true).getSize(new THREE.Vector3());
+    lab.stats = { parts: comps.size, exploding: parts.length, meshes, triangles: Math.round(tris), fidelity: fid, size: { length: size.z, width: size.x, height: size.y } };
+    ui.sub.textContent = `1:1 Blender model · ${comps.size.toLocaleString('en-GB')} parts · ${CT_FIDELITY.V.label} ${fid.V} · ${CT_FIDELITY.R.label} ${fid.R} · ${CT_FIDELITY.A.label} ${fid.A}`;
+    buildLists();
+    buildData();
+    applyExplode();
   }
 
   async function load() {
@@ -338,12 +424,266 @@ export function createCybertruckLab({ renderer, quality, onExit }) {
     } finally { lab.loading = false; }
   }
 
-  // ---- Camera ----
-  function flyTo(pos, target, seconds = 0.9) {
-    camTween = { t: 0, d: seconds, p0: camera.position.clone(), t0: controls.target.clone(), p1: new THREE.Vector3(...pos), t1: new THREE.Vector3(...target) };
+  // ---- Lists: systems, parts and the data card ----
+  function buildLists() {
+    const bySystem = new Map();
+    for (const o of comps.values()) {
+      const s = o.userData.system || 'OTHER';
+      if (!bySystem.has(s)) bySystem.set(s, []);
+      bySystem.get(s).push(o);
+    }
+    const order = Object.keys(CT_SYSTEMS);
+    const systems = [...bySystem.keys()].sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99));
+    systems.forEach((sys, i) => {
+      const list = bySystem.get(sys);
+      const chip = el('button', 'ctl-chip');
+      chip.type = 'button'; chip.setAttribute('aria-pressed', 'true'); chip.dataset.sys = sys;
+      // One hue per system, round the colour wheel, as in the viewer.
+      chip.style.setProperty('--c', `hsl(${Math.round((i * 360) / systems.length + 18) % 360} 72% 62%)`);
+      chip.append(el('span', 'ctl-dot'), el('span', '', CT_SYSTEMS[sys] ?? sys), el('small', '', String(list.length)));
+      chip.addEventListener('click', () => toggleSystem(sys));
+      ui.systems.appendChild(chip); chips.set(sys, chip);
+
+      const det = el('details', 'ctl-group');
+      const sum = el('summary');
+      sum.append(el('span', '', CT_SYSTEMS[sys] ?? sys), el('span', 'ctl-n', String(list.length)));
+      det.appendChild(sum);
+      list.sort((a, b) => a.userData.label_es.localeCompare(b.userData.label_es, 'es'));
+      for (const o of list) {
+        const row = el('div', 'ctl-item');
+        row.dataset.search = fold(`${o.name} ${o.userData.label_es}`);
+        const name = el('button', 'ctl-item-name', o.userData.label_es);
+        name.type = 'button'; name.title = o.name;
+        name.addEventListener('click', () => { select(o.name); frame(o); });
+        const f = el('span', `ctl-fid fid-${o.userData.fidelity}`, o.userData.fidelity);
+        f.title = CT_FIDELITY[o.userData.fidelity]?.label ?? '';
+        const eye = el('button', 'ctl-eye', '◉');
+        eye.type = 'button'; eye.setAttribute('aria-pressed', 'true');
+        eye.setAttribute('aria-label', `Show or hide ${o.userData.label_es}`);
+        eye.addEventListener('click', () => setPartVisible(o.name, state.hiddenParts.has(o.name)));
+        row.append(name, f, eye);
+        det.appendChild(row); rows.set(o.name, row);
+      }
+      ui.tree.appendChild(det);
+    });
+    ui.count.textContent = comps.size.toLocaleString('en-GB');
+  }
+
+  function filterTree(text) {
+    const q = fold(text.trim());
+    for (const det of ui.tree.children) {
+      let any = false;
+      for (const row of det.querySelectorAll('.ctl-item')) {
+        const ok = !q || row.dataset.search.includes(q);
+        row.classList.toggle('hidden', !ok);
+        any ||= ok;
+      }
+      det.classList.toggle('hidden', !any);
+      if (q) det.open = any;
+    }
+  }
+
+  function buildData() {
+    const pane = ui.data;
+    pane.append(el('p', 'ctl-data-lead', "Tesla's published figures (owner's manual, grade A) next to the model's. The manual adds that values are approximate and vary with options."));
+    const table = el('table', 'ctl-table');
+    const head = el('tr');
+    for (const h of ['', 'Tesla', 'Model', 'Δ']) head.appendChild(el('th', '', h));
+    table.appendChild(head);
+    const measured = { length: lab.stats.size.length, widthMirrors: lab.stats.size.width, height: lab.stats.size.height };
+    for (const f of CT_FIGURES) {
+      const tr = el('tr');
+      const m = measured[f.id] ?? f.model;
+      tr.append(el('td', '', f.label), el('td', 'num', `${f.value.toFixed(3)} m`),
+        el('td', 'num', m === null ? '—' : `${f.approx ? '≈ ' : ''}${m.toFixed(3)} m`),
+        el('td', 'num', m === null ? '' : `${m - f.value >= 0 ? '+' : '−'}${mm(Math.abs(m - f.value))}`));
+      if (f.approx) tr.title = f.approx;
+      if (measured[f.id] !== undefined) tr.classList.add('is-measured');
+      table.appendChild(tr);
+    }
+    pane.appendChild(table);
+    pane.append(el('p', 'ctl-data-note', 'Length, width and height of the model are measured here on the decoded mesh; the others come from the model\'s own validation in Blender. ≈ the body width: the model is 50 mm wider, its flanks being reconstructed.'));
+    const fid = el('div', 'ctl-fid-row');
+    for (const [k, f] of Object.entries(CT_FIDELITY)) {
+      const b = el('div', `ctl-fid-box fid-${k}`);
+      b.append(el('b', '', String(lab.stats.fidelity[k])), el('span', '', f.label));
+      b.title = f.note;
+      fid.appendChild(b);
+    }
+    pane.appendChild(fid);
+    const src = el('ul', 'ctl-sources');
+    for (const s of Object.values(CT_SOURCES)) {
+      const li = el('li'), a = el('a', '', s.label);
+      a.href = s.url; a.target = '_blank'; a.rel = 'noopener';
+      li.appendChild(a); src.appendChild(li);
+    }
+    pane.appendChild(src);
+  }
+
+  // ---- Explosion: position = base + direction · distance · amplitude · smoothstep(stage window) ----
+  // A pure function of the parameter: moving the slider back and forth accumulates no error.
+  function applyExplode() {
+    const e = state.explode;
+    for (const p of parts) {
+      const [a, b] = windows[p.stage] ?? [0, 1];
+      const k = state.stageMask[p.stage] ? smoothstep(a, b, e) * p.dist * state.amp : 0;
+      p.obj.position.copy(p.base).addScaledVector(p.dir, k);
+    }
+    const pct = Math.round(e * 100);
+    ui.slider.value = String(pct);
+    ui.out.textContent = `${pct} %`;
+    ui.slider.style.setProperty('--p', `${e * 100}%`);
+    for (const c of ui.stages.children) {
+      const s = c.dataset.stage, [a, b] = windows[s] ?? [0, 1];
+      c.style.setProperty('--k', state.stageMask[s] ? smoothstep(a, b, e).toFixed(3) : 0);
+      c.setAttribute('aria-pressed', String(state.stageMask[s]));
+      c.classList.toggle('is-on', state.stageMask[s] && e > a);
+    }
+    status();
+    shadowDirty = dirty = true;
+  }
+  function setExplode(k) { state.explode = THREE.MathUtils.clamp(k, 0, 1); applyExplode(); }
+  function explodeTo(target, seconds = 0.9) { explodeTween = { t: 0, d: seconds, from: state.explode, to: target }; dirty = true; }
+  function setPlaying(on) {
+    state.playing = on;
+    if (on) { state.playDir = state.explode >= 1 ? -1 : 1; explodeTween = null; stepBack(); }
+    ui.play.setAttribute('aria-pressed', String(on));
+    ui.play.firstChild.textContent = on ? 'Pause ' : 'Play ';
     dirty = true;
   }
-  const resetView = () => flyTo(VIEWS[0][1], VIEWS[0][2]);
+  /** The exploded truck is two or three times the truck: step back if the camera is close (the Audi Lab's rule). */
+  function stepBack() {
+    if (state.isolated || camTween) return;
+    const dir = camera.position.clone().sub(controls.target);
+    if (dir.length() < 11) flyTo(dir.setLength(12).add(controls.target).toArray(), controls.target.toArray(), 0.8);
+  }
+  function assemble() { setPlaying(false); showAll(); explodeTo(0); }
+
+  function status() {
+    const pct = Math.round(state.explode * 100);
+    const active = Object.entries(windows).filter(([s, [a]]) => state.explode > a && state.stageMask[s]).map(([s]) => s);
+    const sel = state.selected ? state.selected.userData.label_es : '—';
+    ui.status.textContent = `${pct === 0 ? 'Assembled' : pct === 100 ? 'Fully exploded' : `Exploded ${pct} %`} · active stages: ${active.length ? active.join(', ') : 'none'} · selected: ${sel}`;
+  }
+
+  // ---- Visibility: one rule, from three sets, so the chips, the list and the scene agree (audit C11) ----
+  function applyVisibility() {
+    const keep = new Set();
+    if (state.isolated) {
+      const iso = comps.get(state.isolated);
+      for (let p = iso; p; p = p.parent) keep.add(p);
+      iso?.traverse((o) => keep.add(o));
+    }
+    for (const [name, o] of comps) {
+      o.visible = !state.hiddenParts.has(name) && !state.hiddenSystems.has(o.userData.system) && (!state.isolated || keep.has(o));
+    }
+    for (const [name, row] of rows) {
+      let shown = true;
+      for (let p = comps.get(name); p && p !== truck; p = p.parent) if (!p.visible) { shown = false; break; }
+      row.classList.toggle('is-hidden', !shown);
+      row.querySelector('.ctl-eye').setAttribute('aria-pressed', String(!state.hiddenParts.has(name)));
+    }
+    for (const [sys, chip] of chips) chip.setAttribute('aria-pressed', String(!state.hiddenSystems.has(sys)));
+    if (state.selected && !state.selected.visible) select(null);
+    shadowDirty = dirty = true;
+  }
+  function toggleSystem(sys) {
+    if (state.hiddenSystems.has(sys)) state.hiddenSystems.delete(sys); else state.hiddenSystems.add(sys);
+    state.isolated = null;
+    applyVisibility();
+  }
+  function setPartVisible(name, on) {
+    if (on) state.hiddenParts.delete(name); else state.hiddenParts.add(name);
+    applyVisibility();
+  }
+  function isolate(name) {
+    state.isolated = comps.has(name) ? name : null;
+    applyVisibility();
+    if (state.isolated) frame(comps.get(name));
+  }
+  function showAll() {
+    state.isolated = null; state.hiddenParts.clear(); state.hiddenSystems.clear();
+    applyVisibility();
+  }
+
+  // ---- Selection ----
+  function highlight(obj, on) {
+    obj.traverse((m) => {
+      if (!m.isMesh) return;
+      if (on && !m.userData.ctlOrig) {
+        m.userData.ctlOrig = m.material;
+        m.material = [].concat(m.material).map((src) => {
+          let h = highlights.get(src);
+          if (!h) { h = src.clone(); h.emissive = HIGHLIGHT.clone(); h.emissiveIntensity = 0.35; highlights.set(src, h); }
+          return h;
+        });
+        if (!Array.isArray(m.userData.ctlOrig)) m.material = m.material[0];
+      } else if (!on && m.userData.ctlOrig) {
+        m.material = m.userData.ctlOrig;
+        delete m.userData.ctlOrig;
+      }
+    });
+  }
+  function select(name) {
+    const obj = name ? comps.get(name) ?? null : null;
+    if (state.selected) { highlight(state.selected, false); rows.get(state.selected.name)?.classList.remove('is-selected'); }
+    state.selected = obj;
+    if (obj) {
+      highlight(obj, true);
+      const ud = obj.userData, f = CT_FIDELITY[ud.fidelity];
+      const pill = ui.info.querySelector('.ctl-pill');
+      pill.textContent = f?.label ?? 'Unclassified'; pill.className = `ctl-pill fid-${ud.fidelity}`;
+      ui.info.querySelector('.ctl-info-title').textContent = ud.label_es;
+      ui.info.querySelector('.ctl-info-name').textContent = obj.name;
+      ui.info.querySelector('[data-f="system"]').textContent = CT_SYSTEMS[ud.system] ?? ud.system ?? '—';
+      ui.info.querySelector('[data-f="group"]').textContent = ud.explode_group ?? '—';
+      ui.info.querySelector('[data-f="stage"]').textContent = ud.explode_stage ? `${ud.explode_stage} · ${CT_STAGES[ud.explode_stage]}` : '—';
+      ui.info.querySelector('.ctl-info-note').textContent = ud.note_es ?? f?.note ?? '';
+      ui.info.classList.remove('hidden');
+      const row = rows.get(obj.name);
+      if (row) { row.classList.add('is-selected'); row.closest('details').open = true; row.scrollIntoView({ block: 'nearest' }); }
+    } else ui.info.classList.add('hidden');
+    status();
+    dirty = true;
+  }
+  const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  function shownChain(o) { for (; o; o = o.parent) if (!o.visible) return false; return true; }
+  function pick(x, y) {
+    if (!truck) return;
+    const r = stage.getBoundingClientRect();
+    ndc.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1);
+    raycaster.setFromCamera(ndc, camera);
+    const hit = raycaster.intersectObject(truck, true).find(h => shownChain(h.object));
+    let c = hit?.object ?? null;
+    while (c && !c.userData?.label_es) c = c.parent;
+    select(c?.name ?? null);
+  }
+
+  // ---- Camera ----
+  function flyTo(pos, target, seconds = 0.9, fov = camera.fov) {
+    camTween = { t: 0, d: seconds, p0: camera.position.clone(), t0: controls.target.clone(), p1: new THREE.Vector3(...pos), t1: new THREE.Vector3(...target), f0: camera.fov, f1: fov };
+    dirty = true;
+  }
+  function goView(id) {
+    const v = VIEWS[id];
+    if (!v) return;
+    // The underside is seen through the floor.
+    if (v.below && state.floor === 'opaque') setFloor('glass');
+    const p = new THREE.Vector3(...v.pos), t = new THREE.Vector3(...v.target);
+    // A tall window: step back so the truck still fits across (the viewer's rule).
+    if (!v.fov && camera.aspect < 1.3) p.sub(t).multiplyScalar(Math.pow(1.3 / camera.aspect, 0.85)).add(t);
+    flyTo(p.toArray(), t.toArray(), 0.9, v.fov ?? 38);
+    for (const b of ui.views.children) b.classList.toggle('is-active', b.dataset.view === id);
+  }
+  function frame(obj) {
+    const box = new THREE.Box3().setFromObject(obj);
+    if (box.isEmpty()) return;
+    const c = box.getCenter(new THREE.Vector3());
+    const r = Math.max(0.25, box.getSize(new THREE.Vector3()).length() * 0.9);
+    const dir = camera.position.clone().sub(controls.target).normalize();
+    flyTo(c.clone().addScaledVector(dir, r * 1.6).toArray(), c.toArray(), 0.7, camera.fov);
+  }
+  const resetView = () => goView(state.explode > 0.3 ? 'exploded' : 'front34');
 
   /** A line at the top of the stage, for what the Lab did on opening (a sequence it ended). */
   function note(text, ms = 5000) {
@@ -363,35 +703,72 @@ export function createCybertruckLab({ renderer, quality, onExit }) {
       const k = ease(camTween.t);
       camera.position.lerpVectors(camTween.p0, camTween.p1, k);
       controls.target.lerpVectors(camTween.t0, camTween.t1, k);
+      if (camTween.f0 !== camTween.f1) { camera.fov = camTween.f0 + (camTween.f1 - camTween.f0) * k; camera.updateProjectionMatrix(); }
       if (camTween.t >= 1) camTween = null;
       dirty = true;
+    }
+    if (explodeTween) {
+      explodeTween.t = Math.min(1, explodeTween.t + step / explodeTween.d);
+      setExplode(explodeTween.from + (explodeTween.to - explodeTween.from) * ease(explodeTween.t));
+      if (explodeTween.t >= 1) explodeTween = null;
+    } else if (state.playing && truck) {
+      let e = state.explode + state.playDir * step / PLAY_SECONDS;
+      if (e >= 1 || e <= 0) { e = THREE.MathUtils.clamp(e, 0, 1); state.playDir *= -1; }
+      setExplode(e);
     }
     controls.update();          // damping: keeps raising 'change' while the orbit settles
     if (!dirty) return;
     if (shadowDirty) { renderer.shadowMap.needsUpdate = true; shadowDirty = false; }
     composer.render();
-    lab.frames = (lab.frames ?? 0) + 1;
+    lab.frames++;
     dirty = false;
   };
+
+  /**
+   * The panel on the right and the dock below cover part of the canvas: the centre of projection
+   * moves to the middle of what is left, as the site does under its list (setViewOffset), so a
+   * view frames the truck in the free part of the screen. The camera does not move, and picking
+   * and every projection stay consistent.
+   */
+  function frameFreeArea(w, h) {
+    const panel = root.querySelector('.ctl-panel').getBoundingClientRect();
+    const dock = root.querySelector('.ctl-dock').getBoundingClientRect();
+    const right = panel.width ? panel.left : w, bottom = dock.height ? dock.top : h;
+    camera.setViewOffset(w, h, Math.round(w / 2 - right / 2), Math.round(h / 2 - bottom / 2), w, h);
+  }
 
   function resize() {
     if (!scene) return;
     const w = window.innerWidth, h = window.innerHeight;
-    camera.aspect = w / h; camera.updateProjectionMatrix();
+    camera.aspect = w / h;
+    frameFreeArea(w, h);
+    camera.updateProjectionMatrix();
     composer.setSize(w, h);
+    reflector?.resize(w * renderer.getPixelRatio(), h * renderer.getPixelRatio());
     dirty = true;
   }
 
   const onKey = (e) => {
     // The site's shortcuts (G launches Starship, J flies the F-16…) and its camera keys stay
-    // out of the Lab; a text field would keep its keys, though the Lab has none yet.
+    // out of the Lab. A text field (the parts search) keeps its keys: the site ignores them too.
     const t = e.target;
-    if (t.tagName === 'TEXTAREA' || t.isContentEditable || (t.tagName === 'INPUT' && t.type !== 'range' && t.type !== 'checkbox')) return;
+    if (t.tagName === 'TEXTAREA' || t.isContentEditable || (t.tagName === 'INPUT' && t.type !== 'range' && t.type !== 'checkbox')) {
+      if (e.type === 'keydown' && e.key === 'Escape') { t.blur(); e.stopImmediatePropagation(); }
+      return;
+    }
     e.stopImmediatePropagation();
     if (e.type !== 'keydown' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.toLowerCase();
-    if (k === 'escape' || k === 'u') lab.close();
+    if (k === 'escape') {
+      // One layer at a time: the settings, an isolation, a selection, then the Lab itself.
+      if (!ui.pop.classList.contains('hidden')) setPopover(false);
+      else if (state.isolated) showAll();
+      else if (state.selected) select(null);
+      else lab.close();
+    } else if (k === 'u') lab.close();
     else if (k === 'r') resetView();
+    else if (k === 'f' && state.selected) frame(state.selected);
+    else if (k === ' ' && truck && t.tagName !== 'BUTTON') { e.preventDefault(); setPlaying(!state.playing); }
   };
 
   /** @param ended what the site ended to open the Lab, said in a line at the top ('' for nothing) */
@@ -405,7 +782,6 @@ export function createCybertruckLab({ renderer, quality, onExit }) {
     };
     // AgX, as the cybertruck viewer and its Blender renders, so the truck looks as it does there.
     renderer.toneMapping = THREE.AgXToneMapping;
-    renderer.toneMappingExposure = 1.0;
     renderer.shadowMap.autoUpdate = false;
     renderer.info.autoReset = true;
     document.body.classList.add('cybertruck-lab-open');
@@ -414,6 +790,7 @@ export function createCybertruckLab({ renderer, quality, onExit }) {
     window.addEventListener('keyup', onKey, true);
     window.addEventListener('resize', resize);
     if (!scene) buildScene();
+    setEnvironment(state.env);              // also the exposure, which the site had changed back
     resize(); shadowDirty = dirty = true;
     note(ended);
     ui.back.focus();
@@ -423,7 +800,9 @@ export function createCybertruckLab({ renderer, quality, onExit }) {
   lab.close = () => {
     if (!lab.active) return;
     lab.active = false;
-    camTween = null;
+    camTween = null; explodeTween = null;
+    if (state.playing) setPlaying(false);
+    setPopover(false);
     renderer.toneMapping = saved.toneMapping;
     renderer.toneMappingExposure = saved.exposure;
     renderer.shadowMap.autoUpdate = saved.autoUpdate;
@@ -438,10 +817,21 @@ export function createCybertruckLab({ renderer, quality, onExit }) {
     onExit?.();
   };
 
+  /** The largest distance of any part from where the model put it: 0 when assembled, whatever came before. */
+  lab.deviation = () => parts.reduce((m, p) => {
+    const [a, b] = windows[p.stage] ?? [0, 1];
+    const want = p.base.clone().addScaledVector(p.dir, state.stageMask[p.stage] ? smoothstep(a, b, state.explode) * p.dist * state.amp : 0);
+    return Math.max(m, p.obj.position.distanceTo(want));
+  }, 0);
+
   // For the checks and the console.
-  Object.assign(lab, { flyTo, resetView, VIEWS });
+  Object.assign(lab, {
+    flyTo, goView, resetView, setExplode, explodeTo, setPlaying, assemble, select, isolate, showAll, setPartVisible,
+    toggleSystem, setFloor, setEnvironment, setReflections, filterTree, frame, VIEWS, state, parts, comps,
+  });
   Object.defineProperties(lab, {
     camera: { get: () => camera }, controls: { get: () => controls }, scene: { get: () => scene }, truck: { get: () => truck },
+    reflector: { get: () => reflector }, floors: { get: () => floors }, windows: { get: () => windows },
   });
   return lab;
 }

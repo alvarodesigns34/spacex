@@ -155,6 +155,105 @@ try {
   });
   report(moved.d > 1 && moved.drawn > 0, 'una vista predefinida mueve la cámara y vuelve a dibujar', `${moved.d.toFixed(2)} m · ${moved.drawn} fotogramas`);
 
+  // ---- Phase 3: the exploded view, a pure function of its parameter.
+  const ex = await page.evaluate(async () => {
+    const L = window.__vc.ctLab, THREE = await import('three');
+    const frames = (n) => new Promise((res) => { let k = 0; const t = () => (++k >= n ? res() : requestAnimationFrame(t)); requestAnimationFrame(t); });
+    const fromBase = () => L.parts.reduce((m, p) => Math.max(m, p.obj.position.distanceTo(p.base)), 0);
+    const out = { exploding: L.parts.length, windows: Object.keys(L.windows).length };
+    L.setExplode(1); await frames(2);
+    out.at1 = fromBase();
+    // Wholly below the ground at full explosion, default amplitude (the reason for the glass floor, audit C15).
+    L.truck.updateMatrixWorld(true);
+    out.below = [...L.comps.values()].filter(o => { const b = new THREE.Box3().setFromObject(o); return !b.isEmpty() && b.max.y < 0; }).length;
+    for (const k of [0.37, 0.81, 0.12, 0.37]) { L.setExplode(k); await frames(1); }
+    out.dev = L.deviation();
+    L.setExplode(0); await frames(2);
+    out.at0 = fromBase();
+    // A masked stage stays assembled.
+    L.state.stageMask[6] = false; L.setExplode(1);
+    out.masked = L.parts.filter(p => p.stage === 6).reduce((m, p) => Math.max(m, p.obj.position.distanceTo(p.base)), 0);
+    out.unmasked = L.parts.filter(p => p.stage === 1).reduce((m, p) => Math.max(m, p.obj.position.distanceTo(p.base)), 0);
+    L.state.stageMask[6] = true; L.setExplode(0); await frames(2);
+    out.floor = L.state.floor;
+    return out;
+  });
+  report(ex.exploding === 1138 && ex.windows === 6 && ex.at1 > 1 && ex.at0 === 0 && ex.dev === 0,
+    'vista explosionada: las 1.138 piezas se separan por sus 6 etapas y vuelven exactamente a su sitio (función pura del parámetro)',
+    `al 100 % la más lejana a ${ex.at1.toFixed(2)} m · desviación tras 0,37→0,81→0,12→0,37: ${ex.dev} m · al 0 %: ${ex.at0} m`);
+  report(ex.masked === 0 && ex.unmasked > 0.3, 'una etapa desmarcada se queda montada al explosionar', `etapa 6 a ${ex.masked} m · etapa 1 hasta ${ex.unmasked.toFixed(2)} m`);
+  report(ex.below > 50 && ex.floor === 'glass', 'al 100 % hay piezas enteras bajo el suelo, y por eso el suelo de partida es el de cristal', `${ex.below} piezas bajo el suelo · suelo «${ex.floor}»`);
+
+  // ---- Picking with the mouse, the card, isolate, hide, systems and the search.
+  const target = await page.evaluate(async () => {
+    const L = window.__vc.ctLab, THREE = await import('three');
+    L.goView('side');
+    for (let i = 0; i < 300; i++) { await new Promise(r => requestAnimationFrame(r)); if (L.camera.position.distanceTo(new THREE.Vector3(...L.VIEWS.side.pos)) < 1e-3) break; }
+    // The middle of the front door's outer skin, projected to the screen.
+    const name = [...L.comps.keys()].find(n => /^EXT_Door_FL_Outer$/.test(n)) ?? [...L.comps.keys()].find(n => /Door_FL/.test(n));
+    const c = new THREE.Box3().setFromObject(L.comps.get(name)).getCenter(new THREE.Vector3()).project(L.camera);
+    return { name, x: (c.x + 1) / 2 * innerWidth, y: (1 - c.y) / 2 * innerHeight };
+  });
+  await page.mouse.click(target.x, target.y);
+  const picked = await page.evaluate(() => {
+    const L = window.__vc.ctLab, s = L.state.selected;
+    return { name: s?.name ?? null, label: s?.userData.label_es ?? null, card: !document.querySelector('#cybertruck-lab .ctl-info').classList.contains('hidden'), title: document.querySelector('#cybertruck-lab .ctl-info-title').textContent };
+  });
+  report(!!picked.name && picked.card && picked.title === picked.label && /puerta|door/i.test(`${picked.name} ${picked.label}`),
+    'un clic sobre la puerta delantera la selecciona y abre su ficha, con su nombre en español', `${picked.name} · «${picked.label}» (apuntado a ${target.name})`);
+  const vis = await page.evaluate(() => {
+    const L = window.__vc.ctLab, shown = () => [...L.comps.values()].filter(o => { for (let p = o; p; p = p.parent) if (!p.visible) return false; return true; }).length;
+    const name = L.state.selected.name, out = { all: shown() };
+    document.querySelector('#cybertruck-lab [data-act="isolate"]').click();
+    out.isolated = shown();
+    out.isoOk = [...L.comps.values()].filter(o => o.visible).every(o => { const n = L.comps.get(name); let a = false; n.traverse(c => { if (c === o) a = true; }); for (let p = n; p; p = p.parent) if (p === o) a = true; return a; });
+    L.showAll(); out.back = shown();
+    L.toggleSystem('DRIVE_UNITS');
+    out.chip = document.querySelector('#cybertruck-lab .ctl-chip[data-sys="DRIVE_UNITS"]').getAttribute('aria-pressed');
+    out.driveShown = [...L.comps.values()].filter(o => o.userData.system === 'DRIVE_UNITS' && o.visible).length;
+    out.rowsHidden = document.querySelectorAll('#cybertruck-lab .ctl-item.is-hidden').length;
+    L.showAll();
+    out.chipBack = document.querySelector('#cybertruck-lab .ctl-chip[data-sys="DRIVE_UNITS"]').getAttribute('aria-pressed');
+    L.setPartVisible(name, false); out.hiddenOne = shown(); L.showAll();
+    L.filterTree('suspension');
+    const rows = [...document.querySelectorAll('#cybertruck-lab .ctl-item')];
+    out.found = rows.filter(r => !r.classList.contains('hidden')).length;
+    out.foundOk = rows.filter(r => !r.classList.contains('hidden')).every(r => r.dataset.search.includes('suspension'));
+    L.filterTree('');
+    out.rows = rows.length;
+    return out;
+  });
+  report(vis.isolated < vis.all && vis.isolated >= 1 && vis.isoOk && vis.back === vis.all, 'aislar deja solo la pieza (con su conjunto) y «Show all» lo devuelve todo', `${vis.all} → ${vis.isolated} → ${vis.back} piezas a la vista`);
+  report(vis.chip === 'false' && vis.driveShown === 0 && vis.rowsHidden > 0 && vis.chipBack === 'true' && vis.hiddenOne === vis.all - 1,
+    'ocultar un sistema apaga su chip, sus piezas y sus filas de la lista; ocultar una pieza quita solo esa', `unidades motrices: chip ${vis.chip} → ${vis.chipBack}, ${vis.rowsHidden} filas tachadas · una pieza: ${vis.all} → ${vis.hiddenOne}`);
+  report(vis.rows === 1138 && vis.found > 5 && vis.foundOk, 'la lista tiene las 1.138 piezas y la búsqueda encuentra «suspension» sin tilde (Suspensión)', `${vis.found} filas`);
+
+  // ---- Floors, light and the reflection (built only on the high tier).
+  const scn = await page.evaluate(() => {
+    const L = window.__vc.ctLab, r = window.__vc.renderer, f = L.floors, out = {};
+    L.setFloor('opaque'); out.opaque = [f.ground.visible, f.glass.visible, L.controls.maxPolarAngle < Math.PI / 2];
+    L.setFloor('hidden'); out.hidden = [f.ground.visible, f.glass.visible, f.grid.visible, L.controls.maxPolarAngle];
+    L.setFloor('glass'); out.glass = [f.ground.visible, f.glass.visible, f.catcher.visible];
+    L.setEnvironment('exterior'); out.exterior = r.toneMappingExposure;
+    out.reflector = !!L.reflector; out.tier = window.__vc.quality.name;
+    return out;
+  });
+  report(scn.opaque.join() === 'true,false,true' && scn.hidden.slice(0, 3).join() === 'false,false,false' && scn.hidden[3] === Math.PI && scn.glass.join() === 'false,true,true',
+    'los tres suelos: opaco (sin bajar la cámara del suelo), oculto (se puede mirar desde abajo) y de cristal con su sombra de contacto', JSON.stringify(scn));
+  report(Math.abs(scn.exterior - 0.72) < 1e-9 && scn.reflector === (scn.tier === 'high'), 'la luz «Exterior» lleva su exposición (0,72); el reflejo plano solo existe en calidad alta', `exposición ${scn.exterior} · reflejo ${scn.reflector} en calidad ${scn.tier}`);
+
+  // ---- Space animates; Esc goes one layer at a time.
+  await page.evaluate(() => document.querySelector('#cybertruck-lab .ctl-back').blur());
+  await page.keyboard.press('Space');
+  const playing = await page.evaluate(async () => { const L = window.__vc.ctLab; const e0 = L.state.explode; for (let i = 0; i < 300 && L.state.explode === e0; i++) await new Promise(r => requestAnimationFrame(r)); return { on: L.state.playing, moved: L.state.explode > e0 }; });
+  await page.keyboard.press('Space');
+  const stopped = await page.evaluate(() => window.__vc.ctLab.state.playing);
+  report(playing.on && playing.moved && !stopped, 'la barra espaciadora anima la explosión y la para', JSON.stringify({ ...playing, stopped }));
+  await page.evaluate(() => { const L = window.__vc.ctLab; L.setExplode(0); L.select([...L.comps.keys()][0]); });
+  await page.keyboard.press('Escape');
+  const layer = await page.evaluate(() => ({ active: window.__vc.ctLab.active, selected: !!window.__vc.ctLab.state.selected }));
+  report(layer.active && !layer.selected, 'Esc con una pieza seleccionada la suelta sin cerrar el Lab', JSON.stringify(layer));
+
   // ---- Esc goes back, and the site is as it was.
   await page.keyboard.press('Escape');
   const after = await snapshot();
@@ -178,6 +277,8 @@ try {
   await page.keyboard.press('KeyU');
   const again = await page.evaluate(() => ({ active: window.__vc.ctLab.active, loaded: window.__vc.ctLab.loaded, loading: !document.querySelector('#cybertruck-lab .ctl-loading').classList.contains('hidden') }));
   report(again.active && again.loaded && !again.loading && glbRequests.length === 1, 'U lo vuelve a abrir al instante: el modelo se conserva y no se pide otra vez', `${glbRequests.length} peticiones`);
+  const env2 = await page.evaluate(() => { const L = window.__vc.ctLab, e = { env: L.state.env, exp: window.__vc.renderer.toneMappingExposure }; L.setEnvironment('studio'); return e; });
+  report(env2.env === 'exterior' && Math.abs(env2.exp - 0.72) < 1e-9, 'al reabrirlo conserva la luz elegida y su exposición (la del centro se restauró al salir)', JSON.stringify(env2));
   await page.keyboard.press('KeyU');
   report(!(await page.evaluate(() => window.__vc.ctLab.active)), 'U lo cierra');
 

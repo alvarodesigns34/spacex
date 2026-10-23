@@ -225,7 +225,8 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   sun.shadow.camera.far = 1200;
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.032;
-  sun.shadow.radius = 1.25;
+  // No shadow.radius: with PCFSoftShadowMap three r170 uses a fixed kernel and ignores it (it
+  // acts only with PCFShadowMap and VSM). The 1.25 that stood here changed nothing (audit S13).
   scene.add(sun, sun.target);
 
   const hemi = new THREE.HemisphereLight(0xbfd4ee, 0x6b6660, 0.45);

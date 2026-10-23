@@ -94,6 +94,20 @@ const { json } = glb;
   report(true, 'fidelidad declarada en el modelo', `Verificado ${fid.V} · Reconstruido ${fid.R} · Aproximado ${fid.A}`);
 }
 
+// ---- The Lab's own data (src/data/cybertruck.js) covers the asset: a name for every system and
+// stage it carries, and a source and grade for every figure it shows.
+{
+  const { CT_SYSTEMS, CT_STAGES, CT_FIGURES, CT_SOURCES } = await import('../src/data/cybertruck.js');
+  const systems = [...new Set(json.nodes.map(n => n.extras?.system).filter(Boolean))];
+  const unnamed = systems.filter(x => !CT_SYSTEMS[x]);
+  const root = json.nodes[json.scenes[json.scene ?? 0].nodes[0]];
+  const stages = Object.keys(root.extras?.explode_stage_windows ?? {});
+  const stagesOk = stages.length === Object.keys(CT_STAGES).length && stages.every(k => CT_STAGES[k]);
+  report(!unnamed.length && stagesOk, 'la ficha del Lab nombra todos los sistemas y etapas del GLB', unnamed.length ? `sin nombre: ${unnamed.join(', ')}` : `${systems.length} sistemas · ${stages.length} etapas`);
+  const bad = CT_FIGURES.filter(f => !CT_SOURCES[f.src] || !/^https:\/\//.test(CT_SOURCES[f.src].url) || f.grade !== 'A' || !(f.value > 0));
+  report(!bad.length, 'cada cifra de la ficha del Lab tiene fuente (manual del propietario de Tesla) y grado', bad.length ? bad.map(f => f.id).join(', ') : `${CT_FIGURES.length} cifras`);
+}
+
 // ---- The deploy publishes assets/ and vendor/ (the GLB and its decoder reach the site).
 {
   const wf = await readFile(at('.github/workflows/pages.yml'), 'utf8');

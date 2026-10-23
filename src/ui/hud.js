@@ -211,8 +211,9 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
             <h3>Cybertruck Lab <kbd>U</kbd></h3>
             <dl>
               <dt><kbd>U</kbd></dt><dd>the Tesla Cybertruck on its own, in a studio apart from the centre (ends a launch, flight or drive first)</dd>
-              <dt>Drag · wheel</dt><dd>turn around it · zoom</dd>
-              <dt><kbd>R</kbd> · <kbd>Esc</kbd></dt><dd>reset the view · back to the centre, as you left it</dd>
+              <dt>Drag · wheel · click</dt><dd>turn around it · zoom · pick a part and read its card</dd>
+              <dt><kbd>Space</kbd> · <kbd>F</kbd></dt><dd>animate the staged exploded view · frame the part picked</dd>
+              <dt><kbd>R</kbd> · <kbd>Esc</kbd></dt><dd>reset the view · one step back: settings, isolation, selection, then the centre</dd>
             </dl>
           </section>
           <section class="guide-sec">

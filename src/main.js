@@ -1427,19 +1427,22 @@ async function main() {
     const root = document.getElementById('labels');
     if (!root) return;
     const cap = window.innerWidth < 520 ? 4 : window.innerWidth < 900 ? 6 : 8;
-    const items = [];
-    for (const el of root.querySelectorAll('.label')) {
-      const text = el.querySelector('.label-text');
-      const leader = el.querySelector('.label-leader');
+    // All the writes first, then all the reads: resetting a label and measuring it in the same
+    // pass forced a layout per label, every frame (audit of 20-10-2026, S14). Now it is one.
+    const labels = [...root.querySelectorAll('.label')].map(el => ({ el, text: el.querySelector('.label-text'), leader: el.querySelector('.label-leader') }));
+    for (const { el, text, leader } of labels) {
       if (text) text.style.transform = '';
       if (leader) leader.style.transform = '';
       el.classList.remove('is-culled');
+    }
+    const items = [];
+    for (const { el, text, leader } of labels) {
       if (el.classList.contains('is-occluded')) continue;
       const r = el.getBoundingClientRect();
       if (r.width < 2 || r.height < 2) continue;
       const cx = r.x + r.width / 2 - window.innerWidth / 2;
       const cy = r.y + r.height / 2 - window.innerHeight / 2;
-      items.push({ el, text, leader: el.querySelector('.label-leader'), r, d: cx * cx + cy * cy });
+      items.push({ el, text, leader, r, d: cx * cx + cy * cy });
     }
     items.sort((a, b) => a.d - b.d);
     for (let i = cap; i < items.length; i++) items[i].el.classList.add('is-culled');

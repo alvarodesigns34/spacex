@@ -47,6 +47,13 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --no-audit --no-fund
+      # The browser is the same for every job and push of a Playwright version: cached, the
+      # install step only adds the system libraries (audit of 20-10-2026, S8).
+      - if: matrix.part.browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - if: matrix.part.browser
         run: npx playwright install --with-deps chromium
       - run: ${{ matrix.part.run }}
@@ -65,7 +72,9 @@ jobs:
       - run: |
           mkdir -p _site
           cp index.html _site/
-          cp -r src vendor docs assets _site/
+          # docs/ (≈18 MB of screenshots and reports) is read on GitHub, not by the site: not
+          # published since 23-10-2026 (audit S7).
+          cp -r src vendor assets _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

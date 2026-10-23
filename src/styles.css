@@ -445,20 +445,100 @@ body.is-touring .coach { display: none; }
 
 /* ---- Cybertruck Lab (ui/cybertruckLab.js): the Cybertruck on its own, over the site ---- */
 body.cybertruck-lab-open #hud, body.cybertruck-lab-open #labels { display: none; }
-#cybertruck-lab { position: fixed; inset: 0; z-index: 40; color: var(--ink); font-family: var(--font-sans); }
-#cybertruck-lab.hidden, #cybertruck-lab .hidden { display: none; }
+#cybertruck-lab { position: fixed; inset: 0; z-index: 40; color: var(--ink); font-family: var(--font-sans); --ctl-panel: 320px; }
+#cybertruck-lab.hidden, #cybertruck-lab .hidden { display: none !important; }
 #cybertruck-lab .ctl-stage { position: absolute; inset: 0; touch-action: none; cursor: grab; }
 #cybertruck-lab .ctl-stage:active { cursor: grabbing; }
-#cybertruck-lab .ctl-head { position: absolute; top: 24px; left: 24px; display: flex; align-items: flex-start; gap: 14px; pointer-events: none; }
+#cybertruck-lab .ctl-head { position: absolute; top: 24px; left: 24px; right: calc(var(--ctl-panel) + 48px); display: flex; align-items: flex-start; gap: 14px; pointer-events: none; }
 #cybertruck-lab .ctl-head > * { pointer-events: auto; }
 #cybertruck-lab .ctl-back { padding: 9px 14px; min-height: 40px; color: var(--ink); background: var(--surface-solid); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); cursor: pointer; font: inherit; font-size: 13px; }
-#cybertruck-lab .ctl-title { pointer-events: none; }
+#cybertruck-lab .ctl-title { pointer-events: none; min-width: 0; }
 #cybertruck-lab .ctl-name { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.15; }
 #cybertruck-lab .ctl-sub { font-size: 12.5px; color: var(--ink-muted); margin-top: 3px; }
-#cybertruck-lab .ctl-views { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; gap: 4px; max-width: calc(100vw - 48px); overflow-x: auto; padding: 6px; background: var(--surface-solid); border: 1px solid var(--surface-line); border-radius: var(--radius-panel); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); box-shadow: var(--shadow-panel); scrollbar-width: none; }
-#cybertruck-lab .ctl-views button { padding: 7px 11px; min-height: 34px; color: var(--ink-muted); cursor: pointer; font: inherit; font-size: 12.5px; white-space: nowrap; }
-#cybertruck-lab .ctl-views button:hover { color: var(--ink); }
-#cybertruck-lab .ctl-note { position: absolute; top: 24px; left: 50%; transform: translateX(-50%); max-width: min(520px, calc(100vw - 48px)); padding: 10px 14px; font-size: 13px; background: var(--surface-solid); border: 1px solid var(--surface-line); border-left: 2px solid var(--accent); border-radius: var(--radius-ctl); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); pointer-events: none; }
-#cybertruck-lab .ctl-loading { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(11, 12, 14, 0.72); }
-#cybertruck-lab .ctl-loading.hidden { display: none; }
+#cybertruck-lab[data-env="exterior"] .ctl-name, #cybertruck-lab[data-env="exterior"] .ctl-title .eyebrow, #cybertruck-lab[data-env="exterior"] .ctl-sub { text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45); color: #f4f6f8; }
+#cybertruck-lab .ctl-note { position: absolute; top: 24px; left: 50%; transform: translateX(-50%); max-width: min(520px, calc(100vw - 48px)); padding: 10px 14px; font-size: 13px; background: var(--surface-solid); border: 1px solid var(--surface-line); border-left: 2px solid var(--accent); border-radius: var(--radius-ctl); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); pointer-events: none; z-index: 2; }
+/* Panel: systems, parts, data. */
+#cybertruck-lab .ctl-panel { position: absolute; top: 24px; right: 24px; bottom: 24px; width: var(--ctl-panel); display: flex; flex-direction: column; gap: 10px; padding: 12px; background: var(--surface-solid); border: 1px solid var(--surface-line); border-radius: var(--radius-panel); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); box-shadow: var(--shadow-panel); }
+#cybertruck-lab .ctl-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 3px; background: rgba(255, 255, 255, 0.04); border-radius: var(--radius-ctl); }
+#cybertruck-lab .ctl-tab, #cybertruck-lab .ctl-seg-btn { padding: 7px 8px; min-height: 32px; color: var(--ink-muted); background: none; border: 0; border-radius: 8px; cursor: pointer; font: inherit; font-size: 12.5px; white-space: nowrap; }
+#cybertruck-lab .ctl-tab[aria-pressed="true"], #cybertruck-lab .ctl-seg-btn[aria-pressed="true"] { color: var(--ink); background: var(--accent-quiet); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent); }
+#cybertruck-lab .ctl-count { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); }
+#cybertruck-lab .ctl-pane { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--surface-line) transparent; }
+#cybertruck-lab .ctl-pane-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 12px; color: var(--ink-muted); margin: 2px 2px 10px; }
+#cybertruck-lab .ctl-link { background: none; border: 0; color: var(--accent); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; padding: 0; }
+#cybertruck-lab .ctl-systems { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+#cybertruck-lab .ctl-chip { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 7px; padding: 8px 9px; min-height: 44px; text-align: left; color: var(--ink); background: rgba(255, 255, 255, 0.04); border: 1px solid var(--surface-line); border-radius: var(--radius-ctl); cursor: pointer; font: inherit; font-size: 12px; line-height: 1.25; }
+#cybertruck-lab .ctl-chip small { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-faint); }
+#cybertruck-lab .ctl-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 22%, transparent); }
+#cybertruck-lab .ctl-chip[aria-pressed="false"] { color: var(--ink-faint); background: none; }
+#cybertruck-lab .ctl-chip[aria-pressed="false"] .ctl-dot { background: none; box-shadow: inset 0 0 0 1.5px var(--c); }
+#cybertruck-lab .ctl-search { width: 100%; box-sizing: border-box; padding: 9px 11px; margin-bottom: 8px; color: var(--ink); background: rgba(255, 255, 255, 0.05); border: 1px solid var(--surface-line); border-radius: var(--radius-ctl); font: inherit; font-size: 13px; }
+#cybertruck-lab .ctl-group { border-top: 1px solid var(--surface-line); }
+#cybertruck-lab .ctl-group summary { display: flex; justify-content: space-between; padding: 9px 2px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-muted); cursor: pointer; }
+#cybertruck-lab .ctl-n { font-family: var(--font-mono); font-weight: 400; color: var(--ink-faint); }
+#cybertruck-lab .ctl-item { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 6px; padding: 1px 4px; border-radius: 8px; }
+#cybertruck-lab .ctl-item:hover, #cybertruck-lab .ctl-item.is-selected { background: var(--surface-hover); }
+#cybertruck-lab .ctl-item.is-selected .ctl-item-name { color: var(--accent); }
+#cybertruck-lab .ctl-item.is-hidden .ctl-item-name { color: var(--ink-faint); text-decoration: line-through; }
+#cybertruck-lab .ctl-item-name { text-align: left; background: none; border: 0; padding: 6px 0; color: var(--ink); font: inherit; font-size: 12.5px; line-height: 1.3; cursor: pointer; }
+#cybertruck-lab .ctl-eye { background: none; border: 0; color: var(--ink-muted); cursor: pointer; font-size: 13px; padding: 4px; }
+#cybertruck-lab .ctl-eye[aria-pressed="false"] { color: var(--ink-faint); opacity: 0.45; }
+#cybertruck-lab .ctl-fid, #cybertruck-lab .ctl-pill { font-family: var(--font-mono); font-size: 10.5px; padding: 1px 6px; border-radius: 999px; border: 1px solid currentColor; }
+#cybertruck-lab .fid-V { color: #6fd39b; }
+#cybertruck-lab .fid-R { color: #7fb2ff; }
+#cybertruck-lab .fid-A { color: var(--accent); }
+#cybertruck-lab .ctl-data-lead, #cybertruck-lab .ctl-data-note { font-size: 12px; line-height: 1.45; color: var(--ink-muted); margin: 2px 2px 10px; }
+#cybertruck-lab .ctl-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+#cybertruck-lab .ctl-table th { text-align: right; font-weight: 600; color: var(--ink-muted); padding: 4px 3px; border-bottom: 1px solid var(--surface-line); }
+#cybertruck-lab .ctl-table td { padding: 5px 3px; border-bottom: 1px solid color-mix(in srgb, var(--surface-line) 55%, transparent); }
+#cybertruck-lab .ctl-table td.num { text-align: right; font-family: var(--font-mono); font-size: 11.5px; white-space: nowrap; }
+#cybertruck-lab .ctl-table tr.is-measured td:nth-child(3) { color: var(--accent); }
+#cybertruck-lab .ctl-fid-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 12px 0; }
+#cybertruck-lab .ctl-fid-box { display: flex; flex-direction: column; align-items: center; padding: 8px 4px; border: 1px solid currentColor; border-radius: var(--radius-ctl); font-size: 11px; }
+#cybertruck-lab .ctl-fid-box b { font-family: var(--font-mono); font-size: 16px; }
+#cybertruck-lab .ctl-sources { list-style: none; margin: 0; padding: 0; font-size: 11.5px; line-height: 1.45; }
+#cybertruck-lab .ctl-sources li { margin: 4px 2px; }
+/* The selected part's card. */
+#cybertruck-lab .ctl-info { position: absolute; top: 112px; left: 24px; width: min(320px, calc(100vw - var(--ctl-panel) - 96px)); max-height: calc(100vh - 360px); overflow-y: auto; padding: 14px 16px; background: var(--surface-solid); border: 1px solid var(--surface-line); border-left: 2px solid var(--accent); border-radius: var(--radius-panel); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); box-shadow: var(--shadow-panel); }
+#cybertruck-lab .ctl-info-top { display: flex; justify-content: space-between; align-items: center; }
+#cybertruck-lab .ctl-x { background: none; border: 0; color: var(--ink-muted); font-size: 20px; line-height: 1; cursor: pointer; padding: 2px 6px; }
+#cybertruck-lab .ctl-info-title { margin: 8px 0 2px; font-size: 16px; font-weight: 600; line-height: 1.3; }
+#cybertruck-lab .ctl-info-name { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); word-break: break-all; }
+#cybertruck-lab .ctl-info-dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 10px 0; font-size: 12.5px; }
+#cybertruck-lab .ctl-info-dl dt { color: var(--ink-muted); }
+#cybertruck-lab .ctl-info-dl dd { margin: 0; }
+#cybertruck-lab .ctl-info-note { font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); margin: 0 0 10px; }
+#cybertruck-lab .ctl-info-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+#cybertruck-lab .ctl-info-acts button, #cybertruck-lab .ctl-dock button.tool { padding: 7px 11px; min-height: 34px; color: var(--ink); cursor: pointer; font: inherit; font-size: 12.5px; white-space: nowrap; }
+/* The dock: views, the explosion and its stages. */
+#cybertruck-lab .ctl-dock { position: absolute; left: 24px; right: calc(var(--ctl-panel) + 48px); bottom: 24px; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; background: var(--surface-solid); border: 1px solid var(--surface-line); border-radius: var(--radius-panel); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); box-shadow: var(--shadow-panel); }
+#cybertruck-lab .ctl-views { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+#cybertruck-lab .ctl-views button { padding: 6px 10px; min-height: 30px; color: var(--ink-muted); cursor: pointer; font: inherit; font-size: 12px; white-space: nowrap; }
+#cybertruck-lab .ctl-views button.is-active { color: var(--ink); background: var(--accent-quiet); }
+#cybertruck-lab .ctl-dock-row { display: flex; align-items: center; gap: 8px; }
+#cybertruck-lab .ctl-explode { flex: 1 1 auto; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 13px; font-weight: 600; }
+#cybertruck-lab .ctl-explode output { font-family: var(--font-mono); font-weight: 400; color: var(--ink-muted); }
+#cybertruck-lab .ctl-explode input { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); height: 22px; margin: 0; }
+#cybertruck-lab .ctl-play[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-quiet); }
+#cybertruck-lab .ctl-stages { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
+#cybertruck-lab .ctl-stage-chip { position: relative; overflow: hidden; display: flex; gap: 6px; align-items: center; padding: 6px 8px; min-height: 32px; text-align: left; color: var(--ink-muted); background: rgba(255, 255, 255, 0.04); border: 1px solid var(--surface-line); border-radius: 8px; cursor: pointer; font: inherit; font-size: 11.5px; line-height: 1.2; }
+#cybertruck-lab .ctl-stage-chip::before { content: ''; position: absolute; inset: auto 0 0 0; height: 2px; background: var(--accent); transform-origin: left; transform: scaleX(var(--k, 0)); }
+#cybertruck-lab .ctl-stage-chip b { font-family: var(--font-mono); color: var(--ink-faint); }
+#cybertruck-lab .ctl-stage-chip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#cybertruck-lab .ctl-stage-chip.is-on { color: var(--ink); }
+#cybertruck-lab .ctl-stage-chip[aria-pressed="false"] { opacity: 0.45; text-decoration: line-through; }
+#cybertruck-lab .ctl-status { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Scene settings, above the dock's Scene button. */
+#cybertruck-lab .ctl-pop { position: absolute; right: calc(var(--ctl-panel) + 48px); bottom: 210px; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; min-width: 300px; background: var(--surface-solid); border: 1px solid var(--surface-line); border-radius: var(--radius-panel); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); box-shadow: var(--shadow-panel); }
+#cybertruck-lab .ctl-pop-row { display: grid; grid-template-columns: 84px 1fr auto; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-muted); }
+#cybertruck-lab .ctl-seg { display: flex; gap: 3px; padding: 3px; background: rgba(255, 255, 255, 0.04); border-radius: var(--radius-ctl); grid-column: 2 / -1; }
+#cybertruck-lab .ctl-seg-btn { flex: 1 1 auto; }
+#cybertruck-lab .ctl-amp { accent-color: var(--accent); width: 100%; }
+#cybertruck-lab .ctl-amp-out { font-family: var(--font-mono); font-size: 11.5px; }
+#cybertruck-lab .ctl-loading { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(11, 12, 14, 0.72); z-index: 3; }
 #cybertruck-lab :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 1180px) {
+  #cybertruck-lab { --ctl-panel: 280px; }
+  #cybertruck-lab .ctl-stage-chip span { display: none; }
+  #cybertruck-lab .ctl-stages { grid-template-columns: repeat(6, auto); justify-content: start; }
+}

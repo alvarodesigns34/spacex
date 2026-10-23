@@ -520,7 +520,10 @@ try {
   const before = await snapshot();
 
   // The button is the only way a visitor starts this, so exercise it rather than the API.
-  await page.click('#launch-btn');
+  // 120 s, as the interface check gives its clicks: Playwright waits for two stable frames before
+  // clicking, and a frame of the full scene on the shared runner's software rasteriser can take
+  // seconds. With the default 30 s this click timed out under load (audit of 20-10-2026, S5).
+  await page.click('#launch-btn', { timeout: 120000 });
   const armed = await page.evaluate(() => {
     const st = window.__vc.launch.state;
     return { running: st.running, t: st.t, panel: !document.getElementById('mission').classList.contains('hidden') };
@@ -847,10 +850,15 @@ try {
       `abre en ${opened} · tab dentro ${stillInside} · cierra en ${closed.focus}`);
   }
 
-  // ---- Performance budget (reports, does not gate) ----------------------------------------
+  // ---- Performance budget (gates: a figure over its ceiling fails the build) ---------------
   // Machine-dependent numbers must not fail a build, but a change that doubles the scene
-  // should be impossible to merge without noticing. These print every time and only fail on
-  // a gross regression — the kind that means something is being built in a loop.
+  // should be impossible to merge without noticing. These print every time and fail when any
+  // figure passes its ceiling — which a new exhibit from a .glb can do at once: the Model Y's
+  // commit (8728971) was not deployed for it. A deliberate addition raises the ceiling here,
+  // with its reason below (audit of 20-10-2026, S2).
+  // `textures` is the renderer's own count, for everything it has uploaded, not only this
+  // scene's: anything drawn with the same renderer before this point counts too (S3). The
+  // Cybertruck Lab shares the renderer, so its check runs in a browser of its own.
   {
     const budget = await page.evaluate(() => {
       const v = window.__vc;
