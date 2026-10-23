@@ -27,6 +27,8 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
    - Prueba real del 23-10 con el Cybertruck: reconstrucción completa en 331 s, validación idéntica y GLB equivalente. Detalle en la auditoría, §11.
    - Ojo: `bpy==5.0.1` (pip, Python 3.11), con el que se hizo la H2R, es otra versión. Para no mezclar, usar el binario 5.2.2 y pasar `node tools/check.mjs` tras regenerar cualquier `.glb`.
 
+3. **CI: runner fijo en `ubuntu-24.04`** (23-10-2026). `ubuntu-latest` pasó a Ubuntu 26.04 y Playwright 1.56.1 no instala Chromium allí; el CI falló en las cinco ramas en ese paso, antes de cualquier prueba, con el commit de la auditoría. Se fijó la versión en `.github/workflows/pages.yml`. Pendiente, a decisión del usuario: actualizar Playwright y volver a `ubuntu-latest`.
+
 ### Estado actual (17-10-2026)
 
 Cuatro órdenes del usuario ese día, en este orden, todas hechas:

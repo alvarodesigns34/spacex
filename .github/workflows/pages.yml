@@ -23,7 +23,8 @@ jobs:
   # `npm run check`, most of it the scene walk and the interface checks one after the other.
   # The deploy waits for all five; `npm run check` still runs the lot locally.
   check:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to 26.04 (October 2026), where Playwright 1.56.1 cannot install Chromium.
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: true
       matrix:
@@ -55,7 +56,7 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - run: |
