@@ -32,8 +32,11 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ENVIRONMENTS, environmentMaps, createFloors, createFloorReflector, finishMaterial } from './cybertruckStudio.js';
-import { CT_FIGURES, CT_SOURCES, CT_SYSTEMS, CT_STAGES, CT_FIDELITY } from '../data/cybertruck.js';
+import { CT_FIGURES, CT_SOURCES, CT_SYSTEMS, CT_STAGES, CT_FIDELITY, CT_SUSPENSION, CT_OPENINGS } from '../data/cybertruck.js';
+import { buildHumanCrowd } from '../vehicles/common.js';
+import { fireflyClampPass } from '../core/fireflyClamp.js';
 
 export const CYBERTRUCK_ASSET = new URL('../../assets/cybertruck/cybertruck.glb', import.meta.url);
 /** What tools/cybertruck-sync.mjs recorded: the GLB's uncompressed size is the progress bar's total. */
@@ -79,9 +82,10 @@ function el(tag, cls, text) {
 /**
  * @param renderer the site's renderer, shared (one WebGL context)
  * @param quality  the site's tier (core/quality.js): shadow resolution, MSAA, anisotropy and the reflection follow it
+ * @param M        the site's material library, for the 1.80 m scale figure (the centre's own)
  * @param onExit   called after closing, once the renderer is back as the site left it
  */
-export function createCybertruckLab({ renderer, quality, onExit }) {
+export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
   const lab = { active: false, loaded: false, loading: false, requests: 0, stats: null, frames: 0 };
   const state = {
     explode: 0, amp: AMP.init, stageMask: { 1: true, 2: true, 3: true, 4: true, 5: true, 6: true },
@@ -90,7 +94,12 @@ export function createCybertruckLab({ renderer, quality, onExit }) {
     floor: FLOORS[pref.get('floor')] ? pref.get('floor') : 'glass',
     env: ENVIRONMENTS[pref.get('env')] ? pref.get('env') : 'studio',
     reflections: pref.get('refl') !== 'off',
+    figure: pref.get('figure') !== 'off',
   };
+  // Openings: progress 0…1 towards a target, eased; the nodes are bound once the model is in.
+  const openings = Object.fromEntries(Object.entries(CT_OPENINGS).map(([k, o]) => [k, { ...o, k: 0, target: 0, items: [] }]));
+  let figure = null;
+  const sunDir = new THREE.Vector3();
   let windows = {};
   const parts = [];                   // the exploding parts: { obj, base, dir, dist, stage }
   const comps = new Map();            // every part by node name
@@ -165,6 +174,8 @@ export function createCybertruckLab({ renderer, quality, onExit }) {
         <div class="ctl-pop-row"><span>Floor</span><div class="ctl-seg" data-seg="floor"></div></div>
         <div class="ctl-pop-row"><span>Light</span><div class="ctl-seg" data-seg="env"></div></div>
         <div class="ctl-pop-row" data-row="refl"><span>Reflection</span><div class="ctl-seg" data-seg="refl"></div></div>
+        <div class="ctl-pop-row"><span>Openings</span><div class="ctl-seg ctl-toggles" data-seg="open" title="Tesla publishes no opening angles: the doors' (65°) and the frunk's (55°) are approximate; the tailgate drops level"></div></div>
+        <div class="ctl-pop-row" data-row="figure"><span>1.80 m figure</span><div class="ctl-seg" data-seg="figure"></div></div>
         <label class="ctl-pop-row"><span>Amplitude</span><input type="range" class="ctl-amp" min="${AMP.min}" max="${AMP.max}" step="0.05" value="${AMP.init}" aria-label="Explosion amplitude"><output class="ctl-amp-out"></output></label>
       </div>
       <div class="ctl-loading" role="status" aria-live="polite">
@@ -220,6 +231,9 @@ export function createCybertruckLab({ renderer, quality, onExit }) {
     segment('floor', FLOORS, (v) => setFloor(v));
     segment('env', Object.fromEntries(Object.entries(ENVIRONMENTS).map(([k, e]) => [k, e.label])), (v) => setEnvironment(v));
     segment('refl', { on: 'On', off: 'Off' }, (v) => setReflections(v === 'on'));
+    segment('open', Object.fromEntries(Object.entries(CT_OPENINGS).map(([k, o]) => [k, `${o.label}${o.approx ? ' ≈' : ''}`])), (v) => setOpening(v, openings[v].target === 0));
+    segment('figure', { on: 'On', off: 'Off' }, (v) => setFigure(v === 'on'));
+    if (!M) q('[data-row="figure"]').classList.add('hidden');
     // The reflection draws the whole truck again: only offered where the tier builds it.
     if (quality.name !== 'high') q('[data-row="refl"]').classList.add('hidden');
     syncAmp();
@@ -277,6 +291,16 @@ export function createCybertruckLab({ renderer, quality, onExit }) {
     hemi = new THREE.HemisphereLight(0xdfe6ee, 0x1a1c20, 0.25);
     scene.add(key, hemi);
     floors = createFloors(scene);
+    // The centre's own 1.80 m figure (vehicles/common.js), beside the driver's doors and clear of
+    // them opened or exploded: it is how the site shows scale, and here it makes the truck's 1.79 m
+    // height and 5.68 m length readable (audit M-CT8).
+    if (M) {
+      // Beside the cargo bed, behind the rear wheel and out of the doors' way: no part reaches it even fully exploded at the
+      // widest amplitude (2.4×; checked in tools/cybertruck-lab-check.mjs).
+      figure = buildHumanCrowd(M, [{ x: -3.8, y: 0, z: 2.8, ry: Math.PI / 2, suit: 'white' }], { sunDir });
+      figure.name = 'cybertruck-lab-figure';
+      scene.add(figure);
+    }
     if (quality.name === 'high') { reflector = createFloorReflector(14, Math.min(window.devicePixelRatio, 2) * 0.5); scene.add(reflector); }
 
     // As the site's: a multisampled half-float target (MSAA by tier) and one output pass, which
@@ -284,8 +308,14 @@ export function createCybertruckLab({ renderer, quality, onExit }) {
     rt = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { samples: quality.msaa, type: THREE.HalfFloatType });
     composer = new EffectComposer(renderer, rt);
     composer.addPass(new RenderPass(scene, camera));
+    // The site's bloom, by tier and with its firefly clamp ahead, so the light bar and the LEDs
+    // glow as they do in the photographs (audit M-CT5); the same settings as the centre's.
+    if (quality.bloom) {
+      composer.addPass(fireflyClampPass());
+      composer.addPass(new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.12, 0.6, 0.92));
+    }
     composer.addPass(new OutputPass());
-    setFloor(state.floor); setReflections(state.reflections);
+    setFloor(state.floor); setReflections(state.reflections); setFigure(state.figure);
   }
 
   function setEnvironment(name) {
@@ -297,6 +327,7 @@ export function createCybertruckLab({ renderer, quality, onExit }) {
     scene.fog = new THREE.Fog(...e.fog);
     renderer.toneMappingExposure = e.exposure;
     key.color.set(e.key.color); key.intensity = e.key.intensity; key.position.set(...e.key.pos);
+    sunDir.copy(key.position).normalize();        // the figure's shadow follows the key light
     hemi.intensity = e.hemi;
     floors.set(state.floor, state.env);
     root.dataset.env = state.env;
@@ -321,6 +352,47 @@ export function createCybertruckLab({ renderer, quality, onExit }) {
     pref.set('refl', state.reflections ? 'on' : 'off');
     dirty = true;
   }
+  function setFigure(on) {
+    state.figure = !!on && !!figure;
+    if (figure) figure.visible = state.figure;
+    markSegment('figure', state.figure ? 'on' : 'off');
+    pref.set('figure', on ? 'on' : 'off');
+    dirty = true;
+  }
+
+  // ---- Openings: doors, frunk and tailgate about the asset's hinges (audit M-CT4) ----
+  const _oq = new THREE.Quaternion();
+  function bindOpenings() {
+    for (const o of Object.values(openings)) {
+      o.items = o.nodes.map(n => truck.getObjectByName(n)).filter(Boolean).map(node => ({
+        node, q0: node.quaternion.clone(), axis: new THREE.Vector3(...o.axis),
+        // Left doors (x < 0) turn the other way from the right ones, so all four open outwards.
+        sign: o.axis[1] ? Math.sign(node.position.x) || 1 : 1,
+      }));
+    }
+  }
+  function applyOpening(o) {
+    for (const it of o.items) {
+      _oq.setFromAxisAngle(it.axis, THREE.MathUtils.degToRad(o.deg) * it.sign * ease(o.k));
+      it.node.quaternion.copy(it.q0).multiply(_oq);
+    }
+  }
+  function setOpening(name, open) {
+    const o = openings[name];
+    if (!o) return;
+    o.target = open ? 1 : 0;
+    for (const b of root.querySelectorAll(`[data-seg="open"] [data-value="${name}"]`)) b.setAttribute('aria-pressed', String(!!open));
+    dirty = true;
+  }
+  function stepOpenings(step) {
+    for (const o of Object.values(openings)) {
+      if (o.k === o.target || !o.items.length) continue;
+      o.k = o.target > o.k ? Math.min(o.target, o.k + step / 0.9) : Math.max(o.target, o.k - step / 0.9);
+      applyOpening(o);
+      shadowDirty = dirty = true;
+    }
+  }
+
   function updateReflector() {
     if (!reflector) return;
     reflector.visible = state.reflections && state.floor !== 'hidden';
@@ -396,6 +468,7 @@ export function createCybertruckLab({ renderer, quality, onExit }) {
     const size = new THREE.Box3().setFromObject(truck, true).getSize(new THREE.Vector3());
     lab.stats = { parts: comps.size, exploding: parts.length, meshes, triangles: Math.round(tris), fidelity: fid, size: { length: size.z, width: size.x, height: size.y } };
     ui.sub.textContent = `1:1 Blender model · ${comps.size.toLocaleString('en-GB')} parts · ${CT_FIDELITY.V.label} ${fid.V} · ${CT_FIDELITY.R.label} ${fid.R} · ${CT_FIDELITY.A.label} ${fid.A}`;
+    bindOpenings();
     buildLists();
     buildData();
     applyExplode();
@@ -511,6 +584,19 @@ export function createCybertruckLab({ renderer, quality, onExit }) {
       fid.appendChild(b);
     }
     pane.appendChild(fid);
+    pane.append(el('h4', 'ctl-data-h', 'Air suspension (Premium AWD and Cyberbeast)'));
+    const susp = el('table', 'ctl-table');
+    const sh = el('tr');
+    for (const h of ['Setting', 'Height', 'Clearance']) sh.appendChild(el('th', '', h));
+    susp.appendChild(sh);
+    for (const r of CT_SUSPENSION) {
+      const tr = el('tr');
+      tr.append(el('td', '', r.model ? `${r.label} (the model)` : r.label), el('td', 'num', `${r.height.toFixed(3)} m`), el('td', 'num', `${r.clearance.toFixed(3)} m`));
+      if (r.model) tr.classList.add('is-measured');
+      susp.appendChild(tr);
+    }
+    pane.appendChild(susp);
+    pane.append(el('p', 'ctl-data-note', "Tesla's six settings, from the same page of the manual. The model is built at Medium; moving it to the others needs the suspension's arms articulated, so it is not done here."));
     const src = el('ul', 'ctl-sources');
     for (const s of Object.values(CT_SOURCES)) {
       const li = el('li'), a = el('a', '', s.label);
@@ -716,6 +802,7 @@ export function createCybertruckLab({ renderer, quality, onExit }) {
       if (e >= 1 || e <= 0) { e = THREE.MathUtils.clamp(e, 0, 1); state.playDir *= -1; }
       setExplode(e);
     }
+    stepOpenings(step);
     controls.update();          // damping: keeps raising 'change' while the orbit settles
     if (!dirty) return;
     if (shadowDirty) { renderer.shadowMap.needsUpdate = true; shadowDirty = false; }
@@ -827,11 +914,11 @@ export function createCybertruckLab({ renderer, quality, onExit }) {
   // For the checks and the console.
   Object.assign(lab, {
     flyTo, goView, resetView, setExplode, explodeTo, setPlaying, assemble, select, isolate, showAll, setPartVisible,
-    toggleSystem, setFloor, setEnvironment, setReflections, filterTree, frame, VIEWS, state, parts, comps,
+    toggleSystem, setFloor, setEnvironment, setReflections, setOpening, setFigure, filterTree, frame, VIEWS, state, parts, comps, openings,
   });
   Object.defineProperties(lab, {
     camera: { get: () => camera }, controls: { get: () => controls }, scene: { get: () => scene }, truck: { get: () => truck },
-    reflector: { get: () => reflector }, floors: { get: () => floors }, windows: { get: () => windows },
+    reflector: { get: () => reflector }, floors: { get: () => floors }, windows: { get: () => windows }, figure: { get: () => figure },
   });
   return lab;
 }

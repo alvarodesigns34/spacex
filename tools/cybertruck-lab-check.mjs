@@ -242,6 +242,37 @@ try {
     'los tres suelos: opaco (sin bajar la cámara del suelo), oculto (se puede mirar desde abajo) y de cristal con su sombra de contacto', JSON.stringify(scn));
   report(Math.abs(scn.exterior - 0.72) < 1e-9 && scn.reflector === (scn.tier === 'high'), 'la luz «Exterior» lleva su exposición (0,72); el reflejo plano solo existe en calidad alta', `exposición ${scn.exterior} · reflejo ${scn.reflector} en calidad ${scn.tier}`);
 
+  // ---- Openings, the scale figure, the bloom and the suspension table.
+  const more = await page.evaluate(async () => {
+    const L = window.__vc.ctLab, THREE = await import('three');
+    const ang = (o) => 2 * Math.acos(Math.min(1, Math.abs(o.quaternion.w))) * 180 / Math.PI;
+    L.setOpening('doors', true); L.setOpening('tailgate', true); L.setOpening('frunk', true);
+    for (let i = 0; i < 400 && Object.values(L.openings).some(o => o.k < 1); i++) await new Promise(r => requestAnimationFrame(r));
+    const fl = L.truck.getObjectByName('DOOR_FL'), fr = L.truck.getObjectByName('DOOR_FR');
+    // The left door's rear edge goes out to −x, the right one's to +x.
+    const tip = (d) => new THREE.Vector3(0, 0, 1).applyQuaternion(d.quaternion).x;
+    const out = { door: ang(fl), frunk: ang(L.truck.getObjectByName('EXT_Frunk_Lid')), tail: ang(L.truck.getObjectByName('EXT_Tailgate')), left: tip(fl), right: tip(fr) };
+    for (const k of Object.keys(L.openings)) L.setOpening(k, false);
+    for (let i = 0; i < 400 && Object.values(L.openings).some(o => o.k > 0); i++) await new Promise(r => requestAnimationFrame(r));
+    out.closed = Math.max(ang(fl), ang(fr));
+    const f = L.figure;
+    if (f) { const b = new THREE.Box3(); f.traverse(o => { if (o.isMesh && o.name === 'human-batch') b.expandByObject(o); }); out.figureTop = b.max.y; out.figureMinY = b.min.y; }
+    // Fully exploded at the widest amplitude, no part's box reaches the figure's (a 0.6 m column).
+    if (f) {
+      const col = new THREE.Box3(); f.traverse(o => { if (o.isMesh && o.name === 'human-batch') col.expandByObject(o); });
+      col.expandByVector(new THREE.Vector3(0.1, 0, 0.1));
+      const amp = L.state.amp; L.state.amp = 2.4; L.setExplode(1); L.truck.updateMatrixWorld(true);
+      out.figureHits = [...L.comps.values()].filter(o => o.isMesh && new THREE.Box3().setFromObject(o).intersectsBox(col)).map(o => o.name);
+      L.state.amp = amp; L.setExplode(0);
+    }
+    out.suspension = [...document.querySelectorAll('#cybertruck-lab [data-pane="data"] .ctl-table')][1]?.querySelectorAll('tr').length - 1;
+    return out;
+  });
+  report(Math.abs(more.door - 65) < 0.5 && Math.abs(more.frunk - 55) < 0.5 && Math.abs(more.tail - 90) < 0.5 && more.left < -0.5 && more.right > 0.5 && more.closed < 1e-6,
+    'aperturas: puertas ≈65° hacia fuera a cada lado, frunk ≈55° y portón 90°, y vuelven a cerrar', JSON.stringify(more));
+  report(Math.abs(more.figureTop - 1.80) < 0.02 && Math.abs(more.figureMinY) < 0.02 && more.figureHits?.length === 0, 'la figura de escala mide 1,80 m desde el suelo que pisa y ninguna pieza la alcanza explosionada al máximo', `coronilla a ${more.figureTop?.toFixed(3)} m, pies a ${(more.figureMinY * 1000).toFixed(0)} mm · piezas que la tocan: ${more.figureHits?.join(', ') || 'ninguna'}`);
+  report(more.suspension === 6, 'la pestaña Data lista las seis alturas de la suspensión del manual', `${more.suspension} filas`);
+
   // ---- Space animates; Esc goes one layer at a time.
   await page.evaluate(() => document.querySelector('#cybertruck-lab .ctl-back').blur());
   await page.keyboard.press('Space');
