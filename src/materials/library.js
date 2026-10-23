@@ -8,6 +8,7 @@
  */
 import * as THREE from 'three';
 import * as TX from './textures.js';
+import { openTextureCache, loadStep, noteStep, savePending } from './textureCache.js';
 import { WIND } from '../core/wind.js';
 
 /**
@@ -149,6 +150,13 @@ float sootNoise(vec2 p) {
   m.customProgramCacheKey = () => `vc-soot-1${key ? key() : ''}`;
 }
 
+/**
+ * The texture cache's switch and its last state, for the checks and the console: `?nocache`
+ * turns it off (main.js), `TEXTURE_CACHE.last.stats` counts hits and misses, and
+ * `TEXTURE_CACHE.saving` resolves once a first visit's textures are stored.
+ */
+export const TEXTURE_CACHE = { enabled: true, last: null, saving: null, steps: null, textures: null };
+
 export async function createMaterials(onProgress = () => {}, pause = null) {
   const T = {};
   const steps = [
@@ -190,12 +198,20 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
   ];
   // One texture, then a frame: the generators are the longest stretch of the start-up, and
   // run back to back they were one block in which the progress bar could not repaint.
+  // A step painted on an earlier visit comes from the texture cache instead (textureCache.js:
+  // same pixels, keyed to this very source); what is painted now is stored after the start-up.
+  const tc = TEXTURE_CACHE.enabled ? await openTextureCache() : null;
+  TEXTURE_CACHE.last = tc;
+  TEXTURE_CACHE.steps = steps; TEXTURE_CACHE.textures = T;
   for (let i = 0; i < steps.length; i++) {
     const [key, fn] = steps[i];
-    T[key] = fn();
+    const cached = tc ? await loadStep(tc, key) : null;
+    T[key] = cached ?? fn();
+    if (tc && !cached) noteStep(tc, key, T[key]);
     onProgress(key, (i + 1) / steps.length);
-    if (pause) await pause();
+    if (pause && !cached) await pause();
   }
+  if (tc?.pending.length) TEXTURE_CACHE.saving = new Promise(r => setTimeout(r, 4000)).then(() => savePending(tc));
 
   const M = {};
 

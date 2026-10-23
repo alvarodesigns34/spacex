@@ -10,7 +10,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { createAO } from './core/ao.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
-import { createMaterials, WAVE_TIME } from './materials/library.js';
+import { createMaterials, WAVE_TIME, TEXTURE_CACHE } from './materials/library.js';
 import { createEnvironment } from './core/environment.js';
 import { dressCampus } from './core/campus.js';
 import { CameraRig } from './core/cameraRig.js';
@@ -156,6 +156,8 @@ async function main() {
   // instant is the one that ships — and the headless check ignores font errors, so it never
   // showed up there.
   if (document.fonts?.ready) await document.fonts.ready;
+  // ?nocache paints every texture, as before the texture cache (materials/textureCache.js).
+  if (params.has('nocache')) TEXTURE_CACHE.enabled = false;
   const { M } = await createMaterials((name, frac) => hud.setProgress(`Generating materials · ${name}`, 0.05 + frac * 0.2), nextFrame);
   timings.materials = performance.now() - t0;
   hud.setProgress('Lighting and environment…', 0.25);
@@ -1622,7 +1624,7 @@ async function main() {
   }
 
   window.__vc = {
-    ctLab, shadowCache, gbufferCache, M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, h2rRide, select, goPreset, jump, renderer, env,
+    ctLab, textureCache: TEXTURE_CACHE, shadowCache, gbufferCache, M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, h2rRide, select, goPreset, jump, renderer, env,
     setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour,
     claimUserControl, tourRunToEnd, toggleMode, toggleWalk,
     walkRouteFor: (hit) => { const r = walkRoute(hit); rig.travelTo(r.route, r.look); return r; },

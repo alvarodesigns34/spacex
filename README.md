@@ -71,6 +71,13 @@ La interfaz de la simulación (menús, ficha técnica, etiquetas y vistas) está
   - **Esc por capas:** cierra el menú de escena, después deshace el aislamiento, después suelta la selección y, por último, vuelve al centro. **U** vuelve siempre.
   - Código repartido en `ui/cybertruckLab.js` (escena, explosión, selección, interfaz), `ui/cybertruckStudio.js` (entornos, suelos, reflejo y acabado de materiales del visor) y `data/cybertruck.js` (cotas con fuente, nombres de sistemas y etapas, grados). `tools/cybertruck-check.mjs` comprueba además que esa ficha nombra todos los sistemas y etapas del GLB y que cada cifra tiene fuente.
   - **Prueba con navegador** ampliada a 33 comprobaciones. La explosión vuelve exacta (desviación 0 tras 0,37 → 0,81 → 0,12 → 0,37 y al 0 %), una etapa desmarcada no se mueve y al 100 % hay 124 piezas bajo el suelo. Un clic real sobre la puerta delantera la selecciona y abre su ficha. Aislar, ocultar un sistema o una pieza y la búsqueda funcionan. Los tres suelos, la luz exterior con su exposición, el reflejo solo en calidad alta, la barra espaciadora y Esc por capas, también. Al reabrir el Lab conserva la luz elegida, y al cerrarlo el centro recupera la suya.
+- **Caché de las texturas procedurales entre visitas (M-FL2, 23 de octubre de 2026):** las texturas de Canvas son deterministas y eran el tramo más largo del arranque. `src/materials/textureCache.js` guarda cada paso de `createMaterials` en la Cache Storage del navegador: PNG sin pérdida y los ajustes de cada textura (envoltura, espacio de color, repetición, `tileSize`, anisotropía pedida), tomados en cuanto el generador termina.
+  - La clave es un SHA-256 del código de `textures.js` y `library.js`: cualquier cambio en un generador o en sus parámetros invalida todo y borra las versiones viejas, sin acordarse de subir ninguna versión.
+  - Los PNG se codifican 4 s después del arranque, así que la primera visita no paga nada.
+  - Un lienzo compartido sigue compartido (las normales del acero, bajo los tres aceros).
+  - Si el navegador no ofrece la caché o algo falla, se pinta como antes. `?nocache` la desactiva.
+  - **Prueba** `tools/texture-cache-check.mjs`, en `check:cache`. Hace dos visitas con el mismo perfil: la primera pinta y guarda los 29 pasos; la segunda los lee todos de la caché. Después repinta cada paso y lo compara con lo que vino de la caché: **76 texturas, 38,9 M píxeles, idénticas píxel a píxel y ajuste a ajuste**. Un control negativo (un valor cambiado) falla, como debe.
+  - En SwiftShader, los materiales del arranque bajan de 4,6 s a 0,7 s en la segunda visita (sirve para comparar, no es la cifra de una máquina real). La imagen no cambia.
 - **Cybertruck Lab, mejoras de la auditoría (§8.2, 23 de octubre de 2026):**
   - **Aperturas (M-CT4):** en *Scene*, *Doors*, *Frunk* y *Tailgate* giran sobre las bisagras que trae el GLB (el origen de cada nodo es su bisagra). Las puertas abren hacia fuera a cada lado. Tesla no publica los ángulos: puertas 65° y frunk 55°, marcados ≈; el portón baja hasta quedar horizontal (90°).
   - **Figura de 1,80 m (M-CT8):** la del centro (`buildHumanCrowd`, con su sombra), junto a la caja de carga, detrás de la rueda trasera. La prueba comprueba que ninguna pieza la alcanza con el coche explosionado al 100 % y a la amplitud máxima (2,4×); en las dos primeras posiciones sí la alcanzaban las puertas y la rueda. Se puede ocultar en *Scene*.
@@ -546,6 +553,8 @@ src/data/cybertruck.js     cotas del Cybertruck con fuente (manual de Tesla) y n
 tools/cybertruck-lab-check.mjs  con navegador: el Lab abre, carga una vez, mide 1:1, no deja pasar teclas y devuelve el centro igual
 tools/perf-check.mjs       sin navegador: la descarga anticipada y el marcado de piezas pequeñas
 tools/render-cache-check.mjs  sin navegador: cuándo las cachés de sombras y de buffer geométrico piden un redibujo (y cuándo no)
+tools/texture-cache-check.mjs con navegador: las texturas de la caché entre visitas son, píxel a píxel, las que pintan sus generadores
+src/materials/textureCache.js la caché de las texturas procedurales entre visitas (Cache Storage, clave = hash del código)
 tools/render-cache-equal.mjs  con navegador: el mapa de sombras y el buffer geométrico en caché son, byte a byte, los de un redibujo
 tools/lod-parts.mjs        con navegador: las piezas pequeñas de los coches se ocultan sin que la imagen cambie
 ```
