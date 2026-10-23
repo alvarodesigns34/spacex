@@ -19,6 +19,7 @@ import { ViewState } from './core/viewState.js';
 import { pickQuality, applyQuality } from './core/quality.js';
 import { LODManager } from './core/lod.js';
 import { createHUD } from './ui/hud.js';
+import { createCybertruckLab } from './ui/cybertruckLab.js';
 import { VEHICLES } from './data/specs.js';
 import { buildStarship } from './vehicles/starship.js';
 import { buildFalcon9, buildFalconHeavy } from './vehicles/falcon.js';
@@ -132,6 +133,7 @@ async function main() {
     onFly: () => toggleFly(),
     onDrive: () => toggleDrive(),
     onRide: () => toggleRide(),
+    onCybertruck: () => toggleCybertruck(),
     // The panel drives whichever sequence is playing: the launch, or the re-entry chapter.
     onLaunchAbort: () => seq()?.reset(),
     onLaunchSpeed: (k) => seq()?.setSpeed(k),
@@ -738,6 +740,31 @@ async function main() {
     if (h2rRide.running) { h2rRide.reset(); return; }
     h2rRide.start();
   }
+  // ---- Cybertruck Lab ----
+  // The Tesla Cybertruck on its own, in a studio apart from the site (ui/cybertruckLab.js): not
+  // an exhibit, never in this scene, and its asset is fetched when the Lab is first opened. While
+  // it is open the site's frame is not drawn. A sequence that owns the camera and the keys
+  // (launch, re-entry, F-16, Porsche, H2R) or the tour is ended first, as picking a vehicle ends
+  // it (the owner's choice, audit of 20-10-2026 §9), and the Lab says which. On closing, the time
+  // spent there does not reach any clock, and the caches redraw in case the window was resized.
+  const ctLab = createCybertruckLab({
+    renderer, quality,
+    onExit: () => {
+      clock.getDelta(); missionClock.discard();
+      shadowCache.invalidate(); gbufferCache?.invalidate();
+      document.getElementById('cybertruck-btn')?.focus();
+    },
+  });
+  function toggleCybertruck() {
+    if (ctLab.active) { ctLab.close(); return; }
+    const running = [[launch, 'the Starship launch'], [reentry, 'the re-entry'], [f16fly, 'the F-16 flight'],
+      [gt3drive, 'the Porsche drive'], [h2rRide, 'the H2R ride']].filter(([s]) => s.running).map(([, name]) => name);
+    if (tourAt >= 0) running.push('the guided tour');
+    enforce({ ...view.claim('user'), launch: true });
+    stopTour();
+    rig.keys.clear(); rig.velocity.set(0, 0, 0);
+    ctLab.open(running.length ? `Ended ${new Intl.ListFormat('en-GB').format(running)} to open the Lab.` : '');
+  }
   function seq() { return reentry?.running ? reentry : launch; }
 
   // Zero-length normals (sliver triangles of zero area in extrusions and ribbons) shade as NaN;
@@ -1177,6 +1204,7 @@ async function main() {
     else if (k === 'j') toggleFly();
     else if (k === 'b') toggleDrive();
     else if (k === 'n') toggleRide();
+    else if (k === 'u') toggleCybertruck();
     else if (k === 'f') toggleMode();
     else if (k === 'v') toggleWalk();
     else if (k === 'g') toggleLaunch();
@@ -1478,6 +1506,8 @@ async function main() {
   })() : null;
 
   function frame() {
+    // The Cybertruck Lab draws its own scene with this renderer; the site waits as it was left.
+    if (ctLab.active) { ctLab.render(clock.getDelta()); requestAnimationFrame(frame); return; }
     perf?.begin();
     const steps = missionClock.step(clock.getDelta());
     const dt = steps.view;
@@ -1616,7 +1646,7 @@ async function main() {
   }
 
   window.__vc = {
-    shadowCache, gbufferCache, M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, h2rRide, select, goPreset, jump, renderer, env,
+    ctLab, shadowCache, gbufferCache, M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, h2rRide, select, goPreset, jump, renderer, env,
     setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour,
     claimUserControl, tourRunToEnd, toggleMode, toggleWalk,
     walkRouteFor: (hit) => { const r = walkRoute(hit); rig.travelTo(r.route, r.look); return r; },

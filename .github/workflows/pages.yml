@@ -19,9 +19,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The gate in five parts that run side by side: one runner took ~13 min for the whole of
+  # The gate in six parts that run side by side: one runner took ~13 min for the whole of
   # `npm run check`, most of it the scene walk and the interface checks one after the other.
-  # The deploy waits for all five; `npm run check` still runs the lot locally.
+  # The deploy waits for all six; `npm run check` still runs the lot locally. The Cybertruck Lab
+  # has a job of its own: it shares the renderer, and its textures would otherwise count in the
+  # scene budget of check.mjs if it ran first in the same browser.
   check:
     # Pinned: ubuntu-latest moved to 26.04 (October 2026), where Playwright 1.56.1 cannot install Chromium.
     runs-on: ubuntu-24.04
@@ -34,6 +36,7 @@ jobs:
           - { name: interface, run: 'npm run check:ux', browser: true }
           - { name: level-of-detail, run: 'npm run check:lod', browser: true }
           - { name: render-cache, run: 'npm run check:cache', browser: true }
+          - { name: cybertruck-lab, run: 'npm run check:cybertruck', browser: true }
     name: check (${{ matrix.part.name }})
     steps:
       - uses: actions/checkout@v4
