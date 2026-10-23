@@ -89,7 +89,7 @@ export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
   const lab = { active: false, loaded: false, loading: false, requests: 0, stats: null, frames: 0 };
   const state = {
     explode: 0, amp: AMP.init, stageMask: { 1: true, 2: true, 3: true, 4: true, 5: true, 6: true },
-    playing: false, playDir: 1, selected: null, isolated: null,
+    playing: false, playDir: 1, selected: null, isolated: null, explodeSystem: null,
     hiddenSystems: new Set(), hiddenParts: new Set(),
     floor: FLOORS[pref.get('floor')] ? pref.get('floor') : 'glass',
     env: ENVIRONMENTS[pref.get('env')] ? pref.get('env') : 'studio',
@@ -165,6 +165,7 @@ export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
             <input type="range" min="0" max="100" step="1" value="0" aria-label="Explosion"></label>
           <button type="button" class="tool tool-btn ctl-play" aria-pressed="false" title="Animate the explosion (space)">Play <kbd>Space</kbd></button>
           <button type="button" class="tool tool-btn" data-act="assemble" title="Assemble: no explosion, everything shown">Assemble</button>
+          <select class="ctl-sys-select" aria-label="Which systems the explosion separates" title="Separate every system, or only one"><option value="">All systems</option></select>
           <button type="button" class="tool tool-btn ctl-scene-btn" aria-expanded="false" title="Floor, light, reflection and amplitude">Scene</button>
         </div>
         <div class="ctl-stages" role="group" aria-label="Stages: click one to keep it assembled"></div>
@@ -195,8 +196,9 @@ export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
       systems: q('.ctl-systems'), tree: q('.ctl-tree'), search: q('.ctl-search'), count: q('.ctl-count'), data: q('[data-pane="data"]'),
       info: q('.ctl-info'), slider: q('.ctl-explode input'), out: q('.ctl-explode output'), play: q('.ctl-play'),
       stages: q('.ctl-stages'), status: q('.ctl-status'), pop: q('.ctl-pop'), sceneBtn: q('.ctl-scene-btn'),
-      amp: q('.ctl-amp'), ampOut: q('.ctl-amp-out'),
+      amp: q('.ctl-amp'), ampOut: q('.ctl-amp-out'), sysSelect: q('.ctl-sys-select'),
     };
+    ui.sysSelect.addEventListener('change', () => setExplodeSystem(ui.sysSelect.value || null));
     ui.back.addEventListener('click', () => lab.close());
     for (const [id, v] of Object.entries(VIEWS)) {
       const b = el('button', 'tool tool-btn', v.label);
@@ -516,6 +518,8 @@ export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
       chip.append(el('span', 'ctl-dot'), el('span', '', CT_SYSTEMS[sys] ?? sys), el('small', '', String(list.length)));
       chip.addEventListener('click', () => toggleSystem(sys));
       ui.systems.appendChild(chip); chips.set(sys, chip);
+      const opt = el('option', '', `Only ${CT_SYSTEMS[sys] ?? sys}`);
+      opt.value = sys; ui.sysSelect.appendChild(opt);
 
       const det = el('details', 'ctl-group');
       const sum = el('summary');
@@ -612,9 +616,10 @@ export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
     const e = state.explode;
     for (const p of parts) {
       const [a, b] = windows[p.stage] ?? [0, 1];
-      const k = state.stageMask[p.stage] ? smoothstep(a, b, e) * p.dist * state.amp : 0;
+      const k = moves(p) ? smoothstep(a, b, e) * p.dist * state.amp : 0;
       p.obj.position.copy(p.base).addScaledVector(p.dir, k);
     }
+    updateGuide();
     const pct = Math.round(e * 100);
     ui.slider.value = String(pct);
     ui.out.textContent = `${pct} %`;
@@ -628,7 +633,35 @@ export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
     status();
     shadowDirty = dirty = true;
   }
+  /** Whether a part takes part in the explosion: its stage is on and, in the one-system mode, it is of that system. */
+  const moves = (p) => state.stageMask[p.stage] && (!state.explodeSystem || p.obj.userData.system === state.explodeSystem);
   function setExplode(k) { state.explode = THREE.MathUtils.clamp(k, 0, 1); applyExplode(); }
+  /** Explode every system (null) or only one: the rest stays assembled round it (audit M-CT7.2). */
+  function setExplodeSystem(sys) {
+    state.explodeSystem = sys && CT_SYSTEMS[sys] ? sys : null;
+    ui.sysSelect.value = state.explodeSystem ?? '';
+    applyExplode();
+  }
+
+  // ---- A guide from the selected part's assembled place to where it is, while exploded (M-CT7.3) ----
+  let guide = null;
+  function updateGuide() {
+    if (!scene) return;
+    if (!guide) {
+      guide = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
+        new THREE.LineDashedMaterial({ color: 0xff8a3d, dashSize: 0.06, gapSize: 0.04, depthTest: false, transparent: true, opacity: 0.9 }));
+      guide.renderOrder = 10; guide.frustumCulled = false; guide.name = 'cybertruck-lab-guide';
+      scene.add(guide);
+    }
+    const p = state.selected && parts.find(x => x.obj === state.selected);
+    if (p) p.obj.parent.updateMatrixWorld(true);
+    const from = p ? p.obj.parent.localToWorld(p.base.clone()) : null;
+    const to = p ? p.obj.parent.localToWorld(p.obj.position.clone()) : null;
+    guide.visible = !!p && from.distanceTo(to) > 0.01;
+    if (!guide.visible) return;
+    guide.geometry.setFromPoints([from, to]);
+    guide.computeLineDistances();
+  }
   function explodeTo(target, seconds = 0.9) { explodeTween = { t: 0, d: seconds, from: state.explode, to: target }; dirty = true; }
   function setPlaying(on) {
     state.playing = on;
@@ -643,7 +676,8 @@ export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
     const dir = camera.position.clone().sub(controls.target);
     if (dir.length() < 11) flyTo(dir.setLength(12).add(controls.target).toArray(), controls.target.toArray(), 0.8);
   }
-  function assemble() { setPlaying(false); showAll(); explodeTo(0); }
+  // The one-system mode ends once assembled: ending it first would throw every system out for a frame.
+  function assemble() { setPlaying(false); showAll(); explodeTo(0); explodeTween.onDone = () => setExplodeSystem(null); }
 
   function status() {
     const pct = Math.round(state.explode * 100);
@@ -729,6 +763,7 @@ export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
       const row = rows.get(obj.name);
       if (row) { row.classList.add('is-selected'); row.closest('details').open = true; row.scrollIntoView({ block: 'nearest' }); }
     } else ui.info.classList.add('hidden');
+    updateGuide();
     status();
     dirty = true;
   }
@@ -796,7 +831,7 @@ export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
     if (explodeTween) {
       explodeTween.t = Math.min(1, explodeTween.t + step / explodeTween.d);
       setExplode(explodeTween.from + (explodeTween.to - explodeTween.from) * ease(explodeTween.t));
-      if (explodeTween.t >= 1) explodeTween = null;
+      if (explodeTween.t >= 1) { const done = explodeTween.onDone; explodeTween = null; done?.(); }
     } else if (state.playing && truck) {
       let e = state.explode + state.playDir * step / PLAY_SECONDS;
       if (e >= 1 || e <= 0) { e = THREE.MathUtils.clamp(e, 0, 1); state.playDir *= -1; }
@@ -906,13 +941,13 @@ export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
   /** The largest distance of any part from where the model put it: 0 when assembled, whatever came before. */
   lab.deviation = () => parts.reduce((m, p) => {
     const [a, b] = windows[p.stage] ?? [0, 1];
-    const want = p.base.clone().addScaledVector(p.dir, state.stageMask[p.stage] ? smoothstep(a, b, state.explode) * p.dist * state.amp : 0);
+    const want = p.base.clone().addScaledVector(p.dir, moves(p) ? smoothstep(a, b, state.explode) * p.dist * state.amp : 0);
     return Math.max(m, p.obj.position.distanceTo(want));
   }, 0);
 
   // For the checks and the console.
   Object.assign(lab, {
-    flyTo, goView, resetView, setExplode, explodeTo, setPlaying, assemble, select, isolate, showAll, setPartVisible,
+    flyTo, goView, resetView, setExplode, setExplodeSystem, explodeTo, setPlaying, assemble, select, isolate, showAll, setPartVisible,
     toggleSystem, setFloor, setEnvironment, setReflections, setOpening, setFigure, filterTree, frame, VIEWS, state, parts, comps, openings,
   });
   Object.defineProperties(lab, {

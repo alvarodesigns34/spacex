@@ -521,6 +521,8 @@ body.cybertruck-lab-open #hud, body.cybertruck-lab-open #labels { display: none;
 #cybertruck-lab .ctl-explode { flex: 1 1 auto; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 13px; font-weight: 600; }
 #cybertruck-lab .ctl-explode output { font-family: var(--font-mono); font-weight: 400; color: var(--ink-muted); }
 #cybertruck-lab .ctl-explode input { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); height: 22px; margin: 0; }
+#cybertruck-lab .ctl-sys-select { max-width: 190px; padding: 7px 8px; min-height: 34px; color: var(--ink); background: rgba(255, 255, 255, 0.05); border: 1px solid var(--surface-line); border-radius: var(--radius-ctl); font: inherit; font-size: 12.5px; }
+#cybertruck-lab .ctl-sys-select option { background: #16181c; }
 #cybertruck-lab .ctl-play[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-quiet); }
 #cybertruck-lab .ctl-stages { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
 #cybertruck-lab .ctl-stage-chip { position: relative; overflow: hidden; display: flex; gap: 6px; align-items: center; padding: 6px 8px; min-height: 32px; text-align: left; color: var(--ink-muted); background: rgba(255, 255, 255, 0.04); border: 1px solid var(--surface-line); border-radius: 8px; cursor: pointer; font: inherit; font-size: 11.5px; line-height: 1.2; }

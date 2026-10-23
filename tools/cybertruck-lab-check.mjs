@@ -184,6 +184,26 @@ try {
   report(ex.masked === 0 && ex.unmasked > 0.3, 'una etapa desmarcada se queda montada al explosionar', `etapa 6 a ${ex.masked} m · etapa 1 hasta ${ex.unmasked.toFixed(2)} m`);
   report(ex.below > 50 && ex.floor === 'glass', 'al 100 % hay piezas enteras bajo el suelo, y por eso el suelo de partida es el de cristal', `${ex.below} piezas bajo el suelo · suelo «${ex.floor}»`);
 
+  // ---- One system only (M-CT7.2), and the guide from a part's assembled place (M-CT7.3).
+  const one = await page.evaluate(async () => {
+    const L = window.__vc.ctLab, out = {};
+    const moved = (sys, yes) => L.parts.filter(p => (p.obj.userData.system === sys) === yes).reduce((m, p) => Math.max(m, p.obj.position.distanceTo(p.base)), 0);
+    L.setExplodeSystem('DRIVE_UNITS'); L.setExplode(1);
+    out.mine = moved('DRIVE_UNITS', true); out.others = moved('DRIVE_UNITS', false);
+    out.select = document.querySelector('#cybertruck-lab .ctl-sys-select').value;
+    const part = L.parts.find(p => p.obj.userData.system === 'DRIVE_UNITS' && p.dist > 0.3).obj.name;
+    L.select(part);
+    const g = L.scene.getObjectByName('cybertruck-lab-guide');
+    out.guide = !!g?.visible; out.guideLen = g ? g.geometry.attributes.position.array.slice(0, 3).map((v, i) => v - g.geometry.attributes.position.array[3 + i]).reduce((a, b) => a + b * b, 0) ** 0.5 : 0;
+    L.select(null); out.guideOff = !g?.visible;
+    L.assemble();
+    for (let i = 0; i < 300 && (L.state.explode > 0 || L.state.explodeSystem); i++) await new Promise(r => requestAnimationFrame(r));
+    out.after = { explode: L.state.explode, system: L.state.explodeSystem, dev: L.deviation() };
+    return out;
+  });
+  report(one.mine > 0.3 && one.others === 0 && one.select === 'DRIVE_UNITS' && one.guide && one.guideLen > 0.3 && one.guideOff && one.after.explode === 0 && one.after.system === null && one.after.dev === 0,
+    'explosión de un solo sistema: separa sus piezas y deja el resto montado; la línea guía une la pieza con su sitio; «Assemble» recoge y vuelve a todos', JSON.stringify(one));
+
   // ---- Picking with the mouse, the card, isolate, hide, systems and the search.
   const target = await page.evaluate(async () => {
     const L = window.__vc.ctLab, THREE = await import('three');

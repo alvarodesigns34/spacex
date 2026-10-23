@@ -83,7 +83,9 @@ La interfaz de la simulación (menús, ficha técnica, etiquetas y vistas) está
   - **Figura de 1,80 m (M-CT8):** la del centro (`buildHumanCrowd`, con su sombra), junto a la caja de carga, detrás de la rueda trasera. La prueba comprueba que ninguna pieza la alcanza con el coche explosionado al 100 % y a la amplitud máxima (2,4×); en las dos primeras posiciones sí la alcanzaban las puertas y la rueda. Se puede ocultar en *Scene*.
   - **Bloom (M-CT5):** el del centro, por nivel de calidad y con su filtro de píxeles extremos delante, para que la barra de luz y las LED brillen. El filtro sale a `core/fireflyClamp.js`, que comparten la simulación y el Lab (antes estaba dentro de `main.js`; mismo sombreador).
   - **Alturas de la suspensión neumática** en *Data*: las seis del manual (Entry/Exit a Extract, grado A). El modelo está en Medium y no se mueve a las demás, porque haría falta articular los brazos en Blender.
-  - La prueba con navegador pasa a 36 comprobaciones.
+  - **Explosión de un solo sistema (M-CT7.2):** un selector en la base (*All systems* o *Only …*) separa solo las piezas de ese sistema y deja el resto montado alrededor. *Assemble* recoge y después vuelve a todos los sistemas.
+  - **Línea guía (M-CT7.3):** con una pieza seleccionada y el coche explosionado, una línea discontinua une su sitio montado con donde está.
+  - La prueba con navegador pasa a 37 comprobaciones.
 - **El GLB del Cybertruck, corregido en su repositorio y resincronizado (23 de octubre de 2026):** el de la versión 4.2 tenía 17 errores del validador de Khronos (ruedas y frenos sin UV, hallazgo C21), y esas piezas perdían sus texturas. En `cybertruck` se corrigió al exportar, sin reconstruir el modelo: 0 errores, 78 materiales en vez de 83 y 12,62 MB. `tools/cybertruck-sync.mjs` trajo la copia nueva, del commit `997c7c9` de la rama de la sesión. En `cybertruck` se corrigieron también C1–C5, C7, C8, C10–C13, C20 y C24 (ver su README).
 - **Hallazgos de la auditoría corregidos en este repositorio (23 de octubre de 2026):**
   - **S2:** el comentario del presupuesto de `check.mjs` decía que solo informaba, y bloquea.
