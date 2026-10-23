@@ -6,6 +6,7 @@ Qué hay en cada parte de `docs/`. Los dos documentos principales están en la r
 |---|---|
 | [rondas/](rondas/README.md) | El diario de cada ronda de trabajo de septiembre y octubre de 2026 (antes dentro del README), por tema, con su texto íntegro y un índice de dónde está cada sección. |
 | [traspaso/](traspaso/README.md) | Lo antiguo del traspaso de contexto: las sesiones del 29-09 al 04-10-2026 y el anexo de herramientas locales. |
+| [auditoria-2026-10-20-spacex-cybertruck.md](auditoria-2026-10-20-spacex-cybertruck.md) | Auditoría conjunta de `spacex` y `cybertruck` (20-10-2026, revisada el 23-10): integración del Cybertruck en un espacio aparte, hallazgos, correcciones, mejoras de los modelos y Blender sin MCP. El mismo texto está en el repositorio `cybertruck`. |
 | [historial.md](historial.md) | Las rondas más antiguas, sacadas del README el 28 de septiembre de 2026, rotuladas como históricas. |
 | [diagnostico-2026-10-04/](diagnostico-2026-10-04/LEEME.md) | Las seis auditorías de solo lectura de la pasada decisiva del 4 de octubre de 2026 (JSON), con su estado. |
 | `screenshots/` | La galería de capturas del README (se regenera con `npm run shots`, solo con la aprobación del usuario). |

@@ -4,9 +4,30 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ---
 
-## ⭐ Empieza aquí (estado real al 17-10-2026: lee primero «Estado actual (17-10-2026)», después «Estado actual (08-10-2026)», «Sesión del 05-10-2026 (quinta)», «Sesión del 04-10-2026 (cuarta)» y «Cierre de la sesión del 04-10-2026 (tercera)»)
+## ⭐ Empieza aquí (estado real al 23-10-2026: lee primero «Estado actual (23-10-2026)», después «Estado actual (17-10-2026)», «Estado actual (08-10-2026)», «Sesión del 05-10-2026 (quinta)», «Sesión del 04-10-2026 (cuarta)» y «Cierre de la sesión del 04-10-2026 (tercera)»)
 
-### Estado actual (17-10-2026): léelo primero
+### Estado actual (23-10-2026): léelo primero
+
+1. **Auditoría conjunta de `spacex` y `cybertruck`** (20-10-2026, revisada el 23-10): `docs/auditoria-2026-10-20-spacex-cybertruck.md`, con el mismo texto en el repositorio `cybertruck`. Solo documentación: no se cambió código. Contiene:
+   - **La integración del Cybertruck (orden del usuario del 20-10):** no aparece en el entorno principal. Tendrá un botón propio (propuesta: «Cybertruck · Lab», tecla **U**) que lleva a un espacio aparte como el visor de `cybertruck`, sobre el patrón del Audi Lab retirado (`8e6a633`). Diseño, bloqueos y plan por fases: §4. Bloqueos: el GLB usa Draco y `vendor/` no tiene `DRACOLoader`, el decodificador ni `Reflector`; el visor carga de CDN; el Cybertruck en la escena principal rompería tres techos de `check.mjs`.
+   - Hallazgos de este repositorio (S1–S14) y correcciones prioritarias (§6–§7).
+   - **Mejoras de los modelos y de la simulación (§8):** reflejos locales (hoy todo refleja solo cielo y un suelo plano), sombras con penumbra (el `shadow.radius` no actúa con `PCFSoftShadowMap`), neumáticos del Porsche y de la H2R, caché de texturas, medir en la RTX 3070 del usuario…
+   - Las decisiones pendientes del usuario: §9.
+2. **Blender sin MCP (orden del usuario del 23-10-2026).** Ya no se usa el Blender de escritorio del usuario por MCP; deja de valer la «regla absoluta» del 15-10. Claude usa **su propio Blender sin interfaz** en el entorno del agente: Blender 5.2.2 LTS para Linux, la misma versión del usuario.
+   - Instalación (comprobada el 23-10; conviene ponerla en el script de configuración del entorno):
+     ```
+     cd /tmp && curl -sSO https://download.blender.org/release/Blender5.2/blender-5.2.2-linux-x64.tar.xz
+     curl -sS https://download.blender.org/release/Blender5.2/blender-5.2.2.sha256 | grep linux-x64 | sha256sum -c -
+     tar xJf blender-5.2.2-linux-x64.tar.xz && export BLENDER=/tmp/blender-5.2.2-linux-x64/blender
+     apt-get install -y libegl1 libegl-mesa0 libgl1-mesa-dri libxkbcommon0 libsm6 libxi6 libxrender1 libxxf86vm1 libxfixes3
+     ```
+   - Uso: `$BLENDER -b --factory-startup --python blender/<vehículo>/build.py` (o con un `.blend` delante). Sin las librerías EGL, Blender se cierra al usar EEVEE.
+   - **Qué se pierde:** la RTX 3070 (en la nube solo hay CPU: el `build.py` de la H2R pasa de 7,4 min con OptiX a ≈30 min con 4 núcleos; EEVEE va por software) y ver la escena en vivo en el Blender del usuario (se revisa con renders a archivo).
+   - **Qué se gana:** sin el corte de ≈100 s del MCP; sin riesgo de tumbar el Blender del usuario (ver la lección del 14-10 más abajo); reproducible con `--factory-startup` y versión fija.
+   - Prueba real del 23-10 con el Cybertruck: reconstrucción completa en 331 s, validación idéntica y GLB equivalente. Detalle en la auditoría, §11.
+   - Ojo: `bpy==5.0.1` (pip, Python 3.11), con el que se hizo la H2R, es otra versión. Para no mezclar, usar el binario 5.2.2 y pasar `node tools/check.mjs` tras regenerar cualquier `.glb`.
+
+### Estado actual (17-10-2026)
 
 Cuatro órdenes del usuario ese día, en este orden, todas hechas:
 
@@ -38,12 +59,12 @@ Cuatro órdenes del usuario ese día, en este orden, todas hechas:
   - `npm run check` completo en verde antes de empujar (código 0, 23 min; 3.900.168 triángulos construidos y 2.790.671 dibujados en la vista general, 1.681 mallas, 314 materiales y 156 texturas).
 - **Encargo del 14-10-2026 (en curso):** mejorar los vehículos uno a uno en Blender (Blender 5.2.2 del usuario por MCP, RTX 3070 con OptiX): formas, piezas que faltan, texturas, acabados y proporciones 1:1, con el máximo detalle; se añaden los logotipos y rótulos que faltan; si hace falta, se sube el presupuesto de la escena. Repositorio local en `C:\Users\Álvaro\Documents\spacex`.
 - **Pasada del 14-10-2026 (hecha; detalle en el README, «Pasada en Blender del 14 de octubre de 2026»):** orden del usuario: Model Y → H2R → Porsche, y parar al terminar los tres. Model Y: llantas Crossflow de 19" con 255/45 R19, rejilla inferior ancha, la «L» de los faros, TESLA bajo la matrícula. H2R: pintura de espejo oscura y paneles prensados subdivididos. Porsche: escudos y PORSCHE desde `assets/gt3rs/markings.glb`.
-  - **Lección: no construir dentro de la sesión abierta de Blender del usuario.** `object.join` y `shade_smooth_by_angle` por el puente MCP, con escenas vaciadas por script, la tumbaron varias veces (`BKE_base_eval_flags`, lectura de puntero nulo). Todo se construye con `"C:Program FilesBlender FoundationBlender 5.2lender.exe" -b --factory-startup -P …`; el MCP queda para mirar.
+  - **Lección: no construir dentro de la sesión abierta de Blender del usuario.** (Desde el 23-10 ya no se usa el Blender del usuario: ver «Estado actual (23-10-2026)».) `object.join` y `shade_smooth_by_angle` por el puente MCP, con escenas vaciadas por script, la tumbaron varias veces (`BKE_base_eval_flags`, lectura de puntero nulo). Todo se construye con `"C:Program FilesBlender FoundationBlender 5.2lender.exe" -b --factory-startup -P …`; el MCP queda para mirar.
   - En Git Bash, las rutas que se pasan a Blender dentro de un argumento compuesto (`a.glb+b.glb`) tienen que ser de Windows (`pwd -W`).
   - El horneado de la H2R usa la RTX 3070 (OptiX) si está: 7,4 min el `build.py` entero.
   - **Segunda pasada (misma tarde):** el usuario pidió trabajar en su Blender por MCP. Método que funciona sin tumbarlo: cargar con `bpy.data.libraries.load` (colecciones de un `.blend` construido sin interfaz) o `import_scene.gltf` en una escena propia, editar con la API de datos, renderizar con `bpy.ops.render.render(scene=…)` (resoluciones y muestras moderadas: el puente corta a ≈60 s). Las superposiciones con cámara calibrada (matrícula + ruedas) están en el README; sirven para cualquier vehículo con una foto libre donde se vea una matrícula.
   - **Aparcado:** el Raptor 3 en Blender (`blender/raptor3/` y `blender/common/kit.py`, sin subir), empezado antes de fijar el orden; la referencia buena es la foto de SpaceX del primer Raptor 3 entre Raptor 2 (agosto de 2024): casi todo negro satinado.
-- **Encargo del 15-10-2026 (en curso; detalle en el README, «Pasada profunda en Blender del 15 de octubre de 2026»):** el usuario pide rehacer a fondo en SU Blender abierto, por MCP (regla absoluta), en este orden: Model Y → Porsche → H2R → Roadster (coche y Starman; el adaptador de carga sigue en código). Hiperrealismo por encima del peso: el único tope es el de GitHub (100 MB por archivo). Permiso dado para descargar fotos de referencia a `scratch/` (nunca al repositorio). Al terminar los cuatro, avisarle.
+- **Encargo del 15-10-2026 (en curso; detalle en el README, «Pasada profunda en Blender del 15 de octubre de 2026»):** el usuario pidió entonces rehacer a fondo en SU Blender abierto, por MCP (regla absoluta **hasta el 23-10**; desde entonces, Blender propio sin interfaz), en este orden: Model Y → Porsche → H2R → Roadster (coche y Starman; el adaptador de carga sigue en código). Hiperrealismo por encima del peso: el único tope es el de GitHub (100 MB por archivo). Permiso dado para descargar fotos de referencia a `scratch/` (nunca al repositorio). Al terminar los cuatro, avisarle.
   - **Método que funciona:** diseñar y revisar en la escena `MODEL_Y` de su Blender cargando los módulos `ty_*.py` con un pequeño script de sesión (`scratch/my/app.py`: `load_ns([...])` ejecuta los módulos en `bpy.app.driver_namespace['TY']` y deja `ns['_BODY']`), renders de Cycles por cámara (`ns['render_cam']`, ≈5 s a 1280 × 720 y 64 muestras en la RTX). La construcción final y el horneado, con `build.py` sin interfaz (6 min con la oclusión en la GPU). Fotos de referencia en `scratch/ref_my*`; `scratch/tools/crop.py` amplía zonas.
   - **Model Y, hecho:** llantas Crossflow, frontal (`ty_front3.py`), zaga (`ty_rear3.py`), volante, y el cierre para la web (`ty_bake.py`: modificadores aplicados con la API de datos, UV en metros, mapas de detalle periódicos, oclusión en atlas de 4096). El `.glb` pasa a 32,6 MB.
   - **Porsche, hecho:** `blender/gt3rs/build.py` (base: `node tools/vehicle-export.mjs gt3rs`), `parts/wheels.py` (cinco radios en Y, labio mecanizado, rótulos del Cup 2 R), oclusión con `blender/common/webfinish.py`; en la web, `vehicles/gt3rsAsset.js` (materiales de la biblioteca por nombre + aoMap del archivo, cabina viva del código, rótulos aparte; si falla, `loadGt3rs`). Revisión en la escena `GT3RS` del Blender del usuario con `scratch/my/rig.py` (sol, cielo, asfalto, `shot()`).
