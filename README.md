@@ -44,6 +44,11 @@ La interfaz de la simulación (menús, ficha técnica, etiquetas y vistas) está
   - el trabajo con Blender sin MCP.
 
   Es solo documentación: no cambia el código.
+- **Integración del Cybertruck, fase 1 (23 de octubre de 2026): los activos.** Plan de la auditoría, §4.10. Decisiones del usuario (§9): el Lab tendrá el marco de la interfaz en inglés y los nombres de las piezas en español (los del GLB), se abrirá con la tecla **U**, terminará la secuencia que esté en marcha antes de abrirse y conservará el modelo en memoria al cerrarse.
+  - `vendor/three/` incorpora `DRACOLoader.js`, el decodificador Draco (`libs/draco/gltf/`: `draco_decoder.wasm`, `draco_wasm_wrapper.js` y el respaldo `draco_decoder.js` para navegadores sin WebAssembly, con el `README.md` de la librería) y `objects/Reflector.js`, todos de `three@0.170.0`. Son idénticos byte a byte a los del paquete de npm, y `tools/cybertruck-check.mjs` lo comprueba con sus SHA-256.
+  - `assets/cybertruck/cybertruck.glb` (12,48 MB) es una copia del GLB del repositorio `cybertruck` (versión 4.2, commit `2d590ae`). La hace `node tools/cybertruck-sync.mjs [ruta]`, que lo lee de la carpeta hermana `../cybertruck/web/models/` y anota en `assets/cybertruck/cybertruck.json` su tamaño, su SHA-256 y el commit que lo cambió por última vez. Si el GLB tiene cambios sin confirmar en el otro repositorio, se niega a copiarlo.
+  - Prueba de contrato sin navegador, `tools/cybertruck-check.mjs` (dentro de `check:static`). Comprueba que la copia es la anotada y que no pide extensiones que el centro no sepa leer (Draco, `KHR_texture_transform`, `EXT_texture_webp`). También que hay una sola raíz y los nombres son únicos, y que cada una de las 1.138 piezas lleva sistema, etapa 1–6, dirección unitaria y distancia de explosión, grado de fidelidad V/R/A y etiqueta. Por último, que ningún nodo con hijos tiene rotación y que el despliegue publica `assets/` y `vendor/`. Con el registro o un archivo de `vendor/` alterados, falla, como debe.
+  - `npm run serve` sirve ahora `.wasm` y `.webp` con su tipo (hallazgo S6 de la auditoría).
 - **Blender sin MCP (preferencia del usuario desde el 23 de octubre de 2026):** Claude ya no usa el Blender de escritorio del usuario por Blender MCP, sino su propio Blender 5.2.2 sin interfaz en el entorno del agente (`blender -b --factory-startup --python …`). Instalación y diferencias en `TRASPASO.md`, «Estado actual (23-10-2026)», y en la auditoría, §11.
 - Doce expositores, tres de ellos pilotables: el F-16A en vuelo, el Porsche 911 GT3 RS y la Kawasaki Ninja H2R en pista. Las seis ramas de trabajo están en el mismo commit, y el CI y el despliegue de Pages, en verde.
 - **La H2R se modela en Blender** (el resto, por código): `assets/h2r/h2r.glb` lo genera `blender/h2r/build.py` y lo carga `src/vehicles/h2rAsset.js`. Hechas la cadena de trabajo, el carenado con grosor y bisel y la oclusión ambiental horneada.
@@ -379,7 +384,7 @@ Regenerables con `npm run shots`, que recorre los encuadres declarados en `tools
 
 ```
 index.html                 entrada (import map de Three.js)
-vendor/three/              Three.js r170 (build + addons usados)
+vendor/three/              Three.js r170 (build + addons usados; con DRACOLoader, el decodificador Draco y Reflector)
 src/main.js                montaje de la escena, interacción, visita, cámaras libres, oclusión de etiquetas y bucle
 src/core/layout.js         dónde está cada expositor (LAYOUT), el encuadre general (OVERVIEW, overviewFor) y los
                            cilindros que ocultan las etiquetas de detrás (OCCLUDER); salieron de main.js sin cambios
@@ -464,6 +469,9 @@ docs/rondas/               el diario de cada ronda de septiembre y octubre de 20
 docs/traspaso/             lo antiguo de TRASPASO.md: las sesiones del 29-09 al 04-10 y el anexo de herramientas locales
 docs/historial.md          rondas anteriores, rotuladas como históricas
 docs/README.md             qué hay en cada parte de docs/
+assets/cybertruck/         copia del GLB del Cybertruck (repositorio cybertruck) y cybertruck.json, con su tamaño, SHA-256 y commit
+tools/cybertruck-sync.mjs  copia ese GLB desde ../cybertruck/web/models/ y escribe cybertruck.json
+tools/cybertruck-check.mjs sin navegador: el contrato del GLB del Cybertruck y los archivos de Draco y Reflector de r170
 tools/perf-check.mjs       sin navegador: la descarga anticipada y el marcado de piezas pequeñas
 tools/render-cache-check.mjs  sin navegador: cuándo las cachés de sombras y de buffer geométrico piden un redibujo (y cuándo no)
 tools/render-cache-equal.mjs  con navegador: el mapa de sombras y el buffer geométrico en caché son, byte a byte, los de un redibujo

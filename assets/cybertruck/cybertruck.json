@@ -1,0 +1,11 @@
+{
+  "file": "cybertruck.glb",
+  "bytes": 12480868,
+  "sha256": "7d73dc0dc8f805aff9b83d473811b92010a31deecfb23f157524411f13245f8f",
+  "source": {
+    "repo": "alvarodesigns34/cybertruck",
+    "path": "web/models/cybertruck.glb",
+    "commit": "2d590aebb83cae55faef289f3ed9512424f03a33",
+    "date": "2026-10-18"
+  }
+}
