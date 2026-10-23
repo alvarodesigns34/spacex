@@ -34,7 +34,8 @@ try {
   page.setDefaultTimeout(240000);
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
-  const url = `http://127.0.0.1:${PORT}/`;
+  // ?texcache: under automation the cache is off unless asked for (main.js).
+  const url = `http://127.0.0.1:${PORT}/?texcache`;
 
   // ---- Visit 1: paint and store.
   await bootAtQuality(page, url, 'low');

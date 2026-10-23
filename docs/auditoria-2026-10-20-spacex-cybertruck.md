@@ -35,6 +35,7 @@ Se añade también el hallazgo C24.
 9. [Decisiones que corresponden al usuario](#9-decisiones-que-corresponden-al-usuario)
 10. [Anexos: cifras, cotas verificadas y reproducciones](#10-anexos)
 11. [**Blender sin MCP: la preferencia del usuario y lo que cambia**](#11-blender-sin-mcp-la-preferencia-del-usuario-y-lo-que-cambia) (nuevo, 23-10)
+12. [**Seguimiento: qué está hecho (23-10-2026)**](#12-seguimiento-qué-está-hecho-23-10-2026)
 
 Escala de gravedad: **Crítico** (impide la integración o rompe producción) · **Alto** (fallo real visible o riesgo serio) · **Medio** (fallo menor o deuda que cuesta tiempo) · **Bajo** (cosmético o improbable) · **Info** (observación sin defecto).
 
@@ -906,3 +907,45 @@ Sobre una copia del repositorio `cybertruck` (en `main`, `f021e08`), en el conte
 2. Fijar la versión: 5.2.2 en todas partes. Si se actualiza Blender, hacerlo a la vez en el escritorio del usuario y en el script, y revalidar.
 3. Para revisar visualmente sin GPU: Workbench con color aleatorio por objeto, para ver cruces (lo pide `cybertruck/traspaso.md` §15.2), y Cycles con 16–64 muestras a 1280 × 720 para materiales. Los renders de documentación (`docs/renders/`, 128 muestras) se pueden lanzar en segundo plano: tardan más en CPU, pero no bloquean.
 4. No regenerar ni subir el GLB del Cybertruck si no cambia el modelo: una reconstrucción en Linux difiere en unos pocos vértices de la de Windows (§11.3).
+
+---
+
+## 12. Seguimiento: qué está hecho (23-10-2026)
+
+Añadido al implementar, en la segunda sesión del 23-10. El resto del documento conserva el texto de la auditoría tal
+como se escribió; esta sección dice qué se hizo con cada punto. Detalle en el README de cada repositorio («Estado
+actual» en `spacex`; «Correcciones de la auditoría» en `cybertruck`).
+
+**Decisiones del usuario (§9):** Lab con el marco en inglés y las piezas en español; tecla **U**; con una secuencia en
+marcha, terminarla y abrir; conservar el modelo al cerrar; GLB copiado. Pendientes: tabla del README (9.6) y limpieza
+de ramas (9.7).
+
+**Integración (§4.10):**
+
+| Fase | Estado |
+|---|---|
+| 1. Activos | Hecha: Draco y `Reflector` r170 en `vendor/` (byte a byte), `tools/cybertruck-sync.mjs`, contrato `tools/cybertruck-check.mjs` |
+| 2. Lab mínimo | Hecha: `src/ui/cybertruckLab.js`, botón y **U**, carga diferida con progreso correcto, renderer guardado y restaurado, teclado en captura |
+| 3. Funciones del visor | Hecha: explosión por etapas, selección y ficha, aislar/ocultar/encuadrar, sistemas, lista con búsqueda, datos, suelos, entornos, reflejo en calidad alta |
+| 4. Calidad y rendimiento | Hecha la parte medible aquí: dibujo bajo demanda, sombras en caché, calidad por nivel; `?perf=log` listo para medir en la GPU del usuario |
+| 5. Documentación | Hecha en los dos repositorios |
+| 6. Cierre | Check completo, empujes, CI y Pages en verde en cada bloque |
+
+**Hallazgos de `cybertruck` (§5):** corregidos C1, C2, C3, C4, C5, C7, C8, C9, C10, C11, C12, C13, C20, C21, C22 (con las
+aperturas), C23 (fuera el `shadow.radius` sin efecto) y C24. Pendientes: C14 (etapas
+desequilibradas; requiere reexportar con etapas nuevas), C19 (Git LFS, decide el usuario). Info sin acción: C15–C18.
+
+**Hallazgos de `spacex` (§6):** corregidos S1 (fase 1), S2, S3 (documentado y prueba del Lab en su propio trabajo de
+CI), S4, S5, S6, S7, S8, S13 y S14. Pendientes a decisión del usuario: S10 (partir archivos grandes), S11 (ramas
+antiguas), S12 (galería de capturas).
+
+**Mejoras (§8):**
+
+- Hechas: M-CT2 (UV de ruedas y frenos: 0 errores de Khronos), M-CT4 (aperturas en el visor y en el Lab; alturas de
+  suspensión como datos), M-CT5.2 (bloom en el Lab), M-CT7.2 y M-CT7.3 (explosión por sistema y línea guía en el Lab),
+  M-CT8 (figura de 1,80 m en el Lab), M-CT9.1–9.2 (dibujo bajo demanda en el visor y en el Lab), M-FL1 (= S14), M-FL2
+  (caché de texturas entre visitas: 4,6 s → 0,7 s en SwiftShader, idénticas píxel a píxel), M-FL8 (`?perf=log`).
+- Medido: el Lab explosionándose hace 6.257 llamadas de dibujo por fotograma (§4.6 lo estimaba en 4.000–6.000).
+- Pendientes: las que cambian la imagen y piden capturas aprobadas (M-IMG1–M-IMG7, M-CT3, M-CT5.1 y 5.3), M-CT1
+  (oclusión ambiental del Cybertruck, un horneado largo en Blender), M-CT6 y M-V1–M-V6 (necesitan fuentes o Blender),
+  M-CT7.1 y 7.4, M-CT9.3–9.5, M-DIN1–M-DIN4 y M-FL3–M-FL6 (mejor tras medir con `?perf=log` en la GPU del usuario).

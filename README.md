@@ -75,7 +75,7 @@ La interfaz de la simulación (menús, ficha técnica, etiquetas y vistas) está
   - La clave es un SHA-256 del código de `textures.js` y `library.js`: cualquier cambio en un generador o en sus parámetros invalida todo y borra las versiones viejas, sin acordarse de subir ninguna versión.
   - Los PNG se codifican 4 s después del arranque, así que la primera visita no paga nada.
   - Un lienzo compartido sigue compartido (las normales del acero, bajo los tres aceros).
-  - Si el navegador no ofrece la caché o algo falla, se pinta como antes. `?nocache` la desactiva.
+  - Si el navegador no ofrece la caché o algo falla, se pinta como antes. `?nocache` la desactiva. En las pruebas automáticas (`navigator.webdriver`) está apagada salvo con `?texcache`: codificar 39 M píxeles en segundo plano ralentizaba las pruebas por software hasta que una agotó su plazo (la prueba de escena, esperando a que la cámara se asentara). Su propia prueba la pide.
   - **Prueba** `tools/texture-cache-check.mjs`, en `check:cache`. Hace dos visitas con el mismo perfil: la primera pinta y guarda los 29 pasos; la segunda los lee todos de la caché. Después repinta cada paso y lo compara con lo que vino de la caché: **76 texturas, 38,9 M píxeles, idénticas píxel a píxel y ajuste a ajuste**. Un control negativo (un valor cambiado) falla, como debe.
   - En SwiftShader, los materiales del arranque bajan de 4,6 s a 0,7 s en la segunda visita (sirve para comparar, no es la cifra de una máquina real). La imagen no cambia.
 - **Cybertruck Lab, mejoras de la auditoría (§8.2, 23 de octubre de 2026):**

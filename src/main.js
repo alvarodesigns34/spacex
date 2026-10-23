@@ -156,8 +156,11 @@ async function main() {
   // instant is the one that ships — and the headless check ignores font errors, so it never
   // showed up there.
   if (document.fonts?.ready) await document.fonts.ready;
-  // ?nocache paints every texture, as before the texture cache (materials/textureCache.js).
-  if (params.has('nocache')) TEXTURE_CACHE.enabled = false;
+  // ?nocache paints every texture, as before the texture cache (materials/textureCache.js). Under
+  // automation (navigator.webdriver) it is off unless ?texcache asks for it: encoding forty million
+  // pixels to PNG in the background slowed the software-rendered checks until one timed out.
+  // tools/texture-cache-check.mjs, which tests the cache, asks for it.
+  if (params.has('nocache') || (navigator.webdriver && !params.has('texcache'))) TEXTURE_CACHE.enabled = false;
   const { M } = await createMaterials((name, frac) => hud.setProgress(`Generating materials · ${name}`, 0.05 + frac * 0.2), nextFrame);
   timings.materials = performance.now() - t0;
   hud.setProgress('Lighting and environment…', 0.25);
