@@ -706,3 +706,14 @@ sobra masa en el apagado (su ascenso está ajustado a la hipótesis circular, §
 **Pendiente:** que el capítulo de la reentrada pueda volar esta cadena (un modo «as flown» frente
 al «planned»), con sus propios hitos de planeo, que exigen resolver de nuevo los coeficientes con
 las horas reales de transónico y aterrizaje, que las fuentes leídas no dan con fiabilidad.
+
+## 26. Cybertruck Lab (§25): memoria al cerrar
+
+El modelo se conserva al cerrar el Lab (decisión del usuario del 20-10, auditoría §9: reabrir es
+instantáneo). Política adaptativa añadida sin contradecirla: en un equipo justo de memoria (nivel
+de calidad bajo, o ≤ 4 GB según `navigator.deviceMemory`) se liberan al cerrar las copias en la GPU
+de sus búferes de vértices y sus texturas, que es lo escaso. Los datos siguen en la página, así que
+three.js los vuelve a subir en el primer fotograma del Lab al reabrir: ni segunda descarga ni nada
+que reconstruir; solo ese fotograma es más lento. En los equipos capaces no cambia nada.
+`npm run check:cybertruck`: todas sus comprobaciones pasan (entre ellas, reabrir sin volver a pedir
+el archivo). `lab.released` cuenta las liberaciones, para la consola.

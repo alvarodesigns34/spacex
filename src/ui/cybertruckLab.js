@@ -87,6 +87,7 @@ function el(tag, cls, text) {
  */
 export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
   const lab = { active: false, loaded: false, loading: false, requests: 0, stats: null, frames: 0 };
+  const releaseGpuOnClose = quality?.name === 'low' || (typeof navigator !== 'undefined' && navigator.deviceMemory > 0 && navigator.deviceMemory <= 4);
   const state = {
     explode: 0, amp: AMP.init, stageMask: { 1: true, 2: true, 3: true, 4: true, 5: true, 6: true },
     playing: false, playDir: 1, selected: null, isolated: null, explodeSystem: null,
@@ -935,6 +936,23 @@ export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
     window.removeEventListener('keydown', onKey, true);
     window.removeEventListener('keyup', onKey, true);
     window.removeEventListener('resize', resize);
+    // Memory: the model stays (the user's decision, audit of 20-10 §9: reopening is instant), but
+    // on a device short of memory (the low tier, or ≤ 4 GB reported) its GPU copies — vertex
+    // buffers and textures, the scarce part — are released on closing. The data stays in the
+    // page, so three.js uploads them again on the next frame the Lab draws: no second download,
+    // nothing rebuilt; only the first frame after reopening is slower.
+    if (truck && releaseGpuOnClose) {
+      const seen = new Set();
+      truck.traverse((o) => {
+        if (!o.isMesh) return;
+        if (!seen.has(o.geometry)) { seen.add(o.geometry); o.geometry.dispose(); }
+        for (const m of [].concat(o.material)) for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap']) {
+          const t = m?.[k];
+          if (t && !seen.has(t)) { seen.add(t); t.dispose(); }
+        }
+      });
+      lab.released = (lab.released ?? 0) + 1;
+    }
     onExit?.();
   };
 
