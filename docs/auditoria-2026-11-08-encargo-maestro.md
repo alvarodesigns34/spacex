@@ -672,3 +672,11 @@ desactivada en su vista orbital. Los bajos de la pintura roja reflejan la peana 
 gana variación; diferencia media del encuadre ≈1/255, concentrada en el coche.
 
 ![Roadster: sonda común (izquierda) y local (derecha)](auditoria-2026-11-08/roadster-sonda-antes-despues.jpg)
+
+**Tercera vía, hecha (8-11): bocanadas de borde.** Un 35 % de las bocanadas emitidas son del
+borde de la masa: 0,5–0,7 veces el tamaño y algo más dispersas hacia los lados y arriba. La silueta
+que lee el ojo queda hecha de lóbulos a varias escalas (la gran bola del extremo derecho se deshace
+en lóbulos menores que se desprenden). Mismo número de bocanadas; al ser menores, menos relleno.
+Pequeño pero visible.
+
+![Nube de suelo a T+1,5 s: atlas nuevo (arriba) y con bocanadas de borde (abajo)](auditoria-2026-11-08/nube-suelo-borde.jpg)

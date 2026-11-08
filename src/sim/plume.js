@@ -1153,6 +1153,14 @@ export class GroundCloud {
       this.rot[i] = (r() - 0.5) * 0.5;
       this.rotSpeed[i] = (r() - 0.5) * 0.08;
       this.sizeK[i] = 1.0 + r() * 0.6;
+      // A third of the puffs are the mass's fringe: half to two-thirds the size and flung a little
+      // wider and higher, so the outline the eye reads is made of lobes at several scales and not
+      // of a row of equal balls (≈, from the Flight 12 liftoff photographs' turreted edges).
+      if (r() < 0.35) {
+        const k = 0.5 + r() * 0.2;
+        this.size[i] *= k; this.base[i] *= k; this.sizeK[i] *= 0.8;
+        this.vel[j] *= 1.25; this.vel[j + 1] += r() * speed * 0.06; this.vel[j + 2] *= 1.4;
+      }
       this.kind[i] = kind;
       // Steam: mostly dense, some thin. Dust: a translucent haze, which is how the brown sheet
       // between the two trench clouds reads in the Flight 12 photographs.
