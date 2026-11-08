@@ -328,7 +328,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   scene.background = new THREE.Color(0x03050b);
   sky.renderOrder = -2;          // drawn first; the cloud layer goes over it
   scene.add(sky);
-  const clouds = createClouds(scene);
+  const clouds = createClouds(scene, { mode: quality.cloudSteps ? 'volume' : 'layer', steps: quality.cloudSteps ?? 0 });
 
   // --- Environment map for reflections: a private scene with the same sky + a ground disc ---
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -736,7 +736,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
       : GROUND_FOG * 0.75 * (1 + n * 1.6) * (1 - THREE.MathUtils.clamp(h / 9000, 0, 1));
     skyFade.value = (1 - n * 0.86) * (1 - j * 0.94);
 
-    clouds.update(sunDir, n, h, !inSpace);
+    clouds.update(sunDir, n, h, !inSpace, air.flight);
 
     // Stretch the apron so there is still a surface under the vehicle on the way up. Scaling
     // the mesh scales its metric UVs with it, which would smear one 48 m tile over 1.6 km at
@@ -887,7 +887,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   return {
     // Run whenever the shared probe is rebuilt (localProbes.js).
     set onProbe(f) { onProbe = f; },
-    sun, sky, hemi, ground, outer, get seaPatch() { return seaPatch; }, ocean: oceanU, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation, rebuildProbe, setProbeGround,
+    sun, sky, hemi, ground, outer, clouds, get seaPatch() { return seaPatch; }, ocean: oceanU, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation, rebuildProbe, setProbeGround,
     SUN_MIN, SUN_MAX, get night() { return nightK; },
     get inSpace() { return inSpace; }, get sunDir() { return sunDir; },
   };

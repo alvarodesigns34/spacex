@@ -64,6 +64,8 @@ const TIERS = {
     // Metres of object per screen pixel at which detail is dropped. Lower is greedier.
     lodPixels: 3.5,
     cloudParticles: 1600,
+    // Samples per view ray through the cumulus (clouds.js); 0 keeps the flat layer.
+    cloudSteps: 32,
     anisotropy: 16,
   },
   medium: {
@@ -77,6 +79,7 @@ const TIERS = {
     // The cloud grew (bigger, longer-lived puffs); on the mid tier the count rises only a
     // little, since fill rate, not count, is what a full-screen transparent cloud costs.
     cloudParticles: 640,
+    cloudSteps: 20,
     anisotropy: 8,
   },
   low: {
@@ -88,6 +91,7 @@ const TIERS = {
     msaa: 0,
     lodPixels: 9,
     cloudParticles: 300,
+    cloudSteps: 0,
     anisotropy: 4,
   },
 };

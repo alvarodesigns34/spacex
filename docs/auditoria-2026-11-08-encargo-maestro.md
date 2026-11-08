@@ -260,3 +260,42 @@ medido en hardware real.
 **Pendiente:** más sondas (Falcon 9, Falcon Heavy, Porsche, Roadster) si la medición en hardware
 real lo permite; en reflejos de formas nítidas (cristales, pintura con barniz) el salto sería mayor
 que en el acero rugoso.
+
+## 9. Bloque 3: nubes con volumen (hecho; pendiente de medir el coste en hardware real)
+
+**Problema (confirmado, A3):** `clouds.js` era ruido 2D en un plano a 1 400 m dentro de una cúpula
+que sigue a la cámara: sin espesor, sin sombra propia, y desvanecido al subir hacia la base porque
+un plano no se puede ver desde arriba.
+
+**Alternativas:** volumen completo con texturas 3D y reproyección temporal (lo mejor, pero exige
+un pase a media resolución y acumulación entre fotogramas que el compositor actual no tiene);
+**capa volumétrica marchada en la propia cúpula** (elegida: contenida en `clouds.js`, sin pases
+nuevos); impostores (no se pueden atravesar).
+
+**Hecho:** el rayo de vista se recorre por la capa de 1 400 a 2 600 m (≈) con la **misma cobertura**
+que la capa plana, de modo que los dos niveles dibujan las mismas nubes. Densidad = cobertura ×
+perfil vertical (base plana, cima en cúpula que sube donde la nube es más gruesa) − erosión por ruido
+3D en tres escalas. Luz: Beer-Lambert, tres muestras hacia el Sol para la sombra propia, fase de
+Henyey-Greenstein de dos lóbulos, efecto «powder», ambiente más claro arriba que abajo, y
+perspectiva aérea por la distancia al primer impacto. Escribe la profundidad de ese impacto
+(`gl_FragDepth`): desde arriba el suelo queda detrás de la nube y un avión delante de ella sigue
+delante. En vuelo (`setAltitude(…, { flight: true })`) ya no se desvanece al llegar a la base; se
+puede entrar, atravesar y mirar desde arriba. El lanzamiento conserva el desvanecido anterior.
+Pasos por rayo según la calidad (`quality.js cloudSteps`): 32 alta, 20 media, 0 baja (la capa plana
+de siempre). Consola: `__vc.env.clouds.setMode('layer' | 'volume')`.
+
+**Validación visual (arnés, misma cámara):**
+![Capa plana (izquierda) frente a volumen (derecha)](auditoria-2026-11-08/nubes-capa-volumen.jpg)
+- Desde el suelo: cúmulos con cimas iluminadas, bases grises y perspectiva hasta el horizonte,
+  donde antes había un velo plano.
+- Desde arriba (3 500 m) y dentro de la capa (1 900 m): se ven las cimas y el mar por los huecos, y
+  jirones dentro. La cámara del arnés no es la del F-16 (su plano lejano es 9 km): falta revisarlo
+  en un vuelo real.
+- Primeras versiones corregidas en la misma sesión: cimas en cono que se leían como montañas y luz
+  solar demasiado débil desde arriba.
+
+**Limitaciones conocidas:** grano fino estático por el desfase aleatorio de cada píxel (no hay
+acumulación temporal); alguna cima aún algo aguda; el plano lejano corta lo que queda más allá.
+**Coste no medido** en hardware real: 32 pasos con ruido 2D y 3D por píxel de cielo, más tres de luz
+donde hay nube. Si en la RTX 3070 del usuario no cabe, la vía es bajar los pasos del nivel alto o
+pasar a media resolución con reproyección; el nivel bajo no cambia.

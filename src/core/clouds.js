@@ -6,18 +6,148 @@
  * launch day is rarely empty — scattered low cumulus off the Gulf is the norm — and a cloud
  * field is also the cue the eye uses to read the height of the stack against the sky.
  *
- * The layer is a single dome that follows the camera, shaded per pixel: each view ray is
- * intersected with a flat cloud base 1.4 km up, and a few octaves of value noise over that
- * plane give the cover. Lit from the sun's side, flat-bottomed and darker underneath, fading
- * into the haze towards the horizon and away entirely with altitude, so it never sits in front
- * of anything. It is scenery, not data: no cloud here is a real cloud.
+ * The layer is a single dome that follows the camera, shaded per pixel. Two ways, one cloud field:
+ *
+ *  - 'volume' (since 8 November 2026; the high and medium tiers): each view ray is marched
+ *    through a slab of air from the cloud base, 1.4 km up, to 2.6 km (≈: fair-weather cumulus are
+ *    a few hundred metres to a kilometre or so deep). The density is the same 2D cover as the
+ *    flat layer, given a body: a flat base, a top that rises where the cover is thickest (the
+ *    middle of a cloud), and edges eaten by a 3D noise so they billow instead of being cut out.
+ *    Light: Beer–Lambert extinction along the ray and a few samples towards the Sun for the
+ *    shadow a cloud casts on itself, a two-lobed Henyey–Greenstein phase (the bright rim when a
+ *    cloud stands between the eye and the Sun) and the "powder" darkening of thin edges facing
+ *    away from it. An aircraft can climb into the slab, through it and look down on it.
+ *  - 'layer' (the low tier, and what there was before): the ray meets a flat plane at the base
+ *    and the same cover is shaded as a sheet. It fades away as the camera climbs to the base.
+ *
+ * Steps per ray are a tier decision (quality.js cloudSteps): the march is the cost, paid on the
+ * sky pixels only. It is scenery, not data: no cloud here is a real cloud, and the depth, the
+ * densities and the optical constants are chosen to look like cumulus, not measured (≈).
  */
 import * as THREE from 'three';
 
 const BASE = 1400;     // cloud base above the ground, m
+const TOP = 2600;      // highest cloud tops, m (≈)
 const RADIUS = 4200;   // dome radius; inside the camera's far plane
 
-export function createClouds(scene) {
+/** The cover, in the shader's words, shared by the two ways of drawing it. */
+const COVER_GLSL = /* glsl */`
+  float h(vec2 p) { p = fract(p * vec2(233.34, 851.73)); p += dot(p, p + 23.45); return fract(p.x * p.y); }
+  float n(vec2 p) {
+    vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(h(i), h(i + vec2(1, 0)), u.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), u.x), u.y);
+  }
+  float fbm(vec2 p, int oct) {
+    float s = 0.0, a = 0.5;
+    mat2 r = mat2(0.8, -0.6, 0.6, 0.8);
+    for (int i = 0; i < 5; i++) { if (i >= oct) break; s += a * n(p); p = r * p * 2.03 + 11.7; a *= 0.5; }
+    return s;
+  }
+  // The cover at a point of the plane: big cells and the detail on them (the flat layer's own).
+  float coverAt(vec2 p, int oct) { return fbm(p / 2600.0, oct) * 0.72 + fbm(p / 640.0 + 3.1, oct) * 0.38; }`;
+
+const LAYER_MAIN = /* glsl */`
+  void main() {
+    vec3 d = normalize(vDir);
+    if (d.y < 0.012) discard;
+    vec2 p = d.xz / d.y * ${BASE.toFixed(1)};           // where the ray meets the cloud base
+    float detail = fbm(p / 640.0 + 3.1, 5);
+    float c = fbm(p / 2600.0, 5) * 0.72 + detail * 0.38;
+    float cover = smoothstep(uCover, uCover + 0.07, c);
+    if (cover < 0.004) discard;
+    // Thicker in the middle of a cloud: brighter tops towards the sun, grey flat bases.
+    float thick = smoothstep(uCover, uCover + 0.34, c);
+    vec2 toSun = normalize(uSun.xz + 1e-4);
+    float lit = clamp(0.55 + 0.9 * (fbm((p + toSun * 260.0) / 640.0 + 3.1, 5) - detail) * -1.0 + 0.35 * uSun.y, 0.0, 1.0);
+    vec3 col = mix(uShade, uSunColor, mix(0.45, 1.0, lit) * (1.0 - 0.30 * thick));
+    float silver = pow(max(dot(d, normalize(uSun)), 0.0), 18.0) * (1.0 - thick);
+    col += uSunColor * silver * 0.6;
+    col *= mix(0.08, 1.0, uLight);
+    // Into the haze near the horizon: far clouds are low-contrast and then gone.
+    float horizon = smoothstep(0.04, 0.26, d.y);
+    gl_FragColor = vec4(col, cover * horizon * uFade * 0.92);
+  }`;
+
+const VOLUME_MAIN = (steps) => /* glsl */`
+  float h3(float k) { return fract(sin(k) * 43758.5453); }
+  float n3(vec3 p) {
+    vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+    float k = i.x + i.y * 57.0 + i.z * 113.0;
+    return mix(mix(mix(h3(k), h3(k + 1.0), f.x), mix(h3(k + 57.0), h3(k + 58.0), f.x), f.y),
+               mix(mix(h3(k + 113.0), h3(k + 114.0), f.x), mix(h3(k + 170.0), h3(k + 171.0), f.x), f.y), f.z);
+  }
+  const float B = ${BASE.toFixed(1)}, T = ${TOP.toFixed(1)}, SIGMA = 0.035;
+  // Density 0..1 at a world point. c: the cover there (passed in, it is the dear part).
+  float density(vec3 p, float c) {
+    float hf = (p.y - B) / (T - B);
+    float thick = smoothstep(uCover, uCover + 0.34, c);
+    // Tall in the middle of a cloud, low at its edge: steep sides and a broad, domed top (a cone
+    // read as a range of peaks).
+    float top = 0.14 + 0.86 * smoothstep(0.0, 0.8, thick);
+    float body = smoothstep(uCover, uCover + 0.07, c) * smoothstep(0.0, 0.05, hf) * (1.0 - smoothstep(top * 0.55, top, hf));
+    if (body <= 0.0) return 0.0;
+    float e = n3(p / 340.0) * 0.4 + n3(p / 150.0 + 5.0) * 0.35 + n3(p / 60.0 + 17.0) * 0.25;
+    return clamp(body * 1.4 - (1.0 - e) * (0.5 + 0.6 * hf), 0.0, 1.0);
+  }
+  uniform mat4 projectionMatrix;
+  float hg(float c, float g) { float g2 = g * g; return (1.0 - g2) / pow(1.0 + g2 - 2.0 * g * c, 1.5); }
+  void main() {
+    vec3 d = normalize(vDir), o = cameraPosition;
+    // The stretch of the ray inside the slab.
+    float t0, t1;
+    if (o.y < B) { if (d.y <= 0.004) discard; t0 = (B - o.y) / d.y; t1 = (T - o.y) / d.y; }
+    else if (o.y > T) { if (d.y >= -0.004) discard; t0 = (T - o.y) / d.y; t1 = (B - o.y) / d.y; }
+    else { t0 = 0.0; t1 = d.y > 0.004 ? (T - o.y) / d.y : d.y < -0.004 ? (B - o.y) / d.y : 40000.0; }
+    if (t0 > 40000.0) discard;
+    t1 = min(t1, t0 + 16000.0);
+    float dt = (t1 - t0) / ${steps.toFixed(1)};
+    float t = t0 + dt * h(gl_FragCoord.xy * 0.37 + 0.13);
+    vec3 sun = normalize(uSun);
+    float mu = dot(d, sun);
+    float phase = mix(hg(mu, 0.55), hg(mu, -0.2), 0.3);
+    float Tr = 1.0, hit = -1.0;
+    vec3 L = vec3(0.0);
+    for (int i = 0; i < ${steps}; i++) {
+      vec3 p = o + d * t;
+      float c = coverAt(p.xz, 4);
+      if (c > uCover) {
+        float k = density(p, c);
+        if (k > 0.001) {
+          if (hit < 0.0) hit = t;
+          // Towards the Sun: the cloud's own shadow, three samples out to ≈450 m.
+          float ls = 0.0;
+          for (int j = 1; j <= 3; j++) {
+            vec3 q = p + sun * (60.0 * float(j * j));
+            ls += density(q, coverAt(q.xz, 3)) * 50.0 * float(j * 2 - 1);
+          }
+          float hf = (p.y - B) / (T - B);
+          float direct = exp(-SIGMA * ls * 0.5) * phase * (1.0 - exp(-k * 6.0));
+          vec3 S = uSunColor * direct * 1.35 + uShade * (0.30 + 0.35 * hf);
+          float a = 1.0 - exp(-SIGMA * k * min(dt, 400.0));
+          L += Tr * a * S;
+          Tr *= 1.0 - a;
+          if (Tr < 0.02) break;
+        }
+      }
+      t += dt;
+    }
+    float alpha = 1.0 - Tr;
+    if (alpha < 0.004) discard;
+    vec3 col = L / alpha * mix(0.08, 1.0, uLight);
+    // Aerial perspective: far clouds sink into the haze.
+    float haze = exp(-max(hit, 0.0) / 26000.0);
+    // At the depth of the first cloud met, not on the far plane: from above, the ground under a
+    // cloud is behind it, and an aircraft in front of one stays in front.
+    vec4 clip = projectionMatrix * viewMatrix * vec4(o + d * max(hit, 0.0), 1.0);
+    gl_FragDepth = clamp(clip.z / clip.w * 0.5 + 0.5, 0.0, 1.0);
+    gl_FragColor = vec4(col, alpha * haze * uFade);
+  }`;
+
+/**
+ * @param o.mode  'volume' or 'layer' (see the header)
+ * @param o.steps samples per ray in 'volume'
+ */
+export function createClouds(scene, { mode = 'volume', steps = 32 } = {}) {
   const uniforms = {
     uSun: { value: new THREE.Vector3(0, 1, 0) },
     uLight: { value: 1 },          // 1 by day, towards 0 at night
@@ -26,7 +156,7 @@ export function createClouds(scene) {
     uSunColor: { value: new THREE.Color(1, 0.97, 0.92) },
     uShade: { value: new THREE.Color(0.66, 0.70, 0.77) },
   };
-  const material = new THREE.ShaderMaterial({
+  const make = (m) => new THREE.ShaderMaterial({
     uniforms,
     transparent: true,
     depthWrite: false,
@@ -43,56 +173,39 @@ export function createClouds(scene) {
       uniform vec3 uSun, uSunColor, uShade;
       uniform float uLight, uFade, uCover;
       varying vec3 vDir;
-      float h(vec2 p) { p = fract(p * vec2(233.34, 851.73)); p += dot(p, p + 23.45); return fract(p.x * p.y); }
-      float n(vec2 p) {
-        vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
-        return mix(mix(h(i), h(i + vec2(1, 0)), u.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), u.x), u.y);
-      }
-      float fbm(vec2 p) {
-        float s = 0.0, a = 0.5;
-        mat2 r = mat2(0.8, -0.6, 0.6, 0.8);
-        for (int i = 0; i < 5; i++) { s += a * n(p); p = r * p * 2.03 + 11.7; a *= 0.5; }
-        return s;
-      }
-      void main() {
-        vec3 d = normalize(vDir);
-        if (d.y < 0.012) discard;
-        vec2 p = d.xz / d.y * ${BASE.toFixed(1)};           // where the ray meets the cloud base
-        float base = fbm(p / 2600.0);
-        float detail = fbm(p / 640.0 + 3.1);
-        float c = base * 0.72 + detail * 0.38;
-        float cover = smoothstep(uCover, uCover + 0.07, c);
-        if (cover < 0.004) discard;
-        // Thicker in the middle of a cloud: brighter tops towards the sun, grey flat bases.
-        float thick = smoothstep(uCover, uCover + 0.34, c);
-        vec2 toSun = normalize(uSun.xz + 1e-4);
-        float lit = clamp(0.55 + 0.9 * (fbm((p + toSun * 260.0) / 640.0 + 3.1) - detail) * -1.0 + 0.35 * uSun.y, 0.0, 1.0);
-        vec3 col = mix(uShade, uSunColor, mix(0.45, 1.0, lit) * (1.0 - 0.30 * thick));
-        float silver = pow(max(dot(d, normalize(uSun)), 0.0), 18.0) * (1.0 - thick);
-        col += uSunColor * silver * 0.6;
-        col *= mix(0.08, 1.0, uLight);
-        // Into the haze near the horizon: far clouds are low-contrast and then gone.
-        float horizon = smoothstep(0.04, 0.26, d.y);
-        gl_FragColor = vec4(col, cover * horizon * uFade * 0.92);
-      }`,
+      ${COVER_GLSL}
+      ${m === 'volume' ? VOLUME_MAIN(steps) : LAYER_MAIN}`,
   });
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(RADIUS, 48, 24), material);
+  const materials = { volume: make('volume'), layer: make('layer') };
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(RADIUS, 48, 24), materials[mode === 'layer' ? 'layer' : 'volume']);
   dome.name = 'clouds';
   dome.frustumCulled = false;
   dome.renderOrder = -1;        // after the sky dome, before everything else
   scene.add(dome);
+  let current = mode === 'layer' ? 'layer' : 'volume';
 
   return {
     mesh: dome,
+    get mode() { return current; },
+    /** Switch between the two ways (console: __vc.env.clouds.setMode('layer')). */
+    setMode(m) { current = m === 'layer' ? 'layer' : 'volume'; dome.material = materials[current]; },
     follow(camera) { dome.position.copy(camera.position); },
-    /** @param sunDir unit vector; night 0..1; altitude m; visible false in the orbital view */
-    update(sunDir, night, altitude, visible = true) {
+    /**
+     * @param sunDir unit vector; night 0..1; altitude m; visible false in the orbital view;
+     * @param flight an aircraft flies (the F-16): the volume can be entered and seen from above
+     */
+    update(sunDir, night, altitude, visible = true, flight = false) {
       uniforms.uSun.value.copy(sunDir);
       uniforms.uLight.value = 1 - night;
       const warm = Math.pow(1 - THREE.MathUtils.clamp(sunDir.y / 0.5, 0, 1), 3);
       uniforms.uSunColor.value.setRGB(1, 0.97 - 0.12 * warm, 0.92 - 0.25 * warm);
-      // A layer 1.4 km up cannot be seen from below once the camera has climbed through it.
-      uniforms.uFade.value = (1 - THREE.MathUtils.smoothstep(altitude, 700, BASE)) * (1 - night * 0.9);
+      // A flat layer 1.4 km up cannot be seen from below once the camera has climbed through
+      // it; the volume can, in flight. The launch keeps the old fade (its camera and its
+      // stretched ground are not a flight's).
+      const climb = current === 'volume' && flight
+        ? 1 - THREE.MathUtils.smoothstep(altitude, 15000, 25000)
+        : 1 - THREE.MathUtils.smoothstep(altitude, 700, BASE);
+      uniforms.uFade.value = climb * (1 - night * 0.9);
       dome.visible = visible && uniforms.uFade.value > 0.01;
     },
   };
