@@ -146,6 +146,10 @@ const VOLUME_MAIN = /* glsl */`
     gl_FragColor = vec4(col, alpha * haze * uFade);
   }`;
 
+// The cover again, under names of its own, for lit materials' shaders (cloud shadows, below).
+const SHADOW_COVER_GLSL = COVER_GLSL
+  .replace(/\bh\(/g, 'csH(').replace(/\bn\(/g, 'csN(').replace(/\bfbm\(/g, 'csFbm(').replace(/\bcoverAt\(/g, 'csCover(');
+
 /**
  * @param o.mode  'volume' or 'layer' (see the header)
  * @param o.steps samples per ray in 'volume'
@@ -188,9 +192,56 @@ export function createClouds(scene, { mode = 'volume', steps = 32 } = {}) {
   scene.add(dome);
   let current = mode === 'layer' ? 'layer' : 'volume';
 
+  // Cloud shadows on what the Sun lights. A point's direct light is dimmed by the cover where its
+  // ray to the Sun crosses the layer (≈ 1.7 km, low in the slab): the same cover the clouds are
+  // drawn with, so each shadow lies under its own cloud. Patched into lit materials' shaders
+  // (applyShadow), chained after their own onBeforeCompile and keyed apart in three's program
+  // cache. ≈ 85 % of the direct light at most under a thick cloud (the rest scatters through), and
+  // 15 % of the sky's diffuse light.
+  let shadowsOn = true, shadowFade = 0;
+  const shadowU = { uCsSun: { value: new THREE.Vector3(0, 1, 0) }, uCsFade: { value: 0 }, uCover: uniforms.uCover };
+  function applyShadow(material) {
+    if (!material?.isMeshStandardMaterial || material.userData.cloudShadow) return;
+    const prev = material.onBeforeCompile, prevKey = material.customProgramCacheKey();
+    material.userData.cloudShadow = true;
+    material.onBeforeCompile = function (sh, r) {
+      prev.call(this, sh, r);
+      // A shader that writes its own vertex projection (the dune grass) is left alone.
+      if (!sh.vertexShader.includes('#include <project_vertex>')) return;
+      Object.assign(sh.uniforms, shadowU);
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vCsW;')
+        .replace('#include <project_vertex>', '#include <project_vertex>\nvCsW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', `#include <common>
+varying vec3 vCsW;
+uniform vec3 uCsSun;
+uniform float uCsFade, uCover;
+${SHADOW_COVER_GLSL}`)
+        .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+  if (uCsFade > 0.01 && uCsSun.y > 0.05) {
+    vec2 csQ = vCsW.xz + uCsSun.xz * ((1700.0 - vCsW.y) / uCsSun.y);
+    // The same cover as the march (four octaves: with three it covered 38 % of the sky against
+    // the drawn 51 %), and the same onset of the cloud's body (+0.07), deepening with its thickness.
+    float csC = csCover(csQ, 4);
+    float csK = smoothstep(uCover, uCover + 0.07, csC) * (0.55 + 0.45 * smoothstep(uCover, uCover + 0.25, csC)) * uCsFade;
+    reflectedLight.directDiffuse *= 1.0 - 0.85 * csK;
+    reflectedLight.directSpecular *= 1.0 - 0.85 * csK;
+    // Under a cloud part of the sky's own light is gone too (the cloud is where blue sky was).
+    reflectedLight.indirectDiffuse *= 1.0 - 0.15 * csK;
+  }`);
+    };
+    material.customProgramCacheKey = () => `${prevKey}|cs1`;
+    material.needsUpdate = true;
+  }
+
   return {
     mesh: dome,
     get mode() { return current; },
+    applyShadow,
+    /** Cloud shadows on or off (console: __vc.env.clouds.shadows = false, to compare). */
+    get shadows() { return shadowsOn; },
+    set shadows(v) { shadowsOn = !!v; shadowU.uCsFade.value = shadowsOn ? shadowFade : 0; },
     /** Switch between the two ways (console: __vc.env.clouds.setMode('layer')). */
     setMode(m) { current = m === 'layer' ? 'layer' : 'volume'; dome.material = materials[current]; },
     /** Samples per ray in 'volume', changed live (no recompile). */
@@ -214,6 +265,10 @@ export function createClouds(scene, { mode = 'volume', steps = 32 } = {}) {
         : 1 - THREE.MathUtils.smoothstep(altitude, 700, BASE);
       uniforms.uFade.value = climb * (1 - night * 0.9);
       dome.visible = visible && uniforms.uFade.value > 0.01;
+      shadowU.uCsSun.value.copy(sunDir).normalize();
+      // Only while the clouds are drawn, and as they fade with height.
+      shadowFade = dome.visible ? climb * (1 - night) : 0;
+      shadowU.uCsFade.value = shadowsOn ? shadowFade : 0;
     },
   };
 }

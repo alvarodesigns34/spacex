@@ -335,6 +335,13 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     && !(typeof location !== 'undefined' && /[?&]clouds=full\b/.test(location.search));
   const cloudSteps = automated ? Math.min(quality.cloudSteps ?? 0, 6) : (quality.cloudSteps ?? 0);
   const clouds = createClouds(scene, { mode: cloudSteps ? 'volume' : 'layer', steps: cloudSteps });
+  // Cloud shadows (clouds.js applyShadow) on every lit material of the library, the ground's,
+  // the vehicles' and the sea's (below), where the clouds have volume; the flat layer's tier
+  // keeps none.
+  // Not under automation (unless ?clouds=full): the noise in every lit shader made the software
+  // renderer's compile of ≈160 programs much longer, which is what timed the checks out before.
+  const cloudShadows = cloudSteps > 0 && quality.cloudShadows !== false && !automated;
+  if (cloudShadows) for (const m of Object.values(M)) clouds.applyShadow(m);
 
   // --- Environment map for reflections: a private scene with the same sky + a ground disc ---
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -441,6 +448,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     waterGeo.setAttribute('uv', new THREE.BufferAttribute(wuv, 2));
     const seaBase = M.water ?? new THREE.MeshStandardMaterial({ color: 0x2f5160, roughness: 0.15 });
     const water = new THREE.Mesh(waterGeo, seaMaterial(seaBase, oceanU));
+    if (cloudShadows) clouds.applyShadow(water.material);
     water.name = 'sea';
     water.receiveShadow = false;
     ground.add(water);
@@ -476,6 +484,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     patchGeo.setIndex(pidx);
     patchGeo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), PATCH_R + 2);
     seaPatch = new THREE.Mesh(patchGeo, seaMaterial(seaBase, oceanU, { patch: true }));
+    if (cloudShadows) clouds.applyShadow(seaPatch.material);
     seaPatch.name = 'sea-patch';
     seaPatch.receiveShadow = false;
     seaPatch.frustumCulled = false;
@@ -794,6 +803,11 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
    * view). This rebuilds it for the sun that is set.
    */
   function rebuildProbe() { applyAtmosphere({ rebuildProbe: true }); }
+  /** Cloud shadows on every lit material under `root` (the vehicles, built after the library). */
+  function shadeUnderClouds(root) {
+    if (!cloudShadows) return;
+    root.traverse((o) => { if (o.isMesh) for (const m of Array.isArray(o.material) ? o.material : [o.material]) clouds.applyShadow(m); });
+  }
   /** Exposure compensation in stops (the photo mode's); 0 is the metering alone. */
   function setExposureBias(ev) { evBias = THREE.MathUtils.clamp(ev, -3, 3); applyAtmosphere(); }
   /** 'site' (the ground round the exhibits, the default) or 'flat' (the old grey disc), to compare. */
@@ -897,7 +911,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   return {
     // Run whenever the shared probe is rebuilt (localProbes.js).
     set onProbe(f) { onProbe = f; },
-    sun, sky, hemi, ground, outer, clouds, get seaPatch() { return seaPatch; }, ocean: oceanU, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation, rebuildProbe, setProbeGround, setExposureBias,
+    sun, sky, hemi, ground, outer, clouds, get seaPatch() { return seaPatch; }, ocean: oceanU, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation, rebuildProbe, setProbeGround, setExposureBias, shadeUnderClouds,
     get exposureBias() { return evBias; }, get sunAngles() { return { elev: air.elev, azim: air.azim }; },
     SUN_MIN, SUN_MAX, get night() { return nightK; },
     get inSpace() { return inSpace; }, get sunDir() { return sunDir; },

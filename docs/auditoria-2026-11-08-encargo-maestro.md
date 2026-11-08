@@ -558,3 +558,47 @@ separados 3 s solo cambian las puntas de las matas (82 píxeles con diferencia >
 cercano; el resto de la imagen, quieta).
 
 **Pendiente:** el matorral y los arbustos del recinto (otros materiales) siguen estáticos.
+
+## 20. Carga inicial (§31): dónde se va el arranque (medido)
+
+Tiempos de CPU del arranque (`__vc.timings`, contenedor de 4 núcleos, sin GPU; la caché de texturas
+está desactivada bajo automatización, así que es una **primera visita**):
+
+| Fase | ms |
+|---|---|
+| Generar los materiales (texturas procedurales) | 5 921 |
+| Roadster | 1 515 |
+| Porsche 911 GT3 RS | 1 083 |
+| F-16A | 736 |
+| Tesla Model Y | 276 |
+| Starship | 185 |
+| H2R, Dragon, Engine Row, Falcon Heavy, Falcon 1, Falcon 9, Starlink | 148 · 100 · 94 · 87 · 49 · 45 · 17 |
+
+La compilación y el primer fotograma (≈21 s aquí) son render por software y no se pueden extrapolar.
+**Lectura:** el coste dominante de una primera visita es la generación de texturas; la caché de
+texturas entre visitas (fusionada hoy, `fcabaf6`) lo elimina a partir de la segunda. Lo siguiente
+con sentido sería medir en el equipo del usuario con `?perf=log` y la tecla **I**; el traslado de
+las texturas a un hilo de trabajo ya se estudió y se descartó el 17-10 (ver `docs/rondas/`).
+
+## 21. Sombras de las nubes sobre el paisaje (§6), coherentes con las nubes dibujadas
+
+**Hecho (`clouds.js applyShadow`, aplicado por `environment.js` a la biblioteca, al mar y, tras
+construirlos, a los materiales de los vehículos: 1 890 de 1 946):** cada punto iluminado sigue su
+rayo hacia el Sol hasta la capa (≈1,7 km) y mira la cobertura allí, la **misma función con las
+mismas cuatro octavas** que dibuja las nubes, de modo que cada sombra cae bajo su nube. Bajo una
+nube gruesa quita ≈85 % de la luz directa y 15 % de la difusa del cielo. Solo con las nubes de
+volumen (calidad alta y media) y mientras se ven; se desvanece con ellas. Desactivadas bajo
+automatización salvo `?clouds=full` (alargaban la compilación por software de ≈160 programas). Consola:
+`__vc.env.clouds.shadows = false`.
+
+**Depuración honesta:** la primera versión no se veía. Se midió por qué: con tres octavas la
+cobertura de la sombra cubría el 38 % del cielo frente al 51 % de las nubes, y la rampa elegida
+solo oscurecía de verdad un 2 % del área; además el interruptor de comparación no restauraba el
+valor. Con todo corregido, a cobertura casi total el suelo baja un 15 % de luminancia (en esta
+escena la luz ambiental pesa mucho frente al sol), y en la vista amplia las sombras se ven como
+manchas grandes y suaves.
+
+![Paisaje desde 1,1 km, sol a 40°: sin (izquierda) y con (derecha) sombras de nubes](auditoria-2026-11-08/sombra-nubes-antes-despues.jpg)
+
+**Coste:** el ruido de cobertura (dos fbm de cuatro octavas) en cada píxel iluminado: no medido en
+hardware real.

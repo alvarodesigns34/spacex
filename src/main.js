@@ -565,6 +565,9 @@ async function main() {
   // Starship's own reflection probe (core/localProbes.js), captured from the scene round it: the
   // tower, the pad and the site in its steel, not only sky. At mid-stack, on its axis; the stack
   // itself hidden while it is taken. Not in flight: the launch and the re-entry move it away.
+  // Cloud shadows on the vehicles' own materials too (core/clouds.js): before the local probes
+  // copy them, so the copies carry it.
+  env.shadeUnderClouds(scene);
   const localProbes = createLocalProbes(renderer, scene);
   {
     const ex = exhibits.starship;
