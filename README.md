@@ -492,6 +492,7 @@ src/core/cameraRig.js      órbita + vuelo libre + transiciones + límite polar 
 src/geometry/utils.js      lathe con normales analíticas, ojivas romas, losetas instanciadas,
                            superficies aerodinámicas lofteadas
 src/materials/textures.js  texturas procedurales (Canvas 2D → color / rugosidad / normales)
+src/materials/texCore.js   herramientas de las texturas: ruido, lienzos, altura → normal, textura con tamaño métrico
 src/materials/library.js   materiales PBR, compartidos para no duplicar mapas
 src/vehicles/*.js          constructores de cada vehículo y motores instanciados
 src/vehicles/pad.js        complejo de lanzamiento (Pad 2 de Starbase) a escala
@@ -576,6 +577,7 @@ src/ui/techPanel.js        el panel técnico (tecla I), ?perf y ?perf=log, fuera
 src/ui/photoMode.js        el modo fotográfico (tecla O): FOV, exposición, Sol, interfaz oculta y PNG, con vuelta exacta
 src/core/sunlight.js       color de la luz directa del sol por la masa de aire (Rayleigh y aerosol), compartido con las nubes
 src/core/fogSun.js         la bruma hacia un sol bajo: lóbulo de la niebla en su dirección, parche de los fragmentos de niebla
+src/core/walkGround.js     suelo de las cámaras libres: terreno, obstáculos, paredes y el planificador del paseo
 src/core/localProbes.js    sondas de reflejos locales capturadas de la escena (hoy, la de Starship junto a la torre)
 src/core/colliders.js      todo lo sólido de la escena, en celdas de 0,25 m, para los choques
 src/core/effects.js        lo que salta en un choque: chispas, fuego, humo, restos, cristal, agua

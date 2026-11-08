@@ -1012,3 +1012,48 @@ Prueba en `tools/sunlight-check.mjs`:
 - los uniformes se comparten por referencia.
 
 ![Sol a 5°, mirando hacia él: sin lóbulo (izquierda) y con él (derecha)](auditoria-2026-11-08/niebla-sol-bajo-antes-despues.jpg)
+
+## 37. La nube del encendido, marrón a mediodía (encontrado en la matriz, corregido)
+
+La matriz (§34) mostró la nube del encendido marrón oscura a mediodía y al atardecer, como humo de
+combustible. Tenía dos causas:
+
+- **El resplandor del fuego iba multiplicado por la luz del sol** que recibía cada cara del puff.
+  Con el sol alto o a contraluz las caras laterales no reciben sol, y el naranja del fuego se
+  apagaba a marrón. Pero el fuego ilumina desde abajo, haga lo que haga el sol. Ahora el modelado
+  del resplandor sigue la normal del puff frente a la dirección del fuego (hacia abajo, ≈ en el
+  espacio de vista), con un nivel medio como el de antes.
+- **La cara en sombra del vapor era demasiado oscura.** Era un gris cálido al 14 % de la cara al
+  sol; un vapor blanco a la luz de un cielo despejado anda por el 25–30 % (≈). Ahora es un gris
+  ligeramente azulado de cielo (`0x8b8d93`, ≈27 %).
+
+Resultado, por filas (antes a la izquierda, después a la derecha): mediodía, mañana y atardecer.
+- A mediodía y al atardecer deja de ser humo marrón y pasa a vapor lavado de naranja por el fuego.
+- Por la mañana, que antes ya salía bien porque el sol bajo de lado daba el mismo efecto, queda
+  algo más naranja.
+- La base de la masa en el despegue sigue gris oscura: es el oscurecimiento por altura dentro de la
+  nube, buscado (las fotos del vuelo 12).
+
+![Encendido: antes (izquierda) y después (derecha), con sol de mediodía, mañana y atardecer](auditoria-2026-11-08/encendido-tres-soles-antes-despues.jpg)
+
+## 38. Refactor (§36), cuarto paso, y lo que no se ha hecho
+
+- **`main.js` (1730 → 1651 líneas):** el suelo de las cámaras libres pasa a `src/core/walkGround.js`
+  (98), idéntico (comprobado). Incluye el terreno, los obstáculos, las paredes y el planificador del
+  paseo.
+- **`textures.js` (1183 → 1074):** sus herramientas pasan a `src/materials/texCore.js` (120) y
+  `textures.js` las reexporta. Son el ruido, los lienzos, la conversión de altura a normal y la
+  textura con su tamaño métrico. La retícula de ruido sale de la misma secuencia sembrada, así que
+  las texturas no cambian.
+- **`gt3rs.js`: no.** Sus piezas sueltas (alerón, retrovisores, splitter, escape y difusor) usan
+  una decena de funciones internas de la carrocería. Separarlas obligaría a importaciones
+  circulares entre los dos módulos, que es peor que el archivo largo.
+
+**Revisados sin cambios** (con la matriz de §34 como referencia):
+- Las cámaras de cada capítulo: no se ha visto ningún encuadre roto en las 66 capturas.
+- La oclusión ambiental, que solo existe en calidad alta y ya escala su radio con la distancia de
+  la cámara. Ajustarla sin fotos de referencia sería inventar números.
+
+**Pendiente, sin cambios:** la nube de suelo y el plasma volumétricos de verdad. Los intentos de
+esta ronda no mejoraban la imagen (§15) y un trazado de volúmenes real cuesta demasiado para el
+nivel de calidad medio.

@@ -992,7 +992,12 @@ const CLOUD_FRAG = /* glsl */`
     // puff's own modelling (its turrets and shadowed folds) and is strongest on its underside,
     // which faces the fire: a flat tint replacing the shading drew uniform salmon balls.
     float below = 1.0 - smoothstep(0.15, 0.85, vLocal.y);
-    vec3 fireGlow = uFireColor * (0.55 + 0.75 * wrap) * vShade * under * 1.35;
+    // The fire lights the puff from below whatever the Sun does, so the glow's modelling is the
+    // puff's normal against the fire's direction (down, ≈ in view space), not the Sun's wrap: with
+    // the Sun overhead the sides of the puffs are unlit, and the glow scaled by the Sun's light
+    // went a dull, dark brown — smoke from a fuel fire, not lit steam (audit of 8-11-2026, §37).
+    float fireWrap = clamp((0.6 - normView.y) / 1.6, 0.0, 1.0);
+    vec3 fireGlow = uFireColor * (0.8 + 0.5 * fireWrap) * vShade * under * 1.35;
     float fireMix = clamp(vFire * vFire * 1.1, 0.0, 0.8) * mix(0.55, 1.0, below);
     vec3 col = mix(base, fireGlow, fireMix);
     col += uFireColor * (vFire * vFire * vFire * 0.6) * mix(0.35, 1.0, below) * vShade;
@@ -1069,7 +1074,10 @@ export class GroundCloud {
         // Steam, not dust: the deluge turns the trench cloud into water vapour, sunlit white with
         // cool grey hollows. The old tan pair made it read as a sandstorm.
         uSunColor: { value: new THREE.Color(0xfbf9f4) },
-        uShadowColor: { value: new THREE.Color(0x67635c) },
+        // The steam's unlit side, lit by the sky alone: ≈27 % of the sunlit side (a clear sky's
+        // diffuse light on a vertical face against the direct beam, ≈), a little blue. It was a
+        // warm 14 %, which against the light turned the steam under the fire's glow brown (§37).
+        uShadowColor: { value: new THREE.Color(0x8b8d93) },
         uFireColor: { value: new THREE.Color(0xff8a2a) },
         uSunDir: { value: new THREE.Vector3(0.4, 0.7, 0.5).normalize() },
         uFlame: { value: 0.0 },
