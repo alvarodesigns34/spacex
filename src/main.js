@@ -585,6 +585,12 @@ async function main() {
       localProbes.add({ name: 'skidpad', target: pad.map(e => e.model), position: new THREE.Vector3(c.x, (c.mount ?? 0) + 0.9, c.z),
         active: () => !gt3drive.running && !h2rRide.running });
     }
+    // The Roadster on its plinth: its red clearcoat is the next most mirror-like paint.
+    const rd = exhibits.roadster;
+    if (rd) {
+      localProbes.add({ name: 'roadster', target: rd.model, position: new THREE.Vector3(rd.lay.x, rd.model.position.y + 0.8, rd.lay.z),
+        active: () => !view.orbital });
+    }
     env.onProbe = () => localProbes.schedule(env, () => camera);
     localProbes.schedule(env, () => camera);
   }

@@ -666,3 +666,9 @@ parámetro con su intervalo) y la desorbitación real a T+2:12, con pruebas de c
 masas en `mission-check`. No se ha hecho todavía: toca el ascenso, que alimenta el lanzamiento, la
 recuperación y la reentrada, y merece una ronda propia con sus capturas. El script del cálculo es
 de una sola vez (no se guarda en el repositorio); sus cifras están aquí.
+
+**Tercera sonda local, el Roadster (8-11):** a 0,8 m sobre su peana (28 materiales copiados);
+desactivada en su vista orbital. Los bajos de la pintura roja reflejan la peana oscura y el capó
+gana variación; diferencia media del encuadre ≈1/255, concentrada en el coche.
+
+![Roadster: sonda común (izquierda) y local (derecha)](auditoria-2026-11-08/roadster-sonda-antes-despues.jpg)
