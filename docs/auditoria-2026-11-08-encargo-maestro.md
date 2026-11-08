@@ -793,3 +793,44 @@ Lo mismo con `src/vehicles/roadster.js` (3732 → 3487 líneas): sus ocho textur
 (pantalla «DON'T PANIC», placa de circuito, rejilla, insignia, ópticas, escamas de la pintura,
 neumáticos y esferas del cuadro) pasan **idénticas** (comprobado con `diff`) a
 `src/vehicles/roadsterTextures.js` (252), que solo depende de `materials/textures.js`.
+
+## 31. Vuelo 14: qué corte del ascenso cuadra con los tiempos citados (análisis; el modelo no cambia)
+
+El pendiente de §24 era rehacer el apagado del ascenso hacia una trayectoria suborbital. Antes de
+tocar el modelo se ha medido qué apagados son compatibles con lo publicado. El cálculo se hizo con
+una copia del propio integrador (`buildProfile`, mismas tablas, mismo empuje y mismos Isp),
+cambiando solo el objetivo de Newton, y se borró después.
+
+**Lo que se exige:**
+- el apagado a la hora citada (T+8:11);
+- el apogeo del arco suborbital a la hora de la inserción (punto medio de T+25:17–25:36 en spacex.com,
+  ≈T+25:26), porque un encendido corto hacia delante solo sube el perigeo si cae cerca del apogeo;
+- ese apogeo ≈270 km, entre los 262 y 275 km de la órbita final.
+
+| Altitud del apagado (supuesta) | Perigeo del arco | Δv de inserción necesario (en el apogeo, a 270 × 262 km) |
+|---|---|---|
+| 150 km | −90 km | 106 m/s |
+| 170 km | −32 km | 88 m/s |
+| 190 km | +27 km | 70 m/s |
+| 210 km | +87 km | 52 m/s |
+| 76 km (la que da 177 m/s) | −300 km | 177 m/s |
+
+En cada caso Newton resuelve las dos constantes del guiado y la masa que no es propelente
+(209–214 t, muy cerca de los 209 t de la hipótesis actual).
+
+**Lectura:**
+- Con la hipótesis de la inserción (un Raptor de nivel del mar, 250 tf, Isp ≈350 s, 19 s a pleno
+  empuje: ≈177 m/s), el único apagado coherente con los tiempos estaría a ≈76 km, que no es un
+  apagado creíble para un vehículo a 7,8 km/s.
+- Con apagados plausibles, de 150 a 210 km, la inserción necesita entre el 30 y el 60 % de ese Δv.
+- O el encendido no fue a pleno empuje, o los 19 s incluyen el arranque y la parada, o la masa es
+  otra. Un Raptor de vacío se apagó en el ascenso (Wikipedia, citando a SpacePolicyOnline y a
+  NASASpaceFlight), así que el ascenso real tampoco fue el de pleno empuje que integra el modelo.
+- **Lo publicado no distingue entre esas causas, y ninguna fuente leída da la altitud ni la velocidad
+  del apagado.**
+
+**Decisión:** no se cambia el apagado del modelo. Elegir una altitud de la tabla sería inventar el
+dato que falta. La hipótesis circular de 200 km se queda como está, declarada como hipótesis
+(§24), y la cadena «tal como voló» (§25) parte de la órbita publicada, no del apagado. Si se
+publica el estado del apagado (telemetría de la retransmisión), esta tabla dice directamente qué Δv
+y qué empuje implica la inserción.
