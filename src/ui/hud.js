@@ -230,6 +230,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
               <dt><kbd>L</kbd> · <kbd>R</kbd></dt><dd>labels · 1:1 ruler</dd>
               <dt><kbd>H</kbd> · <kbd>?</kbd></dt><dd>this guide</dd>
               <dt>Clean scene</dt><dd>hide the interface; one button brings it back</dd>
+              <dt>Technical panel <kbd>I</kbd></dt><dd>frame rate, p95 frame time, draw calls and triangles, the quality tier and GPU; camera, field of view, Sun, exposure and the clouds' samples</dd>
               <dt>Photo mode <kbd>O</kbd></dt><dd>field of view, exposure, the Sun's height and bearing, hide the interface, save a PNG; Reset and Close put every value back</dd>
             </dl>
             <h3>Sound</h3>

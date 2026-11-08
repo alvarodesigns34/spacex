@@ -412,3 +412,24 @@ general ni ambiente: sin un motor encendido, el centro era mudo.
 
 **Pendiente:** reverberación contextual (la torre, la zanja) y sonidos de mecanismos (brazos de la
 torre, pinzas). Los niveles relativos están ajustados de oído, ≈.
+
+## 14. ¿WebGPU? (§35): estudio, sin migración
+
+Medido en el código el 8-11-2026 (three r170 en `vendor/`):
+
+| Lo que habría que rehacer | Cuánto |
+|---|---|
+| Parches `onBeforeCompile` sobre los fragmentos GLSL de three (no existen en `WebGPURenderer`: hay que reescribirlos como materiales de nodos en TSL) | 17, en 8 archivos (`library.js`, `environment.js`, `detail.js`, `campus.js`, `common.js`, `h2r/index.js`, `gt3Drive.js`, `localProbes.js`) |
+| `ShaderMaterial` en GLSL (también a TSL) | 19, en 7 archivos; el grueso en `plume.js` (9) y `reentry.js` (4), más nubes, efectos, fondo orbital y oclusión |
+| Posprocesado sobre `EffectComposer` (RenderPass, GTAO propio, bloom, recorte de luciérnagas, salida) | 1 cadena en el centro y 1 en el Cybertruck Lab, a pasar al sistema de posprocesado de nodos |
+| Cachés de sombras y de G-buffer (`shadowCache.js`, `gbufferCache.js`), atadas a detalles de `WebGLRenderer` (`shadowMap.autoUpdate`, destinos de dibujo) | 2 módulos y su prueba byte a byte |
+| La compilación WebGPU de three | no está en `vendor/` (solo `three.module.js`): habría que añadir `three.webgpu.js` y comprobar sus dependencias |
+
+**Beneficio: no medible aquí.** El contenedor no tiene GPU; un WebGPU por software no dice nada
+de un equipo real. **Recomendación: no migrar ahora.** El coste es reescribir prácticamente todos
+los sombreadores del proyecto y su posprocesado, con riesgo directo sobre las pruebas de imagen; la
+ganancia esperable (menos sobrecarga de CPU por llamada de dibujo, *compute* para partículas) solo
+justifica el cambio si las mediciones en hardware real (`?perf=log`, tecla **I**) muestran que el
+cuello de botella es la CPU por llamadas de dibujo. Paso previo razonable y barato: una página
+aislada con `WebGPURenderer` y una escena de prueba (el mar y el cielo) para medir en el equipo del
+usuario, sin tocar el centro.

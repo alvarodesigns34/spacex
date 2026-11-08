@@ -1242,6 +1242,7 @@ async function main() {
     else if (k === 'g') toggleLaunch();
     else if (k === 'p') toggleTour();
     else if (k === 'o') photo.toggle();
+    else if (k === 'i') toggleTechnical();
     else if (k === 'l') setToggle('labels', !state.labels);
     else if (k === 'r') setToggle('ruler', !state.ruler);
     else if (k === 't') hud.toggleSheet();
@@ -1513,7 +1514,10 @@ async function main() {
   // a small readout shows frames per second, the mean and 95th-percentile frame time over the
   // last two seconds, draw calls and triangles for the whole frame (every composer pass), the
   // quality tier and the GPU the browser reports. Nothing is measured without the flag.
-  const perf = params.has('perf') ? (() => {
+  // Key I opens the same meter as a technical panel at any time (and closes it), with a second
+  // line of the state that sets the cost and the picture: camera, field of view, Sun, exposure
+  // compensation, the clouds' samples per ray and the adaptive controller's level.
+  const makePerf = () => {
     const box = document.createElement('div');
     box.className = 'perf-meter';
     box.setAttribute('aria-hidden', 'true');
@@ -1538,10 +1542,17 @@ async function main() {
         out.mean = times.reduce((a, b) => a + b, 0) / times.length;
         out.p95 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))];
         out.fps = 1000 / out.mean;
-        box.textContent = `${out.fps.toFixed(0)} fps · ${out.mean.toFixed(1)} ms (p95 ${out.p95.toFixed(1)}) · ${out.calls} calls · ${(out.tris / 1e6).toFixed(2)} M tris · ${quality.name}${quality.forced ? ' (forced)' : ''} · ${quality.probe?.renderer || 'GPU not reported'}`;
+        const cp = camera.position, sa = env.sunAngles;
+        box.textContent = `${out.fps.toFixed(0)} fps · ${out.mean.toFixed(1)} ms (p95 ${out.p95.toFixed(1)}) · ${out.calls} calls · ${(out.tris / 1e6).toFixed(2)} M tris · ${quality.name}${quality.forced ? ' (forced)' : ''} · ${quality.probe?.renderer || 'GPU not reported'}`
+          + `\ncamera ${cp.x.toFixed(0)}, ${cp.y.toFixed(1)}, ${cp.z.toFixed(0)} m · FOV ${camera.fov.toFixed(0)}° · Sun ${sa.elev.toFixed(0)}° / ${(((sa.azim % 360) + 360) % 360).toFixed(0)}° · ${env.exposureBias ? `${env.exposureBias > 0 ? '+' : ''}${env.exposureBias.toFixed(1)} EV · ` : ''}clouds ${env.clouds.mode}${env.clouds.mode === 'volume' ? ` ${env.clouds.steps} steps` : ''}${adaptive ? ` (adaptive ${adaptive.level + 1}/${cloudLevels.length})` : ''}`;
       },
+      dispose() { box.remove(); renderer.info.autoReset = true; },
     };
-  })() : null;
+  };
+  let perf = params.has('perf') ? makePerf() : null;
+  function toggleTechnical() {
+    if (perf) { perf.dispose(); perf = null; } else perf = makePerf();
+  }
 
   // ---- ?perf=log: a fixed measurement on real hardware (audit M-FL8) ----
   // The same views every time, so two machines or two versions can be compared: each is jumped

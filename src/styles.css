@@ -389,7 +389,7 @@ body.is-touring .coach { display: none; }
 .perf-meter {
   position: fixed; left: 50%; bottom: 6px; transform: translateX(-50%); z-index: 50; pointer-events: none;
   font-family: var(--font-mono); font-size: 11px; color: #e8e6e0; background: rgba(12, 14, 18, 0.82);
-  padding: 3px 8px; border-radius: 6px; white-space: nowrap; max-width: calc(100vw - 16px); overflow: hidden; text-overflow: ellipsis;
+  padding: 3px 8px; border-radius: 6px; white-space: pre; max-width: calc(100vw - 16px); overflow: hidden; text-overflow: ellipsis; line-height: 1.5;
 }
 
 /* Desktop only. On a phone or a small window the page says so once, and still runs. */
