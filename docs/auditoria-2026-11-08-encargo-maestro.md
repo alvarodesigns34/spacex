@@ -503,3 +503,19 @@ picos («the ball boils»). Detrás de la nave dibujaban un estallido rojo. `Glo
 irregularidad (`ragged`): la separación conserva la suya (1); la reentrada, 0, un resplandor suave.
 
 ![Halo de la reentrada: antes (izquierda) y después (derecha)](auditoria-2026-11-08/reentrada-halo-antes-despues.jpg)
+
+## 17. Sonda local para la explanada de la pista (Porsche, H2R, Model Y)
+
+**Problema:** el barniz del Porsche (1, rugosidad 0,06) es casi un espejo, pero con la sonda común
+reflejaba cielo y bruma hasta los faldones: la carrocería se veía plana y sin suelo debajo.
+
+**Hecho:** `localProbes.js` acepta varios objetos por sonda (una sola captura, todos ocultos
+mientras se toma). Los tres vehículos de la explanada, a menos de 5 m entre sí, comparten una a la
+altura de la cintura del Porsche (150 materiales copiados); se desactiva mientras se conduce el
+Porsche o la H2R.
+
+![Porsche, vista lateral: sonda común (arriba) y sonda local (abajo)](auditoria-2026-11-08/porsche-sonda-antes-despues.jpg)
+
+**Resultado:** los bajos del costado y los faldones reflejan el asfalto oscuro que tienen debajo;
+las superficies altas casi no cambian. Moderado, correcto y sin coste por fotograma (una captura
+más por cambio de sol).

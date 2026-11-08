@@ -571,9 +571,18 @@ async function main() {
     if (ex) {
       const at = new THREE.Vector3(ex.lay.x, ex.model.position.y + 45, ex.lay.z);
       localProbes.add({ name: 'starship', target: ex.model, position: at, active: () => !launch.running && !reentry.running });
-      env.onProbe = () => localProbes.schedule(env, () => camera);
-      localProbes.schedule(env, () => camera);
     }
+    // The three on the skid pad share one, taken at the Porsche's waist height (they stand within
+    // 5 m of each other), all three hidden for it: their clearcoat is a near mirror, and with the
+    // shared probe it showed only sky and haze down its flanks. Not while one of them is driven.
+    const pad = ['gt3rs', 'h2r', 'modely'].map(id => exhibits[id]).filter(Boolean);
+    if (pad.length) {
+      const c = pad[0].lay;
+      localProbes.add({ name: 'skidpad', target: pad.map(e => e.model), position: new THREE.Vector3(c.x, (c.mount ?? 0) + 0.9, c.z),
+        active: () => !gt3drive.running && !h2rRide.running });
+    }
+    env.onProbe = () => localProbes.schedule(env, () => camera);
+    localProbes.schedule(env, () => camera);
   }
 
   // ---- The F-16 in flight ----

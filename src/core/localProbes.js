@@ -24,7 +24,8 @@ export function createLocalProbes(renderer, scene, { size = 256, delay = 250 } =
 
   /**
    * @param o.name     for the console and the checks
-   * @param o.target   the object whose meshes get the probe (their materials are copied once)
+   * @param o.target   the object, or objects, whose meshes get the probe (their materials are
+   *                   copied once); all of them are hidden while it is captured
    * @param o.position world position of the capture
    * @param o.active   () => true while the target is where the probe was captured
    */
@@ -33,7 +34,8 @@ export function createLocalProbes(renderer, scene, { size = 256, delay = 250 } =
     const cam = new THREE.CubeCamera(1, 250000, rt);
     cam.position.copy(position);
     const copies = new Map();
-    target.traverse((o) => {
+    const targets = Array.isArray(target) ? target : [target];
+    for (const t of targets) t.traverse((o) => {
       if (!o.isMesh) return;
       const swap = (m) => {
         if (!m || !m.isMeshStandardMaterial || m.envMap) return m;
@@ -49,7 +51,7 @@ export function createLocalProbes(renderer, scene, { size = 256, delay = 250 } =
       };
       o.material = Array.isArray(o.material) ? o.material.map(swap) : swap(o.material);
     });
-    const p = { name, target, cam, rt, copies: [...copies.values()], active, map: null, using: null };
+    const p = { name, targets, cam, rt, copies: [...copies.values()], active, map: null, using: null };
     probes.push(p);
     return p;
   }
@@ -61,12 +63,12 @@ export function createLocalProbes(renderer, scene, { size = 256, delay = 250 } =
     const sm = renderer.shadowMap, auto = sm.autoUpdate, need = sm.needsUpdate;
     sm.autoUpdate = false; sm.needsUpdate = false;
     for (const p of probes) {
-      const was = p.target.visible;
-      p.target.visible = false;
+      const was = p.targets.map(t => t.visible);
+      for (const t of p.targets) t.visible = false;
       // The sky box and the cloud dome follow whatever camera draws; put them round the probe.
       env.followCamera(p.cam);
       p.cam.update(renderer, scene);
-      p.target.visible = was;
+      p.targets.forEach((t, i) => { t.visible = was[i]; });
       p.map?.dispose();
       p.map = pmrem.fromCubemap(p.rt.texture);
     }
