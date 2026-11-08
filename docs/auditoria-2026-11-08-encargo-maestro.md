@@ -519,3 +519,24 @@ Porsche o la H2R.
 **Resultado:** los bajos del costado y los faldones reflejan el asfalto oscuro que tienen debajo;
 las superficies altas casi no cambian. Moderado, correcto y sin coste por fotograma (una captura
 más por cambio de sol).
+
+## 18. Auditoría de materiales por familias (§10), sobre los datos reales
+
+Extraída del centro en marcha (`__vc.M`, 163 materiales de la biblioteca y de los vehículos), no de memoria. Columnas: cuántos, cuántos con mapas propios (color, normales, rugosidad o metal), y el intervalo de metalicidad y rugosidad base (los mapas la modulan).
+
+| Familia | Materiales | Con mapas | Metalicidad | Rugosidad base | Con barniz |
+|---|---|---|---|---|---|
+| Metales | 49 | 17 | 0.50–1.00 | 0.12–1.00 | 3 |
+| Pinturas y barnices | 20 | 16 | 0.00–0.35 | 0.12–1.00 | 19 |
+| Vidrio y lentes | 7 | 1 | 0.00–1.00 | 0.02–0.18 | 3 |
+| Caucho y plásticos | 17 | 6 | 0.00–0.35 | 0.22–0.95 | 2 |
+| Cerámica y protección térmica | 6 | 3 | 0.00–0.70 | 0.55–1.00 | 0 |
+| Suelo, hormigón y asfalto | 10 | 6 | 0.00–0.00 | 0.66–1.00 | 0 |
+| Otros | 54 | 12 | 0.00–0.45 | 0.12–1.00 | 0 |
+
+**Observaciones verificadas:**
+- Los aceros de Starship y del Super Heavy (7) comparten un mapa de color, normales y rugosidad con variación por chapa (anillos y placas con tono y brillo propios), rugosidad base 0,86 modulada: es la familia mejor resuelta.
+- Las pinturas del Falcon y de Dragon son físicas con barniz fino (0,16–0,30) sobre mapas de color y rugosidad; la del Porsche, barniz 1 con rugosidad 0,06 (casi espejo) y oclusión horneada; desde el §17 refleja su entorno.
+- `gt3Carbon` (carbono exterior del Porsche, liso, sin trama ni barniz) **no lo usa ninguna pieza**: material muerto, sin efecto visible. El carbono del habitáculo sí lleva la trama barnizada de la biblioteca.
+- La mayoría de materiales pequeños (motores, tren, piezas del pad) son de valor constante sin mapas: correcto a la distancia a la que se ven; su microdetalle procede de `detail.js` (mapa de detalle por escala) donde está aplicado.
+- **Pendiente:** fotografía virtual del mismo objeto bajo tres soles (mañana, mediodía, atardecer) por familia, como pide el encargo; con el modo fotográfico (tecla **O**) es reproducible, pero cada captura por software tarda minutos.
