@@ -26,10 +26,15 @@
  *    hot-staging crack, and the returning booster's sonic booms, heard at the pad on every
  *    catch. The booms are timed from the model's own descent through Mach 1.2, delayed by the
  *    distance, and played as a triple N-wave.
+ *  - The catch's mechanism, from the arms: the hydraulic whine while they close on the booster
+ *    (from the landing burn's last seconds, when launch.js starts closing them, to a second
+ *    before the catch), and the clank of the booster's pins coming down on them at the catch:
+ *    inharmonic ringing of heavy steel over an impact. ≈, by ear: the times are the animation's,
+ *    and on a real catch the engines all but drown both.
  * It is not a recording and not a measured spectrum: band levels are chosen by ear against
  * published launch and catch videos, and the booms' timing is the model's, not a flight's.
  */
-import { EVENTS, boosterSpeedAt, boosterAltAt, soundSpeedAt, derivedEvents } from './launch.js';
+import { EVENTS, BURN_THREE, boosterSpeedAt, boosterAltAt, soundSpeedAt, derivedEvents } from './launch.js';
 import { audio, claim } from './audioBus.js';
 
 const C_SOUND = 343;
@@ -55,7 +60,7 @@ const BOOM_T = (() => {
 export function createLaunchSound({ launch, camera }) {
   let ctx = null, enabled = false, master = null, reverbIn = null;
   const src = [];                       // per stage: { panner, air, rumble, roar, crackle }
-  let vent = null, deluge = null, wind = null;
+  let vent = null, deluge = null, wind = null, whine = null;
   const now = [{ pos: camera.position.clone() }, { pos: camera.position.clone() }];
   const heard = [{ pos: camera.position.clone() }, { pos: camera.position.clone() }];
   const lastHeard = [null, null];
@@ -164,8 +169,19 @@ export function createLaunchSound({ launch, camera }) {
     const w = ctx.createBiquadFilter(); w.type = 'lowpass'; w.frequency.value = 380; w.Q.value = 0.3;
     wind = ctx.createGain(); wind.gain.value = 0; loop(brown, 0.6).connect(w); w.connect(wind); wind.connect(master);
 
+    // The arms' hydraulics: a narrow band of noise round 520 Hz with a weaker octave, from the booster's place.
+    whine = ctx.createGain(); whine.gain.value = 0;
+    for (const [f, q, g] of [[520, 7, 1], [1040, 9, 0.35]]) {
+      const b = ctx.createBiquadFilter(); b.type = 'bandpass'; b.frequency.value = f; b.Q.value = q;
+      const gg = ctx.createGain(); gg.gain.value = g;
+      loop(white, 1 + 0.01 * q).connect(b); b.connect(gg); gg.connect(whine);
+    }
+    whine.connect(src[0].panner); whine.connect(reverbIn);
+
     // One-shot buffers.
     oneShots = {
+      // The pins on the arms: an impact and the inharmonic ring of heavy steel (≈ modes).
+      clank: buffer(ctx, 2.5, (d, sr) => { const rr = rng(17); let lp = 0; const modes = [[173, 0.9, 0.7], [419, 0.6, 0.45], [788, 0.4, 0.3], [1263, 0.25, 0.18], [1907, 0.15, 0.1]]; for (let i = 0; i < d.length; i++) { const t = i / sr; lp += 0.25 * ((rr() * 2 - 1) - lp); let v = lp * 1.4 * Math.exp(-t / 0.05); for (const [f, a, tau] of modes) v += a * Math.sin(2 * Math.PI * f * t) * Math.exp(-t / tau); d[i] = v * 0.6; } }),
       // Hot-staging: a hard crack with a short rough tail.
       crack: buffer(ctx, 1.6, (d, sr) => { const rr = rng(5); let lp = 0; for (let i = 0; i < d.length; i++) { const t = i / sr; lp += 0.35 * ((rr() * 2 - 1) - lp); d[i] = (t < 0.004 ? 1 : 0) + lp * Math.exp(-t / 0.25); } }),
       // An engine group coming up: a low thump as the chambers light, then the roar building.
@@ -196,7 +212,7 @@ export function createLaunchSound({ launch, camera }) {
     if (on) ctx.resume?.();
     else {
       for (const s of src) for (const k of ['rumble', 'roar', 'tear', 'crackle', 'imp', 'reflGain']) s[k].gain.setTargetAtTime(0, ctx.currentTime, 0.05);
-      for (const g of [vent, deluge, wind]) g?.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+      for (const g of [vent, deluge, wind, whine]) g?.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
     }
   }
 
@@ -223,7 +239,7 @@ export function createLaunchSound({ launch, camera }) {
     wind.gain.setTargetAtTime(live ? 0.05 : 0, tc, 0.5);
     if (!live) {
       for (const s of src) for (const k of ['rumble', 'roar', 'tear', 'crackle', 'imp', 'reflGain']) s[k].gain.setTargetAtTime(0, tc, 0.15);
-      vent.gain.setTargetAtTime(0, tc, 0.2); deluge.gain.setTargetAtTime(0, tc, 0.2);
+      vent.gain.setTargetAtTime(0, tc, 0.2); deluge.gain.setTargetAtTime(0, tc, 0.2); whine.gain.setTargetAtTime(0, tc, 0.2);
       lastHeard[0] = lastHeard[1] = null;
       return;
     }
@@ -257,6 +273,11 @@ export function createLaunchSound({ launch, camera }) {
       // Air absorption: the cut-off falls roughly as 1/distance.
       s.air.frequency.setTargetAtTime(Math.max(180, Math.min(15000, 15000 * 250 / Math.max(d, 250))), tc, 0.2);
 
+      // The arms closing, heard from the booster's place (it is between them by then).
+      if (i === 0) {
+        const closing = th >= BURN_THREE && th < EVENTS.catch - 1 ? 1 : 0;
+        whine.gain.setTargetAtTime(0.06 * closing * Math.min(1, REF_D * 2 / Math.max(d, 1)), tc, 0.3);
+      }
       // One-shots, when their wavefront reaches the camera.
       const prev = lastHeard[i];
       if (prev !== null && th > prev && th - prev < 3) {
@@ -266,6 +287,7 @@ export function createLaunchSound({ launch, camera }) {
         if (i === 0) for (const [te, gt] of [[EVENTS.ignition + 0.2, 1]]) {
           if (cross(te)) play('thump', { gain: gt * Math.min(1, REF_D * 2 / Math.max(d, 1)), pan: s.panner, lowpass: lp });
         }
+        if (i === 0 && cross(EVENTS.catch)) play('clank', { gain: Math.min(1, REF_D * 1.5 / Math.max(d, 1)), pan: s.panner, lowpass: lp });
         if (i === 1 && cross(EVENTS.separation - 1.2)) play('crack', { gain: 0.9 * g * p + 0.05, pan: s.panner, lowpass: lp });
         if (i === 0 && cross(BOOM_T)) {
           // A returning booster's boom arrives as two or three N-waves a fraction of a second

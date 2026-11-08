@@ -867,3 +867,11 @@ niveles son de oído (≈):
 sombreador y su casquete) sale de `src/sim/plume.js` (1760 → 1518 líneas) a
 `src/sim/flightEarth.js` (249). El código es idéntico (comprobado con `diff`) y `plume.js` la
 reexporta, así que el lanzamiento y la reentrada la importan igual que antes.
+
+**Sonidos de mecanismo (§26), la captura:** el lanzamiento suma dos sonidos que salen de su propia
+animación (`src/sim/sound.js`). Uno es el zumbido hidráulico de los brazos mientras se cierran
+sobre el propulsor, desde el final del encendido de aterrizaje (cuando `launch.js` empieza a
+cerrarlos) hasta un segundo antes de la captura. El otro es el golpe de los pernos sobre los
+brazos en la captura: cinco modos inarmónicos de acero pesado sobre un impacto. Los dos se oyen
+desde el sitio del propulsor, con el retardo de la distancia y su filtro de aire. Son de oído (≈):
+en una captura real los motores casi los tapan, y aquí se oyen sobre todo desde cerca.
