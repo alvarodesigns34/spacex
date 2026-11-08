@@ -676,6 +676,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   // Now the three are inputs, and this function is the only writer. It is pure in the sense
   // that matters: called twice with the same inputs it produces the same scene.
   const air = { elev: 42, azim: 34, altitude: 0, flight: false };
+  let evBias = 0;
   const SKY_GROUND = { turbidity: 2.8, rayleigh: 1.15, mie: 0.0016 };
   const _nightHemi = new THREE.Color(0x2c3d5e), _nightFog = new THREE.Color(0x070a12);
 
@@ -721,7 +722,8 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     // apron, the flats and the sky all clipped towards white. Low suns are lifted a little
     // (at most 15 %) so evening light stays evening light rather than being metered to noon.
     const irr = (e) => THREE.MathUtils.lerp(1.35, 2.8, Math.pow(THREE.MathUtils.clamp(e / 60, 0, 1), 0.55)) * Math.sin(THREE.MathUtils.degToRad(e)) + 0.6;
-    renderer.toneMappingExposure = BASE_EXPOSURE * THREE.MathUtils.clamp(Math.sqrt(irr(20) / irr(elev)), 0.6, 1.15);
+    // The photo mode's exposure compensation (ui/photoMode.js), in stops, on top of the metering.
+    renderer.toneMappingExposure = BASE_EXPOSURE * THREE.MathUtils.clamp(Math.sqrt(irr(20) / irr(elev)), 0.6, 1.15) * Math.pow(2, evBias);
 
     // Scattering: the two blends multiply. Everything is computed from the ground constants,
     // never read back out of the uniforms — reading and multiplying compounds on every call.
@@ -792,6 +794,8 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
    * view). This rebuilds it for the sun that is set.
    */
   function rebuildProbe() { applyAtmosphere({ rebuildProbe: true }); }
+  /** Exposure compensation in stops (the photo mode's); 0 is the metering alone. */
+  function setExposureBias(ev) { evBias = THREE.MathUtils.clamp(ev, -3, 3); applyAtmosphere(); }
   /** 'site' (the ground round the exhibits, the default) or 'flat' (the old grey disc), to compare. */
   function setProbeGround(kind) { envGround.visible = kind !== 'flat'; envFlat.visible = kind === 'flat'; rebuildProbe(); }
 
@@ -893,7 +897,8 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   return {
     // Run whenever the shared probe is rebuilt (localProbes.js).
     set onProbe(f) { onProbe = f; },
-    sun, sky, hemi, ground, outer, clouds, get seaPatch() { return seaPatch; }, ocean: oceanU, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation, rebuildProbe, setProbeGround,
+    sun, sky, hemi, ground, outer, clouds, get seaPatch() { return seaPatch; }, ocean: oceanU, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation, rebuildProbe, setProbeGround, setExposureBias,
+    get exposureBias() { return evBias; }, get sunAngles() { return { elev: air.elev, azim: air.azim }; },
     SUN_MIN, SUN_MAX, get night() { return nightK; },
     get inSpace() { return inSpace; }, get sunDir() { return sunDir; },
   };

@@ -1,7 +1,7 @@
 /**
  * Screenshot helper — the renderer the documentation is allowed to show.
  *
- *   node tools/shot.mjs <outdir> <shots.json> [--quality high|medium|low]
+ *   node tools/shot.mjs <outdir> <shots.json> [--quality high|medium|low] [--clouds-full]
  *
  * It forces `?quality=high` and refuses to run if the page did not come up at that tier. This
  * is not a detail: Playwright drives Chromium through SwiftShader, `quality.js` correctly
@@ -68,9 +68,11 @@ page.on('console', m => {
   if (!/fonts\.(googleapis|gstatic)/.test(w)) console.log('CONSOLE', w);
 });
 
-// ?clouds=full: the documentation shows the tier's own cloud march, not the few steps the checks
-// run under automation (environment.js).
-const q = await bootAtQuality(page, `http://127.0.0.1:${PORT}/?clouds=full`, TIER);
+// --clouds-full: the tier's own cloud march (32 steps at high) instead of the few the checks run
+// under automation (environment.js). Through a software renderer it makes every frame take
+// minutes, so it is for a machine with a GPU; without it the cumulus are grainy but the shots
+// are quick.
+const q = await bootAtQuality(page, `http://127.0.0.1:${PORT}/${args.includes('--clouds-full') ? '?clouds=full' : ''}`, TIER);
 console.log(`quality ${q.name} (forced) · sun ${SUN}° unless a shot overrides it`);
 
 const shots = JSON.parse(await readFile(manifest, 'utf8'));

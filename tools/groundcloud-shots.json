@@ -1,0 +1,5 @@
+[
+  { "name": "gc-ignition.jpg", "seek": -1, "hud": false, "labels": false, "ruler": false, "wait": 1800 },
+  { "name": "gc-liftoff.jpg", "seek": 4, "hud": false, "labels": false, "ruler": false, "wait": 1800 },
+  { "name": "gc-tower.jpg", "seek": 12, "hud": false, "labels": false, "ruler": false, "wait": 1800 }
+]

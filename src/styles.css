@@ -551,3 +551,27 @@ body.cybertruck-lab-open #hud, body.cybertruck-lab-open #labels { display: none;
 .perf-log { position: fixed; z-index: 60; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(560px, calc(100vw - 48px)); display: flex; flex-direction: column; gap: 10px; padding: 16px; color: var(--ink); background: var(--surface-solid); border: 1px solid var(--surface-line); border-radius: var(--radius-panel); box-shadow: var(--shadow-panel); font-family: var(--font-sans); }
 .perf-log textarea { height: 320px; font-family: var(--font-mono); font-size: 11.5px; color: var(--ink); background: rgba(255, 255, 255, 0.04); border: 1px solid var(--surface-line); border-radius: var(--radius-ctl); resize: vertical; }
 .perf-log a { text-decoration: none; }
+
+/* Photo mode (ui/photoMode.js, key O). */
+.photo { position: fixed; right: 16px; bottom: 16px; z-index: 40; width: 260px; padding: 12px 14px;
+  background: rgba(20, 22, 26, 0.88); color: #e8e6e1; border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px; font: 12px/1.4 Inter, system-ui, sans-serif; transition: opacity 0.2s; }
+.photo.hidden { display: none; }
+.photo-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.photo-title { font-weight: 600; letter-spacing: 0.02em; }
+.photo-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; margin: 6px 0; }
+.photo-row input { grid-column: 1 / -1; width: 100%; }
+.photo-row output { font-variant-numeric: tabular-nums; color: #c9b27c; }
+.photo-check { display: flex; gap: 6px; align-items: center; margin: 8px 0; }
+.photo-btns { display: flex; gap: 6px; }
+.photo-btns .tool-btn { flex: 1; }
+.photo-note { margin: 8px 0 0; color: #9a978f; font-size: 11px; }
+body.photo-ui-off #hud, body.photo-ui-off #labels { visibility: hidden; }
+body.photo-ui-off .photo { opacity: 0.22; }
+body.photo-ui-off .photo:hover, body.photo-ui-off .photo:focus-within { opacity: 1; }
+
+/* The Guide's sound settings (main.js, sim/ambience.js). */
+.help-sound { display: grid; gap: 6px; margin-top: 4px; }
+.help-sound-row { display: flex; gap: 8px; align-items: center; }
+.help-sound-row input[type="range"] { flex: 1; max-width: 180px; }
+.help-sound-row output { font-variant-numeric: tabular-nums; min-width: 3.5em; }

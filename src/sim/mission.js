@@ -7,16 +7,19 @@
  *  1. Cutoff (T+8:11, cited): the ship's state and mass where the integrated burn leaves them
  *     (launch.js: its altitude, speed, flight-path angle and mass tables).
  *  2. The orbit that state is on (vis-viva, angular momentum): its energy, apogee and perigee.
- *  3. The coast to the deorbit burn (T+8:52:37, cited), by Kepler's equation: no drag at that
+ *  3. The coast to the deorbit burn (T+8:52:37, SpaceX's pre-flight plan: the flight as flown
+ *     was shortened and burned at T+2:12, see reentryFlight.js), by Kepler's equation: no drag at that
  *     height (≈), so energy and angular momentum stay what they were at cutoff.
- *  4. The deorbit burn (T+8:52:37–8:52:48, cited, one sea-level Raptor): its thrust and specific
+ *  4. The deorbit burn (T+8:52:37–8:52:48, planned, one sea-level Raptor): its thrust and specific
  *     impulse (≈) give the propellant it burns and, through the rocket equation, its Δv, applied
  *     retrograde at the point of the orbit where the burn falls.
  *  5. The new orbit down to the entry interface (120 km, ≈ the usual definition): the speed and
  *     flight-path angle there, and the time it reaches it.
  *
  * Every mass change has its cause recorded (MISSION.masses): propellant burned at cutoff and in
- * the deorbit burn; a payload deploy if one is assumed (none here: flight 14's is not modelled,
+ * the deorbit burn; a payload deploy if one is assumed (none here: flight 14 released 26
+ * Starlink V3 at T+34:18–1:04:50, whose mass is not published, and its insertion burn is not
+ * modelled either — this chain is the planned one, from cutoff,
  * and the mass at entry is the cutoff mass less the deorbit propellant).
  */
 import { altitudeAt, speedAt, downrangeAt, shipMassAt, EVENTS } from './launch.js';

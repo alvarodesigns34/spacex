@@ -46,7 +46,7 @@ Impacto visual y coste: A (alto), M (medio), B (bajo). «Nuevo» = encontrado en
 
 | Prio. | Área | Problema / mejora | Impacto | Coste | Riesgo | Estado |
 |---|---|---|---|---|---|---|
-| P0 | Proceso | 5 commits de `h7sx0c` sin fusionar en las ramas de trabajo | — | B | M (toca `main.js`) | **Decisión del usuario** |
+| P0 | Proceso | 5 commits de `h7sx0c` sin fusionar en las ramas de trabajo | — | B | M (toca `main.js`) | **Hecho**: fusionada el 8-11 (`3d14da6`) con autorización |
 | P0 | Misión | Vuelo 14: falta la inserción orbital (T+00:25:17–00:25:36), la nueva órbita y la carga de 26 Starlink V3; `payload: 0` | M | A | M (cambia la reentrada encadenada) | Pendiente: requiere investigar la fuente primaria; no se corrige con una constante |
 | P1 | Agua | Mar plano, física con nivel fijo (A1, A2) | **A** | M | M | **Hecho, §4** |
 | P1 | Agua | Motas grises en mar abierto: rayos reflejados bajo el horizonte leen el disco gris de la sonda (**nuevo**) | **A** | B | B | **Hecho, §4** |
@@ -335,3 +335,80 @@ desde este contenedor (dos intentos normales; la red del entorno no tiene restri
 el servidor). No se ha sustituido por ninguna otra fuente sin verificar su procedencia. Para
 retomarlo basta con el archivo `world.topo.200412.3x5400x2700.jpg` del registro 74142 de NASA
 Visible Earth, descargado desde otra máquina.
+
+## 11. P0 del vuelo 14: corregido lo que la interfaz presentaba como hecho
+
+**Problema (confirmado, grave):** el capítulo de la reentrada decía «Every time on this clock is
+SpaceX's own» y, al terminar, «Flight 14's ship splashed down on target in the northern Pacific,
+nine hours and fifty minutes after liftoff». Ese es el **plan previo al vuelo**. El vuelo real se
+acortó tras fallar un Raptor Vacuum en el ascenso: desorbitación a T+2:12:00–2:12:11 y amerizaje
+al norte de Hawái unas tres horas después del despegue ([Wikipedia, «Starship flight 14»](https://en.wikipedia.org/wiki/Starship_flight_14);
+[Space.com](https://www.space.com/news/live/spacex-starship-flight-14-live-updates-sept-28-2026-starship-first-orbital-launch-attempt);
+[CNN](https://www.cnn.com/2026/09/28/science/live-news/spacex-starship-flight-14-launch)). Era una
+reconstrucción hipotética presentada como histórica, lo que el encargo prohíbe expresamente.
+
+**Datos del vuelo real usados** (Wikipedia, con referencias a SpaceX): inserción T+25:17–25:36 en
+spacex.com y T+25:28–25:47 en Wikipedia (se dan las dos); 26 Starlink V3 liberados entre T+34:18 y
+T+1:04:50; órbita de 262 × 275 km a 30,5°. **No se usan** los tiempos posteriores a la
+desorbitación: el encendido de aterrizaje aparece exactamente 7 h antes del planificado y el
+amerizaje (T+3:08:30) 18 min después de él, lo que no encaja.
+
+**Hecho:** la nota del capítulo y el aviso final dicen ahora que el capítulo vuela el **plan** y
+resumen lo ocurrido; la ficha de Starship tiene una fila nueva, «Flight 14 · as flown», con fuente
+propia (`wiki_ft14`), y la fila de la reentrada pasa a «planned timeline»; los comentarios de
+`reentryFlight.js` y `mission.js` dicen lo mismo. La procedencia (`provenance-check`) y
+`mission-check` siguen en verde.
+
+**Pendiente:** un modo histórico que vuele el perfil real (inserción con un Raptor, despliegue de 26
+satélites con su masa —no publicada: ≈—, la órbita de 262 × 275 km, desorbitación a T+2:12). Los
+tiempos de entrada y aterrizaje del vuelo real no están bien establecidos en las fuentes leídas.
+
+## 12. Calidad adaptativa (§34) y modo fotográfico (§27)
+
+**Calidad adaptativa (hecho; la lógica verificada, el efecto pendiente de medir en hardware real).**
+`src/core/adaptive.js`: el percentil 95 de los últimos 90 intervalos de fotograma frente a un
+presupuesto de ≈18 ms (55 fps). Baja un nivel si el p95 pasa de 1,2 × presupuesto durante 3 s;
+sube uno tras 12 s por debajo de 0,8 × presupuesto; cada subida que trae de vuelta los fotogramas
+lentos duplica la espera siguiente (hasta 5 min), para que se asiente en vez de oscilar; ignora
+intervalos de más de 250 ms (pestaña en segundo plano, paradas). Hoy solo actúa sobre los pasos por
+rayo de las nubes (32 → 24 → 16 → 10 en calidad alta), que se cambian sin recompilar: nunca sobre
+la geometría ni el detalle cercano, ni sobre el nivel de calidad entero. Desactivada bajo
+automatización y con `?adaptive=off`; estado en `__vc.adaptive.state`. Prueba sin navegador
+`tools/adaptive-check.mjs` (en `check:static`) con secuencias inventadas: 60 fps estables no
+cambian nada; picos aislados de 200 ms tampoco; carga sostenida baja hasta que los fotogramas
+caben, un paso cada 3 s como mucho; vuelve a subir cuando hay margen; y en el caso trampa (el nivel
+alto no cabe, el siguiente sí) los intentos de subida quedan a 16, 44, 95, 195 y 391 s.
+
+**Modo fotográfico (hecho).** Tecla **O** (`src/ui/photoMode.js`): campo de visión (solo en las
+cámaras libres), compensación de exposición ±2 EV (`environment.js setExposureBias`), altura y
+rumbo del Sol, ocultar la interfaz y *Save PNG* del fotograma recién dibujado (el bucle lo entrega en
+la misma tarea en que lo dibuja: sin `preserveDrawingBuffer` no hay otra forma). *Reset*, *Close* y
+**Esc** devuelven los valores exactos que había al abrirlo. Sin profundidad de campo ni desenfoque.
+Prueba con navegador en `tools/ux-check.mjs` (tres comprobaciones: los controles mandan, el PNG
+tiene contenido, la vuelta es exacta).
+
+**`tools/shot.mjs`:** las nubes completas solo con `--clouds-full` (para generar la galería en una
+máquina con GPU); por software cada fotograma tardaba minutos.
+
+## 13. Sonido (§26): volumen general y ambiente de la costa
+
+**Estado comprobado:** el sonido de los motores ya es espacial y físico (retardo d/c con Doppler
+exacto, HRTF, dispersión esférica y filtrado por el aire: `audioBus.js`), pero no había volumen
+general ni ambiente: sin un motor encendido, el centro era mudo.
+
+**Hecho:**
+- Volumen general en el bus maestro (`audioBus.js setVolume`, como su cuadrado para que el recorrido
+  suene uniforme), guardado entre visitas, en la guía (**H**).
+- Ambiente procedural (`src/sim/ambience.js`, sin grabaciones): la **rompiente** (ruido marrón)
+  crece con cada cresta de la marejada larga —la misma fase que mueve la espuma de la orilla, así
+  que lo que se oye romper es lo que se ve romper—, cae con la distancia a la línea de agua (≈1/d
+  pasados 30 m) y se apaga al subir; el **viento** (ruido rosa) sigue la velocidad del viento del
+  sitio a la altura de la cámara (`wind.js`, con rachas). Callado en el espacio, en la vista orbital y
+  mientras un vehículo pone su propio sonido. Casilla en la guía, recordada entre visitas (empieza
+  tras el primer clic, como exigen los navegadores).
+- Prueba sin navegador `tools/ambience-check.mjs` (en `check:static`): la rompiente máxima en la
+  orilla, ≈0,10 a 300 m y ≈0,03 a 1 km, con cada cresta de 0,45 a 1; el viento mudo en calma, un
+  susurro a los 6,2 m/s del sitio (0,12) y saturado en un temporal.
+
+**Pendiente:** reverberación contextual (la torre, la zanja) y sonidos de mecanismos (brazos de la
+torre, pinzas). Los niveles relativos están ajustados de oído, ≈.

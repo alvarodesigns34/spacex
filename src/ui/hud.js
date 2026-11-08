@@ -230,7 +230,13 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
               <dt><kbd>L</kbd> · <kbd>R</kbd></dt><dd>labels · 1:1 ruler</dd>
               <dt><kbd>H</kbd> · <kbd>?</kbd></dt><dd>this guide</dd>
               <dt>Clean scene</dt><dd>hide the interface; one button brings it back</dd>
+              <dt>Photo mode <kbd>O</kbd></dt><dd>field of view, exposure, the Sun's height and bearing, hide the interface, save a PNG; Reset and Close put every value back</dd>
             </dl>
+            <h3>Sound</h3>
+            <div class="help-sound">
+              <label class="help-sound-row"><input type="checkbox" id="amb-on"> Ambient sound: surf and wind</label>
+              <label class="help-sound-row">Volume <input type="range" id="vol" min="0" max="1" step="0.05" aria-label="Master volume"> <output id="vol-v"></output></label>
+            </div>
           </section>
         </div>
         <p class="help-note">1:1 scale — one scene unit is one metre. Figures marked <span class="chip chip-approx">≈</span> have no exact published value and were reconstructed from imagery.</p>

@@ -980,6 +980,44 @@ try {
   report(ctxOk.still && Math.abs(ctxOk.after - ctxOk.before) < 0.08 * ctxOk.before, 'A restored WebGL context keeps the ground lit', ctxOk);
   const ctxBad = await lumaAfterRestore(true);
   report(ctxBad.after < 0.8 * ctxBad.before, 'Negative control: without the probe rebuild the ground goes dark', ctxBad);
+  // Photo mode (key O): opens, changes the frame, saves a PNG of the drawn frame, and Reset and
+  // Close put back exactly the values it found.
+  await page.evaluate(() => { const v = window.__vc; v.launch.reset(false); if (v.reentry?.running) v.reentry.reset(false); v.jump(null); });
+  await page.keyboard.press('o');
+  const ph = await page.evaluate(async () => {
+    const v = window.__vc, panel = document.getElementById('photo');
+    const read = () => ({ fov: v.camera.fov, ev: v.env.exposureBias, elev: v.env.sunAngles.elev, azim: v.env.sunAngles.azim, exp: v.renderer.toneMappingExposure });
+    const opened = !panel.classList.contains('hidden');
+    const before = read();
+    const set = (id, val) => { const i = document.getElementById(id); i.value = String(val); i.dispatchEvent(new Event('input')); };
+    set('ph-fov', 25); set('ph-ev', 1); set('ph-el', 60); set('ph-az', 200);
+    const changed = read();
+    // The download goes through an anchor: catch its href instead of a file.
+    const click = HTMLAnchorElement.prototype.click;
+    const href = await new Promise((resolve) => {
+      HTMLAnchorElement.prototype.click = function () { resolve(this.href); };
+      document.getElementById('ph-save').click();
+      setTimeout(() => resolve(''), 60000);
+    });
+    HTMLAnchorElement.prototype.click = click;
+    // A PNG of the frame, not of a cleared buffer: decode it and look for more than one colour.
+    const img = new Image(); img.src = href; await img.decode().catch(() => {});
+    const c = document.createElement('canvas'); c.width = 64; c.height = 36;
+    const g = c.getContext('2d'); g.drawImage(img, 0, 0, 64, 36);
+    const d = g.getImageData(0, 0, 64, 36).data;
+    let lo = 255, hi = 0; for (let i = 0; i < d.length; i += 4) { const l = d[i] + d[i + 1] + d[i + 2]; lo = Math.min(lo, l); hi = Math.max(hi, l); }
+    document.getElementById('ph-reset').click();
+    const reset = read();
+    set('ph-ev', -1);
+    document.getElementById('ph-close').click();
+    const closed = read();
+    return { opened, before, changed, png: href.startsWith('data:image/png') && img.naturalWidth > 0, range: hi - lo, reset, closed, hidden: panel.classList.contains('hidden') };
+  });
+  const same = (a, b) => ['fov', 'ev', 'elev', 'exp'].every(k => Math.abs(a[k] - b[k]) < 1e-9) && Math.abs(((a.azim - b.azim) % 360 + 360) % 360) < 1e-9;
+  report(ph.opened && ph.changed.fov === 25 && ph.changed.ev === 1 && ph.changed.elev === 60 && ph.changed.azim === 200 && ph.changed.exp > ph.before.exp,
+    'Photo mode: O opens it; field of view, exposure and Sun follow its controls', ph);
+  report(ph.png && ph.range > 30, 'Photo mode saves a PNG of the drawn frame', { png: ph.png, range: ph.range });
+  report(same(ph.reset, ph.before) && same(ph.closed, ph.before) && ph.hidden, 'Photo mode: Reset and Close restore the exact values it found', ph);
   report(!errors.length, 'No uncaught application errors', errors);
 } catch (e) { report(false, 'UX check exception', e.stack); }
 finally {

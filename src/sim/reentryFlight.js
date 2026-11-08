@@ -2,7 +2,13 @@
  * Starship's re-entry on flight 14, as a trajectory: pure functions, solved once at load, the
  * way the ascent and the booster's return are (launch.js).
  *
- * CITED — SpaceX's published flight 14 timeline (spacex.com, "Starship Flight 14", 28 Sep
+ * PLANNED, NOT AS FLOWN — flight 14 was shortened after a Raptor Vacuum failed on ascent: its
+ * deorbit burn came at T+2:12:00–2:12:11 and it splashed down north of Hawaii about three hours
+ * after liftoff (Wikipedia, "Starship flight 14"; the later times differ between sources). This
+ * chapter flies the profile SpaceX published before the flight, which is why every time below
+ * is hours later than the flight's own. The interface says so (main.js, specs.js).
+ *
+ * CITED — SpaceX's pre-flight flight 14 timeline (spacex.com, "Starship Flight 14", 28 Sep
  * 2026): deorbit burn T+8:52:37–8:52:48 on one sea-level Raptor; entry T+9:28:56; transonic
  * T+9:47:29; subsonic T+9:48:07; landing burn start T+9:50:11; landing flip T+9:50:13; three
  * to two engines T+9:50:21; two to one T+9:50:28; splashdown ("an exciting landing!")

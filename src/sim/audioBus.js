@@ -23,6 +23,19 @@
 let ctx = null, bus = null, comp = null;
 const users = new Set();
 
+// The master volume, 0..1, kept between visits (the Guide's control, ui/hud.js). Applied as its
+// square: a fader's travel heard as even steps of loudness, roughly.
+const VOLUME_KEY = 'vc-volume-1';
+let volume = 1;
+try { const v = Number(localStorage.getItem(VOLUME_KEY)); if (localStorage.getItem(VOLUME_KEY) !== null && Number.isFinite(v)) volume = Math.min(1, Math.max(0, v)); } catch { /* storage unavailable */ }
+/** Master volume, 0..1 (0 is silence). */
+export function getVolume() { return volume; }
+export function setVolume(v) {
+  volume = Math.min(1, Math.max(0, Number(v) || 0));
+  try { localStorage.setItem(VOLUME_KEY, String(volume)); } catch { /* storage unavailable */ }
+  if (bus) bus.gain.setTargetAtTime(volume * volume, ctx.currentTime, 0.03);
+}
+
 /** The shared context and its master bus (made on first use; null without Web Audio). */
 export function audio() {
   if (ctx) return { ctx, bus };
@@ -31,7 +44,7 @@ export function audio() {
   ctx = new AC();
   comp = ctx.createDynamicsCompressor();
   comp.threshold.value = -12; comp.knee.value = 10; comp.ratio.value = 3; comp.attack.value = 0.004; comp.release.value = 0.25;
-  bus = ctx.createGain(); bus.gain.value = 1;
+  bus = ctx.createGain(); bus.gain.value = volume * volume;
   bus.connect(comp); comp.connect(ctx.destination);
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', () => {

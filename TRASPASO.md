@@ -13,7 +13,7 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 2b. **Bloque 2 hecho: reflejos.** La sonda común refleja el suelo real (`probeGround`, efecto pequeño) y Starship tiene sonda local (`src/core/localProbes.js`, efecto moderado). Auditoría §7–§8.
 2c. **Bloque 3 hecho: nubes con volumen** (`src/core/clouds.js`, `cloudSteps` en `quality.js`). Auditoría §9. Pendiente: revisarlo en un vuelo real del F-16 y medir su coste en hardware real.
 3. **Ramas y push:** el 8-11 el usuario autorizó el push de forma permanente. Los commits de la sesión están en la rama de la sesión (`claude/vigilant-bohr-mlvmxf`) y en las cinco ramas de `CLAUDE.md` (la `…48zlkm` despliega Pages).
-4. **Sin fusionar (decide el usuario):** `claude/cybertruck-spacex-integration-h7sx0c` tiene cinco commits del 23-10 posteriores a `c92c657` (`97b8345`…`8292f47`) que no están en las ramas de trabajo.
+4. **Fusionada el 8-11** (autorización del usuario): `claude/cybertruck-spacex-integration-h7sx0c` (`97b8345`…`8292f47`), en el commit `3d14da6`. Trae `?perf=log`: es la herramienta para medir en el hardware del usuario.
 5. **Para iterar en la nube sin arrancar la escena cada vez** (≈5 min con SwiftShader): un arnés propio en `tools/_dev.mjs` (ignorado por git en `.git/info/exclude`, no en el repositorio) que arranca una vez y acepta `POST {code, shot}` o `{reload: true}` en el puerto 8899. Las cifras de tiempo de SwiftShader son ruido (2–5 s por fotograma): no valen para comparar rendimiento.
 
 ### Estado actual (23-10-2026)
