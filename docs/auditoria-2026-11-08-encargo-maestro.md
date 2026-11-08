@@ -315,3 +315,12 @@ pasar a media resolución con reproyección; el nivel bajo no cambia.
   fotograma. Con esto `tools/check.mjs` y `tools/ux-check.mjs` pasan (escena 8 min 45 s, interfaz
   33 min en este contenedor).
 - Check completo en verde por partes: estáticas, escena, interfaz, LOD, cachés y Cybertruck Lab.
+
+**Revisión en un vuelo real del F-16 (misma sesión):** con el avión colocado a 3 300 m (sobre la capa)
+y a 2 000 m (dentro), su cámara de persecución y su plano lejano (≈270–330 km):
+- con los 6 pasos de la automatización, grano muy fuerte; con los 32 del nivel alto
+  (`__vc.env.clouds.steps = 32`), masas de nube reales, el suelo entre ellas y jirones al
+  atravesarlas;
+- desde arriba, las cimas aún se leían como picos nevados: el perfil pasa a cúpula
+  (`sqrt` del grosor) y la sombra propia pesa más (pliegues más marcados). Queda alguna cima aguda y
+  el grano estático del muestreo.

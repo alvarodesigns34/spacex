@@ -84,7 +84,7 @@ const VOLUME_MAIN = /* glsl */`
     float thick = smoothstep(uCover, uCover + 0.34, c);
     // Tall in the middle of a cloud, low at its edge: steep sides and a broad, domed top (a cone
     // read as a range of peaks).
-    float top = 0.14 + 0.86 * smoothstep(0.0, 0.8, thick);
+    float top = 0.18 + 0.82 * sqrt(smoothstep(0.0, 0.9, thick));
     float body = smoothstep(uCover, uCover + 0.07, c) * smoothstep(0.0, 0.05, hf) * (1.0 - smoothstep(top * 0.55, top, hf));
     if (body <= 0.0) return 0.0;
     float e = n3(p / 340.0) * 0.4 + n3(p / 150.0 + 5.0) * 0.35 + n3(p / 60.0 + 17.0) * 0.25;
@@ -124,7 +124,7 @@ const VOLUME_MAIN = /* glsl */`
             ls += density(q, coverAt(q.xz, 3)) * 50.0 * float(j * 2 - 1);
           }
           float hf = (p.y - B) / (T - B);
-          float direct = exp(-SIGMA * ls * 0.5) * phase * (1.0 - exp(-k * 6.0));
+          float direct = exp(-SIGMA * ls * 0.9) * phase * (1.0 - exp(-k * 6.0));
           vec3 S = uSunColor * direct * 1.35 + uShade * (0.30 + 0.35 * hf);
           float a = 1.0 - exp(-SIGMA * k * min(dt, 400.0));
           L += Tr * a * S;
