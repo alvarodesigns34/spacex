@@ -35,7 +35,19 @@ El entorno es contexto verosímil, no un levantamiento: la llanura costera de Bo
 
 La interfaz de la simulación (menús, ficha técnica, etiquetas y vistas) está en inglés; esta documentación, en español.
 
-## Estado actual (23 de octubre de 2026)
+## Estado actual (8 de noviembre de 2026)
+
+- **Encargo maestro del 8 de noviembre de 2026** (auditoría integral e hiperrealismo): auditoría de partida, matriz de prioridades y primer bloque en [docs/auditoria-2026-11-08-encargo-maestro.md](docs/auditoria-2026-11-08-encargo-maestro.md). Lo de la auditoría externa se comprobó en el código antes de darlo por bueno (dos de sus hallazgos ya estaban corregidos: S13 y S14).
+- **El mar tiene oleaje de verdad (bloque 1).** Antes era una lámina plana a −0,9 m con cuatro capas de normales animadas, y la física leía un nivel fijo. Ahora:
+  - `src/core/ocean.js`: seis ondas de Gerstner (GPU Gems 1, cap. 1), dos marejadas del ESE (72 y 51 m) y cuatro olas de viento ante la brisa del SSE de `wind.js`, con ω = √(g·k). Altura significativa ≈0,91 m: **≈, un día moderado elegido como verosímil, no una medida** de Boca Chica. Cerca de la costa, una envolvente por distancia a la línea de agua (reconstruida): leve subida fuera de la barra y pérdida de altura en la rompiente hasta cero en la orilla. No se modelan la refracción ni el acortamiento en aguas someras.
+  - Se dibuja en una malla polar que sigue a la cámara (vértices a 0,6 m debajo, 1 400 m de radio; 256, 192 o 128 sectores según la calidad) y solo lleva las olas que su separación puede dibujar; la lámina y el mar exterior le ceden el sitio dentro de su radio. Se apaga en el ascenso, en el espacio y por encima de 1 500 m.
+  - **La física lee la misma superficie:** `water.js` (la profundidad que vadean el Porsche y la H2R) y el suelo del F-16 sobre el mar usan `oceanHeight`, la misma función (el GLSL se genera de la misma tabla). Diferencia medida entre lo dibujado y lo que lee la física: ≤0,4 cm hasta 40 m de la cámara; más lejos, como mucho la altura de las olas cortas que la malla lejana no lleva (7 cm a 100 m).
+  - **Corregido (nuevo):** las motas grises del mar abierto eran rayos reflejados por debajo del horizonte que leían el disco de suelo gris de la sonda de entorno; ahora se reflejan sobre el horizonte.
+  - De cerca manda la geometría: las dos capas largas del mapa de normales, que se leían como una textura con manchas, entran solo pasados 60–300 m. La espuma de la orilla sube y baja al ritmo de la marejada (6,8 s) y en tramos, no como una cinta continua; borreguillos escasos mar adentro.
+  - Prueba sin navegador `tools/ocean-check.mjs` (en `check:static`): ninguna ola se pliega, inversión de Gerstner con error < 1 µm, continuidad en el tiempo (también tras días de sesión), costa muestreada frente a la exacta (4,5 cm), física frente a dibujo por distancia. Capturas comparables: `tools/sea-shots.json` (antes y después en la auditoría, §5).
+- **Pendiente de decisión del usuario:** la rama `claude/cybertruck-spacex-integration-h7sx0c` tiene cinco commits del 23-10 (caché de texturas entre visitas, `?perf=log`, mejoras del Lab) que no están en las ramas de trabajo ni publicados.
+
+### Hasta el 23 de octubre de 2026
 
 - **Auditoría conjunta con el repositorio `cybertruck`** (20 de octubre, revisada el 23): [docs/auditoria-2026-10-20-spacex-cybertruck.md](docs/auditoria-2026-10-20-spacex-cybertruck.md). Contiene:
   - el plan para meter el Cybertruck en un espacio aparte con su propio botón, sin que aparezca en el entorno principal;
@@ -523,6 +535,7 @@ src/ui/gt3Hud.js           instrumentos del Porsche y su barra de conducción
 src/vehicles/modelyAsset.js  carga el Tesla Model Y de Blender (assets/modely/modely.glb)
 src/vehicles/gt3Cabin.js   la cabina del Porsche, viva en código sobre el coche de Blender
 src/core/water.js          dónde hay agua (mar, charcas, canales) y a qué profundidad
+src/core/ocean.js          el oleaje del mar (seis ondas de Gerstner): una tabla para la GPU y la física
 src/core/colliders.js      todo lo sólido de la escena, en celdas de 0,25 m, para los choques
 src/core/effects.js        lo que salta en un choque: chispas, fuego, humo, restos, cristal, agua
 eslint.config.js           análisis estático (primer paso de npm run check)
@@ -542,6 +555,8 @@ tools/perf-check.mjs       sin navegador: la descarga anticipada y el marcado de
 tools/render-cache-check.mjs  sin navegador: cuándo las cachés de sombras y de buffer geométrico piden un redibujo (y cuándo no)
 tools/render-cache-equal.mjs  con navegador: el mapa de sombras y el buffer geométrico en caché son, byte a byte, los de un redibujo
 tools/lod-parts.mjs        con navegador: las piezas pequeñas de los coches se ocultan sin que la imagen cambie
+tools/ocean-check.mjs      sin navegador: el oleaje (sin pliegues, continuo), su inversión y física frente a dibujo
+tools/sea-shots.json       cinco vistas del mar (playa, a ras, orilla, aire, plataforma) para comparar antes y después
 ```
 
 ## Presupuesto de rendimiento

@@ -1,0 +1,7 @@
+[
+  { "name": "sea-beach.jpg", "pos": [470, 2.2, -312], "target": [900, -1.5, -440], "wait": 1400 },
+  { "name": "sea-low.jpg", "pos": [640, 3.0, -360], "target": [1100, -2, -330], "wait": 1400 },
+  { "name": "sea-swash.jpg", "pos": [500, 6.0, -300], "target": [560, -1, -360], "wait": 1400 },
+  { "name": "sea-air.jpg", "pos": [250, 220, -150], "target": [1000, -1, -420], "wait": 1400 },
+  { "name": "sea-pad.jpg", "pos": [40, 90, -190], "target": [700, -1, -340], "wait": 1400 }
+]

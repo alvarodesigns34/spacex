@@ -35,6 +35,8 @@ const smooth = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1
 export const SHORE_NORMAL_AZ = 85.3;
 const BETA = (SHORE_NORMAL_AZ - (LAUNCH_SITE.azimuthDeg - 90)) * Math.PI / 180;
 const CB = Math.cos(BETA), SB = Math.sin(BETA), PAD_Z = -185;
+/** The coast frame's rotation and origin, for code that has to rebuild it elsewhere (core/ocean.js, on the GPU). */
+export const COAST_FRAME = { cos: CB, sin: SB, padZ: PAD_Z };
 /** World (x, z) → coast [u, w]. */
 export function toCoast(x, z) { const dz = z - PAD_Z; return [CB * x + SB * dz, PAD_Z - SB * x + CB * dz]; }
 /** Coast (u, w) → world [x, z]. */

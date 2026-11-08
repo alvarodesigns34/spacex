@@ -1,8 +1,9 @@
 /**
  * Where there is water on the ground, and how deep: for the vehicles that drive and land on the
  * ground, which until 3 October 2026 drove over the pools and the sea as if they were dry land.
- *  - The sea: its surface 0.9 m below the site's ground (f16Ground.js SEA_LEVEL, the level the
- *    sea mesh is drawn at), its bed the shore's own slope down to 9 m (environment.js groundSample).
+ *  - The sea: its surface 0.9 m below the site's ground (ocean.js SEA_LEVEL) plus the swell at that
+ *    point and moment (ocean.js oceanHeight, the same waves the sea mesh is drawn with), its bed
+ *    the shore's own slope down to 9 m (environment.js groundSample).
  *  - The wind-tidal pools: their surface 6 cm over the flat (campus.js), their beds carved down
  *    to 0.35 m in the middle (terrain.js poolDepth, ≈).
  *  - The marsh's tidal channels, which the terrain shader draws as winding water-filled cuts:
@@ -15,7 +16,7 @@
  */
 import { groundSample } from './environment.js';
 import { marsh, poolDepth, POOL_SURFACE } from './terrain.js';
-import { SEA_LEVEL } from './f16Ground.js';
+import { SEA_LEVEL, oceanHeight } from './ocean.js';
 
 export const CHANNEL_FILM = 0.04;
 
@@ -58,7 +59,10 @@ export function channelWater(x, z) {
 
 export function waterAt(x, z) {
   const g = groundSample(x, -z).h;
-  if (g < SEA_LEVEL) return { surface: SEA_LEVEL, bed: g, depth: SEA_LEVEL - g, kind: 'sea' };
+  if (g < SEA_LEVEL) {
+    const surface = SEA_LEVEL + oceanHeight(x, z);
+    return { surface, bed: g, depth: Math.max(0, surface - g), kind: 'sea' };
+  }
   const pd = poolDepth(x, z);
   if (pd > 0) return { surface: POOL_SURFACE, bed: g, depth: POOL_SURFACE - g, kind: 'pool' };
   if (channelWater(x, z) > 0.5) return { surface: g + CHANNEL_FILM, bed: g, depth: CHANNEL_FILM, kind: 'channel' };

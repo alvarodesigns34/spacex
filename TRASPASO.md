@@ -4,9 +4,17 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ---
 
-## ⭐ Empieza aquí (estado real al 23-10-2026: lee primero «Estado actual (23-10-2026)», después «Estado actual (17-10-2026)», «Estado actual (08-10-2026)», «Sesión del 05-10-2026 (quinta)», «Sesión del 04-10-2026 (cuarta)» y «Cierre de la sesión del 04-10-2026 (tercera)»)
+## ⭐ Empieza aquí (estado real al 08-11-2026: lee primero «Estado actual (08-11-2026)», después «Estado actual (23-10-2026)», «Estado actual (17-10-2026)», «Estado actual (08-10-2026)», «Sesión del 05-10-2026 (quinta)», «Sesión del 04-10-2026 (cuarta)» y «Cierre de la sesión del 04-10-2026 (tercera)»)
 
-### Estado actual (23-10-2026): léelo primero
+### Estado actual (08-11-2026): léelo primero
+
+1. **Encargo maestro del usuario (8-11-2026):** auditoría integral e hiperrealismo por bloques, sin degradar nada para ganar FPS, con datos verificables y mediciones comparables. Auditoría, matriz de prioridades y bloque 1: `docs/auditoria-2026-11-08-encargo-maestro.md`. **Sigue por la matriz (§3)**: el siguiente bloque P1 propuesto es la sonda de reflejos local o las nubes con volumen; el P0 de la misión del vuelo 14 necesita investigar la fuente primaria antes de tocar `mission.js`.
+2. **Bloque 1 hecho: el mar con oleaje** (`src/core/ocean.js`, la malla polar en `environment.js`, `water.js` y `f16Ground.js` leyendo la misma superficie, `tools/ocean-check.mjs` en `check:static`). Detalle y decisiones en la auditoría, §4–§5; resumen en el README («Estado actual»).
+3. **Ramas en esta sesión:** el encargo del 8-11 pide no empujar ni tocar otras ramas sin autorización expresa. Los commits van solo a la rama de la sesión, `claude/vigilant-bohr-mlvmxf`, para no perderlos al reciclarse el contenedor; las cinco ramas de `CLAUDE.md` y Pages siguen en `c92c657` hasta que el usuario diga.
+4. **Sin fusionar (decide el usuario):** `claude/cybertruck-spacex-integration-h7sx0c` tiene cinco commits del 23-10 posteriores a `c92c657` (`97b8345`…`8292f47`) que no están en las ramas de trabajo.
+5. **Para iterar en la nube sin arrancar la escena cada vez** (≈5 min con SwiftShader): un arnés propio en `tools/_dev.mjs` (ignorado por git en `.git/info/exclude`, no en el repositorio) que arranca una vez y acepta `POST {code, shot}` o `{reload: true}` en el puerto 8899. Las cifras de tiempo de SwiftShader son ruido (2–5 s por fotograma): no valen para comparar rendimiento.
+
+### Estado actual (23-10-2026)
 
 1. **Auditoría conjunta de `spacex` y `cybertruck`** (20-10-2026, revisada el 23-10): `docs/auditoria-2026-10-20-spacex-cybertruck.md`, con el mismo texto en el repositorio `cybertruck`. Solo documentación: no se cambió código. Contiene:
    - **La integración del Cybertruck (orden del usuario del 20-10):** no aparece en el entorno principal. Tendrá un botón propio (propuesta: «Cybertruck · Lab», tecla **U**) que lleva a un espacio aparte como el visor de `cybertruck`, sobre el patrón del Audi Lab retirado (`8e6a633`). Diseño, bloqueos y plan por fases: §4. Bloqueos: el GLB usa Draco y `vendor/` no tiene `DRACOLoader`, el decodificador ni `Reflector`; el visor carga de CDN; el Cybertruck en la escena principal rompería tres techos de `check.mjs`.

@@ -11,9 +11,10 @@ import { runwaySurface } from './runway.js';
 import { groundSample } from './environment.js';
 import { toRunway, poolDepth, POOL_SURFACE } from './terrain.js';
 import { curvatureDrop } from './outerGround.js';
+import { SEA_LEVEL, oceanHeight } from './ocean.js';
 
-/** Sea surface below the pad's plane, m (where the terrain's height reads as water). */
-export const SEA_LEVEL = -0.9;
+/** Sea surface below the pad's plane, m (where the terrain's height reads as water): core/ocean.js. */
+export { SEA_LEVEL };
 
 /** ground(x, z) → { h, hard: true on pavement, water: true on the sea, surface: a pool's water over its bed }, scene coordinates. */
 export function f16Ground(x, z) {
@@ -22,7 +23,8 @@ export function f16Ground(x, z) {
   if (pave > 0.01) return { h: pave, hard: true, water: false };
   const drop = curvatureDrop(Math.hypot(x, z));
   const h = groundSample(x, -z).h;
-  if (h < SEA_LEVEL) return { h: SEA_LEVEL - drop, hard: false, water: true };
+  // On the sea, its moving surface (ocean.js): the swell the aircraft sees is the one it touches.
+  if (h < SEA_LEVEL) return { h: SEA_LEVEL + oceanHeight(x, z) - drop, hard: false, water: true };
   // A tidal pool: its carved bed under its surface (terrain.js): the wheels roll on the bed.
   const pool = poolDepth(x, z);
   return pool > 0 ? { h: h - drop, hard: false, water: false, surface: POOL_SURFACE - drop } : { h: h - drop, hard: false, water: false };

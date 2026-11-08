@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import * as TX from './textures.js';
 import { WIND } from '../core/wind.js';
+import { OCEAN_CLOCK } from '../core/ocean.js';
 
 /**
  * Moving water. One wave-normal map (textures.js makeWater, a 420 m tile) sampled four times,
@@ -41,8 +42,15 @@ export function grassNormals(geo) {
   return geo;
 }
 
-export const WAVE_TIME = { value: 0 };
-export function waveNormals(sh, { tileSize = 420, calm = 1 } = {}) {
+// The waves' clock is the ocean's (core/ocean.js): the drawn swell and the physics read one time.
+export const WAVE_TIME = OCEAN_CLOCK;
+/**
+ * `swellFrom` [near, far] (m from the camera): the two long layers come in only past `near`,
+ * fully by `far`. The sea's moving patch (environment.js, core/ocean.js) carries the swell and
+ * the wind waves as geometry near the camera; drawing them there again as blotches of normal
+ * map is what made the near sea read as a texture.
+ */
+export function waveNormals(sh, { tileSize = 420, calm = 1, swellFrom = null } = {}) {
   sh.uniforms.uWaveTime = WAVE_TIME;
   // [scale, rotation (rad), speed (m/s), weight, fade in from (m), fade out by (m), heading of travel (true °)]
   const wind = (WIND.fromDeg + 180) % 360;
@@ -54,7 +62,8 @@ export function waveNormals(sh, { tileSize = 420, calm = 1 } = {}) {
     // towards +z). A sample offset moving by +o makes the pattern move by −R⁻¹o: so o = −R·m.
     const b = (heading - 100.8) * Math.PI / 180, mu = Math.cos(b), mv = -Math.sin(b);
     const ou = -(c * mu - sn * mv) * d, ov = -(sn * mu + c * mv) * d;
-    const fade = far ? ` * (1.0 - smoothstep(${f(near)}, ${f(far)}, vcWaveDist))` : '';
+    const fade = far ? ` * (1.0 - smoothstep(${f(near)}, ${f(far)}, vcWaveDist))`
+      : swellFrom ? ` * smoothstep(${f(swellFrom[0])}, ${f(swellFrom[1])}, vcWaveDist)` : '';
     return `  vcWave += (texture2D(normalMap, mat2(${f(c)}, ${f(sn)}, ${f(-sn)}, ${f(c)}) * vNormalMapUv * ${f(s)} + uWaveTime * vec2(${f(ou)}, ${f(ov)})).xy * 2.0 - 1.0) * ${f(w)}${fade};`;
   }).join('\n');
   sh.fragmentShader = sh.fragmentShader

@@ -7,7 +7,9 @@ import { mergeAll, chunkedInstances } from '../geometry/utils.js';
 import { noise2 } from '../materials/textures.js';
 import { waveNormals, grassNormals } from '../materials/library.js';
 import { createClouds } from './clouds.js';
-import { buildOuterGround } from './outerGround.js';
+import { buildOuterGround, OUTER } from './outerGround.js';
+import { WATERLINE, SEA_LEVEL, WAVES, oceanGLSL, offshoreGLSL, oceanPhases, shoreSamples, SHORE_TABLE } from './ocean.js';
+import { WAVE_TIME } from '../materials/library.js';
 import { shoreZ, seaward, fromCoast, terrainHeight, thicket, marsh, poolDepth } from './terrain.js';
 
 /**
@@ -107,8 +109,11 @@ function coastalDisc(radius, rings, segs) {
   return g;
 }
 
-/** Metres seaward of shoreZ at which the ground drops to the 0.9 m-deep sea surface. */
-const WATERLINE = 35.3;
+const OUTER_R0 = OUTER.r0;
+const SWELL = WAVES[0];
+const f5 = (v) => v.toFixed(6);
+/** The moving swell patch (createEnvironment): its radius, and the camera height it is drawn up to, m. */
+const PATCH_R = 1400, PATCH_CEIL = 1500;
 
 /** Radius of the apron disc at ground level, before the ascent stretches it. */
 const GROUND_R = 2500;
@@ -120,23 +125,68 @@ const GROUND_R = 2500;
  * darker open water. The sea was one flat slate tint right up to the sand. Colours are
  * plausible, not measured; the wave normals and the reflected sky do the rest.
  */
-function seaMaterial(base) {
+function seaMaterial(base, ocean, { patch = false } = {}) {
   const m = base.clone();
-  m.name = 'sea';
+  m.name = patch ? 'sea-patch' : 'sea';
   m.onBeforeCompile = (sh) => {
-    sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float aSea;\nvarying float vSea;\nvarying vec2 vSeaXY;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSea = aSea;\nvSeaXY = position.xy;');
+    Object.assign(sh.uniforms, ocean);
+    sh.vertexShader = patch
+      // The moving patch (below): a flat polar grid round the camera, lifted into the swell here.
+      // Its object space is the world's shifted (no rotation, no scale), so world = model · p.
+      ? sh.vertexShader
+        .replace('#include <common>', `#include <common>
+varying float vSea;
+varying vec2 vSeaXY;
+varying float vSeaH;
+uniform float uPatchR, uPatchSeg, uPatchAmp;
+${oceanGLSL()}`)
+        .replace('#include <beginnormal_vertex>', `
+  vec3 vcW = (modelMatrix * vec4(position, 1.0)).xyz;
+  float vcR = length(position.xz);
+  // The waves this vertex spacing can carry, and none past the patch's rim, where it meets the
+  // flat sea; and the whole swell fades as the camera climbs away from it.
+  float vcSp = max(0.6, vcR * uPatchSeg);
+  vec3 vcN;
+  vec3 vcO = vcOcean(vcW.xz, vcSp, uPatchAmp * (1.0 - smoothstep(uPatchR * 0.55, uPatchR * 0.9, vcR)), vcN);
+  vec3 objectNormal = vcN;`)
+        .replace('#include <begin_vertex>', `
+  vec3 transformed = position + vcO;
+  vSea = vcOffshore(vcW.xz);
+  vSeaXY = vec2(vcW.x, -vcW.z);
+  vSeaH = vcO.y;
+  // The wave-normal layers read metric UVs, as on the flat sheet (x, −z): from the world point.
+#ifdef USE_NORMALMAP
+  vNormalMapUv = (normalMapTransform * vec3(vSeaXY, 1.0)).xy;
+#endif
+  // Past the disc the outer sea follows the Earth's curve (outerGround.js curvatureDrop); a long
+  // way inland the patch is sunk out of sight under the land, which it would only overdraw.
+  float vcRw = length(vcW.xz);
+  transformed.y -= vcRw > ${OUTER_R0.toFixed(1)} ? (vcRw * vcRw - ${(OUTER_R0 * OUTER_R0).toFixed(1)}) / ${(2 * 6371000).toFixed(1)} : 0.0;
+  if (vSea < -150.0) transformed.y -= 40.0;`)
+      : sh.vertexShader
+        .replace('#include <common>', '#include <common>\nattribute float aSea;\nvarying float vSea;\nvarying vec2 vSeaXY;\nvarying float vSeaH;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSea = aSea;\nvSeaXY = position.xy;\nvSeaH = 0.0;');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 varying float vSea;
 varying vec2 vSeaXY;
+varying float vSeaH;
+uniform vec2 uPatchC;
+uniform float uPatchR;
+uniform float uOceanPhase[${WAVES.length}];
+${offshoreGLSL('vcOffshoreF')}
 float seaHash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float seaNoise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
   return mix(mix(seaHash(i), seaHash(i + vec2(1, 0)), u.x), mix(seaHash(i + vec2(0, 1)), seaHash(i + vec2(1, 1)), u.x), u.y); }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
   {
-    float d = max(vSea, 0.0);
+    ${patch ? '' : `// Inside the moving patch the patch draws the sea; it overlaps this flat sheet by a few
+    // metres at its rim, where both are flat and shade alike.
+    if (uPatchR > 0.0 && distance(vSeaXY, uPatchC) < uPatchR - 6.0) discard;`}
+    // Near the patch both surfaces take the distance offshore per pixel from the same sampled
+    // shore: per vertex, the sheet's 20 m cells put its surf a little off the patch's, and the
+    // patch's rim showed as an arc of foam. Farther out the vertex value is the same thing.
+    float d = max(uPatchR > 0.0 && distance(vSeaXY, uPatchC) < uPatchR + 50.0 ? vcOffshoreF(vec2(vSeaXY.x, -vSeaXY.y)) : vSea, 0.0);
     // Linear body tints: churned sandy green in the surf, green-grey over the shelf, then the
     // open Gulf's own colour (the material's).
     vec3 surfWater = vec3(0.20, 0.22, 0.17), shelf = vec3(0.075, 0.13, 0.12);
@@ -152,23 +202,43 @@ float seaNoise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 
     // Three scales, so the breaking stretches come in irregular lengths, not as a dashed line.
     float brk = seaNoise(vec2(along / 41.0 - tt * 0.12, 3.0)) * 0.45 + seaNoise(vec2(along / 13.0 - tt * 0.35, 7.0)) * 0.35 + seaNoise(vec2(along / 4.0 + tt * 0.2, 9.0)) * 0.2;
     float bw = 0.7 + 0.6 * seaNoise(vec2(along / 23.0, 11.0));
-    float swash = 2.0 + 4.0 * (0.5 + 0.5 * sin(tt * 0.70 + along / 37.0 + 2.0 * seaNoise(vec2(along / 120.0, 4.0))));
+    // The uprush follows the long swell (core/ocean.js, its first wave): each crest that reaches
+    // the beach runs up it, so the surf keeps the sea's own period (≈6.8 s), and the foam line
+    // breaks into lengths instead of one even ribbon.
+    float swellPh = ${f5(SWELL.k)} * dot(vec2(${f5(SWELL.dx)}, ${f5(SWELL.dz)}), vec2(vSeaXY.x, -vSeaXY.y)) - uOceanPhase[0] + ${f5(SWELL.ph)};
+    float swash = 2.0 + 4.0 * (0.5 + 0.5 * sin(swellPh + 2.0 * seaNoise(vec2(along / 120.0, 4.0))));
     float l1 = 1.0 - smoothstep(0.0, 1.6 + 0.8 * seaNoise(vec2(along / 6.0, tt * 0.1)), abs(d - swash));
+    l1 *= 0.45 + 0.55 * smoothstep(0.25, 0.6, seaNoise(vec2(along / 11.0 + tt * 0.15, 2.0 + tt * 0.04)));
     float wetFilm = (1.0 - smoothstep(swash, swash + 6.0, d)) * 0.25;
     float l2 = (1.0 - smoothstep(0.0, 3.0 * bw, abs(d - 18.0 - 3.0 * seaNoise(vec2(along / 60.0, 1.0))))) * smoothstep(0.42, 0.72, brk);
     float l3 = (1.0 - smoothstep(0.0, 4.0 * bw, abs(d - 42.0 - 6.0 * seaNoise(vec2(along / 90.0, 5.0))))) * smoothstep(0.55, 0.8, brk);
-    float roll = fract(d / 23.0 + tt * 0.11);
+    // Bores across the surf zone, one per swell period, moving at ≈3.4 m/s: √(g·h) for h ≈ 1.2 m.
+    float roll = fract(d / 23.0 + uOceanPhase[0] / 6.28318530718);
     float l4 = smoothstep(0.9, 0.98, roll) * (1.0 - smoothstep(0.98, 1.0, roll)) * (1.0 - smoothstep(10.0, 60.0, d)) * smoothstep(0.4, 0.75, brk);
     float foam = clamp(l1 * 0.9 + wetFilm + l2 * 0.75 + l3 * 0.5 + l4 * 0.45, 0.0, 1.0) * (0.75 + 0.25 * seaNoise(vSeaXY / 2.5 + tt * 0.05));
+    // On the swell (the patch; vSeaH is 0 on the flat sheets): crests a shade lighter and greener,
+    // the light through the thin water at the top of a wave, and now and then a whitecap where a
+    // wind wave's crest stands highest out at sea. The breeze (≈6 m/s) is past the ≈4 m/s at which
+    // whitecaps begin, but only just: they are sparse.
+    diffuseColor.rgb += vec3(0.008, 0.020, 0.017) * smoothstep(0.05, 0.4, vSeaH);
+    float cap = smoothstep(0.34, 0.5, vSeaH) * smoothstep(0.6, 0.82, seaNoise(vSeaXY / 6.0 + tt * vec2(0.21, -0.13))) * smoothstep(60.0, 160.0, d);
+    foam = max(foam, cap * 0.6);
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.78, 0.80, 0.80), foam);
     vSeaFoam = foam;
   }`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
   roughnessFactor = mix(roughnessFactor, 0.85, vSeaFoam);`)
-      .replace('void main() {', 'float vSeaFoam = 0.0;\nvoid main() {');
-    waveNormals(sh, { tileSize: base.userData.tileSize ?? 420 });
+      .replace('void main() {', 'float vSeaFoam = 0.0;\nvoid main() {')
+      // A wave facet tilted far enough sends its reflected ray below the horizon, where the probe
+      // holds its grey ground disc (createEnvironment, envGround): the open sea was flecked with
+      // grey. At sea that ray meets the next wave's face, which shows the sky again; mirroring it
+      // back above the horizon is the usual stand-in for that second bounce.
+      .replace('#include <envmap_physical_pars_fragment>', THREE.ShaderChunk.envmap_physical_pars_fragment
+        .replace('reflectVec = inverseTransformDirection( reflectVec, viewMatrix );',
+          'reflectVec = inverseTransformDirection( reflectVec, viewMatrix );\n\t\t\treflectVec.y = abs( reflectVec.y );'));
+    waveNormals(sh, { tileSize: base.userData.tileSize ?? 420, swellFrom: patch ? [60, 300] : null });
   };
-  m.customProgramCacheKey = () => 'vc-sea-2';
+  m.customProgramCacheKey = () => (patch ? 'vc-sea-patch-4' : 'vc-sea-6');
   return m;
 }
 
@@ -242,7 +312,15 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   // Denser than the old 28 × 72: the beach is tens of metres wide, and 100 m cells a kilometre
   // out would smear it into a blur or miss it.
   // Denser again for the lomas: a clay dune 150 m across needs more than three vertices over it.
-  let outer = null;
+  let outer = null, seaPatch = null;
+  // The sea's shared uniforms: the moving patch's centre and radius (the flat sheets give way
+  // inside it), the waves' phases this frame and the sampled shore (core/ocean.js).
+  const shoreTex = new THREE.DataTexture(shoreSamples(), SHORE_TABLE.n, 1, THREE.RedFormat, THREE.FloatType);
+  shoreTex.needsUpdate = true;
+  const oceanU = {
+    uShore: { value: shoreTex }, uOceanPhase: { value: new Float32Array(6) },
+    uPatchC: { value: new THREE.Vector2() }, uPatchR: { value: 0 }, uPatchSeg: { value: 0 }, uPatchAmp: { value: 1 },
+  };
   const groundGeo = coastalDisc(GROUND_R, 110, 256);
   const ground = new THREE.Mesh(groundGeo, M.terrain || M.concrete);
   ground.rotation.x = -Math.PI / 2;
@@ -291,10 +369,48 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     const wp = waterGeo.attributes.position, wuv = new Float32Array(wp.count * 2);
     for (let i = 0; i < wp.count; i++) { wuv[i * 2] = wp.getX(i); wuv[i * 2 + 1] = wp.getY(i); }
     waterGeo.setAttribute('uv', new THREE.BufferAttribute(wuv, 2));
-    const water = new THREE.Mesh(waterGeo, seaMaterial(M.water ?? new THREE.MeshStandardMaterial({ color: 0x2f5160, roughness: 0.15 })));
+    const seaBase = M.water ?? new THREE.MeshStandardMaterial({ color: 0x2f5160, roughness: 0.15 });
+    const water = new THREE.Mesh(waterGeo, seaMaterial(seaBase, oceanU));
     water.name = 'sea';
     water.receiveShadow = false;
     ground.add(water);
+
+    // The swell (core/ocean.js) on a polar grid that follows the camera: vertices 0.6 m apart
+    // under it, spreading with distance so each ring is as long radially as it is wide, and
+    // carrying only the waves its spacing can draw. The flat sheet above and the outer sea give
+    // way to it inside its radius. Not a child of the disc: it is in world metres, and it is off
+    // whenever the disc is stretched (the ascent), in space, or from high enough that a swell
+    // under a metre cannot be seen.
+    const NS = quality.name === 'low' ? 128 : quality.name === 'medium' ? 192 : 256;
+    const seg = (2 * Math.PI) / NS, rings = [];
+    for (let r = 0.6; r < PATCH_R; r += Math.max(0.6, r * seg)) rings.push(r);
+    rings.push(PATCH_R);
+    const pp = new Float32Array((1 + rings.length * NS) * 3), pidx = [];
+    rings.forEach((r, j) => { for (let i = 0; i < NS; i++) { const k = 1 + j * NS + i, a = i * seg; pp[k * 3] = Math.cos(a) * r; pp[k * 3 + 2] = Math.sin(a) * r; } });
+    // Counter-clockwise seen from above (+y): the angle runs from +x towards +z, clockwise from above.
+    for (let i = 0; i < NS; i++) pidx.push(0, 1 + ((i + 1) % NS), 1 + i);
+    for (let j = 0; j < rings.length - 1; j++) for (let i = 0; i < NS; i++) {
+      const a0 = 1 + j * NS + i, a1 = 1 + j * NS + ((i + 1) % NS), b0 = a0 + NS, b1 = a1 + NS;
+      pidx.push(a0, a1, b0, a1, b1, b0);
+    }
+    const patchGeo = new THREE.BufferGeometry();
+    patchGeo.setAttribute('position', new THREE.BufferAttribute(pp, 3));
+    const pn = new Float32Array(pp.length);
+    for (let i = 1; i < pn.length; i += 3) pn[i] = 1;
+    patchGeo.setAttribute('normal', new THREE.BufferAttribute(pn, 3));
+    const puv = new Float32Array((pp.length / 3) * 2);
+    patchGeo.setAttribute('uv', new THREE.BufferAttribute(puv, 2));
+    patchGeo.setIndex(pidx);
+    patchGeo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), PATCH_R + 2);
+    seaPatch = new THREE.Mesh(patchGeo, seaMaterial(seaBase, oceanU, { patch: true }));
+    seaPatch.name = 'sea-patch';
+    seaPatch.receiveShadow = false;
+    seaPatch.frustumCulled = false;
+    // After the land, so the depth test turns away the parts of it under the beach before they shade.
+    seaPatch.renderOrder = 1;
+    seaPatch.userData.segments = NS;
+    seaPatch.userData.rings = rings.length;
+    scene.add(seaPatch);
 
     // The same land and sea past the disc's edge, out to the horizon from any height the F-16
     // reaches (outerGround.js). Not a child of the disc, which stretches on the ascent.
@@ -456,6 +572,24 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   /** Keeps the sky centred on the viewer. Cheap, and the only way it survives an ascent. */
   function followCamera(camera) {
     sky.position.copy(camera.position); clouds.follow(camera);
+    updateSea(camera);
+  }
+
+  // The swell's patch, under the camera: snapped to a 2 m grid so its vertices do not slide
+  // through the waves as the camera moves (they would shimmer); off when it cannot be seen.
+  function updateSea(camera) {
+    if (!seaPatch) return;
+    oceanPhases(WAVE_TIME.value, oceanU.uOceanPhase.value);
+    const h = camera.position.y;
+    const on = seaPatch.userData.enabled !== false && !inSpace && ground.scale.x === 1 && h < PATCH_CEIL;
+    seaPatch.visible = on;
+    oceanU.uPatchR.value = on ? PATCH_R : 0;
+    if (!on) return;
+    const sx = Math.round(camera.position.x / 2) * 2, sz = Math.round(camera.position.z / 2) * 2;
+    if (seaPatch.position.x !== sx || seaPatch.position.z !== sz || seaPatch.position.y !== SEA_LEVEL) seaPatch.position.set(sx, SEA_LEVEL, sz);
+    oceanU.uPatchC.value.set(sx, -sz);
+    oceanU.uPatchSeg.value = (2 * Math.PI) / seaPatch.userData.segments;
+    oceanU.uPatchAmp.value = 1 - THREE.MathUtils.smoothstep(h, PATCH_CEIL * 0.5, PATCH_CEIL);
   }
 
   // ---- One place composes the atmosphere ------------------------------------------------
@@ -680,7 +814,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   setSun(20, 34, { immediate: true });
 
   return {
-    sun, sky, hemi, ground, outer, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation, rebuildProbe,
+    sun, sky, hemi, ground, outer, get seaPatch() { return seaPatch; }, ocean: oceanU, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation, rebuildProbe,
     SUN_MIN, SUN_MAX, get night() { return nightK; },
     get inSpace() { return inSpace; }, get sunDir() { return sunDir; },
   };
