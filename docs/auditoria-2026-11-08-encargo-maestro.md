@@ -610,3 +610,21 @@ sin cambiar su código (sus dependencias pasan por parámetro): `main.js` baja d
 líneas. Verificado en el navegador: la tecla **I** abre y cierra el panel y muestra sus dos líneas.
 Los archivos grandes restantes (`launch.js`, `plume.js`, `roadster.js`, `gt3rs.js`, `textures.js`)
 no se tocan sin una prueba que cubra cada pieza extraída.
+
+## 23. Model Y: nivel de detalle por sustitución de los neumáticos (P2, hecho)
+
+**Problema (medido):** los cuatro neumáticos de Blender tienen 142 016 triángulos cada uno:
+568 064 de los 1 208 054 del coche (47 %) y ≈11 % de la escena, dibujados a cualquier distancia.
+
+**Hecho (`src/vehicles/latheLod.js`, enganchado en `modelyAsset.js`):** pasados 25 m, cada
+neumático cede a un sólido de revolución de **su propio contorno**, medido sobre la malla (el radio
+máximo y mínimo en 40 franjas a lo largo del eje): 11 952 triángulos. Un `THREE.LOD` por rueda; un
+solo material lejano compartido por las cuatro (el cercano sin sus mapas, que el torno no puede
+leer). Ahorro: ≈520 000 triángulos con el coche a más de 25 m, que es casi siempre (la vista general,
+las demás exhibiciones, el vuelo).
+
+**Validación:** forzando la versión lejana a ≈15 m (más cerca que el umbral), las ruedas se ven
+iguales: diferencia media 0,43/255 y ningún píxel por encima de 25 en el recorte. A 25 m el cambio
+es invisible.
+
+![Ruedas del Model Y a ≈15 m: malla completa (izquierda) y torno forzado (derecha)](auditoria-2026-11-08/modely-neumatico-lod.jpg)

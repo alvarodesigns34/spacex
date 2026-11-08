@@ -18,6 +18,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { takeBytes } from '../core/prefetch.js';
 import { markSmallParts } from './lodParts.js';
+import { latheLod } from './latheLod.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export const MODELY_ASSET = new URL('../../assets/modely/modely.glb', import.meta.url);
@@ -84,6 +85,12 @@ export function adoptModelY(scene, associations = null) {
     o.castShadow = !pane; o.receiveShadow = !pane;
     if (pane) o.renderOrder = 2;
   });
+  // The tyres (142 016 triangles each, 47 % of the car) give way to a lathe of their own outline
+  // past 25 m, where a tyre is ≈30 px tall and its tread and lettering are under a pixel or two.
+  for (const n of ['Wheel_FL_Tire', 'Wheel_FR_Tire', 'Wheel_RL_Tire', 'Wheel_RR_Tire']) {
+    const t = root.getObjectByName(n);
+    if (t?.isMesh) latheLod(t, { axis: 'z', distance: 25 });
+  }
   root.userData.lodMarked = markSmallParts(root);
   root.userData.source = 'blender';
   return root;

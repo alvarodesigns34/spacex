@@ -52,6 +52,7 @@ La interfaz de la simulación (menús, ficha técnica, etiquetas y vistas) está
 - **Reentrada: la estela de plasma ya no acaba en dos rectas.** Era un error de normales (un cono escalado de forma muy desigual transformado con `mat3(modelMatrix)`); ahora se difumina hacia sus bordes, deshilachada por remolinos y con una caída exponencial detrás de la nave. Auditoría, §16.
 - **Nube del despegue menos «bolas»:** cada bocanada del atlas tiene como masa principal un racimo asimétrico de cúpulas y un sombreado más plano, en vez de una única cúpula que a distancia se leía como esfera. Comparación y un intento anterior descartado en la auditoría, §15.
 - **Sombras de las nubes** sobre el paisaje, el mar y los vehículos (`clouds.js applyShadow`): cada punto mira la cobertura en su rayo hacia el Sol, la misma función que dibuja las nubes, así que cada sombra cae bajo su nube. Calidad alta y media; auditoría, §21.
+- **Model Y, neumáticos con nivel de detalle:** pasados 25 m, cada neumático (142 016 triángulos, el 47 % del coche entre los cuatro) cede a un torno de su propio contorno (11 952): ≈520 000 triángulos menos, sin diferencia visible (auditoría, §23; `src/vehicles/latheLod.js`).
 - **Calidad adaptativa:** `src/core/adaptive.js` ajusta en vivo los pasos de las nubes según el percentil 95 del tiempo de fotograma observado, con histéresis (baja tras 3 s por encima del presupuesto, sube tras 12 s con margen, y cada subida fallida duplica la espera). No toca geometría ni detalle cercano. Prueba `tools/adaptive-check.mjs`; `?adaptive=off` la desactiva.
 - **Modo fotográfico (tecla O):** campo de visión (en las cámaras libres), compensación de exposición en pasos, altura y rumbo del Sol, ocultar la interfaz y guardar un PNG del fotograma dibujado. *Reset* y *Close* devuelven exactamente los valores que había al abrirlo. Sin profundidad de campo ni desenfoque de movimiento. Código en `src/ui/photoMode.js`.
 - **Fusionada (8-11-2026, con autorización del usuario):** la rama `claude/cybertruck-spacex-integration-h7sx0c`, con sus cinco commits del 23-10 (caché de texturas entre visitas, `?perf=log` para medir en hardware real, aperturas, figura, bloom, alturas de suspensión y explosión por sistema en el Lab). Un conflicto en `main.js` (`__vc`), resuelto conservando ambos lados.
@@ -558,6 +559,7 @@ src/sim/reentryFlight.js   la reentrada del vuelo 14 como trayectoria: funciones
 src/sim/reentry.js         el capítulo de la reentrada: escena de origen flotante, plasma y cámaras
 src/ui/f16Hud.js           HUD del F-16 y su barra de mandos
 src/ui/gt3Hud.js           instrumentos del Porsche y su barra de conducción
+src/vehicles/latheLod.js   nivel de detalle por sustitución para cuerpos de revolución (los neumáticos del Model Y)
 src/vehicles/modelyAsset.js  carga el Tesla Model Y de Blender (assets/modely/modely.glb)
 src/vehicles/gt3Cabin.js   la cabina del Porsche, viva en código sobre el coche de Blender
 src/core/water.js          dónde hay agua (mar, charcas, canales) y a qué profundidad
