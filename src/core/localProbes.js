@@ -14,8 +14,16 @@
  * Two things three.js does for the shared probe have to be done here by hand: a material with its
  * own envMap is not scaled by scene.environmentIntensity (the night and altitude dimming), and
  * Material.clone() does not carry onBeforeCompile or customProgramCacheKey.
+ *
+ * Code that finds a vehicle's parts by their material (the re-entry's flaps and its heat glow
+ * look for M.steelFlap, M.tile…) must see through the copy: each copy keeps its original in
+ * userData.probeSource, and sourceMaterial() returns it. Without that the re-entry found no flap
+ * and lit the originals the ship no longer wore (audit of 8-11-2026, §33).
  */
 import * as THREE from 'three';
+
+/** The material a probe copy was made from (the material itself when it is not a copy). */
+export const sourceMaterial = (m) => m?.userData?.probeSource ?? m;
 
 export function createLocalProbes(renderer, scene, { size = 256, delay = 250 } = {}) {
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -45,6 +53,7 @@ export function createLocalProbes(renderer, scene, { size = 256, delay = 250 } =
           c.onBeforeCompile = m.onBeforeCompile;
           c.customProgramCacheKey = m.customProgramCacheKey;
           c.name = m.name;
+          c.userData.probeSource = m;
           copies.set(m, c);
         }
         return c;

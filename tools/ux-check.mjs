@@ -310,6 +310,19 @@ try {
     v.reentry.reset(false);
     return { on, entry, glide, burn, after, off: v.reentrySound.enabled };
   });
+  // The plasma on the ship itself, at the heating peak: the flap-tip trails and the glow of the
+  // tiles and flaps. The ship's local reflection probe gives it copies of its materials, and the
+  // re-entry, which looked for M's originals, found no flap and lit nothing (audit §33).
+  const plasma = await page.evaluate(async () => {
+    const v = window.__vc;
+    v.reentry.start(); v.reentry.setSpeed(0); v.reentry.setFollow('onboard'); v.reentry.seek(v.reentry.events.entry + 264);
+    const trails = [0, 1, 2, 3].map(i => v.scene.getObjectByName('reentry-flap-trail-' + i)?.visible);
+    let lit = 0;
+    v.scene.getObjectByName('reentry-ship').traverse(o => { if (o.isMesh && !Array.isArray(o.material) && o.material.emissive && o.material.emissiveIntensity > 0.1 && o.material.emissive.r > 0.3) lit++; });
+    v.reentry.reset(false);
+    return { trails, lit, heat: +v.reentry.state.heat?.toFixed?.(2) };
+  });
+  report(plasma.trails.every(Boolean) && plasma.lit >= 4, 'Re-entry plasma at the heating peak: four flap-tip trails and the hot tiles and flaps lit on the ship it wears', plasma);
   report(reSound.on && !reSound.off && reSound.entry.engines < 0.01 && reSound.entry.flow < 0.05 && reSound.glide.flow > 0.2 && reSound.burn.engines > 0.05 && reSound.after.engines < 0.01 && reSound.after.sea > 0.05,
     'Re-entry sound: the mission switch turns it on and off; silent at entry, flow noise in the glide, the landing burn heard, then only the sea', reSound);
 

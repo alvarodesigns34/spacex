@@ -875,3 +875,29 @@ cerrarlos) hasta un segundo antes de la captura. El otro es el golpe de los pern
 brazos en la captura: cinco modos inarmónicos de acero pesado sobre un impacto. Los dos se oyen
 desde el sitio del propulsor, con el retardo de la distancia y su filtro de aire. Son de oído (≈):
 en una captura real los motores casi los tapan, y aquí se oyen sobre todo desde cerca.
+
+## 33. Regresión encontrada en la matriz de capturas: sin plasma a bordo (corregida)
+
+La vista de a bordo de la matriz a T+9:33:20, con el calentamiento al 91 % de su máximo, no
+mostraba nada de plasma: ni las estelas de las puntas de los alerones, que son lo más brillante de
+las vistas de a bordo de SpaceX, ni el brillo de los alerones y las losetas.
+
+**Causa (introducida en esta misma ronda, §7):** la sonda local de Starship da a la nave copias
+privadas de sus materiales, para ponerles su propio mapa de entorno. La reentrada encontraba los
+alerones comparando con el material original (`o.material !== M.steelFlap`) y no encontró
+ninguno: las cuatro estelas quedaron ocultas para siempre (`ok = false`). Además, el brillo del
+calor se aplicaba a los originales de `M`, que la nave ya no lleva.
+
+**Arreglo:**
+- Cada copia guarda su original en `userData.probeSource`, y `sourceMaterial()`
+  (`src/core/localProbes.js`) lo devuelve.
+- La reentrada busca los alerones a través de él y, en cada arranque, reúne los materiales que la
+  nave lleva de verdad para el brillo del calor.
+- En el navegador, a esa hora: las cuatro estelas visibles y 15 de las 44 mallas de la nave
+  encendidas (antes, 0 estelas).
+- Prueba nueva en `tools/ux-check.mjs`: a T+entrada+264 s, cuatro estelas y al menos cuatro mallas
+  encendidas.
+- Ningún otro módulo compara materiales de un vehículo con sonda por su identidad (búsqueda por
+  `material ===`/`!==` en `src/`).
+
+![A bordo a T+9:33:20: antes (izquierda) y después (derecha) del arreglo](auditoria-2026-11-08/reentrada-abordo-sonda-antes-despues.jpg)

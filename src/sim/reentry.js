@@ -20,6 +20,7 @@
 import * as THREE from 'three';
 import { Plume, Vapor, Glow, FlightEarth } from './plume.js';
 import { RE, CHAPTER, MILESTONES_RE, reentryState, reentryPitchAt, reentryEnginesAt, heatingAt, toSplashAt, densityAt } from './reentryFlight.js';
+import { sourceMaterial } from '../core/localProbes.js';
 
 // ---- Plasma ------------------------------------------------------------------------------
 const PLASMA_VERT = /* glsl */`
@@ -146,7 +147,7 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
     ship.updateMatrixWorld(true);
     const inv = ship.matrixWorld.clone().invert(), b = new THREE.Box3(), mm = new THREE.Matrix4();
     ship.traverse((o) => {
-      if (!o.isMesh || o.material !== M.steelFlap || /hinge/.test(o.name)) return;
+      if (!o.isMesh || sourceMaterial(o.material) !== M.steelFlap || /hinge/.test(o.name)) return;
       if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
       b.copy(o.geometry.boundingBox).applyMatrix4(mm.multiplyMatrices(inv, o.matrixWorld));
       const c = b.getCenter(new THREE.Vector3());
@@ -164,9 +165,24 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
 
   // The heat itself, on the ship: the windward tiles and the flaps glow orange as the plasma
   // heats them — the dull glow of the flap edges and the belly in SpaceX's on-board views.
-  // Emissive on the ship's own materials (they are the ship's alone), restored afterwards.
-  const heatMats = [M.tile, M.tpsShell, M.tileUnder, M.steelFlap].filter(Boolean)
-    .map(m => ({ m, color: m.emissive.clone(), intensity: m.emissiveIntensity, flap: m === M.steelFlap, k: m === M.steelFlap ? 0.35 : 1.5 }));
+  // Emissive on the ship's own materials (they are the ship's alone), restored afterwards. They
+  // are gathered off the ship at each start, not taken from M: the local reflection probe gives
+  // the ship private copies (localProbes.js), and lighting M's originals lit nothing it wears.
+  const HEAT_SOURCES = new Set([M.tile, M.tpsShell, M.tileUnder, M.steelFlap].filter(Boolean));
+  let heatMats = [];
+  function collectHeatMats() {
+    const seen = new Set();
+    ship.traverse((o) => {
+      if (!o.isMesh) return;
+      for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+        const src = sourceMaterial(m);
+        if (!HEAT_SOURCES.has(src) || seen.has(m)) continue;
+        seen.add(m);
+        const flap = src === M.steelFlap;
+        heatMats.push({ m, color: m.emissive.clone(), intensity: m.emissiveIntensity, flap, k: flap ? 0.35 : 1.5 });
+      }
+    });
+  }
   const HEAT_COLOR = new THREE.Color(0xff5e1f);
   // The flaps' steel glows a duller, deeper red than the tiles: at 0.9 the whole flap went a
   // flat, saturated orange from on board, which read as paint rather than hot metal.
@@ -467,6 +483,7 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
     ship.quaternion.identity();
     holder.updateMatrixWorld(true);
     findFlapTips();
+    heatMats = []; collectHeatMats();
     hideSite(true);
     root.visible = true;
     // The chapter's shots are framed for the orbit camera's field of view: started from the walk
