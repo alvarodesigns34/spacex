@@ -26,7 +26,8 @@ const PLASMA_VERT = /* glsl */`
   varying vec3 vN, vV, vL;
   void main() {
     vec4 w = modelMatrix * vec4(position, 1.0);
-    vN = normalize(mat3(modelMatrix) * normal);
+    // World normal through the inverse transpose: the sheath is scaled unevenly (1,25 × 1 × 1,05).
+    vN = normalize(transpose(inverse(mat3(modelMatrix))) * normal);
     vV = normalize(cameraPosition - w.xyz);
     vL = position;
     gl_Position = projectionMatrix * viewMatrix * w;
@@ -66,11 +67,15 @@ const WAKE_FRAG = /* glsl */`
     return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
   void main() {
     // vUv.y: 1 at the ship, 0 at the tail; vUv.x round the cone.
-    float along = pow(clamp(vUv.y, 0.0, 1.0), 1.6) * (1.0 - smoothstep(0.86, 1.0, vUv.y));   // edges in order: GLSL leaves smoothstep(a > b) undefined
+    // Falls away exponentially behind the ship rather than ending at the cone's base.
+    float along = (exp(-3.2 * (1.0 - clamp(vUv.y, 0.0, 1.0))) - 0.04) * (1.0 - smoothstep(0.86, 1.0, vUv.y));   // edges in order: GLSL leaves smoothstep(a > b) undefined
     // A glowing column, not a pipe: bright where the eye looks through most of it, fading to
-    // nothing at its silhouette.
-    float edge = pow(clamp(abs(dot(normalize(vN), normalize(vV))), 0.0, 1.0), 2.0);
-    float turb = 0.55 + 0.9 * n2(vec2(vUv.x * 7.0, vUv.y * 22.0 - uTime * 6.0));
+    // nothing at its silhouette. The silhouette is pushed in and out by eddies carried down the
+    // trail, so it frays instead of drawing the cone's two straight edges against the sky.
+    float eddy = n2(vec2(vUv.x * 5.0, vUv.y * 9.0 - uTime * 4.0)) * 0.6 + n2(vec2(vUv.x * 13.0 + 3.1, vUv.y * 27.0 - uTime * 11.0)) * 0.4;
+    float facing = clamp(abs(dot(normalize(vN), normalize(vV))), 0.0, 1.0);
+    float edge = smoothstep(0.08, 0.85, facing + (eddy - 0.5) * 0.55) * facing;
+    float turb = 0.45 + 1.1 * (n2(vec2(vUv.x * 7.0, vUv.y * 22.0 - uTime * 6.0)) * 0.6 + eddy * 0.4);
     vec3 col = mix(uCool, uHot, smoothstep(0.3, 1.0, uHeat) * (0.4 + vUv.y * 0.6));
     gl_FragColor = vec4(col * along * edge * turb * uHeat * 0.9, 1.0);
   }`;
@@ -79,10 +84,13 @@ const WAKE_VERT = /* glsl */`
   varying vec3 vN, vV;
   void main() {
     vUv = uv;
-    vec4 w = modelMatrix * vec4(position, 1.0);
-    vN = mat3(modelMatrix) * normal;
-    vV = cameraPosition - w.xyz;
-    gl_Position = projectionMatrix * viewMatrix * w;
+    // In view space, with the normal matrix: the cone is scaled very unevenly (tens of metres
+    // across, kilometres long), and mat3(modelMatrix) bent its normals towards the axis, so its
+    // silhouette never turned edge-on and the trail ended in two hard straight lines.
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    vN = normalMatrix * normal;
+    vV = -mv.xyz;
+    gl_Position = projectionMatrix * mv;
   }`;
 
 const lin = (hex) => new THREE.Color(hex).convertSRGBToLinear();

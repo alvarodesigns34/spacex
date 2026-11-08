@@ -469,3 +469,22 @@ número de bocanadas, misma textura compartida (la nube de suelo y el vapor), mi
 Resultado: la masa se lee como un cúmulo continuo de muchos lóbulos y no como bolas sueltas (la
 «bola» de la derecha es ahora un racimo); sigue siendo algo grumosa. El volumen marchado sigue
 siendo la mejora de fondo pendiente.
+
+## 16. Reentrada (§15): la estela de plasma acababa en dos rectas (error de normales, corregido)
+
+**Problema:** en las vistas de la reentrada, la estela de plasma era una cuña morada con dos bordes
+rectos y nítidos contra el cielo y la Tierra. **Causa:** su cono está escalado de forma muy
+desigual (decenas de metros de ancho, kilómetros de largo) y el sombreador de vértices transformaba
+las normales con `mat3(modelMatrix)`: con escala no uniforme eso las inclina hacia el eje, la
+silueta nunca quedaba de canto y el brillo llegaba entero hasta el borde. La envoltura de plasma
+tenía el mismo error, leve (escala 1,25 × 1 × 1,05).
+
+**Hecho (`reentry.js`):** la estela usa la matriz de normales en espacio de vista; la envoltura, la
+inversa transpuesta en el espacio del mundo (donde está el flujo). Además, la silueta de la estela
+la empujan remolinos que bajan con el flujo, la turbulencia tiene dos escalas y el brillo cae de
+forma exponencial detrás de la nave. No hay más casos del patrón en el código.
+
+![Reentrada: antes (izquierda) y después (derecha), cámaras de persecución y de dirección](auditoria-2026-11-08/reentrada-estela-antes-despues.jpg)
+
+**Pendiente:** el plasma de la envoltura sigue siendo un halo sin volumen; el calentamiento por
+regiones (bordes de las aletas, morro) y la Tierra genérica (§10, bloqueada) quedan para después.
