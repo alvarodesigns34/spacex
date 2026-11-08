@@ -324,3 +324,14 @@ y a 2 000 m (dentro), su cámara de persecución y su plano lejano (≈270–330
 - desde arriba, las cimas aún se leían como picos nevados: el perfil pasa a cúpula
   (`sqrt` del grosor) y la sombra propia pesa más (pliegues más marcados). Queda alguna cima aguda y
   el grano estático del muestreo.
+
+## 10. Tierra orbital (P2): bloqueado
+
+`backdrop.js` pinta una Tierra procedural «deliberadamente genérica» (lo dice su cabecera). La
+sustitución prevista es el mosaico Blue Marble Next Generation de la NASA (dominio público; se
+puede incluir en el repositorio sin chocar con la regla de fotos con derechos), reducido a
+2048 × 1024 y comprimido. **Bloqueado el 8-11-2026:** `eoimages.gsfc.nasa.gov` corta la conexión
+desde este contenedor (dos intentos normales; la red del entorno no tiene restricciones, así que es
+el servidor). No se ha sustituido por ninguna otra fuente sin verificar su procedencia. Para
+retomarlo basta con el archivo `world.topo.200412.3x5400x2700.jpg` del registro 74142 de NASA
+Visible Earth, descargado desde otra máquina.
