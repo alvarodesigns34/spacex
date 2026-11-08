@@ -433,3 +433,26 @@ justifica el cambio si las mediciones en hardware real (`?perf=log`, tecla **I**
 cuello de botella es la CPU por llamadas de dibujo. Paso previo razonable y barato: una página
 aislada con `WebGPURenderer` y una escena de prueba (el mar y el cielo) para medir en el equipo del
 usuario, sin tocar el centro.
+
+## 15. Nube de suelo (§13): un intento descartado, y por qué
+
+**Problema (confirmado en las capturas):** la nube del despegue se lee como bolas redondeadas
+superpuestas. Cada bocanada es un *billboard* del atlas de 16 «coliflores» (`plume.js
+buildPuffTexture`) con su propio sombreado de cúpula.
+
+**Intento (8-11):** erosionar todas las bocanadas con un mismo campo de turbulencia 3D en el espacio
+del mundo, que hierve hacia arriba con un reloj propio de la nube (reproducible por `seek`), para que
+los bordes de las vecinas se fundieran; más tarde, deshilachar el contorno de cada lóbulo, suavizar
+su sombra esférica y ampliar el contraste del ruido. Comparado en el arnés en la misma sesión,
+cámara e instante (T+1,5 s, calidad media), con un interruptor (`uTurb` 0/1).
+
+**Resultado:** tres versiones, diferencia apenas perceptible: los contornos siguen redondos. A la
+distancia de las vistas del lanzamiento (≈400 m) el detalle de 3,5 m cae bajo el píxel y se
+promedia, y las escalas de 24 m varían poco dentro de una bocanada de 30–40 m. El aspecto de bolas
+viene del propio atlas, no de su recorte. **Descartado**, sin commit: no se presenta como mejora algo
+que no se ve.
+
+**La vía que sí lo resolvería (pendiente, coste alto):** cambiar las bocanadas por un volumen de
+densidad marchado (como las nubes, §9) o, más barato, un atlas nuevo de formas irregulares (no
+cúpulas) con varias escalas de lóbulos por bocanada y bocanadas más pequeñas y numerosas en los
+bordes de la masa, que es donde el ojo lee la silueta.
