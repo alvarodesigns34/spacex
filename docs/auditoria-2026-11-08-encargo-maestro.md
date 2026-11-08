@@ -488,3 +488,10 @@ forma exponencial detrás de la nave. No hay más casos del patrón en el códig
 
 **Pendiente:** el plasma de la envoltura sigue siendo un halo sin volumen; el calentamiento por
 regiones (bordes de las aletas, morro) y la Tierra genérica (§10, bloqueada) quedan para después.
+
+**Calentamiento por regiones (probado y descartado, 8-11):** más brillo en el morro y en los bordes
+de las aletas, por la geometría de la envoltura. En las vistas de persecución y a bordo la
+diferencia no se aprecia: domina el halo, que desde detrás se lee como un estallido rojo de bordes
+en pico (el ruido de parpadeo en la silueta de una cápsula aditiva). Sin commit. La mejora de fondo
+es sustituir ese halo por un volumen de plasma pegado a la cara de barlovento (marchado, como las
+nubes), con la emisión de cada región; pendiente.
