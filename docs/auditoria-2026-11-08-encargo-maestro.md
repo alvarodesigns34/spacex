@@ -540,3 +540,21 @@ Extraída del centro en marcha (`__vc.M`, 163 materiales de la biblioteca y de l
 - `gt3Carbon` (carbono exterior del Porsche, liso, sin trama ni barniz) **no lo usa ninguna pieza**: material muerto, sin efecto visible. El carbono del habitáculo sí lleva la trama barnizada de la biblioteca.
 - La mayoría de materiales pequeños (motores, tren, piezas del pad) son de valor constante sin mapas: correcto a la distancia a la que se ven; su microdetalle procede de `detail.js` (mapa de detalle por escala) donde está aplicado.
 - **Pendiente:** fotografía virtual del mismo objeto bajo tres soles (mañana, mediodía, atardecer) por familia, como pide el encargo; con el modo fotográfico (tecla **O**) es reproducible, pero cada captura por software tarda minutos.
+
+## 19. Animación secundaria (§28): la hierba de las dunas se mueve con el viento del sitio
+
+**Antes:** toda la vegetación era estática.
+
+**Hecho:** las matas de las dunas (`library.js duneGrass`) se doblan a favor del viento en el
+sombreador de vértices, por el cuadrado de la altura de cada brizna (la raíz no se mueve), más en
+una racha y menos en una calma, con un leve temblor. Las rachas son **el mismo campo** que mueve la
+manga y que sienten el F-16, el Porsche y la H2R: `wind.js gustGLSL()` genera el GLSL desde la
+misma tabla de ondas de su turbulencia congelada, que avanza con el viento medio, así que una
+racha cruza las dunas a la velocidad del viento y en su dirección. ≈12 cm en la punta de una mata de
+0,9 m con la brisa media (ajustado a ojo). Sin coste de CPU; unas pocas operaciones por vértice.
+
+**Comprobado en el arnés:** compila, las 46 tandas de hierba se dibujan, y entre dos fotogramas
+separados 3 s solo cambian las puntas de las matas (82 píxeles con diferencia > 20 en un encuadre
+cercano; el resto de la imagen, quieta).
+
+**Pendiente:** el matorral y los arbustos del recinto (otros materiales) siguen estáticos.

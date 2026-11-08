@@ -56,6 +56,25 @@ function gust(x, z, t, U, seed) {
  * The wind at a point (x, z in the scene, h metres over the ground) at time t (s): written into
  * `out` as { x, y, z } m/s, and returned. `scale` multiplies the whole field (0: still air).
  */
+/**
+ * The along-wind gust, unit standard deviation, as GLSL: vcGust(vec2 xz, float t) for world x/z
+ * at time t, the same field as gust(x, z, t, U, 0) above with U the mean speed at `height`. For
+ * what sways in the wind on the GPU (environment.js: the dune grass), so it moves with the gusts
+ * the physics feels, where and when they pass.
+ */
+export function gustGLSL(height = 1) {
+  const U = meanSpeed(height), f = (v) => Number(v).toFixed(6);
+  const terms = WAVES.map(([L, dir, ph, a]) => {
+    const k = 2 * Math.PI / L;
+    return `${f(a)} * sin(${f(k)} * (ax * ${f(Math.cos(dir))} + az * ${f(Math.sin(dir))}) + ${f(ph)})`;
+  }).join(' + ');
+  return `
+float vcGust(vec2 xz, float t) {
+  float ax = xz.x - ${f(DOWNWIND.x * U)} * t, az = xz.y - ${f(DOWNWIND.z * U)} * t;
+  return (${terms}) * ${f(NORM)};
+}`;
+}
+
 export function windAt(x, h, z, t, out = { x: 0, y: 0, z: 0 }, scale = 1) {
   const U = meanSpeed(h) * scale;
   const fade = h < WIND.top ? 1 : Math.max(0.2, WIND.top / h);

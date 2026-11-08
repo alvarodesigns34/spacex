@@ -9,7 +9,7 @@
 import * as THREE from 'three';
 import * as TX from './textures.js';
 import { openTextureCache, loadStep, noteStep, savePending } from './textureCache.js';
-import { WIND } from '../core/wind.js';
+import { WIND, DOWNWIND, gustGLSL } from '../core/wind.js';
 import { OCEAN_CLOCK } from '../core/ocean.js';
 
 /**
@@ -689,8 +689,32 @@ float vcNoise(vec2 p) {
   M.duneGrass.onBeforeCompile = (sh) => {
     sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>',
       THREE.ShaderChunk.normal_fragment_begin.replace('normal *= faceDirection;', ''));
+    // The tussocks bend before the site's wind (core/wind.js): downwind, by the square of the
+    // blade's height (the root stays put), more in a gust and less in a lull — the same frozen
+    // turbulence, moving downwind at the mean speed, that the windsock, the aircraft and the cars
+    // feel. ≈ 12 cm at the tip of a 0,9 m clump in the mean breeze (tuned by eye). Applied after
+    // the instance's matrix, in the ground disc's frame (x, y; z up): world x = x, world z = −y.
+    sh.uniforms.uWaveTime = WAVE_TIME;
+    sh.uniforms.uWindDir = { value: new THREE.Vector2(DOWNWIND.x, -DOWNWIND.z) };
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', `#include <common>
+uniform float uWaveTime;
+uniform vec2 uWindDir;
+${gustGLSL(1)}`)
+      .replace('#include <project_vertex>', `
+  vec4 mvPosition = vec4( transformed, 1.0 );
+#ifdef USE_INSTANCING
+  mvPosition = instanceMatrix * mvPosition;
+  vec2 vcBase = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xy;
+  float vcH = clamp(transformed.z / 0.9, 0.0, 1.4);
+  float vcG = vcGust(vec2(vcBase.x, -vcBase.y), uWaveTime);
+  float vcFlutter = 0.015 * sin(uWaveTime * 5.3 + vcBase.x * 1.7 + vcBase.y * 1.3);
+  mvPosition.xy += uWindDir * (vcH * vcH * max(0.0, 0.12 + 0.07 * vcG) + vcFlutter * vcH);
+#endif
+  mvPosition = modelViewMatrix * mvPosition;
+  gl_Position = projectionMatrix * mvPosition;`);
   };
-  M.duneGrass.customProgramCacheKey = () => 'vc-grass-up-1';
+  M.duneGrass.customProgramCacheKey = () => 'vc-grass-up-wind-1';
   M.service = new THREE.MeshStandardMaterial({ color: 0x3c4650, roughness: 0.7, metalness: 0.06 });
   M.copper = new THREE.MeshPhysicalMaterial({ color: 0xb87333, metalness: 1.0, roughness: 0.35 });
   // White MLI: the foil colour map is gold, so take only its crinkle normals.
