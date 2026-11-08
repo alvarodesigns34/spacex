@@ -628,3 +628,27 @@ iguales: diferencia media 0,43/255 y ningún píxel por encima de 25 en el recor
 es invisible.
 
 ![Ruedas del Model Y a ≈15 m: malla completa (izquierda) y torno forzado (derecha)](auditoria-2026-11-08/modely-neumatico-lod.jpg)
+
+## 24. Vuelo 14: una validación independiente que falla (P0, documentado)
+
+**La prueba:** con el estado y la masa del apagado que integra el propio modelo (T+8:11: 200,0 km,
+7 783 m/s, γ = 0°, 269,6 t), propagar el vuelo libre hasta la inserción real (T+25:17–25:36) y
+aplicar ese encendido de 19 s con un Raptor de nivel del mar (250 tf, Isp ≈ 350 s: Δv ≈ 177 m/s,
+13,6 t de propelente, por la ecuación del cohete), y comparar la órbita resultante con la
+publicada (262 × 275 km). **Nada del modelo se ajustó a esa cifra.**
+
+**Resultado:** 200 × 835 km. No cuadra. **Causa:** el ascenso del modelo termina, por hipótesis
+(«assumed circular 200 km orbit»), ya en órbita circular, y un vuelo así no necesitaría inserción.
+
+**Lo que sí sería coherente (calculado, ≈):** para acabar en 262 × 275 km tras un Δv prograde de
+≈177 m/s, la trayectoria anterior tenía que ser **suborbital**: apogeo ≈265–275 km y perigeo
+≈300 km **bajo la superficie** (periodo de la elipse ≈84 min), sea cual sea el punto de la órbita
+final donde caiga el encendido. Es el perfil habitual de Starship: suborbital hasta la inserción.
+
+**Consecuencia y pendiente:** un modo histórico fiel necesita rehacer el estado del apagado (tablas
+del ascenso en `launch.js`, ahora ajustadas a la hipótesis circular) hacia esa trayectoria
+suborbital, encadenar la inserción, el despliegue de los 26 satélites (masa no publicada: ≈, como
+parámetro con su intervalo) y la desorbitación real a T+2:12, con pruebas de continuidad, energía y
+masas en `mission-check`. No se ha hecho todavía: toca el ascenso, que alimenta el lanzamiento, la
+recuperación y la reentrada, y merece una ronda propia con sus capturas. El script del cálculo es
+de una sola vez (no se guarda en el repositorio); sus cifras están aquí.
