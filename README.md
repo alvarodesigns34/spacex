@@ -498,6 +498,7 @@ src/vehicles/roadsterTextures.js  texturas de lienzo del Roadster (pantallas, re
 src/sim/launch.js          secuencia de lanzamiento: escena (plumas, planos, cámaras y hardware)
 src/sim/launchModel.js     modelo puro de la trayectoria (perfil, fases, empuje, hitos), reexportado por launch.js
 src/sim/plume.js           penacho gobernado por la presión ambiente y nube de tierra
+src/sim/flightEarth.js     la Tierra curva bajo el vuelo alto (ascenso y reentrada), con el golfo real
 src/sim/sound.js           sonido opcional del lanzamiento, retardado a la velocidad del sonido
 src/sim/reentrySound.js    sonido opcional de la reentrada: flujo por presión dinámica, estampido, encendido y amerizaje
 src/data/gt3rs.js          Porsche 911 GT3 RS (992): cada cifra con su fuente y su etiqueta

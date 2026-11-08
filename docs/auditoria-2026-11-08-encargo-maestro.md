@@ -862,3 +862,8 @@ niveles son de oído (≈):
   instante del estampido y la presión dinámica.
 - `tools/ux-check.mjs`: el botón lo enciende y lo apaga. En el navegador queda en silencio en la
   entrada, el flujo suena en el planeo y el encendido se oye desde la boya.
+
+**Tercer paso del refactor (8-11):** la Tierra curva del vuelo alto (`FlightEarth`, con su
+sombreador y su casquete) sale de `src/sim/plume.js` (1760 → 1518 líneas) a
+`src/sim/flightEarth.js` (249). El código es idéntico (comprobado con `diff`) y `plume.js` la
+reexporta, así que el lanzamiento y la reentrada la importan igual que antes.

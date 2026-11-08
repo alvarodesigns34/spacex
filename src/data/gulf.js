@@ -1,6 +1,6 @@
 /**
  * The Gulf of Mexico and its shores, for the curved Earth under the launch sequence
- * (FlightEarth, plume.js). Everything a camera 100-200 km over Starbase can see lies inside
+ * (FlightEarth, flightEarth.js). Everything a camera 100-200 km over Starbase can see lies inside
  * the box: the horizon from the ship's 195 km is ≈1 580 km away.
  *
  *  - Coastlines: Natural Earth 1:10m land, minus its 1:50m lakes (public domain,
