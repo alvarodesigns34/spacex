@@ -834,3 +834,31 @@ dato que falta. La hipótesis circular de 200 km se queda como está, declarada 
 (§24), y la cadena «tal como voló» (§25) parte de la órbita publicada, no del apagado. Si se
 publica el estado del apagado (telemetría de la retransmisión), esta tabla dice directamente qué Δv
 y qué empuje implica la inserción.
+
+## 32. Sonido (§26): la reentrada, que no tenía
+
+El capítulo de la reentrada era el único sin sonido. Ahora lo tiene (`src/sim/reentrySound.js`),
+con el mismo botón del panel de la misión que el lanzamiento. No hay ninguna grabación de una
+reentrada de Starship con la que compararlo, así que todo es física del propio modelo y los
+niveles son de oído (≈):
+
+- **Cuándo se oye.** Cada sonido llega con el retardo de la distancia. La escena se mueve con la
+  nave (la nave se queda en x = 0 y el océano se desliza), así que el instante de emisión se
+  resuelve en el marco fijo del océano: τ + d(τ)/343 = t, por iteración. Error máximo comprobado:
+  0,30 ms con cámaras a entre 50 m y 3 km.
+- **El flujo sobre el casco**, para una cámara que viaja en el aire de la nave (a bordo, la
+  persecución). Sigue la presión dinámica ½ρv², de la que depende el ruido aerodinámico: 1,7 Pa
+  en la interfaz de 120 km (silencio) y un máximo de 5,0 kPa a T+9:48:43, a 11,8 km, en la caída en
+  panza, donde la nave cae a su velocidad límite en aire cada vez más denso. Su brillo crece con el
+  número de Mach.
+- **El estampido sónico.** Se emite en el último instante por encima de Mach 1,2 (T+9:47:13, a
+  29,5 km, 16 s antes del transónico citado) y se oye abajo como doble onda en N.
+- **El encendido de aterrizaje**, con tres, dos y un Raptor a las horas citadas, con la receta del
+  lanzamiento escalada por el número de motores y la distancia.
+- **El amerizaje**, desde el punto de caída, y el mar cerca del agua.
+
+**Pruebas:**
+- `tools/reentry-sound-check.mjs` (en `check:static`): el retardo, a bordo frente a 3,43 km, el
+  instante del estampido y la presión dinámica.
+- `tools/ux-check.mjs`: el botón lo enciende y lo apaga. En el navegador queda en silencio en la
+  entrada, el flujo suena en el planeo y el encendido se oye desde la boya.

@@ -68,6 +68,7 @@ import { verifyExhibits, verifyScene, verifyPad, verifyInterfaces } from './data
 import { createLaunch, EVENTS, MILESTONES, ENGINE_LAYOUT, altitudeAt, boosterAltAt } from './sim/launch.js';
 import { createMissionClock } from './sim/missionClock.js';
 import { createLaunchSound } from './sim/sound.js';
+import { createReentrySound } from './sim/reentrySound.js';
 import { createReentry } from './sim/reentry.js';
 import { CHAPTER as REENTRY_CHAPTER, MILESTONES_RE, reentryAltAt } from './sim/reentryFlight.js';
 
@@ -113,7 +114,7 @@ async function main() {
 
   // ---- HUD ----
   let sunRaf = 0, pendingSun = 20;
-  let sound = null;
+  let sound = null, reentrySound = null;
   // The environment is built after the HUD, and the Sun slider can be reached with Tab while the
   // page is still loading: a `const` read before then threw from the frame callback (audit, 08-10).
   let env = null;
@@ -147,7 +148,7 @@ async function main() {
     onLaunchSeek: (t) => { if (seq()?.running) seq().seek(t); },
     onLaunchRestart: () => { const a = seq(); if (!a?.running) return; a.setPaused(false); a.seek(a === launch ? EVENTS.start : REENTRY_CHAPTER.start); },
     onLaunchCamera: () => cycleLaunchCamera(),
-    onLaunchSound: (on) => sound?.setEnabled(on),
+    onLaunchSound: (on) => { sound?.setEnabled(on); reentrySound?.setEnabled(on); },
   });
   rig.onModeChange = (m) => hud.setMode(m);
   hud.setMode('orbit');
@@ -527,6 +528,8 @@ async function main() {
     visibilityHook: (flying) => view.setFlying(anyFlying(flying)),
   });
   sequences.reentry = reentry;
+  // Its sound (sim/reentrySound.js), on the same mission-panel switch as the launch's.
+  reentrySound = createReentrySound({ reentry, camera });
 
   // Adaptive quality (core/adaptive.js): the cumulus' samples per ray follow the observed frame
   // times, a notch at a time, from the tier's count down to 10. Off under automation (the checks
@@ -1065,6 +1068,7 @@ async function main() {
 
   function toggleReentry() {
     if (reentry.running) { reentry.reset(); return; }
+    if (hud.soundWanted() && !reentrySound.enabled) reentrySound.setEnabled(true);
     view.select('starship', 'launch');
     hud.setActive('starship');
     reentry.start();
@@ -1552,6 +1556,7 @@ async function main() {
     gt3drive.update(steps.mission);
     h2rRide.update(steps.mission);
     sound?.update();
+    reentrySound?.update();
     // Water keeps moving whatever the camera or the launch is doing.
     WAVE_TIME.value += dt;
     windsock?.userData.tick?.(WAVE_TIME.value);
@@ -1696,7 +1701,7 @@ async function main() {
     // The state machine itself, so the gate can assert on transitions rather than on the
     // scene's reaction to them.
     view, viewState: () => view.snapshot(), overviewFor,
-    quality, lod, ao, hud, onContextRestored, get perf() { return tech.perf?.out ?? null; }, get sound() { return sound; },
+    quality, lod, ao, hud, onContextRestored, get perf() { return tech.perf?.out ?? null; }, get sound() { return sound; }, get reentrySound() { return reentrySound; },
     get tourAt() { return tourAt; }, TOUR,
   };
   if (params.has('verify')) verify();

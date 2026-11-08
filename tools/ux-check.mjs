@@ -290,6 +290,29 @@ try {
   });
   report(audio.hidden === 'suspended' && audio.shown === 'running', 'Sound is suspended while the tab is hidden and resumes on return', audio);
 
+  // The re-entry's sound (sim/reentrySound.js), on the same switch: silent at the entry
+  // interface (no air to carry anything), the landing burn's roar on the buoy's camera, the
+  // flow over the hull riding with the ship through the glide.
+  const reSound = await page.evaluate(async () => {
+    const v = window.__vc, wait = (ms) => new Promise(r => setTimeout(r, ms));
+    document.getElementById('mission-sound').click();
+    v.reentry.start(); v.reentry.setSpeed(1);
+    // A software frame can take seconds: the sound is updated here, right after the seek, and the
+    // audio clock (which does run) is given time for the gains to glide there.
+    const at = async (t, follow) => { v.reentry.setFollow(follow); v.reentry.seek(t); v.reentrySound.update(); await wait(900); return v.reentrySound.levels(); };
+    const E = v.reentry.events;
+    const entry = await at(E.entry + 5, 'chase');
+    const glide = await at(E.subsonic + 30, 'chase');
+    const burn = await at(E.landingBurn + 4, 'director');
+    const after = await at(E.splash + 10, 'director');
+    const on = v.reentrySound.enabled;
+    document.getElementById('mission-sound').click();
+    v.reentry.reset(false);
+    return { on, entry, glide, burn, after, off: v.reentrySound.enabled };
+  });
+  report(reSound.on && !reSound.off && reSound.entry.engines < 0.01 && reSound.entry.flow < 0.05 && reSound.glide.flow > 0.2 && reSound.burn.engines > 0.05 && reSound.after.engines < 0.01 && reSound.after.sea > 0.05,
+    'Re-entry sound: the mission switch turns it on and off; silent at entry, flow noise in the glide, the landing burn heard, then only the sea', reSound);
+
   // Free flight: the floor is the ground, not a flat 0,4 m (a loma rises ~7 m here).
   await page.evaluate(() => { window.__vc.__ground = window.__vc.rig.groundAt; });
   const measureFly = async (sabotage) => {
