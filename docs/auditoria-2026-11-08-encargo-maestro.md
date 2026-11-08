@@ -637,6 +637,12 @@ es invisible.
 
 ![Ruedas del Model Y a ≈15 m: malla completa (izquierda) y torno forzado (derecha)](auditoria-2026-11-08/modely-neumatico-lod.jpg)
 
+**Medido por `tools/check.mjs`** (presupuesto de la vista general): 3 531 535 triángulos dibujados,
+frente a 4 051 791 antes del cambio: **520 256 menos**, lo previsto. Construidos 5 403 775 (las
+copias lejanas se suman a las cercanas), 375 materiales (+1, el lejano compartido), techos sin tocar.
+(Una primera ejecución local falló una espera de 30 s por tiempo del render por software; repetida,
+pasa entera.)
+
 ## 24. Vuelo 14: una validación independiente que falla (P0, documentado)
 
 **La prueba:** con el estado y la masa del apagado que integra el propio modelo (T+8:11: 200,0 km,
