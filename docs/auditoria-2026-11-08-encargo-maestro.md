@@ -980,3 +980,35 @@ lo que la matriz mostró (§34): el atardecer apenas se enrojecía.
 - que la transmitancia cae, y el azul más deprisa;
 - 5° dorado, 20° casi neutro y 65° sin tinte;
 - un control negativo: la rampa antigua, recalculada, no pasaría.
+
+## 36. Atardecer: la bruma hacia el sol (§3)
+
+La niebla de la escena tenía un único color en todas direcciones. Con el sol a pocos grados, el
+horizonte bajo el sol era del mismo gris azulado que el de detrás de la cámara. Ahora la niebla
+gana un lóbulo hacia adelante, hacia el sol (`src/core/fogSun.js`): niebla + tinte ·
+max(0, v·s)^6.
+- El tinte lleva la bruma hacia el color del haz (`sunlight.js`), 1,5 veces más clara (≈).
+- Aparece por debajo de 25° de elevación del sol.
+- El exponente 6 ≈ el pico hacia adelante del aerosol (Henyey-Greenstein, g ≈ 0,7).
+- Es un parche de los fragmentos de niebla de three.js, así que vale igual para todos los
+  materiales.
+- Los dos uniformes se comparten por referencia (Float32Array, que three.js no clona por material).
+
+**Medido** (sol a 5°, mirando al sol; la franja del horizonte, la mitad de abajo y el cielo):
+
+| Zona | Sin lóbulo (R, G, B) | Con lóbulo (R, G, B) | Rojo/azul |
+|---|---|---|---|
+| Franja del horizonte | 99,9 · 106,7 · 98,9 | 111,2 · 110,8 · 94,0 | 1,01 → 1,18 |
+| Primer plano y cielo | — | — | igual (±0,5) |
+
+**Lo que hubo que arreglar por el camino:**
+- La sonda local llama a `followCamera` con su `CubeCamera`, que no tiene matriz de vista.
+- La primera versión lanzaba una excepción y paraba el render en cuanto se capturaba una sonda.
+- Ahora el lóbulo solo se actualiza con cámaras de verdad, y la captura se queda con el último.
+
+Prueba en `tools/sunlight-check.mjs`:
+- sin lóbulo por encima de 25°, y cálido y más claro a 5°;
+- el parche entra en los fragmentos de niebla de three.js;
+- los uniformes se comparten por referencia.
+
+![Sol a 5°, mirando hacia él: sin lóbulo (izquierda) y con él (derecha)](auditoria-2026-11-08/niebla-sol-bajo-antes-despues.jpg)

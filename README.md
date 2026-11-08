@@ -575,6 +575,7 @@ src/core/adaptive.js       calidad adaptativa: el p95 del tiempo de fotograma, c
 src/ui/techPanel.js        el panel técnico (tecla I), ?perf y ?perf=log, fuera de main.js
 src/ui/photoMode.js        el modo fotográfico (tecla O): FOV, exposición, Sol, interfaz oculta y PNG, con vuelta exacta
 src/core/sunlight.js       color de la luz directa del sol por la masa de aire (Rayleigh y aerosol), compartido con las nubes
+src/core/fogSun.js         la bruma hacia un sol bajo: lóbulo de la niebla en su dirección, parche de los fragmentos de niebla
 src/core/localProbes.js    sondas de reflejos locales capturadas de la escena (hoy, la de Starship junto a la torre)
 src/core/colliders.js      todo lo sólido de la escena, en celdas de 0,25 m, para los choques
 src/core/effects.js        lo que salta en un choque: chispas, fuego, humo, restos, cristal, agua

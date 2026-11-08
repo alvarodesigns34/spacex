@@ -12,6 +12,7 @@ import { WATERLINE, SEA_LEVEL, WAVES, oceanGLSL, offshoreGLSL, oceanPhases, shor
 import { WAVE_TIME } from '../materials/library.js';
 import { shoreZ, seaward, fromCoast, terrainHeight, thicket, marsh, poolDepth } from './terrain.js';
 import { sunTint } from './sunlight.js';
+import { installFogSun, updateFogSun } from './fogSun.js';
 
 /**
  * The Gulf shore. Starbase stands on the coast at Boca Chica, and the plain runs out into a
@@ -302,6 +303,9 @@ export function probeGround() {
 }
 
 export function createEnvironment(renderer, scene, M, quality = {}) {
+  // The haze's forward lobe towards a low Sun (fogSun.js): patched into three.js's fog chunks
+  // before anything compiles.
+  installFogSun();
   const sunDir = new THREE.Vector3();
   let onProbe = null;
 
@@ -656,6 +660,9 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   function followCamera(camera) {
     sky.position.copy(camera.position); clouds.follow(camera);
     updateSea(camera);
+    // The haze's lobe is the viewer's: a probe's cube capture (localProbes.js, a CubeCamera with no
+    // view matrix of its own) keeps the last one.
+    if (camera.isCamera) { camera.updateMatrixWorld(); updateFogSun(camera, sunDir, air.elev, sunTint(air.elev), fog.color); }
   }
 
   // The swell's patch, under the camera: snapped to a 2 m grid so its vertices do not slide

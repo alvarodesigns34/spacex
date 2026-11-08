@@ -2,7 +2,14 @@
 // The colour of direct sunlight (src/core/sunlight.js), headless: the published constants it is
 // built from, the air mass, and that the light it gives reddens as the Sun gets low — the sunset
 // that did not (audit of 8-11-2026, §35) — while the default 20° key stays near neutral.
-import { TAU, airMass, transmittance, sunTint } from '../src/core/sunlight.js';
+import { registerHooks } from 'node:module';
+registerHooks({ resolve(specifier, context, next) {
+  if (specifier === 'three') return next(new URL('../vendor/three/build/three.module.js', import.meta.url).href, context);
+  return next(specifier, context);
+} });
+const { TAU, airMass, transmittance, sunTint } = await import('../src/core/sunlight.js');
+const { lobeTint, installFogSun } = await import('../src/core/fogSun.js');
+const THREE = await import('three');
 
 let failed = 0;
 const report = (ok, name, detail = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`); if (!ok) failed++; };
@@ -27,6 +34,16 @@ const hsl = (h, sat, l) => { const q = l < 0.5 ? l * (1 + sat) : l + sat - l * s
 const oldRamp = (e) => { const t = Math.min(1, Math.max(0, e / 60)), w = (1 - t) ** 3.4; const c = hsl(0.09, 0.04 + 0.28 * w, 0.74 + 0.24 * t ** 0.55); return c.map((v) => v / c[0]); };
 const o5 = oldRamp(5);
 report(!(o5[2] / o5[0] < 0.5), 'control negativo: la rampa HSL antigua no se enrojece a 5° y esta prueba la rechazaría', f(o5));
+
+// The haze's lobe towards a low Sun (fogSun.js): nothing at 25° and above, warm and brighter at 5°.
+const fog = new THREE.Color().setHSL(0.58, 0.3, 0.5);
+const l30 = lobeTint(30, sunTint(30), fog), l5 = lobeTint(5, sunTint(5), fog);
+const at5 = [fog.r + l5[0], fog.g + l5[1], fog.b + l5[2]];
+report(l30.every((v) => v === 0) && at5[0] > fog.r * 1.3 && at5[0] / at5[2] > 1.2, 'niebla hacia el sol: sin lóbulo por encima de 25°, cálida y más clara a 5°', `a 5°, niebla ${f([fog.r, fog.g, fog.b])} → ${f(at5)}`);
+// The chunk patch: three.js's fog fragment still has the line it replaces, and the patch is applied.
+installFogSun();
+report(THREE.ShaderChunk.fog_fragment.includes('fogLit') && THREE.ShaderChunk.fog_vertex.includes('vFogDir') && THREE.ShaderLib.physical.uniforms.fogSunTint?.value instanceof Float32Array,
+  'el parche entra en los fragmentos de niebla de three.js y comparte sus uniformes por referencia');
 
 if (failed) { console.error(`\n${failed} comprobación(es) de la luz del sol fallan`); process.exit(1); }
 console.log('\nLuz del sol: todo correcto');
