@@ -774,3 +774,17 @@ vean igual de luminosos (`environment.js setToneMapping`). *Reset* y *Close* lo 
 Con Neutral el cielo recupera su azul, la carrocería blanca no se quema y el rojo es más fiel.
 
 ![Filmic (izquierda) y Neutral (derecha), misma vista y sol](auditoria-2026-11-08/tono-filmic-neutral.jpg)
+
+## 30. Refactor (§36): el modelo de trayectoria sale de `launch.js`
+
+`src/sim/launch.js` tenía 1860 líneas que mezclaban dos cosas: el modelo puro de la trayectoria
+(perfil integrado, fases, empuje por motor, hitos, captura del booster) y la escena (plumas,
+cámaras, hardware). El modelo pasa **sin cambiar una línea** a `src/sim/launchModel.js` (749
+líneas); `launch.js` (1127) importa lo que usa y lo reexporta (`export * from './launchModel.js'`),
+así que todo `import … from './launch.js'` sigue funcionando y las pruebas no cambian.
+
+Lo único que hubo que tocar es la prueba de sabotaje de `tools/cloud-check.mjs`: aplicaba sus
+mutaciones al texto de `launch.js`, y tres de ellas (`staging`, `shipmass`, `kink`) apuntan ahora a
+código de `launchModel.js`. El gancho reparte cada mutación a su archivo y, si el texto que espera
+ya no está, **falla** («mutation … not applied») en vez de dar por buena una mutación que no se
+aplicó. Las siete mutaciones se rechazan y `npm run check:static` termina con código 0.

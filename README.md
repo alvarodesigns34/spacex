@@ -493,7 +493,8 @@ src/materials/textures.js  texturas procedurales (Canvas 2D → color / rugosida
 src/materials/library.js   materiales PBR, compartidos para no duplicar mapas
 src/vehicles/*.js          constructores de cada vehículo y motores instanciados
 src/vehicles/pad.js        complejo de lanzamiento (Pad 2 de Starbase) a escala
-src/sim/launch.js          secuencia de lanzamiento: perfil integrado, planos y hardware
+src/sim/launch.js          secuencia de lanzamiento: escena (plumas, planos, cámaras y hardware)
+src/sim/launchModel.js     modelo puro de la trayectoria (perfil, fases, empuje, hitos), reexportado por launch.js
 src/sim/plume.js           penacho gobernado por la presión ambiente y nube de tierra
 src/sim/sound.js           sonido opcional del lanzamiento, retardado a la velocidad del sonido
 src/data/gt3rs.js          Porsche 911 GT3 RS (992): cada cifra con su fuente y su etiqueta

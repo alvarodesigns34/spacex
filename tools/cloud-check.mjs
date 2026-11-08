@@ -21,8 +21,15 @@ registerHooks({
       if (mutant === 'skip') { if (!source.includes('const cap = -vh / 60;')) throw new Error('skip mutation not applied'); source = source.replace('const cap = -vh / 60;', 'const cap = Infinity;'); }
       return { ...result, source };
     }
-    if (!mutant || !url.endsWith('/src/sim/launch.js')) return result;
+    // The scene's sequence is in launch.js, its trajectory model in launchModel.js (refactor of
+    // 8-11-2026): each mutation goes to the file that holds its code, and one that changes nothing
+    // is an error, so a later move cannot quietly disarm a sabotage.
+    const inScene = url.endsWith('/src/sim/launch.js'), inModel = url.endsWith('/src/sim/launchModel.js');
+    if (!mutant || !(inScene || inModel)) return result;
+    const MODEL_MUTANTS = ['staging', 'shipmass', 'kink'], SCENE_MUTANTS = ['random', 'frozen', 'speed'];
+    if (!(inModel ? MODEL_MUTANTS : SCENE_MUTANTS).includes(mutant)) return result;
     let source = String(result.source).replace(/\r\n/g, '\n');
+    const before = source;
     if (mutant === 'random') source = source.replace('cloud.reset(seeded(11))', 'cloud.reset()');
     // Both paths, seek() and update(): freezing only the first left playback live, so the
     // mutant was caught by playback ≠ seek rather than by the frozen cloud (audit, 08-10).
@@ -36,6 +43,7 @@ registerHooks({
     // The defect found in the 28-09 audit: the ship's acceleration fell while it burned.
     if (mutant === 'shipmass') source = source.replace('if (burning) m = Math.max(S.dry, m - thr * mdot * dt);', '');
     if (mutant === 'kink') source = source.replace('v0 * Math.sin(p0) + R * w0 * Math.cos(p0)', '0.55 * v0 * Math.sin(p0) + R * w0 * Math.cos(p0)');
+    if (source === before) throw new Error(`mutation ${mutant} not applied: its code is no longer where the check expects it`);
     return { ...result, source };
   },
 });
