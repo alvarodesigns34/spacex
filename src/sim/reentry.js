@@ -156,7 +156,7 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
     flaps.sort((a, b2) => a.y - b2.y || a.x - b2.x);
     flapTrails.forEach((ft, i) => { if (flaps[i]) ft.tip.copy(flaps[i]); ft.ok = !!flaps[i]; });
   }
-  const glow = new Glow({ color: 0xffd2a8, edge: 0xff6a2a, name: 'reentry-glow' });
+  const glow = new Glow({ color: 0xffd2a8, edge: 0xff6a2a, name: 'reentry-glow', ragged: 0 });
   holder.add(glow.mesh);
   // No lights of its own: a light appearing with the chapter changes every lit material's
   // shader and recompiles them all at once (the stall the launch avoids, launch.js). The heat

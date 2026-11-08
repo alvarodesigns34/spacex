@@ -495,3 +495,11 @@ diferencia no se aprecia: domina el halo, que desde detrás se lee como un estal
 en pico (el ruido de parpadeo en la silueta de una cápsula aditiva). Sin commit. La mejora de fondo
 es sustituir ese halo por un volumen de plasma pegado a la cara de barlovento (marchado, como las
 nubes), con la emisión de cada región; pendiente.
+
+**El halo en estallido (corregido, 8-11):** después de dos intentos sin efecto sobre la envoltura,
+el origen resultó ser otro: el halo de la reentrada es el `Glow` de la bola de la separación en
+caliente (`plume.js`), reutilizado, cuyo borde lleva a propósito lóbulos senoidales de 7 y 13
+picos («the ball boils»). Detrás de la nave dibujaban un estallido rojo. `Glow` acepta ahora una
+irregularidad (`ragged`): la separación conserva la suya (1); la reentrada, 0, un resplandor suave.
+
+![Halo de la reentrada: antes (izquierda) y después (derecha)](auditoria-2026-11-08/reentrada-halo-antes-despues.jpg)

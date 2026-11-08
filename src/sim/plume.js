@@ -700,13 +700,15 @@ const GLOW_VERT = /* glsl */`
   }`;
 const GLOW_FRAG = /* glsl */`
   uniform vec3 uColor, uEdge;
-  uniform float uIntensity, uTime;
+  uniform float uIntensity, uTime, uRagged;
   varying vec2 vUv;
   void main() {
     float r = length(vUv) * 2.0;
     float a = atan(vUv.y, vUv.x);
     // Ragged edge: lobes that turn with time, so the ball boils rather than sits as a disc.
-    float edge = 0.78 + 0.1 * sin(a * 7.0 + uTime * 5.0) + 0.07 * sin(a * 13.0 - uTime * 8.0);
+    // uRagged scales them: the hot-staging ball boils (1); the re-entry's glow round the hull is
+    // a smooth bloom of light (0), where the same lobes drew a red starburst behind the ship.
+    float edge = 0.78 + uRagged * (0.1 * sin(a * 7.0 + uTime * 5.0) + 0.07 * sin(a * 13.0 - uTime * 8.0));
     float k = 1.0 - smoothstep(0.0, edge, r);
     float core = exp(-r * r * 9.0);
     vec3 c = mix(uEdge, uColor, clamp(core * 1.4, 0.0, 1.0)) * (k * k + 2.5 * core);
@@ -716,10 +718,10 @@ const GLOW_FRAG = /* glsl */`
   }`;
 
 export class Glow {
-  constructor({ color = 0xfff1d6, edge = 0xff7a26, name = 'glow' } = {}) {
+  constructor({ color = 0xfff1d6, edge = 0xff7a26, name = 'glow', ragged = 1 } = {}) {
     const lin = (hex) => new THREE.Color(hex).convertSRGBToLinear();
     this.material = new THREE.ShaderMaterial({
-      uniforms: { uColor: { value: lin(color) }, uEdge: { value: lin(edge) }, uIntensity: { value: 0 }, uSize: { value: 1 }, uTime: { value: 0 } },
+      uniforms: { uColor: { value: lin(color) }, uEdge: { value: lin(edge) }, uIntensity: { value: 0 }, uSize: { value: 1 }, uTime: { value: 0 }, uRagged: { value: ragged } },
       vertexShader: GLOW_VERT, fragmentShader: GLOW_FRAG,
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     });
