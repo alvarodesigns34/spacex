@@ -299,3 +299,19 @@ acumulación temporal); alguna cima aún algo aguda; el plano lejano corta lo qu
 **Coste no medido** en hardware real: 32 pasos con ruido 2D y 3D por píxel de cielo, más tres de luz
 donde hay nube. Si en la RTX 3070 del usuario no cabe, la vía es bajar los pasos del nivel alto o
 pasar a media resolución con reproyección; el nivel bajo no cambia.
+
+**Correcciones tras el check completo (misma sesión):**
+- **Defecto del bloque 2b encontrado por `check:cache`** («el Sol sube a 55°: mapa de sombras
+  idéntico», 87 886 bytes distintos): la captura de la sonda local renderiza la escena con Starship
+  oculto, y si el mapa de sombras se redibujaba en ese momento quedaba guardado sin su sombra hasta
+  la siguiente invalidación. Ahora la captura congela el mapa de sombras (`autoUpdate` y
+  `needsUpdate` guardados y restaurados). `check:cache` vuelve a verde.
+- **Escena e interfaz agotaban el tiempo** con las nubes nuevas, incluso con 6 pasos: con un bucle de
+  longitud constante, SwiftShader desenrollaba el marcado completo y tardaba minutos en compilar el
+  sombreador al cargar. Ahora los pasos son un uniforme (`uSteps`, bucle dinámico de GLSL ES 3.0):
+  no se desenrolla y se pueden cambiar en vivo (`__vc.env.clouds.steps = 16`), lo que deja la puerta
+  abierta a una calidad adaptativa sin recompilar. Bajo automatización (`navigator.webdriver`) se
+  usan 6 pasos salvo `?clouds=full`, para que las pruebas sigan dibujando el volumen sin minutos por
+  fotograma. Con esto `tools/check.mjs` y `tools/ux-check.mjs` pasan (escena 8 min 45 s, interfaz
+  33 min en este contenedor).
+- Check completo en verde por partes: estáticas, escena, interfaz, LOD, cachés y Cybertruck Lab.

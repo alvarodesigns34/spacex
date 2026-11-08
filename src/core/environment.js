@@ -328,7 +328,13 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   scene.background = new THREE.Color(0x03050b);
   sky.renderOrder = -2;          // drawn first; the cloud layer goes over it
   scene.add(sky);
-  const clouds = createClouds(scene, { mode: quality.cloudSteps ? 'volume' : 'layer', steps: quality.cloudSteps ?? 0 });
+  // Under automation (the checks drive a software renderer at the high tier) the march is cut
+  // to a few steps, so the shader is still compiled and drawn but a frame does not take minutes;
+  // ?clouds=full asks for the tier's own count. Visitors get the tier's.
+  const automated = typeof navigator !== 'undefined' && navigator.webdriver
+    && !(typeof location !== 'undefined' && /[?&]clouds=full\b/.test(location.search));
+  const cloudSteps = automated ? Math.min(quality.cloudSteps ?? 0, 6) : (quality.cloudSteps ?? 0);
+  const clouds = createClouds(scene, { mode: cloudSteps ? 'volume' : 'layer', steps: cloudSteps });
 
   // --- Environment map for reflections: a private scene with the same sky + a ground disc ---
   const pmrem = new THREE.PMREMGenerator(renderer);

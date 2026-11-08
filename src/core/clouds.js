@@ -68,7 +68,8 @@ const LAYER_MAIN = /* glsl */`
     gl_FragColor = vec4(col, cover * horizon * uFade * 0.92);
   }`;
 
-const VOLUME_MAIN = (steps) => /* glsl */`
+const VOLUME_MAIN = /* glsl */`
+  uniform int uSteps;
   float h3(float k) { return fract(sin(k) * 43758.5453); }
   float n3(vec3 p) {
     vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -100,14 +101,16 @@ const VOLUME_MAIN = (steps) => /* glsl */`
     else { t0 = 0.0; t1 = d.y > 0.004 ? (T - o.y) / d.y : d.y < -0.004 ? (B - o.y) / d.y : 40000.0; }
     if (t0 > 40000.0) discard;
     t1 = min(t1, t0 + 16000.0);
-    float dt = (t1 - t0) / ${steps.toFixed(1)};
+    float dt = (t1 - t0) / float(uSteps);
     float t = t0 + dt * h(gl_FragCoord.xy * 0.37 + 0.13);
     vec3 sun = normalize(uSun);
     float mu = dot(d, sun);
     float phase = mix(hg(mu, 0.55), hg(mu, -0.2), 0.3);
     float Tr = 1.0, hit = -1.0;
     vec3 L = vec3(0.0);
-    for (int i = 0; i < ${steps}; i++) {
+    // A loop bound by a uniform: the compiler cannot unroll it (unrolled, the march took a
+    // software renderer minutes to compile), and the count can change without a recompile.
+    for (int i = 0; i < uSteps; i++) {
       vec3 p = o + d * t;
       float c = coverAt(p.xz, 4);
       if (c > uCover) {
@@ -155,6 +158,7 @@ export function createClouds(scene, { mode = 'volume', steps = 32 } = {}) {
     uCover: { value: 0.53 },
     uSunColor: { value: new THREE.Color(1, 0.97, 0.92) },
     uShade: { value: new THREE.Color(0.66, 0.70, 0.77) },
+    uSteps: { value: Math.max(1, steps) },
   };
   const make = (m) => new THREE.ShaderMaterial({
     uniforms,
@@ -174,7 +178,7 @@ export function createClouds(scene, { mode = 'volume', steps = 32 } = {}) {
       uniform float uLight, uFade, uCover;
       varying vec3 vDir;
       ${COVER_GLSL}
-      ${m === 'volume' ? VOLUME_MAIN(steps) : LAYER_MAIN}`,
+      ${m === 'volume' ? VOLUME_MAIN : LAYER_MAIN}`,
   });
   const materials = { volume: make('volume'), layer: make('layer') };
   const dome = new THREE.Mesh(new THREE.SphereGeometry(RADIUS, 48, 24), materials[mode === 'layer' ? 'layer' : 'volume']);
@@ -189,6 +193,9 @@ export function createClouds(scene, { mode = 'volume', steps = 32 } = {}) {
     get mode() { return current; },
     /** Switch between the two ways (console: __vc.env.clouds.setMode('layer')). */
     setMode(m) { current = m === 'layer' ? 'layer' : 'volume'; dome.material = materials[current]; },
+    /** Samples per ray in 'volume', changed live (no recompile). */
+    get steps() { return uniforms.uSteps.value; },
+    set steps(n) { uniforms.uSteps.value = Math.max(1, Math.round(n)); },
     follow(camera) { dome.position.copy(camera.position); },
     /**
      * @param sunDir unit vector; night 0..1; altitude m; visible false in the orbital view;

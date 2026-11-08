@@ -56,6 +56,10 @@ export function createLocalProbes(renderer, scene, { size = 256, delay = 250 } =
 
   function captureNow(env, camera) {
     timer = 0;
+    // The shadow map must not be redrawn while the vehicle is hidden: drawn now, it would keep the
+    // vehicle's shadow out until the shadow cache next asks for a redraw (core/shadowCache.js).
+    const sm = renderer.shadowMap, auto = sm.autoUpdate, need = sm.needsUpdate;
+    sm.autoUpdate = false; sm.needsUpdate = false;
     for (const p of probes) {
       const was = p.target.visible;
       p.target.visible = false;
@@ -66,6 +70,7 @@ export function createLocalProbes(renderer, scene, { size = 256, delay = 250 } =
       p.map?.dispose();
       p.map = pmrem.fromCubemap(p.rt.texture);
     }
+    sm.autoUpdate = auto; sm.needsUpdate = need;
     if (camera) env.followCamera(camera);
   }
 
