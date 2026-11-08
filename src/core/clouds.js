@@ -25,6 +25,7 @@
  * densities and the optical constants are chosen to look like cumulus, not measured (≈).
  */
 import * as THREE from 'three';
+import { sunTint } from './sunlight.js';
 
 const BASE = 1400;     // cloud base above the ground, m
 const TOP = 2600;      // highest cloud tops, m (≈)
@@ -255,8 +256,8 @@ ${SHADOW_COVER_GLSL}`)
     update(sunDir, night, altitude, visible = true, flight = false) {
       uniforms.uSun.value.copy(sunDir);
       uniforms.uLight.value = 1 - night;
-      const warm = Math.pow(1 - THREE.MathUtils.clamp(sunDir.y / 0.5, 0, 1), 3);
-      uniforms.uSunColor.value.setRGB(1, 0.97 - 0.12 * warm, 0.92 - 0.25 * warm);
+      // The same sunlight as the scene's (sunlight.js), not a warmth ramp of its own.
+      uniforms.uSunColor.value.setRGB(...sunTint(THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(sunDir.y, -1, 1)))));
       // A flat layer 1.4 km up cannot be seen from below once the camera has climbed through
       // it; the volume can, in flight. The launch keeps the old fade (its camera and its
       // stretched ground are not a flight's).

@@ -938,3 +938,45 @@ calor se aplicaba a los originales de `M`, que la nave ya no lleva.
     lee sobre todo por las sombras largas. Es parte del trabajo pendiente de atmósfera y exposición.
 - **Nada más roto:** materiales, escala, encuadres, la Tierra orbital genérica, el mar con el
   reflejo del sol por la mañana y la costa.
+
+## 35. La luz del sol, de la física y no de una rampa a ojo (§3, atmósfera)
+
+**Antes:** el color del sol de la escena salía de una rampa HSL elegida a ojo, y el de las nubes de
+otra. A 5° daban (1, 0,94, 0,88) y (1, 0,90, 0,78): un melocotón pálido. Es la causa directa de
+lo que la matriz mostró (§34): el atardecer apenas se enrojecía.
+
+**Ahora (`src/core/sunlight.js`, compartido por el sol y las nubes):**
+- Transmitancia directa por canal, exp(−τ·m), a 650, 550 y 450 nm.
+  - Rayleigh: Bodhaine et al. (1999), 0,049 / 0,097 / 0,221.
+  - Aerosol: Ångström, α = 1,3 y β = 0,05 (≈ un día claro de costa; el de Starbase no está medido).
+  - Masa de aire: Kasten y Young (1989); 1 en el cenit, ≈38 en el horizonte.
+- Balance de blancos que sigue a la luz el 60 % del camino (≈), contra un sol de referencia a 50°.
+- La rampa sigue fijando el brillo; solo cambia el tono.
+
+| Elevación | 4° | 5° | 8° | 12° | 20° (por defecto) | 42° | 65° |
+|---|---|---|---|---|---|---|---|
+| R G B | 1 · 0,74 · 0,37 | 1 · 0,78 · 0,44 | 1 · 0,86 · 0,61 | 1 · 0,91 · 0,74 | 1 · 0,96 · 0,87 | 1 · 0,99 · 0,98 | 0,98 · 0,99 · 1 |
+
+**Medido en capturas (antes → después, media de píxeles, proporción rojo/azul):**
+
+| Escena | Antes | Después | Cambio |
+|---|---|---|---|
+| Recinto a 5°, mitad inferior (suelo) | 1,003 | 1,039 | +3,6 % |
+| Porsche a 5° | 0,845 | 0,883 | +4,5 % |
+| Cielo y nubes a 5° | 0,951 | 0,961 | +1 % |
+| Recinto a 20°, el sol por defecto | 1,046 | 1,058 | +1,1 % |
+
+**Lectura honesta:**
+- El cambio es correcto, pero **pequeño a la vista**: a 5° el sol directo da poco sobre el suelo
+  (sen 5° ≈ 0,09), y casi toda la luz viene del cielo (sonda y hemisferio), que no cambia.
+- Un atardecer que se lea dorado necesitará también la luz del cielo y la niebla en la dirección
+  del sol. Queda en el pendiente de atmósfera, sin inventar una «hora dorada» que la física de la
+  escena no dé.
+- La calibración de los materiales a 20° se mueve un 1 %.
+
+**Prueba:** `tools/sunlight-check.mjs` (en `check:static`). Comprueba:
+- el espesor de Rayleigh a 550 nm contra Bodhaine;
+- la masa de aire en el cenit, a 30° y en el horizonte;
+- que la transmitancia cae, y el azul más deprisa;
+- 5° dorado, 20° casi neutro y 65° sin tinte;
+- un control negativo: la rampa antigua, recalculada, no pasaría.

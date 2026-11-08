@@ -11,6 +11,7 @@ import { buildOuterGround, OUTER } from './outerGround.js';
 import { WATERLINE, SEA_LEVEL, WAVES, oceanGLSL, offshoreGLSL, oceanPhases, shoreSamples, SHORE_TABLE } from './ocean.js';
 import { WAVE_TIME } from '../materials/library.js';
 import { shoreZ, seaward, fromCoast, terrainHeight, thicket, marsh, poolDepth } from './terrain.js';
+import { sunTint } from './sunlight.js';
 
 /**
  * The Gulf shore. Starbase stands on the coast at Boca Chica, and the plain runs out into a
@@ -713,6 +714,13 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     // stays neutral enough that steel, paint and aluminium separate by roughness.
     const warmth = Math.pow(1 - t, 3.4);
     sun.color.setHSL(0.09, 0.04 + 0.28 * warmth, THREE.MathUtils.lerp(0.74, 0.98, Math.pow(t, 0.55)));
+    // Its hue from the air the beam crosses (sunlight.js: Rayleigh and aerosol over the air mass,
+    // white balance following part of the way); the ramp above keeps setting its brightness.
+    {
+      const lum = 0.2126 * sun.color.r + 0.7152 * sun.color.g + 0.0722 * sun.color.b;
+      const [r, g, b] = sunTint(elev), lt = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      sun.color.setRGB(r * lum / lt, g * lum / lt, b * lum / lt);
+    }
     // Key against fill. With the sky probe almost as strong as the sun, the side of a vehicle
     // turned away from the light barely darkened and every view read flat and hazy; in the
     // photographs of the site the sun cuts hard. Sun up ~12 %, probe down ~22 %, below.
