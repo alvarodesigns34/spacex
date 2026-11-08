@@ -685,7 +685,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   // Now the three are inputs, and this function is the only writer. It is pure in the sense
   // that matters: called twice with the same inputs it produces the same scene.
   const air = { elev: 42, azim: 34, altitude: 0, flight: false };
-  let evBias = 0;
+  let evBias = 0, tmScale = 1, tmKind = 'filmic';
   const SKY_GROUND = { turbidity: 2.8, rayleigh: 1.15, mie: 0.0016 };
   const _nightHemi = new THREE.Color(0x2c3d5e), _nightFog = new THREE.Color(0x070a12);
 
@@ -732,7 +732,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     // (at most 15 %) so evening light stays evening light rather than being metered to noon.
     const irr = (e) => THREE.MathUtils.lerp(1.35, 2.8, Math.pow(THREE.MathUtils.clamp(e / 60, 0, 1), 0.55)) * Math.sin(THREE.MathUtils.degToRad(e)) + 0.6;
     // The photo mode's exposure compensation (ui/photoMode.js), in stops, on top of the metering.
-    renderer.toneMappingExposure = BASE_EXPOSURE * THREE.MathUtils.clamp(Math.sqrt(irr(20) / irr(elev)), 0.6, 1.15) * Math.pow(2, evBias);
+    renderer.toneMappingExposure = BASE_EXPOSURE * THREE.MathUtils.clamp(Math.sqrt(irr(20) / irr(elev)), 0.6, 1.15) * Math.pow(2, evBias) * tmScale;
 
     // Scattering: the two blends multiply. Everything is computed from the ground constants,
     // never read back out of the uniforms — reading and multiplying compounds on every call.
@@ -807,6 +807,17 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   function shadeUnderClouds(root) {
     if (!cloudShadows) return;
     root.traverse((o) => { if (o.isMesh) for (const m of Array.isArray(o.material) ? o.material : [o.material]) clouds.applyShadow(m); });
+  }
+  /**
+   * 'filmic' (ACES, the scene's own: contrast and saturation, a cinematic picture) or 'neutral'
+   * (Khronos PBR Neutral: materials' colours as they are, for inspecting them). ACES divides the
+   * exposure by 0,6 inside; Neutral gets that factor here so the two are equally bright.
+   */
+  function setToneMapping(kind) {
+    tmKind = kind === 'neutral' ? 'neutral' : 'filmic';
+    renderer.toneMapping = tmKind === 'neutral' ? THREE.NeutralToneMapping : THREE.ACESFilmicToneMapping;
+    tmScale = tmKind === 'neutral' ? 1 / 0.6 : 1;
+    applyAtmosphere();
   }
   /** Exposure compensation in stops (the photo mode's); 0 is the metering alone. */
   function setExposureBias(ev) { evBias = THREE.MathUtils.clamp(ev, -3, 3); applyAtmosphere(); }
@@ -911,7 +922,8 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   return {
     // Run whenever the shared probe is rebuilt (localProbes.js).
     set onProbe(f) { onProbe = f; },
-    sun, sky, hemi, ground, outer, clouds, get seaPatch() { return seaPatch; }, ocean: oceanU, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation, rebuildProbe, setProbeGround, setExposureBias, shadeUnderClouds,
+    sun, sky, hemi, ground, outer, clouds, get seaPatch() { return seaPatch; }, ocean: oceanU, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation, rebuildProbe, setProbeGround, setExposureBias, shadeUnderClouds, setToneMapping,
+    get toneMappingKind() { return tmKind; },
     get exposureBias() { return evBias; }, get sunAngles() { return { elev: air.elev, azim: air.azim }; },
     SUN_MIN, SUN_MAX, get night() { return nightK; },
     get inSpace() { return inSpace; }, get sunDir() { return sunDir; },

@@ -1,7 +1,7 @@
 /**
  * Photo mode (key O): frame a picture and save it, then put everything back exactly.
  *
- * What it changes, and nothing else: the camera's field of view (in the free cameras only: the
+ * What it changes, and nothing else: the tone mapping (filmic or neutral), the camera's field of view (in the free cameras only: the
  * drives and the rides own theirs), the exposure compensation in stops on top of the metering
  * (environment.js setExposureBias), the Sun's elevation and azimuth (environment.js setSun, the
  * same path as the Sun slider), and whether the interface shows. Every value is read when the
@@ -30,6 +30,7 @@ export function createPhotoMode({ env, camera, rig, hud, requestShot, onClose })
       <input type="range" id="ph-el" step="1"></label>
     <label class="photo-row">Sun azimuth <output id="ph-az-v"></output>
       <input type="range" id="ph-az" min="0" max="359" step="1"></label>
+    <label class="photo-row">Tone <select id="ph-tone"><option value="filmic">Filmic (cinematic)</option><option value="neutral">Neutral (inspection)</option></select></label>
     <label class="photo-check"><input type="checkbox" id="ph-ui"> Hide interface</label>
     <div class="photo-btns">
       <button type="button" class="tool-btn" id="ph-save">Save PNG</button>
@@ -39,7 +40,7 @@ export function createPhotoMode({ env, camera, rig, hud, requestShot, onClose })
     <p class="photo-note">Free cameras only for the field of view. No depth of field or motion blur.</p>`;
   document.body.append(root);
   const $ = (id) => root.querySelector(`#${id}`);
-  const fov = $('ph-fov'), ev = $('ph-ev'), el = $('ph-el'), az = $('ph-az'), ui = $('ph-ui');
+  const fov = $('ph-fov'), ev = $('ph-ev'), el = $('ph-el'), az = $('ph-az'), ui = $('ph-ui'), tone = $('ph-tone');
   el.min = String(env.SUN_MIN); el.max = String(env.SUN_MAX);
 
   let open = false, saved = null;
@@ -55,6 +56,7 @@ export function createPhotoMode({ env, camera, rig, hud, requestShot, onClose })
   function apply() {
     if (fovFree()) { camera.fov = Number(fov.value); camera.updateProjectionMatrix(); }
     env.setExposureBias(Number(ev.value));
+    if (env.toneMappingKind !== tone.value) env.setToneMapping(tone.value);
     env.setSun(Number(el.value), Number(az.value));
     const slider = document.getElementById('sun');
     if (slider) slider.value = String(Math.round(Number(el.value)));
@@ -66,13 +68,13 @@ export function createPhotoMode({ env, camera, rig, hud, requestShot, onClose })
     document.body.classList.toggle('photo-ui-off', on);
   }
   function load(v) {
-    fov.value = String(v.fov); ev.value = String(v.ev); el.value = String(v.elev); az.value = String(v.azim);
+    fov.value = String(v.fov); ev.value = String(v.ev); el.value = String(v.elev); az.value = String(v.azim); tone.value = v.tone;
   }
 
   function openMode() {
     if (open) return;
     const sun = env.sunAngles;
-    saved = { fov: camera.fov, ev: env.exposureBias, elev: sun.elev, azim: ((sun.azim % 360) + 360) % 360 };
+    saved = { fov: camera.fov, ev: env.exposureBias, elev: sun.elev, azim: ((sun.azim % 360) + 360) % 360, tone: env.toneMappingKind };
     load(saved);
     fov.disabled = !fovFree();
     open = true;
@@ -97,6 +99,7 @@ export function createPhotoMode({ env, camera, rig, hud, requestShot, onClose })
   }
 
   for (const input of [fov, ev, el, az]) input.addEventListener('input', apply);
+  tone.addEventListener('change', apply);
   ui.addEventListener('change', () => setHidden(ui.checked));
   $('ph-reset').addEventListener('click', reset);
   $('ph-close').addEventListener('click', close);

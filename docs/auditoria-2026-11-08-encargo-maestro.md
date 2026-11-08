@@ -763,3 +763,14 @@ programas compilados, tras arrancar y detener tres veces cada secuencia (calidad
 Nada crece de un ciclo al siguiente: el único aumento es el primero de cada cosa (programas que se
 compilan la primera vez que se dibujan; las marcas y el humo del Porsche, creados al conducirlo), y
 después se mantiene. Los cambios de sol no acumulan (las sondas liberan su mapa al rehacerse).
+
+## 29. Exposición cinematográfica frente a neutral (§7)
+
+La escena usa ACES Filmic (contraste y saturación de cine; desplaza algo los tonos y quema los
+blancos antes). El modo fotográfico (**O**) ofrece ahora **Tone: Filmic (cinematic)** o **Neutral
+(inspection)** — Khronos PBR Neutral, de three r170, pensado para ver los colores de los materiales
+tal como son —, con la exposición compensada (ACES divide entre 0,6 por dentro) para que ambos se
+vean igual de luminosos (`environment.js setToneMapping`). *Reset* y *Close* lo devuelven también.
+Con Neutral el cielo recupera su azul, la carrocería blanca no se quema y el rojo es más fiel.
+
+![Filmic (izquierda) y Neutral (derecha), misma vista y sol](auditoria-2026-11-08/tono-filmic-neutral.jpg)

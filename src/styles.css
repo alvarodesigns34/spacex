@@ -575,3 +575,4 @@ body.photo-ui-off .photo:hover, body.photo-ui-off .photo:focus-within { opacity:
 .help-sound-row { display: flex; gap: 8px; align-items: center; }
 .help-sound-row input[type="range"] { flex: 1; max-width: 180px; }
 .help-sound-row output { font-variant-numeric: tabular-nums; min-width: 3.5em; }
+.photo-row select { grid-column: 1 / -1; width: 100%; background: #1d2026; color: inherit; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 3px 4px; }
