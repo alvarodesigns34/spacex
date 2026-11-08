@@ -68,7 +68,9 @@ page.on('console', m => {
   if (!/fonts\.(googleapis|gstatic)/.test(w)) console.log('CONSOLE', w);
 });
 
-const q = await bootAtQuality(page, `http://127.0.0.1:${PORT}/`, TIER);
+// ?clouds=full: the documentation shows the tier's own cloud march, not the few steps the checks
+// run under automation (environment.js).
+const q = await bootAtQuality(page, `http://127.0.0.1:${PORT}/?clouds=full`, TIER);
 console.log(`quality ${q.name} (forced) · sun ${SUN}° unless a shot overrides it`);
 
 const shots = JSON.parse(await readFile(manifest, 'utf8'));
