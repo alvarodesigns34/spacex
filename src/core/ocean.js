@@ -112,9 +112,10 @@ const PH = new Float64Array(WAVES.length);
  * The surface point that rests at (x0, z0): its displacement and normal at time t. `spacing` is
  * the drawing mesh's vertex spacing (0: every wave, the physics' case), `amp` an extra scale.
  */
-export function displace(x0, z0, t, out = {}, spacing = 0, amp = 1) {
+export function displace(x0, z0, t, out = {}, spacing = 0, amp = 1, open = false) {
   for (let i = 0; i < WAVES.length; i++) { const p = (WAVES[i].omega * t) % (2 * Math.PI); PH[i] = p; }
-  const e = envelope(offshore(x0, z0)) * amp;
+  // `open`: the open ocean (the re-entry's northern Pacific), no coast anywhere, no shore envelope.
+  const e = (open ? 1 : envelope(offshore(x0, z0))) * amp;
   let ox = 0, oy = 0, oz = 0, nx = 0, ny = 1, nz = 0;
   for (let i = 0; i < WAVES.length; i++) {
     const w = WAVES[i];
@@ -141,6 +142,19 @@ export function oceanHeight(x, z, t = OCEAN_CLOCK.value, iters = 4) {
   return displace(x0, z0, t, _d).y;
 }
 
+/**
+ * The open ocean of the re-entry chapter (sim/reentry.js): the same six waves with no coast, scaled
+ * by OPEN_SEA_AMP. ≈ — a moderate open-ocean sea (Hs ≈ 1.6 m, chosen as plausible for the northern
+ * Pacific, not a measurement of the splashdown's sea state, which is not published).
+ */
+export const OPEN_SEA_AMP = 1.8;
+/** Height of the open sea at (x, z) in the ocean's own frame, time t, m (as oceanHeight). */
+export function openOceanHeight(x, z, t, iters = 4) {
+  let x0 = x, z0 = z;
+  for (let i = 0; i < iters; i++) { displace(x0, z0, t, _d, 0, OPEN_SEA_AMP, true); x0 = x - _d.x; z0 = z - _d.z; }
+  return displace(x0, z0, t, _d, 0, OPEN_SEA_AMP, true).y;
+}
+
 const f = (v) => {
   const s = Number(v).toPrecision(9);
   return s.includes('.') || s.includes('e') ? s : `${s}.0`;
@@ -165,7 +179,7 @@ float ${name}(vec2 p) {
  * vcOffshore(p), vcEnvelope(d), vcOcean(p, spacing, amp, out n) mirroring offshore, envelope and
  * displace above (p = world (x, z)).
  */
-export function oceanGLSL() {
+export function oceanGLSL({ open = false } = {}) {
   const waves = WAVES.map((w, i) => `
   {
     float A = ${f(w.a)} * e * (1.0 - smoothstep(${f(w.lambda / 8)}, ${f(w.lambda / 4)}, spacing));
@@ -174,6 +188,16 @@ export function oceanGLSL() {
     o.x += ${f(w.q * w.dx)} * A * c; o.z += ${f(w.q * w.dz)} * A * c; o.y += A * s;
     nn.x -= ${f(w.dx * w.k)} * A * c; nn.z -= ${f(w.dz * w.k)} * A * c; nn.y -= ${f(w.q * w.k)} * A * s;
   }`).join('');
+  if (open) {
+    return `
+uniform float uOceanPhase[${WAVES.length}];
+vec3 vcOcean(vec2 p, float spacing, float amp, out vec3 n) {
+  float e = amp;
+  vec3 o = vec3(0.0), nn = vec3(0.0, 1.0, 0.0);${waves}
+  n = normalize(nn);
+  return o;
+}`;
+  }
   return `
 uniform float uOceanPhase[${WAVES.length}];
 ${offshoreGLSL('vcOffshore')}

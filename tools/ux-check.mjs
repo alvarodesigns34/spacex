@@ -591,8 +591,10 @@ try {
     await page.evaluate(() => window.__vc.reentry.seek(35440));
     // The launch's reset with nothing launched (a shot, a key) must not tell the view the vehicle
     // is back on its mount while the re-entry runs: the pad's callouts came back over the Pacific.
-    const kept = await page.evaluate(() => { const v = window.__vc; v.launch.reset(false); return { flying: v.view.flying, running: v.reentry.running, pad: v.scene.getObjectByName('labels-pad').visible }; });
-    report(kept.flying && kept.running && !kept.pad, 'A launch reset during the re-entry keeps the vehicle flying and the pad callouts away', kept);
+    // Nor take the borrowed ship back to its height on the booster: it floated ≈70 m over the sea
+    // at the splash (8-11-2026). The ship's engines stay at the re-entry mount's origin.
+    const kept = await page.evaluate(() => { const v = window.__vc; v.launch.reset(false); return { flying: v.view.flying, running: v.reentry.running, pad: v.scene.getObjectByName('labels-pad').visible, shipY: v.scene.getObjectByName('reentry-ship').getObjectByName('ship').position.y }; });
+    report(kept.flying && kept.running && !kept.pad && kept.shipY === 0, 'A launch reset during the re-entry keeps the vehicle flying, the pad callouts away and the ship on its mount', kept);
 
     // A drag takes the camera: the scripted shot stops writing it and the orbit rides the ship.
     await page.evaluate(() => { const v = window.__vc; v.reentry.setFollow('director'); v.reentry.seek(35000); v.reentry.setSpeed(1); v.reentry.setPaused(false); });

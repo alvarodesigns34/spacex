@@ -6,8 +6,9 @@
  * desktop GPU that is comfortable. On a phone it is not, and the failure mode is not a
  * stutter — it is a blank screen and a killed tab.
  *
- * So the renderer's settings come from a tier picked once, at start-up, from what the device
- * actually reports rather than from a user-agent string. Three tiers, deliberately coarse:
+ * Three tiers, deliberately coarse. Since 8-11-2026 (the user's rule: never lower the quality to
+ * gain speed) the centre always starts at `high`; the other two exist only for ?quality=medium|low
+ * (testing a cheaper path on purpose) and the device probe is reported, not applied:
  *
  *   high    a discrete or desktop-class GPU with room to spare
  *   medium  a capable laptop or tablet: full geometry, cheaper shadows and pixels
@@ -61,11 +62,14 @@ const TIERS = {
     // Ambient occlusion: a second full-scene pass for the G-buffer plus two screen passes.
     ao: true,
     msaa: 4,
-    // Metres of object per screen pixel at which detail is dropped. Lower is greedier.
-    lodPixels: 3.5,
+    // Pixels below which a level-of-detail entry drops its detail. 0 = never: the user's rule of
+    // 8-11-2026 (no detail lost for speed in the normal mode) — every vehicle is drawn in full at
+    // every distance. The reduced tiers keep their thresholds; they are only used when asked for.
+    lodPixels: 0,
     cloudParticles: 1600,
-    // Samples per view ray through the cumulus (clouds.js); 0 keeps the flat layer.
-    cloudSteps: 32,
+    // Most iterations per view ray through the cumulus (clouds.js: long steps through empty air,
+    // short ones, 18–70 m, inside cloud); 0 keeps the flat layer. 32 equal steps until 8-11-2026.
+    cloudSteps: 256,
     anisotropy: 16,
   },
   medium: {
@@ -79,7 +83,7 @@ const TIERS = {
     // The cloud grew (bigger, longer-lived puffs); on the mid tier the count rises only a
     // little, since fill rate, not count, is what a full-screen transparent cloud costs.
     cloudParticles: 640,
-    cloudSteps: 20,
+    cloudSteps: 120,
     anisotropy: 8,
   },
   low: {
@@ -104,21 +108,22 @@ const TIERS = {
  */
 export function pickQuality(renderer, force = null) {
   const info = probe(renderer);
-  let name = 'high';
-
-  if (info.touch) name = 'medium';
+  // Always the full tier unless one is asked for (?quality=). Until 8-11-2026 the probe below
+  // demoted phones, software renderers and small-memory devices to `medium` or `low` on its own;
+  // the user's rule of that day is maximum quality by default and no automatic reduction, so what
+  // it would have picked is only reported (tier.suggested, the technical panel), never applied.
+  let suggested = 'high';
+  if (info.touch) suggested = 'medium';
   // SwiftShader and llvmpipe are CPU rasterisers: whatever else the device has, the GPU path
   // is not being used and nothing here will be fast.
-  if (/swiftshader|llvmpipe|software|basic render/i.test(info.renderer)) name = 'low';
-  else if (/mali-[gt]?[0-5]\d\b|adreno \(tm\) [1-5]\d\d\b|powervr/i.test(info.renderer)) name = 'low';
-  if (info.memory !== null && info.memory <= 4) name = 'low';
-  if (info.threads <= 4 && info.touch) name = 'low';
-  // A large window on a weak device is the expensive combination, because cost scales with
-  // pixels and the tier's pixelRatio has not been applied yet.
-  if (name === 'medium' && info.area > 2.2e6 && info.threads <= 6) name = 'low';
-  if (force && TIERS[force]) name = force;
+  if (/swiftshader|llvmpipe|software|basic render/i.test(info.renderer)) suggested = 'low';
+  else if (/mali-[gt]?[0-5]\d\b|adreno \(tm\) [1-5]\d\d\b|powervr/i.test(info.renderer)) suggested = 'low';
+  if (info.memory !== null && info.memory <= 4) suggested = 'low';
+  if (info.threads <= 4 && info.touch) suggested = 'low';
+  if (suggested === 'medium' && info.area > 2.2e6 && info.threads <= 6) suggested = 'low';
+  const name = force && TIERS[force] ? force : 'high';
 
-  const tier = { ...TIERS[name], forced: !!force && !!TIERS[force], probe: info };
+  const tier = { ...TIERS[name], forced: !!force && !!TIERS[force], suggested, probe: info };
   // Never ask for more than the hardware admits to.
   tier.shadowMap = Math.min(tier.shadowMap, info.maxTexture || tier.shadowMap);
   tier.pixelRatio = Math.min(tier.pixelRatio, info.dpr);

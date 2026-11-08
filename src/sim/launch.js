@@ -47,6 +47,12 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   const booster = ex.model.getObjectByName('superheavy');
   const ship = ex.model.getObjectByName('ship');
   const shipHome = ship.position.y;
+  // The re-entry borrows the ship (sim/reentry.js start(): it re-parents it to its own mount, engines
+  // at the origin). A reset of the launch while it is borrowed — reset() runs whether or not the
+  // launch is running — put it back 71.9 m up inside the re-entry's mount: the ship floated ≈70 m over
+  // the sea at the splash, in the gallery's capture too (found 8-11-2026). Only the launch's own.
+  const shipParent = ship.parent;
+  const shipToStack = () => { if (ship.parent === shipParent) ship.position.y = shipHome; };
   const parts = complex.userData.parts;
 
   // The booster flies its own trajectory after staging — out to 95 km downrange and back to
@@ -860,7 +866,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     // accelerating) and the booster its integrated return (three engines off, gravity and a
     // little drag), so the gap between them opens on its own at their difference in
     // acceleration — about 11 m/s² — without a separate push that the panel knew nothing of.
-    ship.position.y = shipHome;
+    shipToStack();
 
     // The booster on its own trajectory. Up to separation it is exactly where the stack is;
     // after it, it flies the return. Its attitude is part of that trajectory, so nothing here
@@ -1024,7 +1030,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
     rig.releaseExternal();
     flight.position.set(0, 0, 0);
     flight.rotation.z = 0;
-    ship.position.y = shipHome;
+    shipToStack();
     booster.rotation.z = 0;
     booster.position.x = 0;
     boosterPlume.setThrottle(0, 0);

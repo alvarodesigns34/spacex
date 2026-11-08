@@ -11,7 +11,7 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 
-const { heardAt, BOOM_T, Q_PEAK, dynamicPressureAt } = await import('../src/sim/reentrySound.js');
+const { heardAt, BOOM_T, Q_PEAK, dynamicPressureAt, TAU_MIN } = await import('../src/sim/reentrySound.js');
 const { RE, reentryState } = await import('../src/sim/reentryFlight.js');
 const { soundSpeedAt } = await import('../src/sim/launch.js');
 
@@ -29,6 +29,41 @@ for (const t of [RE.landingBurn - 30, RE.landingBurn + 2, RE.flip + 5, RE.splash
   }
 }
 report(worst < 2e-3, 'el sonido llega cuando debe: τ + d(τ)/343 = t, cámaras a 50 m–3 km', `error máx. ${(worst * 1000).toFixed(2)} ms`);
+
+// 1b. Hypersonic, supersonic and through Mach 1 (external audit 8-11, finding 02: the old
+// fixed-point iteration returned τ ≈ −1,7 × 10¹⁷ s at entry + 300 s). Every answer is either a
+// root with a residual under 0,1 ms inside [TAU_MIN, t], or "not heard yet", which must then be
+// true: no emission on the span may already have arrived (checked by brute force, 0,05 s steps).
+{
+  const times = [RE.entry + 10, RE.entry + 300, RE.entry + 700, BOOM_T - 60, BOOM_T, RE.transonic, RE.subsonic, RE.landingBurn];
+  const cams = [{ x: 0, y: 2, z: 1000 }, { x: 0, y: 2, z: 30000 }, { x: 80000, y: 2, z: 0 }, { x: -50000, y: 2, z: 5000 }, { x: 0, y: 9000, z: 200 }, { x: 300, y: 40000, z: 0 }];
+  let bad = 0, roots = 0, silent = 0, worstR = 0, detail = '';
+  for (const t of times) for (const cam of cams) {
+    const h = heardAt(t, cam);
+    const s0 = reentryState(t).s;
+    const g = (tau) => { const s = reentryState(tau); return tau + Math.hypot(s.s - s0 - cam.x, s.h - cam.y, cam.z) / 343 - t; };
+    if (h.heard) {
+      roots++;
+      const r = Math.abs(g(h.tau));
+      worstR = Math.max(worstR, r);
+      // The latest root: nothing between it and t has arrived already.
+      let later = false;
+      for (let tau = h.tau + 0.05; tau <= t; tau += 0.05) if (g(tau) <= 0) { later = true; break; }
+      if (!(Number.isFinite(h.tau) && h.tau >= TAU_MIN && h.tau <= t && r < 1e-4 && Number.isFinite(h.d)) || later) { bad++; detail ||= `t=${t} cam=${JSON.stringify(cam)} τ=${h.tau}`; }
+    } else {
+      silent++;
+      let arrived = false;
+      for (let tau = TAU_MIN; tau <= t; tau += 0.05) if (g(tau) <= 0) { arrived = true; break; }
+      if (arrived || h.d !== Infinity) { bad++; detail ||= `t=${t} cam=${JSON.stringify(cam)}: dice que no se oye y sí llegó`; }
+    }
+  }
+  report(bad === 0 && roots > 0 && silent > 0, 'retardo con la nave hipersónica, supersónica y en Mach 1: raíz más reciente o «aún no llega», nunca divergente',
+    `${roots} raíces (residuo máx. ${(worstR * 1000).toFixed(3)} ms) · ${silent} casos sin llegar${detail ? ' · ' + detail : ''}`);
+  // Negative control: the audit's case under the old iteration must be caught by the same test.
+  const old = (t, cam) => { const s0 = reentryState(t).s; let tau = t; for (let k = 0; k < 12; k++) { const s = reentryState(tau); tau = t - Math.hypot(s.s - s0 - cam.x, s.h - cam.y, cam.z) / 343; } return tau; };
+  const o = old(RE.entry + 300, { x: 0, y: 2, z: 1000 });
+  report(!(o >= TAU_MIN), 'control negativo: la iteración antigua diverge en el caso de la auditoría', `τ = ${o.toExponential(2)} s`);
+}
 
 // 2. A camera on the ship hears it at once; one 3.43 km away, ten seconds late (the ship nearly still).
 const onShip = heardAt(RE.splash + 10, { x: 0, y: reentryState(RE.splash + 10).h, z: 0 });

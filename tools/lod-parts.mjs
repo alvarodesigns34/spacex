@@ -15,10 +15,13 @@
  * Negative control: hiding the same parts by hand at 12 m, where they are large on screen, is a
  * change the measurement must see — more than three times the limit — or the limit would prove nothing.
  *
- *   node tools/lod-parts.mjs [--quality high]
+ *   node tools/lod-parts.mjs [--quality medium]
  *
  * Part of `npm run check`. Reading the canvas back needs the render and the read in the same task
  * (the drawing buffer is cleared once presented), so it all runs inside the page, as lod-pop does.
+ *
+ * Since 8-11-2026 the full tier has no level of detail (core/quality.js, lodPixels 0: the user's
+ * rule of that day); this runs on the reduced tiers, `medium` by default, where the swaps remain.
  */
 import { createServer } from 'node:http';
 import { staticHandler } from './static.mjs';
@@ -48,7 +51,7 @@ const report = (ok, name, detail = '') => {
 try {
   const page = await (await browser.newContext({ viewport: { width: 640, height: 400 } })).newPage();
   page.on('pageerror', e => console.error('PAGEERROR', e.message));
-  await bootAtQuality(page, `http://127.0.0.1:${PORT}/`, argOf('--quality') ?? 'high');
+  await bootAtQuality(page, `http://127.0.0.1:${PORT}/`, argOf('--quality') ?? 'medium');
 
   const rows = await page.evaluate(async () => {
     const v = window.__vc;

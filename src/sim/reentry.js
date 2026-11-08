@@ -21,6 +21,7 @@ import * as THREE from 'three';
 import { Plume, Vapor, Glow, FlightEarth } from './plume.js';
 import { RE, CHAPTER, MILESTONES_RE, reentryState, reentryPitchAt, reentryEnginesAt, heatingAt, toSplashAt, densityAt } from './reentryFlight.js';
 import { sourceMaterial } from '../core/localProbes.js';
+import { WAVES, OPEN_SEA_AMP, oceanGLSL, oceanPhases, openOceanHeight } from '../core/ocean.js';
 
 // ---- Plasma ------------------------------------------------------------------------------
 const PLASMA_VERT = /* glsl */`
@@ -201,8 +202,41 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
 
   // The ocean round the splash point, and the steam and spray there.
   const ocean = new THREE.Group();
+  const _seaC = new THREE.Vector3();
   ocean.name = 'reentry-ocean';
   root.add(ocean);
+  // The open sea moves (8-11-2026; until then a flat disc with drifting normal maps, so the ship
+  // came down on a sheet of glass): the coast's six Gerstner waves (core/ocean.js) with no coast and
+  // OPEN_SEA_AMP (≈ Hs 1.6 m, chosen), on a polar grid that follows the camera, 3 km across, in the
+  // ocean's own frame — fixed to the water, so the splash point stays where it is in it — and the
+  // splash's own waves on top: a ring running out from where the ship came down and a second from
+  // the hull's slap (≈: the ring's speed is the foam's, a wave packet ≈1.3 m high fading over tens
+  // of seconds; not measured). The flat 300 km disc beyond it gives way inside the grid. The foam
+  // rides the same surface, and the hull floats on it.
+  const SEA_R = 3000, SEA_NS = 256;
+  const seaU = {
+    uOceanPhase: { value: new Float32Array(WAVES.length) }, uCenter: { value: new THREE.Vector2() },
+    uSeaR: { value: SEA_R }, uSeaSeg: { value: (2 * Math.PI) / SEA_NS }, uImpactAge: { value: -1 }, uSlapAge: { value: -1 },
+  };
+  const IMPACT_GLSL = /* glsl */`
+uniform float uImpactAge, uSlapAge;
+// A wave packet of height A at distance d from its source, age a (s): out at ≈5 m/s, spreading.
+float vcPacket(float d, float a, float A) {
+  float rf = 4.0 + 5.0 * a, w = 3.0 + 0.45 * a, q = (d - rf) / w;
+  return A * exp(-a / 14.0) * exp(-q * q) * cos((d - rf) * 0.55);
+}
+float vcImpactH(vec2 p) {
+  float h = 0.0;
+  if (uImpactAge > 0.0) h += vcPacket(length(p), uImpactAge, 1.3);
+  // The hull, 0–52 m along +x where it fell: a line source.
+  if (uSlapAge > 0.0) h += vcPacket(length(vec2(p.x - clamp(p.x, 0.0, 52.0), p.y)), uSlapAge, 1.0);
+  return h;
+}
+vec2 vcImpactG(vec2 p) {
+  const float e = 0.4;
+  return vec2(vcImpactH(p + vec2(e, 0.0)) - vcImpactH(p - vec2(e, 0.0)), vcImpactH(p + vec2(0.0, e)) - vcImpactH(p - vec2(0.0, e))) / (2.0 * e);
+}`;
+  const OPEN_GLSL = oceanGLSL({ open: true });
   {
     // 300 km across: below 15 km its edge is far out in the haze.
     const g = new THREE.CircleGeometry(300000, 128);
@@ -211,11 +245,76 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
     // Open ocean: deep blue, the Gulf's wave normals at a gentler slope. The coast's sea
     // material grades by distance offshore (an attribute this disc has no use for).
     const mat = new THREE.MeshStandardMaterial({ name: 'reentry-ocean', color: 0x0f3550, roughness: 0.12, metalness: 0, normalMap: M.water?.normalMap ?? null, normalScale: new THREE.Vector2(0.35, 0.35), envMapIntensity: 0.9 });
+    const waves = mat.clone();
+    waves.name = 'reentry-ocean-waves';
+    // The flat disc: nothing inside the moving grid.
+    mat.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, { uCenter: seaU.uCenter, uSeaR: seaU.uSeaR });
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vSeaO;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSeaO = vec2(position.x, -position.y);');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vSeaO;\nuniform vec2 uCenter; uniform float uSeaR;')
+        .replace('void main() {', 'void main() {\n  if (length(vSeaO - uCenter) < uSeaR * 0.995) discard;');
+    };
+    mat.customProgramCacheKey = () => 'reentry-sea-flat';
     const sea = new THREE.Mesh(g, mat);
     sea.rotation.x = -Math.PI / 2;
+    sea.position.y = -0.05;
     sea.name = 'reentry-sea';
     sea.receiveShadow = false;
     ocean.add(sea);
+
+    // The moving grid: rings 0.5 m apart under the camera, as long radially as they are wide further out.
+    const seg = (2 * Math.PI) / SEA_NS, rings = [];
+    for (let r = 0.5; r < SEA_R; r += Math.max(0.5, r * seg)) rings.push(r);
+    rings.push(SEA_R);
+    const pp = new Float32Array((1 + rings.length * SEA_NS) * 3), idx = [];
+    rings.forEach((r, j) => { for (let i = 0; i < SEA_NS; i++) { const k = 1 + j * SEA_NS + i, a = i * seg; pp[k * 3] = Math.cos(a) * r; pp[k * 3 + 2] = Math.sin(a) * r; } });
+    for (let i = 0; i < SEA_NS; i++) idx.push(0, 1 + ((i + 1) % SEA_NS), 1 + i);
+    for (let j = 0; j < rings.length - 1; j++) for (let i = 0; i < SEA_NS; i++) {
+      const a0 = 1 + j * SEA_NS + i, a1 = 1 + j * SEA_NS + ((i + 1) % SEA_NS), b0 = a0 + SEA_NS, b1 = a1 + SEA_NS;
+      idx.push(a0, a1, b0, a1, b1, b0);
+    }
+    const gg = new THREE.BufferGeometry();
+    gg.setAttribute('position', new THREE.BufferAttribute(pp, 3));
+    const nn = new Float32Array(pp.length);
+    for (let i = 1; i < nn.length; i += 3) nn[i] = 1;
+    gg.setAttribute('normal', new THREE.BufferAttribute(nn, 3));
+    const guv = new Float32Array((pp.length / 3) * 2);
+    for (let i = 0; i < pp.length / 3; i++) { guv[i * 2] = pp[i * 3]; guv[i * 2 + 1] = -pp[i * 3 + 2]; }
+    gg.setAttribute('uv', new THREE.BufferAttribute(guv, 2));
+    gg.setIndex(idx);
+    gg.boundingSphere = new THREE.Sphere(new THREE.Vector3(), SEA_R + 5);
+    waves.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, seaU);
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', `#include <common>
+uniform vec2 uCenter;
+uniform float uSeaR, uSeaSeg;
+${OPEN_GLSL}
+${IMPACT_GLSL}`)
+        .replace('#include <beginnormal_vertex>', `
+  vec2 vcP = position.xz + uCenter;
+  float vcR = length(position.xz);
+  float vcFade = 1.0 - smoothstep(uSeaR * 0.55, uSeaR * 0.9, vcR);
+  vec3 vcN;
+  vec3 vcO = vcOcean(vcP, max(0.5, vcR * uSeaSeg), ${OPEN_SEA_AMP.toFixed(2)} * vcFade, vcN);
+  vcO.y += vcImpactH(vcP) * vcFade;
+  vec2 vcG = vcImpactG(vcP) * vcFade;
+  vec3 objectNormal = normalize(vcN + vec3(-vcG.x, 0.0, -vcG.y));`)
+        .replace('#include <begin_vertex>', `
+  vec3 transformed = position + vcO;
+#ifdef USE_NORMALMAP
+  vNormalMapUv = (normalMapTransform * vec3(vcP.x, -vcP.y, 1.0)).xy;
+#endif`);
+    };
+    waves.customProgramCacheKey = () => 'reentry-sea-waves';
+    const grid = new THREE.Mesh(gg, waves);
+    grid.name = 'reentry-sea-waves';
+    grid.frustumCulled = false;
+    grid.receiveShadow = false;
+    grid.userData.rings = rings.length;
+    ocean.add(grid);
+    seaU.grid = grid;
   }
   // The hull comes down flat on the water (reentryPitchAt: it topples from T+1,5 s for 5 s).
   const SLAP = RE.splash + 6.5;
@@ -259,10 +358,25 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
   // The churned water where it came down: white water round the base, a ring running out
   // from it, and a long patch of foam where the hull fell; streaked by noise and thinning as
   // it spreads (≈). Drawn on the sea, 300 m across.
-  const foam = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), new THREE.ShaderMaterial({
+  const foam = new THREE.Mesh(new THREE.PlaneGeometry(300, 300, 240, 240), new THREE.ShaderMaterial({
     name: 'reentry-foam', transparent: true, depthWrite: false,
-    uniforms: { uAge: { value: 0 }, uSlap: { value: SLAP - RE.splash + 4 } },   // age from 4 s before the splash, when the jet reaches the water
-    vertexShader: `varying vec2 vP; void main() { vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    uniforms: {
+      uAge: { value: 0 }, uSlap: { value: SLAP - RE.splash + 4 },   // age from 4 s before the splash, when the jet reaches the water
+      uOceanPhase: seaU.uOceanPhase, uImpactAge: seaU.uImpactAge, uSlapAge: seaU.uSlapAge,
+    },
+    // On the moving surface (the plane lies in x, y; the ocean's frame is x, −y): the foam rides
+    // the swell and the splash's rings instead of cutting through them as a flat sheet.
+    vertexShader: `varying vec2 vP;
+      ${OPEN_GLSL}
+      ${IMPACT_GLSL}
+      void main() {
+        vP = position.xy;
+        vec2 p = vec2(position.x, -position.y);
+        vec3 n;
+        vec3 o = vcOcean(p, 0.0, ${OPEN_SEA_AMP.toFixed(2)}, n);
+        o.y += vcImpactH(p);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position + vec3(o.x, -o.z, o.y + 0.06), 1.0);
+      }`,
     fragmentShader: `
       uniform float uAge, uSlap; varying vec2 vP;
       float h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -287,7 +401,7 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
       }`,
   }));
   foam.rotation.x = -Math.PI / 2;
-  foam.position.y = 0.05;
+  foam.position.y = 0;
   foam.name = 'reentry-foam';
   foam.visible = false;
   ocean.add(foam);
@@ -339,9 +453,12 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
     // Standing on its engines at the end, the ship's base, not its centre, is at the height.
     const up = Math.max(0, Math.sin(pitch));
     // Toppling in the water it turns about its base, which stays where it splashed.
-    holder.position.set(t > RE.splash ? COM * Math.cos(pitch) : 0, s.h + COM * up + (t >= RE.splash ? -0.6 * Math.min(1, (t - RE.splash) / 3) : 0), 0);
     // Where the splash point is, relative to the ship.
     const ahead = toSplashAt(t);
+    // Once down it floats on the swell: its base rides the open sea's height there (≈, a hull
+    // this long would average the short waves; no buoyancy is modelled).
+    const bob = t >= RE.splash ? openOceanHeight(-ahead, 0, t) * Math.min(1, (t - RE.splash) / 2) : 0;
+    holder.position.set(t > RE.splash ? COM * Math.cos(pitch) : 0, s.h + COM * up + (t >= RE.splash ? -0.6 * Math.min(1, (t - RE.splash) / 3) : 0) + bob, 0);
     ocean.position.set(ahead, 0, 0);
     holder.updateMatrixWorld(true);
 
@@ -391,6 +508,15 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
     plume.setThrottle(lit ? 0.75 : 0, alt, lit === 3 ? 1 : lit === 2 ? 0.8 : 0.5, lit ? 0.75 : 0);
     spray.update(t, camera, env.sun);
     water.update(t, camera, env.sun);
+    // The sea: the waves at mission time (seek and pause see the same sea), the grid round the
+    // camera in the ocean's frame, the splash's rings by their age.
+    oceanPhases(t, seaU.uOceanPhase.value);
+    ocean.updateWorldMatrix(true, false);
+    ocean.worldToLocal(_seaC.copy(camera.position));
+    seaU.uCenter.value.set(_seaC.x, _seaC.z);
+    seaU.grid.position.set(_seaC.x, 0, _seaC.z);
+    seaU.uImpactAge.value = t - RE.splash;
+    seaU.uSlapAge.value = t - SLAP;
     foam.visible = t > RE.splash - 4;
     foam.material.uniforms.uAge.value = t - RE.splash + 4;
 

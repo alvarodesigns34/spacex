@@ -37,6 +37,15 @@ La interfaz de la simulación (menús, ficha técnica, etiquetas y vistas) está
 
 ## Estado actual (8 de noviembre de 2026)
 
+- **Auditoría externa de ChatGPT del 8-11 (bloque 1)**, trabajo y comparativas en [docs/auditoria-2026-11-08-chatgpt-trabajo.md](docs/auditoria-2026-11-08-chatgpt-trabajo.md):
+  - **Calidad completa siempre:** sin calidad adaptativa (borrado `core/adaptive.js`), sin bajada automática de nivel por dispositivo (solo `?quality=`) y sin LOD en calidad alta, incluidos los neumáticos del Model Y (borrado `latheLod.js`). Prueba `tools/quality-check.mjs`.
+  - **Nubes sin grano:** pasos largos en el aire vacío y cortos (18–70 m) dentro de la nube, con desfase de baja discrepancia; tope de 256 iteraciones en calidad alta.
+  - **Humo del encendido:** contornos fractales, bordes más suaves y luz de masa; mejora moderada.
+  - **Amerizaje:** oleaje de mar abierto, ondas del impacto, espuma sobre la superficie y la nave flotando. Corregido además un fallo previo: la nave quedaba ≈70 m sobre el mar.
+  - **Sonido:** el retardo supersónico ya no diverge.
+  - **Sondas:** se restauran con `try/finally`.
+  - **Misión:** etiquetada como plan hipotético, con el salto de ≈22 min visible y las horas reales marcadas como no verificadas.
+
 - **Encargo maestro del 8 de noviembre de 2026** (auditoría integral e hiperrealismo): auditoría de partida, matriz de prioridades y primer bloque en [docs/auditoria-2026-11-08-encargo-maestro.md](docs/auditoria-2026-11-08-encargo-maestro.md). Lo de la auditoría externa se comprobó en el código antes de darlo por bueno (dos de sus hallazgos ya estaban corregidos: S13 y S14).
 - **El mar tiene oleaje de verdad (bloque 1).** Antes era una lámina plana a −0,9 m con cuatro capas de normales animadas, y la física leía un nivel fijo. Ahora:
   - `src/core/ocean.js`: seis ondas de Gerstner (GPU Gems 1, cap. 1), dos marejadas del ESE (72 y 51 m) y cuatro olas de viento ante la brisa del SSE de `wind.js`, con ω = √(g·k). Altura significativa ≈0,91 m: **≈, un día moderado elegido como verosímil, no una medida** de Boca Chica. Cerca de la costa, una envolvente por distancia a la línea de agua (reconstruida): leve subida fuera de la barra y pérdida de altura en la rompiente hasta cero en la orilla. No se modelan la refracción ni el acortamiento en aguas someras.
@@ -47,14 +56,14 @@ La interfaz de la simulación (menús, ficha técnica, etiquetas y vistas) está
   - Prueba sin navegador `tools/ocean-check.mjs` (en `check:static`): ninguna ola se pliega, inversión de Gerstner con error < 1 µm, continuidad en el tiempo (también tras días de sesión), costa muestreada frente a la exacta (4,5 cm), física frente a dibujo por distancia. Capturas comparables: `tools/sea-shots.json` (antes y después en la auditoría, §5).
 - **Reflejos (bloque 2):** la sonda de entorno común refleja ya el suelo real alrededor del recinto (marisma, arena, el Golfo al este) en vez de un disco gris (`probeGround`, prueba `tools/probe-check.mjs`; efecto pequeño), y Starship tiene su propia sonda capturada de la escena (`src/core/localProbes.js`): su acero refleja la torre y la plataforma en lugar de cielo (efecto moderado). Interruptores en consola: `__vc.env.setProbeGround('flat' | 'site')` y `__vc.localProbes.probes[0].active = () => false`. Detalle en la auditoría, §7–§8.
   - **Corregido (8-11):** la sonda de Starship le daba copias de sus materiales, y la reentrada, que buscaba los alerones y el brillo del calor por el material original, no encontraba ningún alerón: desde a bordo no salían las estelas de plasma de las puntas y las losetas no brillaban. Cada copia guarda ya su original (`sourceMaterial`) y la reentrada reúne los materiales que lleva la nave. Prueba en `tools/ux-check.mjs`; auditoría §33.
-- **Nubes con volumen (bloque 3):** `src/core/clouds.js` recorre el rayo por la capa de 1 400 a 2 600 m con la misma cobertura que la capa plana: cúmulos con cimas iluminadas, bases grises y sombra propia, que en vuelo se pueden atravesar y ver desde arriba. 32 pasos en calidad alta, 20 en media; la baja conserva la capa plana. Coste en hardware real **sin medir**. Consola: `__vc.env.clouds.setMode('layer' | 'volume')`. Auditoría, §9.
+- **Nubes con volumen (bloque 3):** `src/core/clouds.js` recorre el rayo por la capa de 1 400 a 2 600 m con la misma cobertura que la capa plana: cúmulos con cimas iluminadas, bases grises y sombra propia, que en vuelo se pueden atravesar y ver desde arriba. Desde el 8-11, pasos adaptados a la distancia, con un tope de 256 iteraciones en calidad alta y 120 en media; la baja conserva la capa plana. Coste en hardware real **sin medir**. Consola: `__vc.env.clouds.setMode('layer' | 'volume')`. Auditoría, §9.
 - **Vuelo 14 (P0, corregido):** el capítulo de la reentrada presentaba como hecho el **plan previo** de SpaceX (amerizaje a las 9 h 50 min). El vuelo real se acortó tras fallar un Raptor Vacuum en el ascenso: desorbitación a T+2:12 y amerizaje al norte de Hawái unas tres horas después. La nota del capítulo, el aviso final y la ficha («Flight 14 · as flown», fuente `wiki_ft14`) lo dicen ahora; el capítulo sigue volando el plan, etiquetado como tal. Auditoría, §6 y §11.
 - **Sonido ambiente y volumen general** (guía, **H**): la rompiente, al ritmo de la marejada simulada y más débil lejos de la orilla, y el viento, con la velocidad del viento del sitio a la altura de la cámara; todo sintetizado (`src/sim/ambience.js`). Volumen general guardado entre visitas. Prueba `tools/ambience-check.mjs`.
 - **Reentrada: la estela de plasma ya no acaba en dos rectas.** Era un error de normales (un cono escalado de forma muy desigual transformado con `mat3(modelMatrix)`); ahora se difumina hacia sus bordes, deshilachada por remolinos y con una caída exponencial detrás de la nave. Auditoría, §16.
 - **Nube del despegue menos «bolas»:** cada bocanada del atlas tiene como masa principal un racimo asimétrico de cúpulas y un sombreado más plano, en vez de una única cúpula que a distancia se leía como esfera. Comparación y un intento anterior descartado en la auditoría, §15.
 - **Sombras de las nubes** sobre el paisaje, el mar y los vehículos (`clouds.js applyShadow`): cada punto mira la cobertura en su rayo hacia el Sol, la misma función que dibuja las nubes, así que cada sombra cae bajo su nube. Calidad alta y media; auditoría, §21.
-- **Model Y, neumáticos con nivel de detalle:** pasados 25 m, cada neumático (142 016 triángulos, el 47 % del coche entre los cuatro) cede a un torno de su propio contorno (11 952): ≈520 000 triángulos menos, sin diferencia visible (auditoría, §23; `src/vehicles/latheLod.js`).
-- **Calidad adaptativa:** `src/core/adaptive.js` ajusta en vivo los pasos de las nubes según el percentil 95 del tiempo de fotograma observado, con histéresis (baja tras 3 s por encima del presupuesto, sube tras 12 s con margen, y cada subida fallida duplica la espera). No toca geometría ni detalle cercano. Prueba `tools/adaptive-check.mjs`; `?adaptive=off` la desactiva.
+- **Model Y, neumáticos con nivel de detalle:** pasados 25 m, cada neumático (142 016 triángulos, el 47 % del coche entre los cuatro) cede a un torno de su propio contorno (11 952): ≈520 000 triángulos menos, sin diferencia visible (auditoría, §23; `src/vehicles/latheLod.js`). **Retirado el 8-11** (regla de calidad del usuario): los neumáticos se dibujan completos a cualquier distancia.
+- **Calidad adaptativa: retirada el 8-11-2026** por la regla de calidad del usuario (además, a 60 Hz no volvía a subir; hallazgo 01 de la auditoría externa).
 - **Modo fotográfico (tecla O):** campo de visión (en las cámaras libres), compensación de exposición en pasos, altura y rumbo del Sol, ocultar la interfaz y guardar un PNG del fotograma dibujado. *Reset* y *Close* devuelven exactamente los valores que había al abrirlo. Sin profundidad de campo ni desenfoque de movimiento. Código en `src/ui/photoMode.js`.
 - **Fusionada (8-11-2026, con autorización del usuario):** la rama `claude/cybertruck-spacex-integration-h7sx0c`, con sus cinco commits del 23-10 (caché de texturas entre visitas, `?perf=log` para medir en hardware real, aperturas, figura, bloom, alturas de suspensión y explosión por sistema en el Lab). Un conflicto en `main.js` (`__vc`), resuelto conservando ambos lados.
 
@@ -572,7 +581,6 @@ src/vehicles/gt3Cabin.js   la cabina del Porsche, viva en código sobre el coche
 src/core/water.js          dónde hay agua (mar, charcas, canales) y a qué profundidad
 src/core/ocean.js          el oleaje del mar (seis ondas de Gerstner): una tabla para la GPU y la física
 src/sim/ambience.js        el sonido ambiente: rompiente al ritmo de la marejada y viento del sitio, sintetizados
-src/core/adaptive.js       calidad adaptativa: el p95 del tiempo de fotograma, con histéresis, sobre los pasos de las nubes
 src/ui/techPanel.js        el panel técnico (tecla I), ?perf y ?perf=log, fuera de main.js
 src/ui/photoMode.js        el modo fotográfico (tecla O): FOV, exposición, Sol, interfaz oculta y PNG, con vuelta exacta
 src/core/sunlight.js       color de la luz directa del sol por la masa de aire (Rayleigh y aerosol), compartido con las nubes
@@ -602,7 +610,8 @@ tools/render-cache-equal.mjs  con navegador: el mapa de sombras y el buffer geom
 tools/lod-parts.mjs        con navegador: las piezas pequeñas de los coches se ocultan sin que la imagen cambie
 tools/ocean-check.mjs      sin navegador: el oleaje (sin pliegues, continuo), su inversión y física frente a dibujo
 tools/ambience-check.mjs   sin navegador: los niveles de la rompiente y del viento
-tools/adaptive-check.mjs   sin navegador: la calidad adaptativa con secuencias de fotogramas inventadas (picos, carga, oscilación)
+tools/quality-check.mjs    sin navegador: calidad completa siempre (nivel alto, sin LOD, nadie baja las nubes en marcha)
+tools/f14-insertion-dv.mjs análisis reproducible de §31 (Δv de la inserción del vuelo 14 por vis viva)
 tools/probe-check.mjs      sin navegador: el suelo de la sonda de reflejos (el Golfo al este, tierra al oeste)
 tools/reflect-shots.json   cuatro vistas de superficies reflectantes (Starship, Porsche, Roadster, Falcon 9)
 tools/sea-shots.json       cinco vistas del mar (playa, a ras, orilla, aire, plataforma) para comparar antes y después

@@ -31,7 +31,9 @@ const hms = (h, m, s) => h * 3600 + m * 60 + s;
 export const MISSION = {
   cutoff: EVENTS.shipCutoff,
   deorbitStart: hms(8, 52, 37), deorbitEnd: hms(8, 52, 48),
-  deorbit: { thrust: 250e3 * G0, isp: 350 },   // ≈ one sea-level Raptor 3: 250 tf, Isp ≈350 s (as the ascent assumes)
+  // ≈ one sea-level Raptor 3: 250 tf (SpaceX's figure for the engine, applied here in vacuum,
+  // where a sea-level engine gives somewhat more: a lower bound), Isp ≈350 s assumed, not published.
+  deorbit: { thrust: 250e3 * G0, isp: 350 },
   payload: 0,                                  // ≈ none modelled
   interface: 120e3,                            // m, ≈
 };

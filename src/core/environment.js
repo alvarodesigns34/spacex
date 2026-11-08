@@ -338,7 +338,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   // ?clouds=full asks for the tier's own count. Visitors get the tier's.
   const automated = typeof navigator !== 'undefined' && navigator.webdriver
     && !(typeof location !== 'undefined' && /[?&]clouds=full\b/.test(location.search));
-  const cloudSteps = automated ? Math.min(quality.cloudSteps ?? 0, 6) : (quality.cloudSteps ?? 0);
+  const cloudSteps = automated ? Math.min(quality.cloudSteps ?? 0, 12) : (quality.cloudSteps ?? 0);
   const clouds = createClouds(scene, { mode: cloudSteps ? 'volume' : 'layer', steps: cloudSteps });
   // Cloud shadows (clouds.js applyShadow) on every lit material of the library, the ground's,
   // the vehicles' and the sea's (below), where the clouds have volume; the flat layer's tier

@@ -79,16 +79,16 @@ const VOLUME_MAIN = /* glsl */`
                mix(mix(h3(k + 113.0), h3(k + 114.0), f.x), mix(h3(k + 170.0), h3(k + 171.0), f.x), f.y), f.z);
   }
   const float B = ${BASE.toFixed(1)}, T = ${TOP.toFixed(1)}, SIGMA = 0.035;
+  // Height of a cloud's top, as a fraction of the slab, where the cover is c: tall in the middle of
+  // a cloud, low at its edge, steep sides and a broad, domed top (a cone read as a range of peaks).
+  float topAt(float c) { return 0.18 + 0.82 * sqrt(smoothstep(0.0, 0.9, smoothstep(uCover, uCover + 0.34, c))); }
   // Density 0..1 at a world point. c: the cover there (passed in, it is the dear part).
   float density(vec3 p, float c) {
     float hf = (p.y - B) / (T - B);
-    float thick = smoothstep(uCover, uCover + 0.34, c);
-    // Tall in the middle of a cloud, low at its edge: steep sides and a broad, domed top (a cone
-    // read as a range of peaks).
-    float top = 0.18 + 0.82 * sqrt(smoothstep(0.0, 0.9, thick));
+    float top = topAt(c);
     float body = smoothstep(uCover, uCover + 0.07, c) * smoothstep(0.0, 0.05, hf) * (1.0 - smoothstep(top * 0.55, top, hf));
     if (body <= 0.0) return 0.0;
-    float e = n3(p / 340.0) * 0.4 + n3(p / 150.0 + 5.0) * 0.35 + n3(p / 60.0 + 17.0) * 0.25;
+    float e = n3(p / 340.0) * 0.38 + n3(p / 150.0 + 5.0) * 0.32 + n3(p / 60.0 + 17.0) * 0.2 + n3(p / 24.0 + 31.0) * 0.1;
     return clamp(body * 1.4 - (1.0 - e) * (0.5 + 0.6 * hf), 0.0, 1.0);
   }
   uniform mat4 projectionMatrix;
@@ -102,38 +102,66 @@ const VOLUME_MAIN = /* glsl */`
     else { t0 = 0.0; t1 = d.y > 0.004 ? (T - o.y) / d.y : d.y < -0.004 ? (B - o.y) / d.y : 40000.0; }
     if (t0 > 40000.0) discard;
     t1 = min(t1, t0 + 16000.0);
-    float dt = (t1 - t0) / float(uSteps);
-    float t = t0 + dt * h(gl_FragCoord.xy * 0.37 + 0.13);
+    // Two step lengths (8-11-2026; before, the slab was cut into uSteps equal steps, up to 500 m
+    // long near the horizon, with a white-noise offset per pixel: the grain the user saw). Empty
+    // air is crossed in long steps that read only the 2D cover; where the cover can hold a cloud
+    // the march backs up one long step and goes on in short ones, ≈ 1/5 000 of the distance
+    // (a fraction of a pixel's footprint), 18 to 70 m, until eight short steps in a row find no
+    // cloud. The offset is interleaved gradient noise, a low-discrepancy pattern: what is left of
+    // the sampling error is a fine, even dither instead of clumps. uSteps caps the iterations.
+    float jit = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
     vec3 sun = normalize(uSun);
     float mu = dot(d, sun);
     float phase = mix(hg(mu, 0.55), hg(mu, -0.2), 0.3);
     float Tr = 1.0, hit = -1.0;
     vec3 L = vec3(0.0);
+    float fine0 = clamp(t0 * 0.0002, 18.0, 70.0);
+    float t = t0 + jit * fine0 * 5.0;
+    int fineLeft = 0;
     // A loop bound by a uniform: the compiler cannot unroll it (unrolled, the march took a
     // software renderer minutes to compile), and the count can change without a recompile.
     for (int i = 0; i < uSteps; i++) {
+      if (t > t1) break;
+      float dtF = clamp(t * 0.0002, 18.0, 70.0);
+      float dtC = dtF * 5.0;
       vec3 p = o + d * t;
-      float c = coverAt(p.xz, 4);
-      if (c > uCover) {
-        float k = density(p, c);
-        if (k > 0.001) {
-          if (hit < 0.0) hit = t;
-          // Towards the Sun: the cloud's own shadow, three samples out to ≈450 m.
-          float ls = 0.0;
-          for (int j = 1; j <= 3; j++) {
-            vec3 q = p + sun * (60.0 * float(j * j));
-            ls += density(q, coverAt(q.xz, 3)) * 50.0 * float(j * 2 - 1);
-          }
-          float hf = (p.y - B) / (T - B);
-          float direct = exp(-SIGMA * ls * 0.9) * phase * (1.0 - exp(-k * 6.0));
-          vec3 S = uSunColor * direct * 1.35 + uShade * (0.30 + 0.35 * hf);
-          float a = 1.0 - exp(-SIGMA * k * min(dt, 400.0));
-          L += Tr * a * S;
-          Tr *= 1.0 - a;
-          if (Tr < 0.02) break;
-        }
+      float hfP = (p.y - B) / (T - B);
+      if (fineLeft == 0) {
+        // Long step: only the cover (three octaves, with a margin) and the height a cloud there
+        // can reach, so no cloud is stepped over and the air above the tops is crossed fast.
+        float cc = coverAt(p.xz, 3);
+        if (cc > uCover - 0.05 && hfP < topAt(cc + 0.05) + 0.06) { fineLeft = 8; t = max(t0, t - dtC) + jit * dtF; continue; }
+        t += dtC;
+        continue;
       }
-      t += dt;
+      float c = coverAt(p.xz, 5);
+      float k = c > uCover ? density(p, c) : 0.0;
+      if (k > 0.001) {
+        fineLeft = 8;
+        if (hit < 0.0) hit = t;
+        // Towards the Sun: the cloud's own shadow, five samples out to ≈ 1 km, the first close
+        // (the lit skin of a cloud is a few tens of metres deep).
+        float ls = 0.0;
+        for (int j = 1; j <= 5; j++) {
+          float s = 40.0 * float(j * j);
+          vec3 q = p + sun * s;
+          ls += density(q, coverAt(q.xz, 3)) * 40.0 * float(j * 2 - 1);
+        }
+        float hf = (p.y - B) / (T - B);
+        // Beer for the direct light, with a softer second term for the light scattered forward
+        // through the cloud (a thick cloud is not black inside: multiple scattering, ≈).
+        float trans = max(exp(-SIGMA * ls * 0.9), 0.25 * exp(-SIGMA * ls * 0.2));
+        float direct = trans * phase * (1.0 - exp(-k * 6.0));
+        vec3 S = uSunColor * direct * 1.35 + uShade * (0.30 + 0.35 * hf);
+        float a = 1.0 - exp(-SIGMA * k * dtF);
+        L += Tr * a * S;
+        Tr *= 1.0 - a;
+        if (Tr < 0.01) break;
+      } else {
+        // Out of reach of any cloud (thin cover, or above the tops there): back to long steps.
+        fineLeft = c < uCover - 0.05 || hfP > topAt(c + 0.05) + 0.06 ? 0 : fineLeft - 1;
+      }
+      t += dtF;
     }
     float alpha = 1.0 - Tr;
     if (alpha < 0.004) discard;

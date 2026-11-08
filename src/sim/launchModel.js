@@ -94,7 +94,12 @@ export const MECO_ALTITUDE = 64e3;   // m, ≈ "roughly 64 km"
  * higher than any suborbital Starship flight and at half orbital speed.
  */
 export const SHIP_ASSUMED = {
-  thrust: 1614e3 * 9.80665,      // N, spacex.com (Starship, V3): 1 614 tf
+  // N, spacex.com (Starship, V3): 1 614 tf, the ship's total as SpaceX states it. It is NOT the sum
+  // of the per-engine figures of the V3 update (3 × 250 + 3 × 275 = 1 575 tf): the two published
+  // numbers differ by ≈2.5 % and the source does not say at which ambient pressure each applies
+  // (≈, external audit 8-11, finding 07). One figure for the whole burn: no rise of the sea-level
+  // engines' thrust with altitude is modelled.
+  thrust: 1614e3 * 9.80665,
   propellant: 1600e3,            // kg, spacex.com: 1 600 t
   // kg, SOLVED at load, not assumed: everything that is not propellant (structure, payload,
   // residuals). It is the mass that makes the published thrust, the published propellant load
@@ -102,13 +107,16 @@ export const SHIP_ASSUMED = {
   dry: 150e3,
   ispSL: 350,                    // s, ≈ assumed: Raptor 3 sea-level engines in vacuum
   ispVac: 380,                   // s, ≈ assumed: Raptor Vacuum
-  slShare: 750 / 1575,           // thrust share of the three sea-level engines (3 × 250 of 3 × 250 + 3 × 275 tf)
-  // m, ≈: flight 14 is the first orbital flight, and its ship stayed up until the deorbit burn
-  // ≈8 h 40 min later (the cited timeline), so its burn is steered to end level in the orbit
-  // the re-entry starts from (mission.js): circular at 200 km, the re-entry's assumption — one
-  // assumption for both chapters, not two. The orbit itself is not published. (The burn used to
-  // end on flight 12's suborbital arc, apogee 195 km and perigee −7 km, from which the ship
-  // would have come down half an hour before the cited entry.)
+  // Thrust share of the three sea-level engines, from the per-engine figures (3 × 250 of
+  // 3 × 250 + 3 × 275 tf): a ratio, applied to the 1 614 tf total above (≈).
+  slShare: 750 / 1575,
+  // m, ≈: the burn is steered to end level in a circular 200 km orbit, the re-entry's assumption
+  // (one assumption for both chapters, not two). It is NOT flight 14's orbit: the flight as flown
+  // reached ≈262 × 275 km (Wikipedia, citing SpaceX; mission.js AS_FLOWN) and was shortened to
+  // about three hours, not the ≈9 h 50 min of the pre-flight plan the re-entry chapter flies, and
+  // a Raptor Vacuum shut down early with the others compensating, which this burn does not
+  // reproduce (external audit 8-11, finding 06). (The burn used to end on flight 12's suborbital
+  // arc, apogee 195 km and perigee −7 km.)
   holdAltitude: 200e3,
   perigee: 200e3,
 };

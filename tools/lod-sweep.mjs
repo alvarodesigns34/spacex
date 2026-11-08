@@ -20,7 +20,10 @@
  * It also writes a frame on each side of every transition, for judging by eye whether what
  * changed was detail (fine) or outline (not fine).
  *
- *   node tools/lod-sweep.mjs <outdir> [--steps 60] [--quality high]
+ *   node tools/lod-sweep.mjs <outdir> [--steps 60] [--quality medium]
+ *
+ * Since 8-11-2026 the full tier has no level of detail (core/quality.js, lodPixels 0: the user's
+ * rule of that day); this runs on the reduced tiers, `medium` by default, where the swaps remain.
  */
 import { createServer } from 'node:http';
 import { staticHandler } from './static.mjs';
@@ -42,7 +45,7 @@ const outdir = args.find((a, i) => !a.startsWith('--') && args[i - 1] !== '--ste
 const STEPS = Number(argOf('--steps') ?? 60);
 // Frames are the slow part on a software rasteriser; skip them for a flicker-only pass.
 const SHOTS = !args.includes('--no-shots');
-const TIER = argOf('--quality') ?? 'high';
+const TIER = argOf('--quality') ?? 'medium';
 if (!outdir) { console.error('uso: node tools/lod-sweep.mjs <outdir> [--steps N]'); process.exit(2); }
 await mkdir(outdir, { recursive: true });
 

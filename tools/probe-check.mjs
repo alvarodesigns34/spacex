@@ -38,4 +38,24 @@ const sea = at(SHORE_NORMAL_AZ, 1500), land = at(SHORE_NORMAL_AZ + 180, 1500), s
 report(offshore(sea.wx, sea.wz) > 0 && blueish(sea.c), 'hacia el mar (≈85°, 1,5 km) refleja el Golfo', sea.c.map(v => v.toFixed(2)).join(' '));
 report(offshore(land.wx, land.wz) < 0 && !blueish(land.c), 'tierra adentro (≈265°) refleja tierra', land.c.map(v => v.toFixed(2)).join(' '));
 report(Math.abs(site.c[0] - site.c[2]) < 1e-6 && Math.abs(site.c[0] - 0.30) < 0.01, 'junto a la fila, el gris del recinto (el del disco anterior)', site.c[0].toFixed(3));
+
+// The capture restores what it changed even when it throws (external audit 8-11, finding 11):
+// a throw injected in the cube capture must leave the vehicle visible, the shadow map's flags as
+// they were and the sky following the real camera.
+{
+  const THREE = await import('three');
+  const { createLocalProbes } = await import('../src/core/localProbes.js');
+  const fakeRenderer = { shadowMap: { autoUpdate: true, needsUpdate: true }, compile() {} };
+  const lp = createLocalProbes(fakeRenderer, new THREE.Scene());
+  const car = new THREE.Group(); car.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial()));
+  const p = lp.add({ name: 'test', target: car, position: new THREE.Vector3() });
+  p.cam.update = () => { throw new Error('injected'); };
+  let follows = null; const env = { followCamera: (c) => { follows = c; } };
+  const viewer = new THREE.PerspectiveCamera();
+  let threw = false;
+  try { lp.captureNow(env, viewer); } catch { threw = true; }
+  const sm = fakeRenderer.shadowMap;
+  report(threw && car.visible && sm.autoUpdate === true && sm.needsUpdate === true && follows === viewer,
+    'una excepción en la captura de la sonda lo deja todo como estaba', `visible ${car.visible} · sombras ${sm.autoUpdate}/${sm.needsUpdate} · cielo con la cámara ${follows === viewer}`);
+}
 if (failed) { console.error(`${failed} comprobación(es) fallida(s)`); process.exit(1); }

@@ -8,6 +8,12 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ### Estado actual (08-11-2026): léelo primero
 
+0. **Última ronda: auditoría externa de ChatGPT del 8-11** (`docs/auditorias-externas/2026-11-08-chatgpt.md`). El bloque 1 está hecho: `docs/auditoria-2026-11-08-chatgpt-trabajo.md`.
+   - **Regla del usuario:** calidad completa siempre. No hay calidad adaptativa, no hay bajada automática de nivel y no hay LOD en calidad alta. No reintroducir nada de eso.
+   - Lo que quedó pendiente está en «Límites y pendientes» de ese documento: humo volumétrico, impactos de los vehículos en la costa, hallazgos 08–10, 12 y 14, y la medida en la RTX 3070.
+   - **Arnés de capturas:** `/tmp/claude-0/h/dev.mjs` (fuera de git; se pierde con el contenedor). Arranca la escena una vez y lee el lienzo con `{grab: ruta}`.
+   - **Cuidado:** los puntos 1–2e de abajo describen la calidad adaptativa y el LOD de los neumáticos como hechos, pero ya se retiraron.
+
 1. **Encargo maestro del usuario (8-11-2026):** auditoría integral e hiperrealismo por bloques, sin degradar nada para ganar FPS, con datos verificables y mediciones comparables. Auditoría, matriz de prioridades y bloque 1: `docs/auditoria-2026-11-08-encargo-maestro.md`. **Sigue por la matriz (§3)**: el siguiente bloque P1 propuesto es la sonda de reflejos local o las nubes con volumen; el P0 de la misión del vuelo 14 necesita investigar la fuente primaria antes de tocar `mission.js`.
 2. **Bloque 1 hecho: el mar con oleaje** (`src/core/ocean.js`, la malla polar en `environment.js`, `water.js` y `f16Ground.js` leyendo la misma superficie, `tools/ocean-check.mjs` en `check:static`). Detalle y decisiones en la auditoría, §4–§5; resumen en el README («Estado actual»).
 2b. **Bloque 2 hecho: reflejos.** La sonda común refleja el suelo real (`probeGround`, efecto pequeño) y Starship tiene sonda local (`src/core/localProbes.js`, efecto moderado). Auditoría §7–§8.

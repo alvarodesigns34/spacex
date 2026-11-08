@@ -53,7 +53,6 @@ import { f16Ground } from './core/f16Ground.js';
 import { waterAt } from './core/water.js';
 import { createLocalProbes } from './core/localProbes.js';
 import { createPhotoMode } from './ui/photoMode.js';
-import { createAdaptive } from './core/adaptive.js';
 import { createTechPanel } from './ui/techPanel.js';
 import { createAmbience } from './sim/ambience.js';
 import { getVolume, setVolume, setSpace } from './sim/audioBus.js';
@@ -71,7 +70,7 @@ import { createMissionClock } from './sim/missionClock.js';
 import { createLaunchSound } from './sim/sound.js';
 import { createReentrySound } from './sim/reentrySound.js';
 import { createReentry } from './sim/reentry.js';
-import { CHAPTER as REENTRY_CHAPTER, MILESTONES_RE, reentryAltAt } from './sim/reentryFlight.js';
+import { CHAPTER as REENTRY_CHAPTER, MILESTONES_RE, reentryAltAt, CHAIN as REENTRY_CHAIN, RE as RE_TIMES } from './sim/reentryFlight.js';
 
 async function main() {
   const canvas = document.getElementById('scene');
@@ -501,9 +500,10 @@ async function main() {
   // ---- Re-entry chapter ----
   // Flight 14's ship coming home: entry, plasma, the belly flop, the flip and the splash in the
   // northern Pacific, on SpaceX's own timeline (reentry.js, reentryFlight.js).
+  const fmtHMS = (t) => `${Math.floor(t / 3600)}:${String(Math.floor((t % 3600) / 60)).padStart(2, '0')}:${String(Math.round(t % 60)).padStart(2, '0')}`;
   const REENTRY_TEXT = {
-    kind: 'Flight 14 re-entry (SpaceX timeline) · northern Pacific · trajectory computed, not telemetry',
-    note: '<summary>Flight 14 re-entry · sources and limits</summary><p><b>This chapter flies SpaceX\'s pre-flight plan for flight 14, not the flight as flown.</b> Flight 14 reached orbit (insertion T+25:17–25:36 on spacex.com, T+25:28–25:47 on Wikipedia) and released 26 Starlink V3 (T+34:18–1:04:50), but a Raptor Vacuum failed on ascent and the mission was shortened: deorbit burn T+2:12:00–2:12:11 and splashdown north of Hawaii about three hours after liftoff (Wikipedia; the later times differ between sources). <b>Every time on this clock is from the published plan</b> (28 September 2026): deorbit burn T+8:52:37–8:52:48 · entry T+9:28:56 · transonic 9:47:29 · subsonic 9:48:07 · landing burn 9:50:11 · landing flip 9:50:13 · three to two engines 9:50:21 · two to one 9:50:28 · splashdown 9:50:30, in the northern Pacific. The state at entry is <i>derived</i> (sim/mission.js): the ship\'s cutoff state from the integrated ascent, on an assumed circular 200 km orbit, coasts to the 11 s deorbit burn on one 250 tf Raptor, and Kepler\'s equation carries it down to 120 km at ≈7.78 km/s, −1.3°, ≈262 t; that chain reaches the interface ≈22 min before the cited time, which the clock keeps. The glide is <i>integrated</i> over a spherical Earth, with the lift banked whenever all of it would make the ship climb (≈; no bank profile is published), and its drag, lift-to-drag ratio and belly-flop drag are <i>solved</i> so it goes through Mach 1 and Mach 0.8 at the transonic and subsonic calls and reaches the landing burn at the height a smooth 19 s burn needs. Speeds and heights are the model\'s, not telemetry; the ≈60° angle of attack, the plasma colours and the camera positions are read off SpaceX\'s on-board views, approximately. The ocean and the clouds are generic.</p>',
+    kind: 'Flight 14 re-entry · SpaceX\'s pre-flight plan, a hypothetical profile (not as flown) · trajectory computed, not telemetry',
+    note: '<summary>Flight 14 re-entry · sources and limits</summary><p><b>This chapter flies SpaceX\'s pre-flight plan for flight 14, not the flight as flown.</b> Flight 14 reached orbit (insertion T+25:17–25:36 on spacex.com, T+25:28–25:47 on Wikipedia) and released 26 Starlink V3 (T+34:18–1:04:50), but a Raptor Vacuum failed on ascent and the mission was shortened: deorbit burn T+2:12:00–2:12:11, entry T+2:28:52 and splashdown north of Hawaii about three hours after liftoff (Wikipedia, consulted 8 November 2026; <b>not verified</b> against a primary source or a timestamped broadcast, uncertainty unknown; the later times differ between sources). The model\'s as-flown chain (sim/mission.js asFlownChain), from that orbit with an assumed satellite mass and phase, is a comparison under its own assumptions, not a validation. <b>Every time on this clock is from the published plan</b> (28 September 2026): deorbit burn T+8:52:37–8:52:48 · entry T+9:28:56 · transonic 9:47:29 · subsonic 9:48:07 · landing burn 9:50:11 · landing flip 9:50:13 · three to two engines 9:50:21 · two to one 9:50:28 · splashdown 9:50:30, in the northern Pacific. The state at entry is <i>derived</i> (sim/mission.js): the ship\'s cutoff state from the integrated ascent, on an assumed circular 200 km orbit, coasts to the 11 s deorbit burn on one 250 tf Raptor (its sea-level rating, applied in vacuum: ≈, a lower bound), and Kepler\'s equation carries it down to 120 km at ≈7.78 km/s, −1.3°, ≈262 t; that chain reaches the interface at ≈T+' + fmtHMS(REENTRY_CHAIN.entry.t) + ', ≈' + Math.round((RE_TIMES.entry - REENTRY_CHAIN.entry.t) / 60) + ' min before the plan\'s T+' + fmtHMS(RE_TIMES.entry) + '; the clock keeps the plan\'s time, so <b>the state at entry and the clock do not join up: there is a ≈' + Math.round((RE_TIMES.entry - REENTRY_CHAIN.entry.t) / 60) + ' min gap between the chain\'s prediction and the chapter</b>, and neither is a validation against the real flight. The glide is <i>integrated</i> over a spherical Earth, with the lift banked whenever all of it would make the ship climb (≈; no bank profile is published), and its drag, lift-to-drag ratio and belly-flop drag are <i>solved</i> so it goes through Mach 1 and Mach 0.8 at the transonic and subsonic calls and reaches the landing burn at the height a smooth 19 s burn needs. Speeds and heights are the model\'s, not telemetry; the ≈60° angle of attack, the plasma colours and the camera positions are read off SpaceX\'s on-board views, approximately. The ocean (a moderate open sea, ≈ Hs 1.6 m, chosen; the splashdown\'s sea state is not published), the splash\'s waves and the clouds are generic.</p>',
   };
   const reentry = createReentry({
     scene, exhibits, complex, env, rig, camera, M,
@@ -532,15 +532,9 @@ async function main() {
   // Its sound (sim/reentrySound.js), on the same mission-panel switch as the launch's.
   reentrySound = createReentrySound({ reentry, camera });
 
-  // Adaptive quality (core/adaptive.js): the cumulus' samples per ray follow the observed frame
-  // times, a notch at a time, from the tier's count down to 10. Off under automation (the checks
-  // need the same frame every run) and with ?adaptive=off; console: __vc.adaptive.state.
-  const cloudLevels = env.clouds.mode === 'volume' && env.clouds.steps > 10
-    ? [env.clouds.steps, Math.round(env.clouds.steps * 0.75), Math.round(env.clouds.steps * 0.5), 10].filter((v, i, a) => v >= 10 && a.indexOf(v) === i)
-    : null;
-  const adaptive = cloudLevels && !navigator.webdriver && !/[?&]adaptive=off\b/.test(location.search)
-    ? createAdaptive({ levels: cloudLevels }) : null;
-  let lastFrameAt = 0;
+  // No adaptive quality: until 8-11-2026 core/adaptive.js lowered the cumulus' samples per ray when
+  // the frames ran slow, and at 60 Hz with vsync it could not climb back (external audit 8-11,
+  // finding 01). The user's rule of that day is no automatic reduction; the tier's steps hold.
 
   // Ambient sound (sim/ambience.js) and the master volume (sim/audioBus.js), from the Guide. The
   // ambience is remembered between visits, but a browser lets audio start only after a click, so
@@ -1448,19 +1442,12 @@ async function main() {
     missionClock.discard();      // …and from the mission, even if rAF already ran
   });
   // The technical panel (key I) and ?perf / ?perf=log: ui/techPanel.js.
-  const tech = createTechPanel({ renderer, camera, env, quality, params, adaptive, cloudLevels, jump, toggleCybertruck, ctLab });
+  const tech = createTechPanel({ renderer, camera, env, quality, params, jump, toggleCybertruck, ctLab });
 
   function frame() {
     // The Cybertruck Lab draws its own scene with this renderer; the site waits as it was left.
     if (ctLab.active) { tech.perf?.begin(); ctLab.render(clock.getDelta()); tech.perf?.end(); requestAnimationFrame(frame); return; }
     tech.perf?.begin();
-    {
-      const now = performance.now();
-      // Only while the clouds are drawn: their cost is the one this adjusts.
-      if (adaptive && lastFrameAt && env.clouds.mesh.visible && document.visibilityState === 'visible'
-        && adaptive.sample(now - lastFrameAt, now / 1000)) env.clouds.steps = adaptive.value;
-      lastFrameAt = now;
-    }
     const steps = missionClock.step(clock.getDelta());
     const dt = steps.view;
     rig.update(dt);
@@ -1605,7 +1592,7 @@ async function main() {
   }
 
   window.__vc = {
-    ctLab, textureCache: TEXTURE_CACHE, shadowCache, gbufferCache, localProbes, photo, adaptive, ambience, M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, h2rRide, select, goPreset, jump, renderer, env,
+    ctLab, textureCache: TEXTURE_CACHE, shadowCache, gbufferCache, localProbes, photo, ambience, M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, h2rRide, select, goPreset, jump, renderer, env,
     setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour,
     claimUserControl, tourRunToEnd, toggleMode, toggleWalk,
     walkRouteFor: (hit) => { const r = walkRoute(hit); rig.travelTo(r.route, r.look); return r; },

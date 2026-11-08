@@ -187,6 +187,17 @@ export class LODManager {
 
   /** Re-evaluates every entry. One box transform and one compare each, no allocation. */
   update() {
+    // A threshold of 0 (the full tier since 8-11-2026) never drops anything: every entry is held
+    // detailed, whatever the distance, and the distance is not even measured.
+    if (!(this.pixels > 0)) {
+      for (const e of this.entries) {
+        if ((e.pinned !== null && e.pinned !== undefined) || e.state === true) continue;
+        e.state = true; e.px = Infinity;
+        for (const o of e.near) o.visible = true;
+        if (e.far) e.far.visible = false;
+      }
+      return;
+    }
     const mpp = this._mpp();
     for (const e of this.entries) {
       if (e.pinned !== null && e.pinned !== undefined) continue;

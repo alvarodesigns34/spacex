@@ -2,7 +2,7 @@
  * The technical panel (key I) and ?perf / ?perf=log, moved out of main.js unchanged (8-11-2026,
  * refactor §36 of docs/auditoria-2026-11-08-encargo-maestro.md): what they read is passed in.
  */
-export function createTechPanel({ renderer, camera, env, quality, params, adaptive, cloudLevels, jump, toggleCybertruck, ctLab }) {
+export function createTechPanel({ renderer, camera, env, quality, params, jump, toggleCybertruck, ctLab }) {
   // ---- ?perf: frame-rate meter for real hardware ----
   // The gate runs on a software rasteriser whose milliseconds say nothing about a GPU, so the
   // only way to know what a visitor gets is to measure on their machine. With ?perf in the URL
@@ -11,7 +11,8 @@ export function createTechPanel({ renderer, camera, env, quality, params, adapti
   // quality tier and the GPU the browser reports. Nothing is measured without the flag.
   // Key I opens the same meter as a technical panel at any time (and closes it), with a second
   // line of the state that sets the cost and the picture: camera, field of view, Sun, exposure
-  // compensation, the clouds' samples per ray and the adaptive controller's level.
+  // compensation, the clouds' samples per ray, and the real drawing buffer (pixels, pixel ratio, MSAA)
+  // with the LOD threshold, so the full-quality state can be checked rather than assumed.
   const makePerf = () => {
     const box = document.createElement('div');
     box.className = 'perf-meter';
@@ -39,7 +40,8 @@ export function createTechPanel({ renderer, camera, env, quality, params, adapti
         out.fps = 1000 / out.mean;
         const cp = camera.position, sa = env.sunAngles;
         box.textContent = `${out.fps.toFixed(0)} fps · ${out.mean.toFixed(1)} ms (p95 ${out.p95.toFixed(1)}) · ${out.calls} calls · ${(out.tris / 1e6).toFixed(2)} M tris · ${quality.name}${quality.forced ? ' (forced)' : ''} · ${quality.probe?.renderer || 'GPU not reported'}`
-          + `\ncamera ${cp.x.toFixed(0)}, ${cp.y.toFixed(1)}, ${cp.z.toFixed(0)} m · FOV ${camera.fov.toFixed(0)}° · Sun ${sa.elev.toFixed(0)}° / ${(((sa.azim % 360) + 360) % 360).toFixed(0)}° · ${env.exposureBias ? `${env.exposureBias > 0 ? '+' : ''}${env.exposureBias.toFixed(1)} EV · ` : ''}clouds ${env.clouds.mode}${env.clouds.mode === 'volume' ? ` ${env.clouds.steps} steps` : ''}${adaptive ? ` (adaptive ${adaptive.level + 1}/${cloudLevels.length})` : ''}`;
+          + `\ncamera ${cp.x.toFixed(0)}, ${cp.y.toFixed(1)}, ${cp.z.toFixed(0)} m · FOV ${camera.fov.toFixed(0)}° · Sun ${sa.elev.toFixed(0)}° / ${(((sa.azim % 360) + 360) % 360).toFixed(0)}° · ${env.exposureBias ? `${env.exposureBias > 0 ? '+' : ''}${env.exposureBias.toFixed(1)} EV · ` : ''}clouds ${env.clouds.mode}${env.clouds.mode === 'volume' ? ` ${env.clouds.steps} steps` : ''}`
+          + `\nbuffer ${renderer.domElement.width}×${renderer.domElement.height} (×${renderer.getPixelRatio()}) · MSAA ${quality.msaa}× · LOD ${quality.lodPixels > 0 ? `drops under ${quality.lodPixels} px` : 'off (full detail)'}${quality.suggested && quality.suggested !== quality.name ? ` · probe would suggest ${quality.suggested}, not applied` : ''}`;
       },
       dispose() { box.remove(); renderer.info.autoReset = true; },
     };

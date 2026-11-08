@@ -757,7 +757,8 @@ let _puffTex = null;
 /** Built once and shared by the ground cloud and the vapour: it is the most expensive texture here. */
 function puffTexture() { return (_puffTex ??= buildPuffTexture()); }
 function buildPuffTexture() {
-  const cell = 192, cells = 4, size = cell * cells;
+  // 256 px a cell since 8-11-2026 (192 before): the turrets' edges stay sharp in a close shot.
+  const cell = 256, cells = 4, size = cell * cells;
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const ctx = c.getContext('2d');
@@ -811,10 +812,16 @@ function buildPuffTexture() {
       // Canvas y runs down; the puff is built with +y up so "top" means the sunlit side.
       const ny = -(y - cell / 2) / (cell / 2);
       for (let x = 0; x < cell; x++) {
-        const nx = (x - cell / 2) / (cell / 2);
+        const nx0 = (x - cell / 2) / (cell / 2);
+        // The point is pushed about by a two-scale fractal warp before the lobes are measured, so
+        // no outline is an arc of a circle (8-11-2026: the round lobes, repeated a thousand times,
+        // were the cartoon the user saw); the creases between lobes wander the same way.
+        const wx = fbm(nx0 * 3.3 + seed, ny * 3.3 - seed * 0.7, 4, 2.0, 0.5) - 0.5, wy = fbm(nx0 * 3.3 - seed * 1.3, ny * 3.3 + seed, 4, 2.0, 0.5) - 0.5;
+        const nx = nx0 + 0.11 * wx + 0.035 * (fbm(nx0 * 11 + seed, ny * 11, 3, 2.0, 0.5) - 0.5);
+        const nyw = ny + 0.11 * wy + 0.035 * (fbm(nx0 * 11, ny * 11 - seed, 3, 2.0, 0.5) - 0.5);
         let sum = 0, any = false;
         for (const lb of lobes) {
-          const q2 = ((nx - lb.x) ** 2 + (ny - lb.y) ** 2) / (lb.r * lb.r);
+          const q2 = ((nx - lb.x) ** 2 + (nyw - lb.y) ** 2) / (lb.r * lb.r);
           if (q2 < 1) { sum += Math.exp(lb.r * Math.sqrt(1 - q2) / K); any = true; }
         }
         let h = any ? K * Math.log(sum) : 0;
@@ -826,8 +833,10 @@ function buildPuffTexture() {
         // half transparent — the lit-through fringe of a real billow. A low-frequency field
         // frays it, so erosion (which raises a threshold with age) shrinks the outline raggedly
         // without opening holes in the middle.
-        const fray = 0.75 + 0.5 * fbm(nx * 3.1 - seed, ny * 3.1 + seed, 3, 2.0, 0.5);
-        A[y * cell + x] = THREE.MathUtils.clamp(THREE.MathUtils.smoothstep(h, 0.0, 0.2) * Math.min(1, fray + 0.25), 0, 1);
+        // A wider ramp than before 8-11-2026 (0.2): the outline of a billow is a soft, lit-through
+        // fringe a few per cent of the puff deep, not a cut-out edge.
+        const fray = 0.62 + 0.76 * fbm(nx * 3.1 - seed, ny * 3.1 + seed, 4, 2.0, 0.5);
+        A[y * cell + x] = THREE.MathUtils.clamp(THREE.MathUtils.smoothstep(h, 0.0, 0.27) * Math.min(1, fray + 0.2), 0, 1);
       }
     }
     const px = 2 / cell;                         // one pixel in the puff's own units
@@ -837,8 +846,9 @@ function buildPuffTexture() {
         const x0 = Math.max(0, x - 1), x1 = Math.min(cell - 1, x + 1);
         // The relief is flattened for the shading (×0.6): a full spherical cap shaded each lobe
         // like a ball; a lower one keeps the creases and the lit tops without the sphere.
-        const dx = 0.6 * (H[y * cell + x1] - H[y * cell + x0]) / ((x1 - x0) * px);
-        const dy = -0.6 * (H[y1 * cell + x] - H[y0 * cell + x]) / ((y1 - y0) * px);   // +y up
+        // (×0.45 since 8-11-2026: at 0.6 every lobe still shaded as its own ball.)
+        const dx = 0.45 * (H[y * cell + x1] - H[y * cell + x0]) / ((x1 - x0) * px);
+        const dy = -0.45 * (H[y1 * cell + x] - H[y0 * cell + x]) / ((y1 - y0) * px);   // +y up
         const g = Math.min(Math.hypot(dx, dy), 6);                // cap the rim's slope
         const sc = g > 0 ? g / Math.hypot(dx, dy) : 0;
         const nxv = -dx * sc, nyv = -dy * sc, len = Math.hypot(nxv, nyv, 1);
@@ -886,6 +896,7 @@ const CLOUD_VERT = /* glsl */`
   varying float vDust;
   varying float vAge;
   varying float vGround;
+  varying float vVar;
   uniform float uFlame;
   // The ground a puff can sink into, in world metres: grade, and the Pad 2 plateau (5 m over
   // the trench's 0,8 m floor, the 2,5 m berm and its 1:3 embankment; pad.js). The cloud writes
@@ -904,6 +915,9 @@ const CLOUD_VERT = /* glsl */`
     vUv = atlasUv(uv, gl_InstanceID);
     vLocal = uv;
     vRot = aRot;
+    // Each puff a little lighter or darker, thicker or thinner than the next (≈ ±8 %): sixteen
+    // atlas cells repeated with one shade read as copies.
+    vVar = fract(sin(float(gl_InstanceID) * 78.233 + 1.7) * 43758.5453);
     vAge = aExtra.x;
     vDust = aExtra.y;
     // Self-shadowing a billboard cannot compute: the lower a puff sits in the mass, the more
@@ -949,6 +963,7 @@ const CLOUD_FRAG = /* glsl */`
   varying float vDust;
   varying float vAge;
   varying float vGround;
+  varying float vVar;
 
   void main() {
     vec4 tex = texture2D(uMap, vUv);
@@ -962,7 +977,7 @@ const CLOUD_FRAG = /* glsl */`
     dens *= mix(0.5, 1.0, smoothstep(0.18, 0.62, tex.b));
     // Soft contact: the lowest tenth of a puff's size fades into the ground it touches.
     dens *= smoothstep(-0.02, 0.12, vGround);
-    float a = dens * vAlpha;
+    float a = dens * vAlpha * (0.84 + 0.16 * vVar);
     if (a < 0.003) discard;
 
     vec2 rawNorm = tex.rg * 2.0 - 1.0;
@@ -974,13 +989,17 @@ const CLOUD_FRAG = /* glsl */`
     // Wrapped diffuse for a translucent mass.
     float NdotL = dot(normView, uSunDir);
     float wrap = clamp((NdotL + 0.25) / 1.25, 0.0, 1.0);
+    // Part of a puff's light is the mass's, not its own surface's: light scattered through the
+    // cloud evens out the shading between neighbouring lobes (≈ 30 %), so the mass reads as one
+    // body of vapour lit from one side instead of a heap of separately shaded balls.
+    wrap = mix(wrap, 0.35 + 0.5 * clamp(uSunDir.y * 0.5 + 0.5, 0.0, 1.0), 0.3);
     // The thin fringe of a puff is lit through, not shaded: its normal is steep there, and
     // taking it at face value drew a dark pen line round every turret.
     wrap = mix(0.8, wrap, smoothstep(0.08, 0.55, tex.a));
     // Underside of each puff darker than its top, within the puff as well as across the mass.
     float under = mix(0.72, 1.0, smoothstep(0.15, 0.75, vLocal.y));
 
-    vec3 steam = mix(uShadowColor, uSunColor, wrap * wrap * (3.0 - 2.0 * wrap)) * vShade * under;
+    vec3 steam = mix(uShadowColor, uSunColor, wrap * wrap * (3.0 - 2.0 * wrap)) * vShade * under * (0.93 + 0.12 * vVar);
     // Dust: the brown haze the blast raises off the pad and the flats, which in the Flight 12
     // photographs spreads low between and under the two white steam towers. Duller, browner,
     // and less lit by the sun (it is optically thin: the sky shows through it).

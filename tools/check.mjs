@@ -113,10 +113,18 @@ try {
       `nivel ${q.name}${q.forced ? ' (forzado)' : ''}, sombras ${q.shadow}, lod ${q.lod} px`);
   }
 
-  // ---- Level of detail engages, and disengages -------------------------------------------
-  // The manager is only worth having if it actually sheds work at range AND puts every bit of
-  // it back up close. A rule that never fires costs nothing and saves nothing; one that never
-  // reverses quietly removes a vehicle's interior from the exhibit it belongs to.
+  // ---- Level of detail: off in the full tier; the mechanism still works when asked for -----
+  // Since 8-11-2026 (the user's rule: no detail lost for speed in the normal mode) the full tier's
+  // threshold is 0 and nothing may be shed, at any distance: asserted from the overview. The
+  // mechanism itself is kept for ?quality=medium|low and is still tested, with the threshold set
+  // to the old 3.5 px for the length of these two checks and put back after them.
+  {
+    const full = await page.evaluate(() => { const v = window.__vc; v.jump(null); v.lod.update(); v.lod.update(); return { px: v.lod.pixels, rows: v.lod.snapshot() }; });
+    const shed = full.rows.filter(r => r.detailed !== true);
+    report(full.px === 0 && full.rows.length > 0 && shed.length === 0, 'calidad completa: ningún nivel de detalle se retira en la vista general',
+      `umbral ${full.px} px · ${full.rows.length} entradas, ${shed.length} retiradas${shed.length ? `: ${shed.slice(0, 5).map(r => r.name).join(', ')}` : ''}`);
+    await page.evaluate(() => { window.__vc.lod.pixels = 3.5; });
+  }
   {
     await page.evaluate(() => window.__vc.jump('roadster', 'detail'));
     const near = await page.evaluate(() => { window.__vc.lod.update(); return window.__vc.lod.snapshot(); });
@@ -165,7 +173,7 @@ try {
     report(shedRun.v === fullRun.v && shedRun.shed > 0,
       'el nivel de detalle no altera ninguna medición',
       `${shedRun.shed} grupos retirados y sin forzar detalle · medidas ${shedRun.v === fullRun.v ? 'idénticas' : 'DISTINTAS'}`);
-    await page.evaluate(() => { window.__vc.lod.forceDetailed(); window.__vc.jump(null); });
+    await page.evaluate(() => { window.__vc.lod.pixels = window.__vc.quality.lodPixels; window.__vc.lod.forceDetailed(); window.__vc.jump(null); });
   }
 
   // ---- The state machine's own invariants ------------------------------------------------

@@ -128,7 +128,7 @@ const report = (ok, name, detail = '') => {
   for (const satMass of [0, 500, 1000, 1500, 2000]) for (let k = 0; k < 8; k++) ts.push(asFlownChain({ satMass, phase: k * Math.PI / 4 }).entry.t);
   const lo = Math.min(...ts), hi = Math.max(...ts), fmt = (t) => `${Math.floor(t / 3600)}:${String(Math.floor(t % 3600 / 60)).padStart(2, '0')}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
   report(AS_FLOWN.entryReported > lo - 60 && AS_FLOWN.entryReported < hi + 60,
-    'tal como voló: la entrada predicha encierra la publicada (T+2:28:52) dentro de lo no publicado', `predicha ${fmt(lo)}–${fmt(hi)} con satélites de 0–2 t y cualquier fase`);
+    'tal como voló (comparación bajo sus supuestos, no validación): el intervalo predicho contiene la entrada citada por Wikipedia (T+2:28:52, sin verificar en fuente primaria)', `predicha ${fmt(lo)}–${fmt(hi)} con satélites de 0–2 t y cualquier fase`);
   report(C.deorbitOrbit.perigee < 0 && C.entry.gamma < 0, 'tal como voló: tras la desorbitación el perigeo queda bajo tierra y la nave desciende en la interfaz',
     `perigeo ${(C.deorbitOrbit.perigee / 1e3).toFixed(0)} km, γ ${(C.entry.gamma * 180 / Math.PI).toFixed(2)}°`);
 }

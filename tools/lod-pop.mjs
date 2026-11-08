@@ -14,7 +14,7 @@
  * buffer is presented, so the page renders explicitly through `__vc.composer` and copies the
  * canvas into a 2D context immediately.
  *
- *   node tools/lod-pop.mjs [--quality high]
+ *   node tools/lod-pop.mjs [--quality medium]
  *
  * Part of `npm run check`. It also fails if the scene registers a swap this file has no
  * camera for — a new swap cannot slip in unmeasured — and it runs one negative control: the
@@ -28,6 +28,9 @@
  *   mean|Δ|   average luminance change over those pixels, 0-255
  *   outline   share of pixels where one state drew the vehicle and the other drew sky
  *   seen      pixels the far stand-in covers (the frame with it hidden differs there)
+ *
+ * Since 8-11-2026 the full tier has no level of detail (core/quality.js, lodPixels 0: the user's
+ * rule of that day); this runs on the reduced tiers, `medium` by default, where the swaps remain.
  */
 import { createServer } from 'node:http';
 import { staticHandler } from './static.mjs';
@@ -63,7 +66,7 @@ const browser = await chromium.launch({
 });
 const page = await (await browser.newContext({ viewport: { width: 900, height: 600 } })).newPage();
 page.on('pageerror', e => console.log('PAGEERROR', e.message));
-await bootAtQuality(page, `http://127.0.0.1:${PORT}/`, argOf('--quality') ?? 'high');
+await bootAtQuality(page, `http://127.0.0.1:${PORT}/`, argOf('--quality') ?? 'medium');
 await page.evaluate(() => ['labels', 'ruler', 'humans'].forEach(t => window.__vc.setToggle(t, false)));
 
 let worst = 0;

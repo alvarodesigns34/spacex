@@ -12,8 +12,10 @@
  *    follows the dynamic pressure ½ρv² (aerodynamic noise scales with it), its brightness the
  *    Mach number. High up, at entry, the air is too thin to carry anything: silence, building as
  *    the ship gets into the thicker air and fading again as it slows in the belly flop.
- *  - The sonic boom, from the moment the model's ship last flies above Mach 1.2 on the way down
- *    (as the launch's booster boom), heard far below as a double N-wave (nose and skirt),
+ *  - The sonic boom (a staging effect, ≈: a real supersonic body drags its shock cone along the whole
+ *    path, and what reaches a listener depends on the path and the air; here one event is made at the
+ *    point and heard as a point source), from the moment the model's ship last flies above Mach 1.2 on the way down
+ *    (as the launch's booster boom; 1.2 is a staging choice), heard far below as a double N-wave (nose and skirt),
  *    weaker the higher it was made.
  *  - The landing burn: three sea-level Raptors, then two, then one, at the cited times
  *    (reentryEnginesAt); the launch's roar recipe — deep body, roar, crackle — scaled by the
@@ -22,7 +24,7 @@
  *    distance; and near the water, the sea itself.
  * It is not a measured spectrum, and the boom's time is the model's, not the flight's.
  */
-import { RE, reentryState, reentryEnginesAt, densityAt, toSplashAt } from './reentryFlight.js';
+import { RE, CHAPTER, reentryState, reentrySpeedAt, reentryEnginesAt, densityAt, toSplashAt } from './reentryFlight.js';
 import { soundSpeedAt } from './launch.js';
 import { audio, claim } from './audioBus.js';
 
@@ -52,24 +54,45 @@ export const BOOM_T = (() => {
   return RE.transonic - 20;
 })();
 
+/** Earliest emission the solver considers: two minutes before the chapter starts (nothing earlier is heard). */
+export const TAU_MIN = CHAPTER.start - 120;
+/** Fastest the ship flies over that span, m/s: the bound that keeps the root search from stepping over a root. */
+const V_MAX = (() => { let v = 0; for (let t = TAU_MIN; t <= CHAPTER.end + 60; t += 0.5) v = Math.max(v, reentrySpeedAt(t)); return v; })();
+
 /**
- * When a sound made by the ship reaches a listener at `cam` (scene frame) at mission time t:
- * the emission time τ = t − d(τ)/c, by fixed-point iteration (it converges while the ship is
- * slower than sound along the line of sight; above that the latest emission that has arrived is
- * kept). Returns { tau, d, x, y } — the ship then, in the scene frame of time t.
+ * When a sound made by the ship reaches a listener at `cam` (scene frame) at mission time t.
+ *
+ * The emission time τ solves f(τ) = τ + d(τ)/c − t = 0 on [TAU_MIN, t]. f(t) = d(t)/c ≥ 0, and f
+ * can change by at most L = 1 + V_MAX/c per second of τ, so stepping back from t by f(τ)/L never
+ * jumps over a root: the search lands on the LATEST root — the most recent emission arriving now.
+ * While the ship is supersonic along the line of sight f is not monotonic and there can be more
+ * than one root (earlier emissions arriving together with later ones); the latest is the one kept,
+ * which is the choice, not a measurement. (A fixed-point iteration was used before: with the ship
+ * supersonic it diverged, to τ ≈ −1,7 × 10¹⁷ s at entry + 300 s; external audit 8-11, finding 02.)
+ *
+ * Returns { tau, d, x, y, heard, residual } — the ship then, in the scene frame of time t. With no
+ * root on the span (nothing emitted since TAU_MIN has reached the listener yet) `heard` is false,
+ * tau is −Infinity and d is Infinity, so every level computed from it is zero.
  */
 export function heardAt(t, cam) {
   const s0 = reentryState(t).s;
-  let tau = t, d = 0, x = 0, y = 0;
-  for (let k = 0; k < 12; k++) {
+  const L = 1 + V_MAX / C_SOUND;
+  const f = (tau) => {
     const s = reentryState(tau);
-    x = s.s - s0; y = s.h;
-    d = Math.hypot(x - cam.x, y - cam.y, cam.z);
-    const next = t - d / C_SOUND;
-    if (Math.abs(next - tau) < 1e-3) { tau = next; break; }
-    tau = next;
+    const x = s.s - s0, y = s.h;
+    const d = Math.hypot(x - cam.x, y - cam.y, cam.z);
+    return { r: tau + d / C_SOUND - t, d, x, y };
+  };
+  let tau = t, e = f(tau);
+  for (let k = 0; k < 4000 && e.r > 1e-4; k++) {
+    const next = tau - e.r / L;
+    if (next < TAU_MIN) {
+      const m = f(TAU_MIN);
+      return { tau: -Infinity, d: Infinity, x: m.x, y: m.y, heard: false, residual: m.r };
+    }
+    tau = next; e = f(tau);
   }
-  return { tau, d, x, y };
+  return { tau, d: e.d, x: e.x, y: e.y, heard: e.r <= 1e-4, residual: e.r };
 }
 
 export function createReentrySound({ reentry, camera }) {
