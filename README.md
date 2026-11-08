@@ -45,6 +45,8 @@ La interfaz de la simulación (menús, ficha técnica, etiquetas y vistas) está
   - **Corregido (nuevo):** las motas grises del mar abierto eran rayos reflejados por debajo del horizonte que leían el disco de suelo gris de la sonda de entorno; ahora se reflejan sobre el horizonte.
   - De cerca manda la geometría: las dos capas largas del mapa de normales, que se leían como una textura con manchas, entran solo pasados 60–300 m. La espuma de la orilla sube y baja al ritmo de la marejada (6,8 s) y en tramos, no como una cinta continua; borreguillos escasos mar adentro.
   - Prueba sin navegador `tools/ocean-check.mjs` (en `check:static`): ninguna ola se pliega, inversión de Gerstner con error < 1 µm, continuidad en el tiempo (también tras días de sesión), costa muestreada frente a la exacta (4,5 cm), física frente a dibujo por distancia. Capturas comparables: `tools/sea-shots.json` (antes y después en la auditoría, §5).
+- **Reflejos (bloque 2):** la sonda de entorno común refleja ya el suelo real alrededor del recinto (marisma, arena, el Golfo al este) en vez de un disco gris (`probeGround`, prueba `tools/probe-check.mjs`; efecto pequeño), y Starship tiene su propia sonda capturada de la escena (`src/core/localProbes.js`): su acero refleja la torre y la plataforma en lugar de cielo (efecto moderado). Interruptores en consola: `__vc.env.setProbeGround('flat' | 'site')` y `__vc.localProbes.probes[0].active = () => false`. Detalle en la auditoría, §7–§8.
+- **Vuelo 14 (P0, sin cambios en el código):** lo que se pudo comprobar y la discrepancia por resolver con la fuente primaria, en la auditoría, §6.
 - **Pendiente de decisión del usuario:** la rama `claude/cybertruck-spacex-integration-h7sx0c` tiene cinco commits del 23-10 (caché de texturas entre visitas, `?perf=log`, mejoras del Lab) que no están en las ramas de trabajo ni publicados.
 
 ### Hasta el 23 de octubre de 2026
@@ -536,6 +538,7 @@ src/vehicles/modelyAsset.js  carga el Tesla Model Y de Blender (assets/modely/mo
 src/vehicles/gt3Cabin.js   la cabina del Porsche, viva en código sobre el coche de Blender
 src/core/water.js          dónde hay agua (mar, charcas, canales) y a qué profundidad
 src/core/ocean.js          el oleaje del mar (seis ondas de Gerstner): una tabla para la GPU y la física
+src/core/localProbes.js    sondas de reflejos locales capturadas de la escena (hoy, la de Starship junto a la torre)
 src/core/colliders.js      todo lo sólido de la escena, en celdas de 0,25 m, para los choques
 src/core/effects.js        lo que salta en un choque: chispas, fuego, humo, restos, cristal, agua
 eslint.config.js           análisis estático (primer paso de npm run check)
@@ -556,6 +559,8 @@ tools/render-cache-check.mjs  sin navegador: cuándo las cachés de sombras y de
 tools/render-cache-equal.mjs  con navegador: el mapa de sombras y el buffer geométrico en caché son, byte a byte, los de un redibujo
 tools/lod-parts.mjs        con navegador: las piezas pequeñas de los coches se ocultan sin que la imagen cambie
 tools/ocean-check.mjs      sin navegador: el oleaje (sin pliegues, continuo), su inversión y física frente a dibujo
+tools/probe-check.mjs      sin navegador: el suelo de la sonda de reflejos (el Golfo al este, tierra al oeste)
+tools/reflect-shots.json   cuatro vistas de superficies reflectantes (Starship, Porsche, Roadster, Falcon 9)
 tools/sea-shots.json       cinco vistas del mar (playa, a ras, orilla, aire, plataforma) para comparar antes y después
 ```
 

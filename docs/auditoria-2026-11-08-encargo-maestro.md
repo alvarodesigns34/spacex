@@ -161,8 +161,9 @@ En SwiftShader cada fotograma tarda 2–5 s y la variación entre repeticiones s
 intentó: activado/desactivado en tres vistas, resultados incoherentes); no se publica ninguna cifra.
 
 **Regresiones vigiladas:** `check:static` en verde (incluye las físicas del F-16, el Porsche y la
-H2R, que leen el agua); `tools/check.mjs` (escena completa con navegador): ver el resultado en el
-commit.
+H2R, que leen el agua); `tools/check.mjs` (escena completa con navegador) en verde con los bloques 1–2b: 5 355 967
+triángulos construidos y 4 051 791 dibujados en la vista general, 1 837 mallas, 373 materiales y
+172 texturas.
 
 **Limitaciones conocidas:** sin refracción ni acortamiento de las olas en aguas someras; la costa
 muestreada se fija pasados ±12 km a lo largo de la playa; la malla lejana pierde las olas cortas
@@ -223,9 +224,39 @@ reflejan sobre todo la franja del horizonte, que no cambia. Es una corrección d
 coste por fotograma (la sonda se rehace solo al cambiar el sol), no el salto visual que pide el
 encargo.
 
-**Siguiente (2b, propuesto):** sondas locales capturadas de la escena real (`CubeCamera` + PMREM,
+**2b (hecho después, §8).** Propuesta original: sondas locales capturadas de la escena real (`CubeCamera` + PMREM,
 solo al cambiar el sol y sin el propio vehículo), empezando por Starship junto a la torre, con sus
 materiales propios apuntando a esa sonda. Riesgos a medir: materiales compartidos entre vehículos
 (clonarlos sube la cuenta, hoy 363 de 420), el coste de seis pasadas de la escena por cambio de sol
 (en el arrastre del deslizador habría que diferirlas a cuando se suelta) y las pruebas que comparan
 luminancias.
+
+## 8. Bloque 2b: sonda de reflejos local para Starship (hecho; efecto moderado)
+
+**Problema:** el acero casi especular de Starship está a ≈30 m de la torre y reflejaba el cielo
+abierto donde está la celosía, y nada de la plataforma.
+
+**Decisión:** `src/core/localProbes.js`, genérico: una captura cúbica de la escena real desde un
+punto (el vehículo oculto mientras tanto), prefiltrada con PMREM como la sonda común y asignada a
+copias privadas de los materiales de ese vehículo (26 en Starship; presupuesto medido por `tools/check.mjs`
+tras el bloque: 373 materiales, techo 420). Se rehace solo cuando se rehace la sonda común (cambio de sol, contexto
+recuperado), 250 ms después de la última petición: arrastrar el sol cuesta una captura al soltarlo.
+Mientras no está lista, y durante el lanzamiento y la reentrada (el vehículo ya no está allí), las
+copias usan la sonda común. Comprobado en el código de three r170: con `envMap` propio el material
+no recibe `scene.environmentIntensity` (atenuado de noche y altura), que se copia a mano cada
+fotograma, y `clone()` no copia `onBeforeCompile` ni `customProgramCacheKey`, que se copian.
+Punto de captura: el eje de la pila, a 45 m sobre su base (≈: una sola sonda para 124 m de
+vehículo; las partes bajas tienen algo de paralaje).
+
+**Validación visual (misma sesión y cámara, vista *lee*, esperando a que el cambio se aplique):**
+con la sonda local el casco gana contraste y su borde iluminado deja de quemarse, porque el lado de
+la torre refleja estructura y suelo en lugar de cielo claro; la celosía no se distingue como forma
+(la rugosidad del acero la difumina en el PMREM). Diferencia media del encuadre ≈1/255: cambio
+**real pero moderado**. Consola: `__vc.localProbes.probes[0].active = () => false` para comparar.
+
+**Coste:** seis pasadas de la escena a 256² por cambio de sol (no por fotograma) y un PMREM. No
+medido en hardware real.
+
+**Pendiente:** más sondas (Falcon 9, Falcon Heavy, Porsche, Roadster) si la medición en hardware
+real lo permite; en reflejos de formas nítidas (cristales, pintura con barniz) el salto sería mayor
+que en el acero rugoso.

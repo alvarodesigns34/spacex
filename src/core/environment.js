@@ -302,6 +302,7 @@ export function probeGround() {
 
 export function createEnvironment(renderer, scene, M, quality = {}) {
   const sunDir = new THREE.Vector3();
+  let onProbe = null;
 
   // --- Sky (physical atmosphere shader) ---
   const sky = new Sky();
@@ -766,6 +767,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
       if (envRT) envRT.dispose();
       envRT = pmrem.fromScene(envScene, 0.02, 0.1, PROBE_FAR);
       scene.environment = envRT.texture;
+      onProbe?.();
     }
   }
 
@@ -883,6 +885,8 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   setSun(20, 34, { immediate: true });
 
   return {
+    // Run whenever the shared probe is rebuilt (localProbes.js).
+    set onProbe(f) { onProbe = f; },
     sun, sky, hemi, ground, outer, get seaPatch() { return seaPatch; }, ocean: oceanU, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation, rebuildProbe, setProbeGround,
     SUN_MIN, SUN_MAX, get night() { return nightK; },
     get inSpace() { return inSpace; }, get sunDir() { return sunDir; },

@@ -51,6 +51,7 @@ import { createGt3Hud } from './ui/gt3Hud.js';
 import { groundSample } from './core/environment.js';
 import { f16Ground } from './core/f16Ground.js';
 import { waterAt } from './core/water.js';
+import { createLocalProbes } from './core/localProbes.js';
 import { buildColliders, CELL } from './core/colliders.js';
 import { toRunway } from './core/terrain.js';
 import { buildOrbitalBackdrop } from './core/backdrop.js';
@@ -543,6 +544,20 @@ async function main() {
     visibilityHook: (flying) => view.setFlying(anyFlying(flying)),
   });
   sequences.reentry = reentry;
+
+  // Starship's own reflection probe (core/localProbes.js), captured from the scene round it: the
+  // tower, the pad and the site in its steel, not only sky. At mid-stack, on its axis; the stack
+  // itself hidden while it is taken. Not in flight: the launch and the re-entry move it away.
+  const localProbes = createLocalProbes(renderer, scene);
+  {
+    const ex = exhibits.starship;
+    if (ex) {
+      const at = new THREE.Vector3(ex.lay.x, ex.model.position.y + 45, ex.lay.z);
+      localProbes.add({ name: 'starship', target: ex.model, position: at, active: () => !launch.running && !reentry.running });
+      env.onProbe = () => localProbes.schedule(env, () => camera);
+      localProbes.schedule(env, () => camera);
+    }
+  }
 
   // ---- The F-16 in flight ----
   // The exhibit's airplane leaves its spot on runway 28 and flies on the flight model
@@ -1528,6 +1543,7 @@ async function main() {
     windsock?.userData.tick?.(WAVE_TIME.value);
     // The sky is a finite box; centring it on the viewer is what lets it survive an ascent.
     env.followCamera(camera);
+    localProbes.update(scene);
     // The ground past the disc (outerGround.js): not under the launch's stretched disc and globe,
     // nor the re-entry's Pacific.
     env.outer.visible = !env.inSpace && !launch.running && !reentry.running;
@@ -1649,7 +1665,7 @@ async function main() {
   }
 
   window.__vc = {
-    ctLab, shadowCache, gbufferCache, M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, h2rRide, select, goPreset, jump, renderer, env,
+    ctLab, shadowCache, gbufferCache, localProbes, M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, h2rRide, select, goPreset, jump, renderer, env,
     setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour,
     claimUserControl, tourRunToEnd, toggleMode, toggleWalk,
     walkRouteFor: (hit) => { const r = walkRoute(hit); rig.travelTo(r.route, r.look); return r; },
