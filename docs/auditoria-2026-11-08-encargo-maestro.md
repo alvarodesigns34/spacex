@@ -726,3 +726,21 @@ las marca como desfasadas; cada una se vuelve a capturar cuando la cámara se ac
 (450 m para Starship, 150 m para los coches), **una por fotograma como mucho**, y hasta entonces ese
 vehículo usa la sonda común. Mejor también para un visitante: ninguna captura de vehículos que no
 está mirando.
+
+## 27. Compresión de texturas y geometría (§33): qué aplica de verdad
+
+Medido en los GLB del repositorio (8-11): las imágenes incluidas suman **13,8 MB de 113 MB** (H2R
+1,2 de 40,2 · Model Y 7,1 de 32,6 · Porsche 2,7 de 28,1 · Cybertruck 2,8 de 12,6, ya en WebP). El
+resto es geometría. Y la mayor parte de las texturas de la escena **no viajan en archivos**: se
+generan por código al arrancar (§20), así que KTX2/Basis no se les puede aplicar.
+
+- **KTX2 en las 25 imágenes de los GLB de Blender:** apenas cambia la descarga (13,8 MB, que gzip y
+  el formato ya comprimen); su ventaja real sería la memoria de la GPU (una PNG de 2048² ocupa
+  ≈16 MB descomprimida; en KTX2/UASTC, ≈4) y la decodificación. Exige el codificador `basisu` y el
+  transcodificador en `vendor/` (más WebAssembly que mantener) y volver a validar las texturas
+  normales y la oclusión horneada. **Pendiente de medir** la memoria de texturas real en el equipo
+  del usuario antes de decidir.
+- **Geometría:** ya estudiado y descartado el 17-10 (README, «Lo que se descartó»): el 92 % son
+  vértices `float32`, gzip de Pages ya los deja en ≈48 MB, y meshopt sin pérdida solo ganaba ≈20 %
+  en el Model Y. Ahora, además, sus neumáticos ceden a un torno a distancia (§23), que es memoria y
+  dibujo, no descarga.
