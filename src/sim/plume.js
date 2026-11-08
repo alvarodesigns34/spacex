@@ -775,14 +775,25 @@ function buildPuffTexture() {
   for (let v = 0; v < cells * cells; v++) {
     const ox = (v % cells) * cell, oy = Math.floor(v / cells) * cell;
     const lean = (rng() - 0.5) * 0.14;
-    const lobes = [{ x: lean, y: -0.04, r: 0.36 + rng() * 0.06 }];
+    // The main mass is itself a lopsided cluster of three or four domes, not one: seen from a
+    // few hundred metres, where the small turrets fall under a pixel, a single big dome was all
+    // that was left of each puff, and the launch cloud read as a heap of balls.
+    const lobes = [{ x: lean, y: -0.06, r: 0.27 + rng() * 0.04 }];
+    const cores = 2 + Math.floor(rng() * 2);
+    for (let k = 0; k < cores; k++) {
+      const a = (k / cores) * Math.PI * 2 + rng() * 1.2;
+      lobes.push({ x: lean + Math.cos(a) * (0.13 + rng() * 0.08), y: -0.04 + Math.sin(a) * (0.09 + rng() * 0.07), r: 0.19 + rng() * 0.07 });
+    }
+    const nCore = lobes.length;
     // Mid lobes round the main mass, and small ones on the rims of those: every turret is
     // attached to something, weighted to the upper, sunlit side where a puff boils.
     const mid = 6 + Math.floor(rng() * 5);
     for (let k = 0; k < mid; k++) {
-      const a = rng() * Math.PI * 2, p0 = lobes[0];
-      const r = 0.17 + rng() * 0.12, d = p0.r * (0.55 + rng() * 0.4);
-      lobes.push({ x: p0.x + Math.cos(a) * d, y: p0.y + Math.sin(a) * d * 0.9 + 0.03, r });
+      const a = rng() * Math.PI * 2, p0 = lobes[Math.floor(rng() * nCore)];
+      const r = 0.13 + rng() * 0.11, d = p0.r * (0.7 + rng() * 0.4);
+      const x = p0.x + Math.cos(a) * d, y = p0.y + Math.sin(a) * d * 0.9 + 0.03;
+      if (Math.hypot(x, y) + r > 0.95) continue;               // keep inside the cell
+      lobes.push({ x, y, r });
     }
     const small = 12 + Math.floor(rng() * 12);
     for (let k = 0; k < small; k++) {
@@ -823,8 +834,10 @@ function buildPuffTexture() {
       const y0 = Math.max(0, y - 1), y1 = Math.min(cell - 1, y + 1);
       for (let x = 0; x < cell; x++) {
         const x0 = Math.max(0, x - 1), x1 = Math.min(cell - 1, x + 1);
-        const dx = (H[y * cell + x1] - H[y * cell + x0]) / ((x1 - x0) * px);
-        const dy = -(H[y1 * cell + x] - H[y0 * cell + x]) / ((y1 - y0) * px);   // +y up
+        // The relief is flattened for the shading (×0.6): a full spherical cap shaded each lobe
+        // like a ball; a lower one keeps the creases and the lit tops without the sphere.
+        const dx = 0.6 * (H[y * cell + x1] - H[y * cell + x0]) / ((x1 - x0) * px);
+        const dy = -0.6 * (H[y1 * cell + x] - H[y0 * cell + x]) / ((y1 - y0) * px);   // +y up
         const g = Math.min(Math.hypot(dx, dy), 6);                // cap the rim's slope
         const sc = g > 0 ? g / Math.hypot(dx, dy) : 0;
         const nxv = -dx * sc, nyv = -dy * sc, len = Math.hypot(nxv, nyv, 1);

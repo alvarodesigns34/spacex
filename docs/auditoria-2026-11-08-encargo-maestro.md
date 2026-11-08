@@ -456,3 +456,16 @@ que no se ve.
 densidad marchado (como las nubes, §9) o, más barato, un atlas nuevo de formas irregulares (no
 cúpulas) con varias escalas de lóbulos por bocanada y bocanadas más pequeñas y numerosas en los
 bordes de la masa, que es donde el ojo lee la silueta.
+
+**Segunda vía, hecha (8-11):** el atlas. La masa principal de cada bocanada era una sola cúpula de
+radio 0,36, y a unos cientos de metros, donde las torrecillas pequeñas caen bajo el píxel, era lo
+único que quedaba de cada una: una bola. Ahora es un racimo asimétrico de 3–4 cúpulas medianas
+(radio 0,19–0,31) con los lóbulos intermedios repartidos entre ellas, y el relieve se aplana a 0,6
+para el sombreado (un casquete esférico completo sombreaba cada lóbulo como una esfera). Mismo
+número de bocanadas, misma textura compartida (la nube de suelo y el vapor), mismo coste.
+
+![Nube de suelo a T+1,5 s, calidad media: antes (arriba) y después (abajo)](auditoria-2026-11-08/nube-suelo-antes-despues.jpg)
+
+Resultado: la masa se lee como un cúmulo continuo de muchos lóbulos y no como bolas sueltas (la
+«bola» de la derecha es ahora un racimo); sigue siendo algo grumosa. El volumen marchado sigue
+siendo la mejora de fondo pendiente.
