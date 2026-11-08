@@ -7,11 +7,10 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { createAO } from './core/ao.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
-import { createMaterials, WAVE_TIME } from './materials/library.js';
+import { createMaterials, WAVE_TIME, TEXTURE_CACHE } from './materials/library.js';
 import { createEnvironment } from './core/environment.js';
 import { dressCampus } from './core/campus.js';
 import { CameraRig } from './core/cameraRig.js';
@@ -20,6 +19,7 @@ import { pickQuality, applyQuality } from './core/quality.js';
 import { LODManager } from './core/lod.js';
 import { createHUD } from './ui/hud.js';
 import { createCybertruckLab } from './ui/cybertruckLab.js';
+import { fireflyClampPass } from './core/fireflyClamp.js';
 import { VEHICLES } from './data/specs.js';
 import { buildStarship } from './vehicles/starship.js';
 import { buildFalcon9, buildFalconHeavy } from './vehicles/falcon.js';
@@ -157,6 +157,11 @@ async function main() {
   // instant is the one that ships — and the headless check ignores font errors, so it never
   // showed up there.
   if (document.fonts?.ready) await document.fonts.ready;
+  // ?nocache paints every texture, as before the texture cache (materials/textureCache.js). Under
+  // automation (navigator.webdriver) it is off unless ?texcache asks for it: encoding forty million
+  // pixels to PNG in the background slowed the software-rendered checks until one timed out.
+  // tools/texture-cache-check.mjs, which tests the cache, asks for it.
+  if (params.has('nocache') || (navigator.webdriver && !params.has('texcache'))) TEXTURE_CACHE.enabled = false;
   const { M } = await createMaterials((name, frac) => hud.setProgress(`Generating materials · ${name}`, 0.05 + frac * 0.2), nextFrame);
   timings.materials = performance.now() - t0;
   hud.setProgress('Lighting and environment…', 0.25);
@@ -191,36 +196,9 @@ async function main() {
   const bloom = quality.bloom
     ? new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.12, 0.6, 0.92)
     : null;
-  // Firefly clamp ahead of the bloom. A thin, curved, polished part — a weld ring, a rail, a
-  // tube — always has a pixel somewhere that mirrors the sun straight into the lens, and in
-  // HDR that one pixel can be hundreds of times white. The bloom's mip chain spread it into a
-  // bright square hanging beside the booster on its way home. The clamp scales any pixel down
-  // to a peak of 12, far above where ACES has already saturated to white, so the image is
-  // unchanged and only the bloom stops blowing single pixels up into blocks.
-  // The same pass drops non-finite pixels. One NaN — a zero-length normal on a sliver
-  // triangle, normalize(vec3(0)) in the lit shader — or one Inf from a half-float overflow
-  // went through the clamp untouched (NaN fails `m > uPeak`; Inf · (uPeak / Inf) is NaN), and
-  // the bloom's blur chain spread it into a black rectangle hundreds of pixels wide that
-  // flickered as the camera moved near the Porsche and the H2R (October 2026). The check is
-  // made twice: with isnan/isinf, and on the bits (an all-ones exponent is NaN or Inf), because
-  // a compiler that assumes no NaN (HLSL's without IEEE strictness, fast-math elsewhere) may
-  // fold isnan and any float comparison away, but not integer operations.
-  if (bloom) {
-    composer.addPass(new ShaderPass({
-      uniforms: { tDiffuse: { value: null }, uPeak: { value: 12.0 } },
-      vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: `uniform sampler2D tDiffuse; uniform float uPeak; varying vec2 vUv;
-        void main() {
-          vec4 c = texture2D(tDiffuse, vUv);
-          const uint EXP = 0x7f800000u;
-          bvec3 nonFinite = equal(floatBitsToUint(c.rgb) & uvec3(EXP), uvec3(EXP));
-          if (any(isnan(c.rgb)) || any(isinf(c.rgb)) || any(nonFinite)) c.rgb = vec3(0.0);
-          if (isnan(c.a) || (floatBitsToUint(c.a) & EXP) == EXP) c.a = 1.0;
-          float m = max(max(c.r, c.g), c.b);
-          gl_FragColor = vec4(m > uPeak ? c.rgb * (uPeak / m) : c.rgb, c.a);
-        }`,
-    }));
-  }
+  // Firefly clamp ahead of the bloom: core/fireflyClamp.js has why (one sun-mirroring pixel, or one
+  // NaN, blown up into a block by the bloom's mip chain). Shared with the Cybertruck Lab.
+  if (bloom) composer.addPass(fireflyClampPass());
   if (bloom) composer.addPass(bloom);
   composer.addPass(new OutputPass());
   // The render target above is sized in CSS pixels, which is what EffectComposer stores as its
@@ -763,7 +741,7 @@ async function main() {
   // it (the owner's choice, audit of 20-10-2026 §9), and the Lab says which. On closing, the time
   // spent there does not reach any clock, and the caches redraw in case the window was resized.
   const ctLab = createCybertruckLab({
-    renderer, quality,
+    renderer, quality, M,
     onExit: () => {
       clock.getDelta(); missionClock.discard();
       shadowCache.invalidate(); gbufferCache?.invalidate();
@@ -1510,7 +1488,9 @@ async function main() {
       end() {
         const now = performance.now();
         times.push(now - last); last = now;
-        while (times.length > 240 || times.reduce((a, b) => a + b, 0) > 2000) times.shift();
+        // Always the last frame, even one longer than the window: a frame over 2 s (a software
+        // renderer) emptied it, and the readout threw on an undefined p95.
+        while (times.length > 1 && (times.length > 240 || times.reduce((a, b) => a + b, 0) > 2000)) times.shift();
         out.calls = renderer.info.render.calls; out.tris = renderer.info.render.triangles;
         if (now - shown < 500) return;
         shown = now;
@@ -1523,9 +1503,48 @@ async function main() {
     };
   })() : null;
 
+  // ---- ?perf=log: a fixed measurement on real hardware (audit M-FL8) ----
+  // The same views every time, so two machines or two versions can be compared: each is jumped
+  // to, left to settle, then measured over the meter's two-second window. The Cybertruck Lab is
+  // measured with its exploded view animating (at rest it draws nothing). The figures end in a
+  // panel as JSON, to copy or download and paste into the README; nothing is sent anywhere.
+  if (perf && params.get('perf') === 'log') {
+    const VIEWS_LOG = [[null], ['starship', 'site'], ['starship', 'engines'], ['falcon9', 'overview'], ['roadster', 'detail'],
+      ['engines', 'overview'], ['f16', 'overview'], ['gt3rs', 'overview'], ['h2r', 'overview'], ['modely', 'overview']];
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    (async () => {
+      while (document.getElementById('loading')) await wait(500);
+      await wait(4000);
+      const rows = [];
+      const sample = async (id) => { await wait(2500); const o = perf.out; rows.push({ view: id, fps: +o.fps.toFixed(1), meanMs: +o.mean.toFixed(2), p95Ms: +o.p95.toFixed(2), calls: o.calls, triangles: o.tris }); };
+      for (const [id, preset] of VIEWS_LOG) { jump(id, preset); await sample(id ? `${id}/${preset}` : 'overview'); }
+      toggleCybertruck();
+      while (!ctLab.loaded) await wait(500);
+      ctLab.setPlaying(true);
+      await sample('cybertruck-lab/exploding');
+      ctLab.setPlaying(false); ctLab.close();
+      const report = {
+        date: new Date().toISOString(), userAgent: navigator.userAgent, gpu: quality.probe?.renderer || 'not reported',
+        quality: quality.name, forced: !!quality.forced, devicePixelRatio: window.devicePixelRatio,
+        viewport: [window.innerWidth, window.innerHeight], views: rows,
+      };
+      const json = JSON.stringify(report, null, 2);
+      console.log(json);
+      const box = document.createElement('div');
+      box.className = 'perf-log';
+      box.innerHTML = '<b>Performance log</b><textarea readonly></textarea><div><button type="button" class="tool tool-btn" data-act="copy">Copy</button> <a class="tool tool-btn" download="vehicle-center-perf.json">Download</a> <button type="button" class="tool tool-btn" data-act="close">Close</button></div>';
+      box.querySelector('textarea').value = json;
+      box.querySelector('a').href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+      box.querySelector('[data-act="copy"]').addEventListener('click', () => navigator.clipboard?.writeText(json));
+      box.querySelector('[data-act="close"]').addEventListener('click', () => box.remove());
+      document.body.appendChild(box);
+      window.__vc.perfLog = report;
+    })();
+  }
+
   function frame() {
     // The Cybertruck Lab draws its own scene with this renderer; the site waits as it was left.
-    if (ctLab.active) { ctLab.render(clock.getDelta()); requestAnimationFrame(frame); return; }
+    if (ctLab.active) { perf?.begin(); ctLab.render(clock.getDelta()); perf?.end(); requestAnimationFrame(frame); return; }
     perf?.begin();
     const steps = missionClock.step(clock.getDelta());
     const dt = steps.view;
@@ -1665,7 +1684,7 @@ async function main() {
   }
 
   window.__vc = {
-    ctLab, shadowCache, gbufferCache, localProbes, M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, h2rRide, select, goPreset, jump, renderer, env,
+    ctLab, textureCache: TEXTURE_CACHE, shadowCache, gbufferCache, localProbes, M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, h2rRide, select, goPreset, jump, renderer, env,
     setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour,
     claimUserControl, tourRunToEnd, toggleMode, toggleWalk,
     walkRouteFor: (hit) => { const r = walkRoute(hit); rig.travelTo(r.route, r.look); return r; },

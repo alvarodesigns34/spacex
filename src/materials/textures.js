@@ -113,6 +113,9 @@ export function toTexture(c, { srgb = false, tileSize = null, tileSizeU = null, 
   // is invisible in code and ruinous on screen — it is what left the 5 km apron untextured.
   t.userData.tileSize = tileSize ?? null;
   t.userData.tileSizeU = tileSize ? (tileSizeU ?? tileSize) : null;
+  // What was asked before the device's limit: the texture cache (textureCache.js) clamps it
+  // again to the limit of the machine that reads it back.
+  t.userData.anisotropyAsked = anisotropy;
   t.needsUpdate = true;
   return t;
 }

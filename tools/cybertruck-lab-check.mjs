@@ -184,6 +184,26 @@ try {
   report(ex.masked === 0 && ex.unmasked > 0.3, 'una etapa desmarcada se queda montada al explosionar', `etapa 6 a ${ex.masked} m · etapa 1 hasta ${ex.unmasked.toFixed(2)} m`);
   report(ex.below > 50 && ex.floor === 'glass', 'al 100 % hay piezas enteras bajo el suelo, y por eso el suelo de partida es el de cristal', `${ex.below} piezas bajo el suelo · suelo «${ex.floor}»`);
 
+  // ---- One system only (M-CT7.2), and the guide from a part's assembled place (M-CT7.3).
+  const one = await page.evaluate(async () => {
+    const L = window.__vc.ctLab, out = {};
+    const moved = (sys, yes) => L.parts.filter(p => (p.obj.userData.system === sys) === yes).reduce((m, p) => Math.max(m, p.obj.position.distanceTo(p.base)), 0);
+    L.setExplodeSystem('DRIVE_UNITS'); L.setExplode(1);
+    out.mine = moved('DRIVE_UNITS', true); out.others = moved('DRIVE_UNITS', false);
+    out.select = document.querySelector('#cybertruck-lab .ctl-sys-select').value;
+    const part = L.parts.find(p => p.obj.userData.system === 'DRIVE_UNITS' && p.dist > 0.3).obj.name;
+    L.select(part);
+    const g = L.scene.getObjectByName('cybertruck-lab-guide');
+    out.guide = !!g?.visible; out.guideLen = g ? g.geometry.attributes.position.array.slice(0, 3).map((v, i) => v - g.geometry.attributes.position.array[3 + i]).reduce((a, b) => a + b * b, 0) ** 0.5 : 0;
+    L.select(null); out.guideOff = !g?.visible;
+    L.assemble();
+    for (let i = 0; i < 300 && (L.state.explode > 0 || L.state.explodeSystem); i++) await new Promise(r => requestAnimationFrame(r));
+    out.after = { explode: L.state.explode, system: L.state.explodeSystem, dev: L.deviation() };
+    return out;
+  });
+  report(one.mine > 0.3 && one.others === 0 && one.select === 'DRIVE_UNITS' && one.guide && one.guideLen > 0.3 && one.guideOff && one.after.explode === 0 && one.after.system === null && one.after.dev === 0,
+    'explosión de un solo sistema: separa sus piezas y deja el resto montado; la línea guía une la pieza con su sitio; «Assemble» recoge y vuelve a todos', JSON.stringify(one));
+
   // ---- Picking with the mouse, the card, isolate, hide, systems and the search.
   const target = await page.evaluate(async () => {
     const L = window.__vc.ctLab, THREE = await import('three');
@@ -241,6 +261,37 @@ try {
   report(scn.opaque.join() === 'true,false,true' && scn.hidden.slice(0, 3).join() === 'false,false,false' && scn.hidden[3] === Math.PI && scn.glass.join() === 'false,true,true',
     'los tres suelos: opaco (sin bajar la cámara del suelo), oculto (se puede mirar desde abajo) y de cristal con su sombra de contacto', JSON.stringify(scn));
   report(Math.abs(scn.exterior - 0.72) < 1e-9 && scn.reflector === (scn.tier === 'high'), 'la luz «Exterior» lleva su exposición (0,72); el reflejo plano solo existe en calidad alta', `exposición ${scn.exterior} · reflejo ${scn.reflector} en calidad ${scn.tier}`);
+
+  // ---- Openings, the scale figure, the bloom and the suspension table.
+  const more = await page.evaluate(async () => {
+    const L = window.__vc.ctLab, THREE = await import('three');
+    const ang = (o) => 2 * Math.acos(Math.min(1, Math.abs(o.quaternion.w))) * 180 / Math.PI;
+    L.setOpening('doors', true); L.setOpening('tailgate', true); L.setOpening('frunk', true);
+    for (let i = 0; i < 400 && Object.values(L.openings).some(o => o.k < 1); i++) await new Promise(r => requestAnimationFrame(r));
+    const fl = L.truck.getObjectByName('DOOR_FL'), fr = L.truck.getObjectByName('DOOR_FR');
+    // The left door's rear edge goes out to −x, the right one's to +x.
+    const tip = (d) => new THREE.Vector3(0, 0, 1).applyQuaternion(d.quaternion).x;
+    const out = { door: ang(fl), frunk: ang(L.truck.getObjectByName('EXT_Frunk_Lid')), tail: ang(L.truck.getObjectByName('EXT_Tailgate')), left: tip(fl), right: tip(fr) };
+    for (const k of Object.keys(L.openings)) L.setOpening(k, false);
+    for (let i = 0; i < 400 && Object.values(L.openings).some(o => o.k > 0); i++) await new Promise(r => requestAnimationFrame(r));
+    out.closed = Math.max(ang(fl), ang(fr));
+    const f = L.figure;
+    if (f) { const b = new THREE.Box3(); f.traverse(o => { if (o.isMesh && o.name === 'human-batch') b.expandByObject(o); }); out.figureTop = b.max.y; out.figureMinY = b.min.y; }
+    // Fully exploded at the widest amplitude, no part's box reaches the figure's (a 0.6 m column).
+    if (f) {
+      const col = new THREE.Box3(); f.traverse(o => { if (o.isMesh && o.name === 'human-batch') col.expandByObject(o); });
+      col.expandByVector(new THREE.Vector3(0.1, 0, 0.1));
+      const amp = L.state.amp; L.state.amp = 2.4; L.setExplode(1); L.truck.updateMatrixWorld(true);
+      out.figureHits = [...L.comps.values()].filter(o => o.isMesh && new THREE.Box3().setFromObject(o).intersectsBox(col)).map(o => o.name);
+      L.state.amp = amp; L.setExplode(0);
+    }
+    out.suspension = [...document.querySelectorAll('#cybertruck-lab [data-pane="data"] .ctl-table')][1]?.querySelectorAll('tr').length - 1;
+    return out;
+  });
+  report(Math.abs(more.door - 65) < 0.5 && Math.abs(more.frunk - 55) < 0.5 && Math.abs(more.tail - 90) < 0.5 && more.left < -0.5 && more.right > 0.5 && more.closed < 1e-6,
+    'aperturas: puertas ≈65° hacia fuera a cada lado, frunk ≈55° y portón 90°, y vuelven a cerrar', JSON.stringify(more));
+  report(Math.abs(more.figureTop - 1.80) < 0.02 && Math.abs(more.figureMinY) < 0.02 && more.figureHits?.length === 0, 'la figura de escala mide 1,80 m desde el suelo que pisa y ninguna pieza la alcanza explosionada al máximo', `coronilla a ${more.figureTop?.toFixed(3)} m, pies a ${(more.figureMinY * 1000).toFixed(0)} mm · piezas que la tocan: ${more.figureHits?.join(', ') || 'ninguna'}`);
+  report(more.suspension === 6, 'la pestaña Data lista las seis alturas de la suspensión del manual', `${more.suspension} filas`);
 
   // ---- Space animates; Esc goes one layer at a time.
   await page.evaluate(() => document.querySelector('#cybertruck-lab .ctl-back').blur());

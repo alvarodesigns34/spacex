@@ -80,3 +80,30 @@ export const CT_FIDELITY = {
   R: { label: 'Reconstructed', note: 'Reconstructed from official views and consistent photographs.' },
   A: { label: 'Approximate', note: 'A reasoned interpretation: the exact geometry is not publicly documented.' },
 };
+
+/**
+ * The air suspension's six settings (Premium AWD and Cyberbeast), same page of the manual, grade A:
+ * overall height and ground clearance, metres. The model is built at Medium; the Lab lists the
+ * others as data and does not move the body to them (that needs the suspension's arms articulated
+ * in Blender, or the motion would be invented).
+ */
+export const CT_SUSPENSION = [
+  { id: 'entry', label: 'Entry/Exit', height: 1.7388, clearance: 0.2020 },
+  { id: 'low', label: 'Low', height: 1.7538, clearance: 0.2170 },
+  { id: 'medium', label: 'Medium', height: 1.7938, clearance: 0.2570, model: true },
+  { id: 'high', label: 'High', height: 1.8538, clearance: 0.3170 },
+  { id: 'veryHigh', label: 'Very High', height: 1.8938, clearance: 0.3570 },
+  { id: 'extract', label: 'Extract', height: 1.9438, clearance: 0.4070 },
+];
+
+/**
+ * Openings, about the hinges the asset carries (each node's origin is its hinge line, `pivot_es`).
+ * Axes in glTF: the doors turn about Y (vertical), the frunk lid and the tailgate about X. Tesla
+ * publishes no opening angles: the doors' and the frunk's are approximate (≈); the tailgate drops
+ * until it is level (90°).
+ */
+export const CT_OPENINGS = {
+  doors: { label: 'Doors', nodes: ['DOOR_FL', 'DOOR_RL', 'DOOR_FR', 'DOOR_RR'], axis: [0, 1, 0], deg: 65, approx: true },
+  frunk: { label: 'Frunk', nodes: ['EXT_Frunk_Lid'], axis: [1, 0, 0], deg: 55, approx: true },
+  tailgate: { label: 'Tailgate', nodes: ['EXT_Tailgate'], axis: [1, 0, 0], deg: 90, approx: false },
+};

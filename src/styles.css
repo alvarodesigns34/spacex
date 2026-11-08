@@ -496,6 +496,8 @@ body.cybertruck-lab-open #hud, body.cybertruck-lab-open #labels { display: none;
 #cybertruck-lab .ctl-fid-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 12px 0; }
 #cybertruck-lab .ctl-fid-box { display: flex; flex-direction: column; align-items: center; padding: 8px 4px; border: 1px solid currentColor; border-radius: var(--radius-ctl); font-size: 11px; }
 #cybertruck-lab .ctl-fid-box b { font-family: var(--font-mono); font-size: 16px; }
+#cybertruck-lab .ctl-data-h { margin: 14px 2px 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-muted); }
+#cybertruck-lab .ctl-toggles .ctl-seg-btn { flex: 1 1 0; }
 #cybertruck-lab .ctl-sources { list-style: none; margin: 0; padding: 0; font-size: 11.5px; line-height: 1.45; }
 #cybertruck-lab .ctl-sources li { margin: 4px 2px; }
 /* The selected part's card. */
@@ -519,6 +521,8 @@ body.cybertruck-lab-open #hud, body.cybertruck-lab-open #labels { display: none;
 #cybertruck-lab .ctl-explode { flex: 1 1 auto; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 13px; font-weight: 600; }
 #cybertruck-lab .ctl-explode output { font-family: var(--font-mono); font-weight: 400; color: var(--ink-muted); }
 #cybertruck-lab .ctl-explode input { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); height: 22px; margin: 0; }
+#cybertruck-lab .ctl-sys-select { max-width: 190px; padding: 7px 8px; min-height: 34px; color: var(--ink); background: rgba(255, 255, 255, 0.05); border: 1px solid var(--surface-line); border-radius: var(--radius-ctl); font: inherit; font-size: 12.5px; }
+#cybertruck-lab .ctl-sys-select option { background: #16181c; }
 #cybertruck-lab .ctl-play[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-quiet); }
 #cybertruck-lab .ctl-stages { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
 #cybertruck-lab .ctl-stage-chip { position: relative; overflow: hidden; display: flex; gap: 6px; align-items: center; padding: 6px 8px; min-height: 32px; text-align: left; color: var(--ink-muted); background: rgba(255, 255, 255, 0.04); border: 1px solid var(--surface-line); border-radius: 8px; cursor: pointer; font: inherit; font-size: 11.5px; line-height: 1.2; }
@@ -542,3 +546,8 @@ body.cybertruck-lab-open #hud, body.cybertruck-lab-open #labels { display: none;
   #cybertruck-lab .ctl-stage-chip span { display: none; }
   #cybertruck-lab .ctl-stages { grid-template-columns: repeat(6, auto); justify-content: start; }
 }
+
+/* ?perf=log: the measurement's result, to copy or download (main.js). */
+.perf-log { position: fixed; z-index: 60; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(560px, calc(100vw - 48px)); display: flex; flex-direction: column; gap: 10px; padding: 16px; color: var(--ink); background: var(--surface-solid); border: 1px solid var(--surface-line); border-radius: var(--radius-panel); box-shadow: var(--shadow-panel); font-family: var(--font-sans); }
+.perf-log textarea { height: 320px; font-family: var(--font-mono); font-size: 11.5px; color: var(--ink); background: rgba(255, 255, 255, 0.04); border: 1px solid var(--surface-line); border-radius: var(--radius-ctl); resize: vertical; }
+.perf-log a { text-decoration: none; }

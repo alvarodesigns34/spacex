@@ -19,7 +19,7 @@
     "check:h2r": "node tools/h2r-check.mjs",
     "check:mission": "node tools/mission-check.mjs",
     "check:lod": "node tools/lod-pop.mjs && node tools/lod-parts.mjs",
-    "check:cache": "node tools/render-cache-equal.mjs",
+    "check:cache": "node tools/render-cache-equal.mjs && node tools/texture-cache-check.mjs",
     "check:cybertruck": "node tools/cybertruck-lab-check.mjs"
   },
   "devDependencies": {
