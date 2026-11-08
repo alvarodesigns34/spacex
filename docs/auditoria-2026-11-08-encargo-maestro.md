@@ -602,3 +602,11 @@ manchas grandes y suaves.
 
 **Coste:** el ruido de cobertura (dos fbm de cuatro octavas) en cada píxel iluminado: no medido en
 hardware real.
+
+## 22. Refactorización (§36), primer paso
+
+El panel técnico (tecla **I**), `?perf` y `?perf=log` salen de `main.js` a `src/ui/techPanel.js`
+sin cambiar su código (sus dependencias pasan por parámetro): `main.js` baja de ≈1 810 a 1 722
+líneas. Verificado en el navegador: la tecla **I** abre y cierra el panel y muestra sus dos líneas.
+Los archivos grandes restantes (`launch.js`, `plume.js`, `roadster.js`, `gt3rs.js`, `textures.js`)
+no se tocan sin una prueba que cubra cada pieza extraída.

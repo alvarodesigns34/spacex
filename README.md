@@ -564,6 +564,7 @@ src/core/water.js          dónde hay agua (mar, charcas, canales) y a qué prof
 src/core/ocean.js          el oleaje del mar (seis ondas de Gerstner): una tabla para la GPU y la física
 src/sim/ambience.js        el sonido ambiente: rompiente al ritmo de la marejada y viento del sitio, sintetizados
 src/core/adaptive.js       calidad adaptativa: el p95 del tiempo de fotograma, con histéresis, sobre los pasos de las nubes
+src/ui/techPanel.js        el panel técnico (tecla I), ?perf y ?perf=log, fuera de main.js
 src/ui/photoMode.js        el modo fotográfico (tecla O): FOV, exposición, Sol, interfaz oculta y PNG, con vuelta exacta
 src/core/localProbes.js    sondas de reflejos locales capturadas de la escena (hoy, la de Starship junto a la torre)
 src/core/colliders.js      todo lo sólido de la escena, en celdas de 0,25 m, para los choques
