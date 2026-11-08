@@ -744,3 +744,22 @@ generan por código al arrancar (§20), así que KTX2/Basis no se les puede apli
   vértices `float32`, gzip de Pages ya los deja en ≈48 MB, y meshopt sin pérdida solo ganaba ≈20 %
   en el Model Y. Ahora, además, sus neumáticos ceden a un torno a distancia (§23), que es memoria y
   dibujo, no descarga.
+
+## 28. Liberación de recursos (§32): sin fugas en los ciclos de las secuencias (medido)
+
+`renderer.info.memory` (geometrías y texturas vivas en la GPU, fiable también por software) y los
+programas compilados, tras arrancar y detener tres veces cada secuencia (calidad media):
+
+| Tras 3 ciclos de… | Geometrías | Texturas | Programas |
+|---|---|---|---|
+| (arranque) | 1 744 | 160 | 174 |
+| lanzamiento | 1 744 · 1 744 · 1 744 | 160 · 160 · 160 | 174 · 174 · 174 |
+| reentrada | 1 744 · 1 744 · 1 744 | 160 · 160 · 160 | 183 · 183 · 183 |
+| F-16 | 1 744 · 1 744 · 1 744 | 160 · 160 · 160 | 189 · 189 · 189 |
+| Porsche | 1 744 · 1 756 · 1 756 | 160 · 163 · 163 | 189 · 232 · 233 |
+| H2R | 1 756 · 1 756 · 1 756 | 163 · 163 · 163 | 233 · 233 · 233 |
+| sol 60° ↔ 20° | 1 756 · 1 756 · 1 756 | 162–163 | 233 |
+
+Nada crece de un ciclo al siguiente: el único aumento es el primero de cada cosa (programas que se
+compilan la primera vez que se dibujan; las marcas y el humo del Porsche, creados al conducirlo), y
+después se mantiene. Los cambios de sol no acumulan (las sondas liberan su mapa al rehacerse).
