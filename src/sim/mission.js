@@ -105,3 +105,53 @@ export function missionChain() {
     ],
   };
 }
+
+/**
+ * Flight 14 AS FLOWN, from the orbit it reached (audit of 8-11-2026, §24–§25): a chain apart from
+ * the planned one above, which the re-entry chapter still flies. Wikipedia ("Starship flight 14",
+ * citing SpaceX) gives the orbit after insertion (262 × 275 km), the insertion burn (T+25:17–25:36
+ * on spacex.com), the release of 26 Starlink V3 and the deorbit burn at T+2:12:00–2:12:11, the
+ * mission having been shortened. The model adds the ship's mass at cutoff (the ascent's tables),
+ * one sea-level Raptor's thrust and Isp (≈, as the ascent assumes), and two things nobody
+ * publishes: a V3 satellite's mass (`satMass`, ≈) and where on the orbit the insertion left the
+ * ship (`phase`, the true anomaly at T+25:36). Its output — the time and state at the 120 km
+ * interface — is a PREDICTION to compare with the reported entry (T+2:28:52), not a fit to it.
+ */
+export const AS_FLOWN = {
+  orbit: { perigee: 262e3, apogee: 275e3 },
+  insertion: [hms(0, 25, 17), hms(0, 25, 36)],
+  deorbit: [hms(2, 12, 0), hms(2, 12, 11)],
+  satellites: 26,
+  entryReported: hms(2, 28, 52),
+};
+export function asFlownChain({ satMass = 1500, phase = 0 } = {}) {
+  const ra = R_EARTH + AS_FLOWN.orbit.apogee, rp = R_EARTH + AS_FLOWN.orbit.perigee;
+  const a = (ra + rp) / 2, e = (ra - rp) / (ra + rp), o = { a, e, p: a * (1 - e * e) };
+  const { thrust, isp } = MISSION.deorbit;
+  const cut = cutoffState();
+  const insProp = thrust * (AS_FLOWN.insertion[1] - AS_FLOWN.insertion[0]) / (isp * G0);
+  const payload = AS_FLOWN.satellites * satMass;
+  const m0 = cut.m - insProp - payload;
+  const [d0, d1] = AS_FLOWN.deorbit, dur = d1 - d0;
+  const nuB = propagate(o, phase, (d0 + d1) / 2 - AS_FLOWN.insertion[1]);
+  const s = stateOn(o, nuB);
+  const prop = thrust * dur / (isp * G0), m1 = m0 - prop, dv = isp * G0 * Math.log(m0 / m1);
+  const vx = s.v * Math.cos(s.gamma) - dv, vy = s.v * Math.sin(s.gamma);
+  const o2 = orbitOf(s.r, Math.hypot(vx, vy), Math.atan2(vy, vx));
+  const rI = R_EARTH + MISSION.interface;
+  const nuI = -Math.acos(Math.max(-1, Math.min(1, (o2.p / rI - 1) / o2.e)));
+  const n = Math.sqrt(MU / o2.a ** 3), Mof = (nu) => { const E = E_of_nu(nu, o2.e); return E - o2.e * Math.sin(E); };
+  let dM = Mof(nuI) - Mof(o2.nu);
+  while (dM < 0) dM += 2 * Math.PI;
+  const sI = stateOn(o2, nuI);
+  return {
+    orbit: o, insertionPropellant: insProp, payload, deorbit: { t0: d0, t1: d1, m0, m1, propellant: prop, dv, at: s },
+    deorbitOrbit: o2, entry: { t: d1 + dM / n - dur / 2, v: sI.v, gamma: sI.gamma, m: m1 },
+    masses: [
+      { t: cut.t, what: 'cutoff (the ascent model)', m: cut.m },
+      { t: AS_FLOWN.insertion[1], what: 'insertion burn: propellant at thrust / (Isp·g0)', dm: -insProp },
+      { t: AS_FLOWN.insertion[1], what: `26 Starlink V3 released (≈ ${satMass} kg each, not published)`, dm: -payload },
+      { t: d1, what: 'deorbit burn: propellant', dm: -prop },
+    ],
+  };
+}

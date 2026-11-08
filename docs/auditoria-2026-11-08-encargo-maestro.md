@@ -680,3 +680,29 @@ en lóbulos menores que se desprenden). Mismo número de bocanadas; al ser menor
 Pequeño pero visible.
 
 ![Nube de suelo a T+1,5 s: atlas nuevo (arriba) y con bocanadas de borde (abajo)](auditoria-2026-11-08/nube-suelo-borde.jpg)
+
+## 25. Vuelo 14 tal como voló: una cadena desde la órbita publicada, que predice la entrada
+
+**Hecho (`mission.js asFlownChain`, `AS_FLOWN`):** aparte de la cadena planificada (la que vuela el
+capítulo), una del vuelo real: la órbita tras la inserción publicada (262 × 275 km), la masa del
+modelo en el apagado menos el propelente de la inserción (19 s con un Raptor: 13,6 t) y la carga
+de 26 Starlink V3 (masa por satélite **no publicada**: parámetro), la desorbitación real
+(T+2:12:00–2:12:11) por la ecuación del cohete, y el vuelo libre de Kepler hasta la interfaz de
+120 km. Su salida —la hora y el estado en la interfaz— es una **predicción**, no un ajuste.
+
+**Validación (`tools/mission-check.mjs`, cinco pruebas nuevas, en `check:static`):**
+- las masas cuadran: apagado − inserción − 26 satélites − desorbitación = 209,2 t en la entrada
+  (con 1,5 t por satélite);
+- el estado es continuo a través del encendido (0,000 mm) y el vuelo libre conserva la energía
+  (Δε/ε = 1,2·10⁻¹⁶);
+- **la entrada predicha, T+2:28:52–2:32:17** barriendo lo no publicado (satélites de 0 a 2 t, la fase
+  de la órbita), **encierra la publicada, T+2:28:52**, que no entra en el cálculo;
+- tras la desorbitación el perigeo queda bajo tierra (−146 km) y la nave entra descendiendo (−1,76°).
+
+**Lectura honesta:** la hora publicada cae en el borde del intervalo, el de los satélites pesados
+(≈2 t cada uno). Con lo publicado no se distingue si es la masa real de un V3 o si al modelo le
+sobra masa en el apagado (su ascenso está ajustado a la hipótesis circular, §24).
+
+**Pendiente:** que el capítulo de la reentrada pueda volar esta cadena (un modo «as flown» frente
+al «planned»), con sus propios hitos de planeo, que exigen resolver de nuevo los coeficientes con
+las horas reales de transónico y aterrizaje, que las fuentes leídas no dan con fiabilidad.

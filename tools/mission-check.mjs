@@ -109,5 +109,29 @@ const report = (ok, name, detail = '') => {
     'panel: dice que los recuentos son los planificados, da los de flight 14 y no atribuye todas las horas a SpaceX', '');
 }
 
+// ---- Flight 14 as flown (mission.js asFlownChain): a prediction, not a fit ------------------------
+{
+  const { asFlownChain, AS_FLOWN, MU: mu, R_EARTH: R } = await import('../src/sim/mission.js');
+  const C = asFlownChain();
+  // Masses: every change has a cause, and they add up to the mass at the interface.
+  const sum = C.masses.reduce((m, x) => (x.m !== undefined ? x.m : m + x.dm), 0);
+  report(Math.abs(sum - C.entry.m) < 1e-6 && C.masses.every(x => x.what), 'tal como voló: las masas cuadran (apagado − inserción − 26 satélites − desorbitación = masa en la entrada)', `${(C.entry.m / 1e3).toFixed(1)} t`);
+  // The burn changes the speed, not the place: same radius on both orbits at the burn.
+  const rAfter = C.deorbitOrbit.p / (1 + C.deorbitOrbit.e * Math.cos(C.deorbitOrbit.nu));
+  report(Math.abs(rAfter - C.deorbit.at.r) < 1e-3, 'tal como voló: el estado es continuo a través de la desorbitación', `${((rAfter - C.deorbit.at.r) * 1000).toFixed(3)} mm`);
+  // Coasting conserves energy: vis-viva on the orbit at the burn and at the interface.
+  const eB = C.deorbitOrbit.energy, eI = C.entry.v ** 2 / 2 - mu / (R + 120e3);
+  report(Math.abs(eI - eB) / Math.abs(eB) < 1e-9, 'tal como voló: el vuelo libre conserva la energía hasta la interfaz', `Δε/ε = ${(Math.abs(eI - eB) / Math.abs(eB)).toExponential(1)}`);
+  // The prediction against the reported entry, over what is not published: the satellites'
+  // mass (0–2 t each) and where on its orbit the ship was. Not fitted to the reported time.
+  const ts = [];
+  for (const satMass of [0, 500, 1000, 1500, 2000]) for (let k = 0; k < 8; k++) ts.push(asFlownChain({ satMass, phase: k * Math.PI / 4 }).entry.t);
+  const lo = Math.min(...ts), hi = Math.max(...ts), fmt = (t) => `${Math.floor(t / 3600)}:${String(Math.floor(t % 3600 / 60)).padStart(2, '0')}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+  report(AS_FLOWN.entryReported > lo - 60 && AS_FLOWN.entryReported < hi + 60,
+    'tal como voló: la entrada predicha encierra la publicada (T+2:28:52) dentro de lo no publicado', `predicha ${fmt(lo)}–${fmt(hi)} con satélites de 0–2 t y cualquier fase`);
+  report(C.deorbitOrbit.perigee < 0 && C.entry.gamma < 0, 'tal como voló: tras la desorbitación el perigeo queda bajo tierra y la nave desciende en la interfaz',
+    `perigeo ${(C.deorbitOrbit.perigee / 1e3).toFixed(0)} km, γ ${(C.entry.gamma * 180 / Math.PI).toFixed(2)}°`);
+}
+
 console.log(failed ? `\n${failed} fallo(s) en la misión` : '\nMisión (Flight 14): todo correcto');
 process.exit(failed ? 1 : 0);
