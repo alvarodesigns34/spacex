@@ -901,3 +901,40 @@ calor se aplicaba a los originales de `M`, que la nave ya no lleva.
   `material ===`/`!==` en `src/`).
 
 ![A bordo a T+9:33:20: antes (izquierda) y después (derecha) del arreglo](auditoria-2026-11-08/reentrada-abordo-sonda-antes-despues.jpg)
+
+## 34. Matriz de capturas (§37): 22 escenas × 3 soles
+
+**Cómo se hizo:**
+- 66 capturas con el arnés de desarrollo, calidad media, 1280×720, render por software
+  (SwiftShader), las nubes limitadas a 6 pasos como en toda captura automática;
+- los tres soles: mañana (12° de elevación, acimut 100°), mediodía (65°, 180°) y atardecer
+  (5°, 265°);
+- montadas en tres hojas de contactos (320×180 por escena);
+- no sustituyen a la galería de `docs/screenshots`, que sigue sin regenerarse hasta que el usuario
+  lo apruebe.
+
+**Escenas:**
+- el recinto y Starship (vista general, sitio, acero, losetas, motores, foso);
+- el lanzamiento (encendido, despegue, T+12, separación);
+- la reentrada (persecución, a bordo, amerizaje);
+- la costa y el mar (costa, mar a ras, horizonte);
+- el Roadster (en órbita y en su peana);
+- el Porsche (general y rueda), el F-16 y la H2R.
+
+![Matriz: mañana](auditoria-2026-11-08/matriz-morning.jpg)
+![Matriz: mediodía](auditoria-2026-11-08/matriz-noon.jpg)
+![Matriz: atardecer](auditoria-2026-11-08/matriz-sunset.jpg)
+
+**Lo que encontró:**
+- **Regresión, corregida:** sin plasma a bordo de la reentrada (§33). Las capturas de a bordo de
+  las tres hojas son ya las del arreglo.
+- **Error del guion, no del simulador:** el GT3 RS no tiene encuadre de cabina (su interior es la
+  cámara de conducción) y el salto volvía a la vista general. Sustituido por el encuadre de la rueda.
+- **Para revisar, sin decidir:**
+  - A mediodía la nube del encendido queda marrón oscura en sus caras en sombra, con un aspecto
+    de humo de combustible que por la mañana no tiene. Antes de tocarla hace falta compararla con
+    fotos de encendidos a mediodía.
+  - Con el sol a 5° el cielo y la luz apenas se enrojecen respecto al mediodía: el atardecer se
+    lee sobre todo por las sombras largas. Es parte del trabajo pendiente de atmósfera y exposición.
+- **Nada más roto:** materiales, escala, encuadres, la Tierra orbital genérica, el mar con el
+  reflejo del sol por la mañana y la costa.
