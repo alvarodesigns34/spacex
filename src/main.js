@@ -574,7 +574,7 @@ async function main() {
     const ex = exhibits.starship;
     if (ex) {
       const at = new THREE.Vector3(ex.lay.x, ex.model.position.y + 45, ex.lay.z);
-      localProbes.add({ name: 'starship', target: ex.model, position: at, active: () => !launch.running && !reentry.running });
+      localProbes.add({ name: 'starship', target: ex.model, position: at, near: 450, active: () => !launch.running && !reentry.running });
     }
     // The three on the skid pad share one, taken at the Porsche's waist height (they stand within
     // 5 m of each other), all three hidden for it: their clearcoat is a near mirror, and with the
@@ -591,8 +591,8 @@ async function main() {
       localProbes.add({ name: 'roadster', target: rd.model, position: new THREE.Vector3(rd.lay.x, rd.model.position.y + 0.8, rd.lay.z),
         active: () => !view.orbital });
     }
-    env.onProbe = () => localProbes.schedule(env, () => camera);
-    localProbes.schedule(env, () => camera);
+    env.onProbe = () => localProbes.schedule(env);
+    localProbes.schedule(env);
   }
 
   // ---- The F-16 in flight ----
@@ -1557,7 +1557,7 @@ async function main() {
     windsock?.userData.tick?.(WAVE_TIME.value);
     // The sky is a finite box; centring it on the viewer is what lets it survive an ascent.
     env.followCamera(camera);
-    localProbes.update(scene);
+    localProbes.update(scene, camera);
     // Silent in space and while a vehicle's own sound (and its cockpit) takes over.
     ambience.update(camera, env.inSpace || view.orbital || launch.running || reentry.running || f16fly.running || gt3drive.running || h2rRide.running);
     // The launch complex's reflections (sim/audioBus.js setSpace): by the camera's distance to the pad.

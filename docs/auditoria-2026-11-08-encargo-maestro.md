@@ -717,3 +717,12 @@ three.js los vuelve a subir en el primer fotograma del Lab al reabrir: ni segund
 que reconstruir; solo ese fotograma es más lento. En los equipos capaces no cambia nada.
 `npm run check:cybertruck`: todas sus comprobaciones pasan (entre ellas, reabrir sin volver a pedir
 el archivo). `lab.released` cuenta las liberaciones, para la consola.
+
+**Sondas locales bajo demanda (corrección, 8-11):** con la del Roadster ya eran tres, y cada cambio
+de sol las volvía a capturar todas en una sola tarea: 18 pasadas de la escena. Por software, la
+página quedaba congelada decenas de segundos y el CI de `e438c62` falló (`check:scene`: el clic en
+*Guide* agotó sus 30 s justo después de una prueba que cambia el sol). Ahora un cambio de sol solo
+las marca como desfasadas; cada una se vuelve a capturar cuando la cámara se acerca a su vehículo
+(450 m para Starship, 150 m para los coches), **una por fotograma como mucho**, y hasta entonces ese
+vehículo usa la sonda común. Mejor también para un visitante: ninguna captura de vehículos que no
+está mirando.
