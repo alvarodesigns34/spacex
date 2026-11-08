@@ -788,3 +788,8 @@ mutaciones al texto de `launch.js`, y tres de ellas (`staging`, `shipmass`, `kin
 código de `launchModel.js`. El gancho reparte cada mutación a su archivo y, si el texto que espera
 ya no está, **falla** («mutation … not applied») en vez de dar por buena una mutación que no se
 aplicó. Las siete mutaciones se rechazan y `npm run check:static` termina con código 0.
+
+Lo mismo con `src/vehicles/roadster.js` (3732 → 3487 líneas): sus ocho texturas de lienzo
+(pantalla «DON'T PANIC», placa de circuito, rejilla, insignia, ópticas, escamas de la pintura,
+neumáticos y esferas del cuadro) pasan **idénticas** (comprobado con `diff`) a
+`src/vehicles/roadsterTextures.js` (252), que solo depende de `materials/textures.js`.
