@@ -208,7 +208,7 @@ float seaNoise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 
     float swellPh = ${f5(SWELL.k)} * dot(vec2(${f5(SWELL.dx)}, ${f5(SWELL.dz)}), vec2(vSeaXY.x, -vSeaXY.y)) - uOceanPhase[0] + ${f5(SWELL.ph)};
     float swash = 2.0 + 4.0 * (0.5 + 0.5 * sin(swellPh + 2.0 * seaNoise(vec2(along / 120.0, 4.0))));
     float l1 = 1.0 - smoothstep(0.0, 1.6 + 0.8 * seaNoise(vec2(along / 6.0, tt * 0.1)), abs(d - swash));
-    l1 *= 0.45 + 0.55 * smoothstep(0.25, 0.6, seaNoise(vec2(along / 11.0 + tt * 0.15, 2.0 + tt * 0.04)));
+    l1 *= 0.7 + 0.3 * smoothstep(0.25, 0.6, seaNoise(vec2(along / 11.0 + tt * 0.15, 2.0 + tt * 0.04)));
     float wetFilm = (1.0 - smoothstep(swash, swash + 6.0, d)) * 0.25;
     float l2 = (1.0 - smoothstep(0.0, 3.0 * bw, abs(d - 18.0 - 3.0 * seaNoise(vec2(along / 60.0, 1.0))))) * smoothstep(0.42, 0.72, brk);
     float l3 = (1.0 - smoothstep(0.0, 4.0 * bw, abs(d - 42.0 - 6.0 * seaNoise(vec2(along / 90.0, 5.0))))) * smoothstep(0.55, 0.8, brk);
@@ -238,7 +238,65 @@ float seaNoise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 
           'reflectVec = inverseTransformDirection( reflectVec, viewMatrix );\n\t\t\treflectVec.y = abs( reflectVec.y );'));
     waveNormals(sh, { tileSize: base.userData.tileSize ?? 420, swellFrom: patch ? [60, 300] : null });
   };
-  m.customProgramCacheKey = () => (patch ? 'vc-sea-patch-4' : 'vc-sea-6');
+  m.customProgramCacheKey = () => (patch ? 'vc-sea-patch-5' : 'vc-sea-7');
+  return m;
+}
+
+/**
+ * The lower half of the reflection probe: the ground round the exhibits as it is, not a grey disc.
+ * Until 8 November 2026 every metal, paint and glass surface reflected a uniform grey floor out to
+ * the horizon, so nothing showed the Gulf lying east of the site or the marsh and the beach round
+ * it. The probe is rendered from its scene's origin; a point `r` out on this disc, 0.4 below that
+ * origin, is seen as low under the horizon as the real ground D = r · H / 0.4 metres away from an
+ * eye H = 6 m above the centre of the exhibit row. Each vertex takes the colour of what lies there:
+ * the concrete and paving of the site close in (the grey the disc had), then the terrain shader's
+ * own albedos (library.js: the plain's grass and straw, the thicket, dry and wet sand) by the same
+ * functions that place them (groundSample, thicket), and the sea. Radiance = albedo × 1.35, the
+ * ratio the old disc's 0.30 grey stood in for a ≈0.22 albedo. ≈: one viewpoint for the whole site,
+ * and the sea as it looks at a grazing angle (much of its light is the sky's), not measured.
+ */
+export const PROBE_H = 6, PROBE_C = [0, -60], PROBE_R = 600, PROBE_FAR = 1000;
+export function probeGround() {
+  const RINGS = 56, SEGS = 96, k = PROBE_H / 0.4, K = 1.35;
+  const pos = [], col = [], idx = [];
+  const radii = [0];
+  for (let j = 1; j <= RINGS; j++) radii.push(0.25 * Math.pow(PROBE_R / 0.25, j / RINGS));
+  const smooth = THREE.MathUtils.smoothstep;
+  for (const [j, r] of radii.entries()) {
+    const n = j === 0 ? 1 : SEGS;
+    for (let i = 0; i < n; i++) {
+      const a = (i / SEGS) * Math.PI * 2, x = Math.cos(a) * r, z = Math.sin(a) * r;
+      const wx = PROBE_C[0] + x * k, wz = PROBE_C[1] + z * k, D = r * k;
+      const g = groundSample(wx, -wz);
+      let c;
+      if (g.h < SEA_LEVEL) c = [0.20, 0.25, 0.28];
+      else {
+        const straw = 0.5;
+        const veg = [0.16 + 0.14 * straw, 0.168 + 0.082 * straw, 0.072 + 0.046 * straw];
+        const scrub = [0.085, 0.088, 0.046];
+        c = veg.map((v, q) => v + (scrub[q] - v) * Math.min(1, g.land * 0.8));
+        const dry = [0.644, 0.442, 0.193], wet = [0.221, 0.162, 0.085];
+        c = c.map((v, q) => v + (dry[q] - v) * g.dry * 0.92);
+        c = c.map((v, q) => v + (wet[q] - v) * g.wet * 0.85);
+        c = c.map((v, q) => v * g.col[q]);
+      }
+      // The site's own concrete and paving within ≈150 m of the row: the old disc's grey.
+      const site = 1 - smooth(D, 120, 180);
+      c = c.map((v) => (v * (1 - site) + 0.222 * site) * K);
+      pos.push(x, -0.4, z); col.push(...c);
+    }
+  }
+  for (let i = 0; i < SEGS; i++) idx.push(0, 1 + ((i + 1) % SEGS), 1 + i);
+  for (let j = 1; j < radii.length - 1; j++) for (let i = 0; i < SEGS; i++) {
+    const a0 = 1 + (j - 1) * SEGS + i, a1 = 1 + (j - 1) * SEGS + ((i + 1) % SEGS), b0 = a0 + SEGS, b1 = a1 + SEGS;
+    idx.push(a0, a1, b0, a1, b1, b0);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.setIndex(idx);
+  const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+  m.name = 'probe-ground';
   return m;
 }
 
@@ -278,10 +336,15 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   const envSky = new Sky();
   envSky.scale.setScalar(60);
   envScene.add(envSky);
-  const envGround = new THREE.Mesh(new THREE.CircleGeometry(80, 48), new THREE.MeshBasicMaterial({ color: 0x4c4842 }));
-  envGround.rotation.x = -Math.PI / 2;
-  envGround.position.y = -0.4;
+  const envGround = probeGround();
   envScene.add(envGround);
+  // The grey disc the probe had until 8 November 2026, kept to compare from the console:
+  // __vc.env.setProbeGround('flat') and back with 'site'.
+  const envFlat = new THREE.Mesh(new THREE.CircleGeometry(80, 48), new THREE.MeshBasicMaterial({ color: 0x4c4842 }));
+  envFlat.rotation.x = -Math.PI / 2;
+  envFlat.position.y = -0.4;
+  envFlat.visible = false;
+  envScene.add(envFlat);
   let envRT = null;
 
   // --- Lights ---
@@ -398,7 +461,10 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     const pn = new Float32Array(pp.length);
     for (let i = 1; i < pn.length; i += 3) pn[i] = 1;
     patchGeo.setAttribute('normal', new THREE.BufferAttribute(pn, 3));
+    // Metric UVs, (x, −z) about the patch's centre: the shader reads the world point instead
+    // (the patch moves), but the attribute is a real one for whatever else reads the geometry.
     const puv = new Float32Array((pp.length / 3) * 2);
+    for (let i = 0; i < pp.length / 3; i++) { puv[i * 2] = pp[i * 3]; puv[i * 2 + 1] = -pp[i * 3 + 2]; }
     patchGeo.setAttribute('uv', new THREE.BufferAttribute(puv, 2));
     patchGeo.setIndex(pidx);
     patchGeo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), PATCH_R + 2);
@@ -695,9 +761,10 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
       envSky.material.uniforms.rayleigh.value = nightSky.rayleigh;
       envSky.material.uniforms.mieCoefficient.value = nightSky.mie;
       envSky.material.uniforms.mieDirectionalG.value = su.mieDirectionalG.value;
-      envGround.material.color.setScalar(THREE.MathUtils.lerp(0.30, 0.02, n));
+      envGround.material.color.setScalar(THREE.MathUtils.lerp(1, 0.067, n));
+      envFlat.material.color.setScalar(THREE.MathUtils.lerp(0.30, 0.02, n));
       if (envRT) envRT.dispose();
-      envRT = pmrem.fromScene(envScene, 0.02);
+      envRT = pmrem.fromScene(envScene, 0.02, 0.1, PROBE_FAR);
       scene.environment = envRT.texture;
     }
   }
@@ -717,6 +784,8 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
    * view). This rebuilds it for the sun that is set.
    */
   function rebuildProbe() { applyAtmosphere({ rebuildProbe: true }); }
+  /** 'site' (the ground round the exhibits, the default) or 'flat' (the old grey disc), to compare. */
+  function setProbeGround(kind) { envGround.visible = kind !== 'flat'; envFlat.visible = kind === 'flat'; rebuildProbe(); }
 
   /**
    * Moving the Sun changes two things at very different prices. The sky uniforms, the light
@@ -814,7 +883,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   setSun(20, 34, { immediate: true });
 
   return {
-    sun, sky, hemi, ground, outer, get seaPatch() { return seaPatch; }, ocean: oceanU, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation, rebuildProbe,
+    sun, sky, hemi, ground, outer, get seaPatch() { return seaPatch; }, ocean: oceanU, setSun, setAltitude, setSpace, followCamera, updateShadow, addStation, rebuildProbe, setProbeGround,
     SUN_MIN, SUN_MAX, get night() { return nightK; },
     get inSpace() { return inSpace; }, get sunDir() { return sunDir; },
   };

@@ -111,7 +111,121 @@ Oleaje con geometría real, coherente con el viento y la costa, que la física l
 reloj del océano; `swellFrom`), `tools/ocean-check.mjs` (en `check:static`), `tools/sea-shots.json`.
 
 ### F. Validación
-Ver §5 (se completa al cerrar el bloque).
+Ver §5.
 
 ### G. Estado
-Implementado; pendiente de medir en hardware real (sin GPU en el entorno).
+Implementado y verificado en el entorno sin GPU; **pendiente de medir el tiempo de fotograma en
+hardware real**.
+
+## 5. Validación del bloque 1
+
+**Prueba sin navegador** (`node tools/ocean-check.mjs`, dentro de `check:static`), resultados reales:
+
+| Comprobación | Resultado |
+|---|---|
+| Altura significativa del mar abierto | 0,91 m (≈, elegida) |
+| Ninguna ola se pliega (Σ Q·k·a con el máximo de la costa < 1) | 0,151 |
+| Periodos (ω = √(g·k)) | 6,8 · 5,7 · 4,6 · 3,8 · 3,1 · 2,5 s |
+| Envolvente costera: cero en la orilla y tierra adentro; continua | salto máximo 0,0017 en 5 cm |
+| Costa muestreada (la que leen GPU y física) frente a la exacta de `terrain.js` | 4,5 cm como máximo |
+| Inversión de Gerstner (altura bajo un punto) frente a la superficie | < 1 µm; 4 iteraciones = 12 |
+| Continuidad en el tiempo, también a los 3 días de sesión | 0,74 m/s máx. ≤ 1,05 m/s teórico |
+| `waterAt` y el suelo del F-16 sobre el mar leen esa superficie | exacto (misma función) |
+| Dibujo frente a física, a 5 / 20 / 40 m de la cámara | 0,2 / 0,2 / 0,4 cm (tolerancia 1 cm) |
+| Dibujo frente a física, a 100 / 300 m | 7,0 / 27,8 cm: las olas cortas que la malla lejana no lleva (cota calculada 8,0 / 34,9 cm) |
+
+Tolerancia documentada: donde se conduce, se pilota o se cae al agua (la cámara a menos de 40 m)
+la superficie dibujada y la que lee la física coinciden a 1 cm.
+
+**Capturas comparables** (`node tools/shot.mjs <dir> tools/sea-shots.json`, calidad alta, sol a 18°,
+misma cámara, mismo código salvo el bloque): a la izquierda `c92c657`, a la derecha este bloque.
+
+![Mar antes y después: a ras, en la orilla, desde el aire](auditoria-2026-11-08/mar-antes-despues.jpg)
+
+Lectura razonada, no solo diferencia de píxeles:
+- **A ras (3 m):** desaparecen las motas grises y el mosaico de manchas; se ve el oleaje con
+  silueta, bandas de Fresnel y la marejada cruzada con las olas de viento.
+- **Orilla:** el agua tiene relieve hasta la rompiente; la lámina de la orilla sube y baja con la
+  marejada. (Se suavizó después la modulación de la espuma de la orilla, que había quedado tenue.)
+- **Desde el aire (220 m) y desde la plataforma (90 m):** mejora menor; sin manchas grises, pero el
+  mar lejano sigue dependiendo de las capas de normales. Honestamente, el salto visible está de
+  cerca y a ras.
+- Revisado además con el arnés: a contraluz (sol a 14° y 40°) el reflejo solar se alarga sobre el
+  oleaje sin centelleo apreciable; al atardecer (sol a 4°) se leen las crestas; sin costura en el
+  borde del parche tras calcular la distancia a la costa por píxel.
+
+**Coste:** +1 llamada de dibujo y ≈+106 000 triángulos en calidad alta (+2 % de los 5,24 M de la
+vista general; 5 342 370 construidos, bajo el techo de 6 M), seis ondas por vértice en el sombreador
+de vértices y dos lecturas de textura por píxel cerca del parche. **Tiempo de fotograma: no medido.**
+En SwiftShader cada fotograma tarda 2–5 s y la variación entre repeticiones supera el efecto (se
+intentó: activado/desactivado en tres vistas, resultados incoherentes); no se publica ninguna cifra.
+
+**Regresiones vigiladas:** `check:static` en verde (incluye las físicas del F-16, el Porsche y la
+H2R, que leen el agua); `tools/check.mjs` (escena completa con navegador): ver el resultado en el
+commit.
+
+**Limitaciones conocidas:** sin refracción ni acortamiento de las olas en aguas someras; la costa
+muestreada se fija pasados ±12 km a lo largo de la playa; la malla lejana pierde las olas cortas
+(compensado con las capas de normales); los borreguillos son una aproximación por altura de cresta;
+no hay salpicaduras ni ondas generadas por impactos (pendiente, enlazable con `effects.js`).
+
+## 6. P0 de la misión del vuelo 14: lo que se ha podido comprobar (sin cambios en el código)
+
+`src/sim/mission.js` encadena: apagado del ascenso (T+8:11) → vuelo libre kepleriano → encendido de
+desorbitación (T+8:52:37–8:52:48, «cited») → interfaz de entrada a 120 km, con `payload: 0` y sin
+inserción orbital. Es coherente por dentro, pero no es la misión entera.
+
+Fuentes consultadas el 8-11-2026:
+- **spacex.com/launches/starship-flight-14** (primaria): la página se genera con JavaScript y la
+  lectura automática solo devuelve el título. **No verificada en esta sesión**; hay que leerla en
+  un navegador.
+- Secundarias (prensa, 28–29-9-2026; coinciden): Starship llegó a órbita y desplegó **26 Starlink V3**
+  con su dispensador; SpaceX dijo haber contactado con los 26. Un motor de la etapa se apagó antes de
+  tiempo en el ascenso; la **inserción orbital la hizo un solo Raptor de nivel del mar** (el encargo
+  la sitúa entre T+00:25:17 y T+00:25:36, ≈19 s, cifra que la búsqueda solo encontró en una vista
+  previa). SpaceX acortó el vuelo y no completó todas las órbitas previstas.
+- **Discrepancia sin resolver:** un blog que cita a Jonathan McDowell pone la desorbitación a las
+  2 h 12 min (dos órbitas); `mission.js` tiene T+8:52:37 «citado». Una de las dos no corresponde al
+  vuelo real (o el código cita la previsión y no lo ocurrido). **Hay que resolverlo con la fuente
+  primaria antes de tocar nada**: es exactamente el tipo de error que el encargo pide no introducir.
+
+Plan propuesto (pendiente de la verificación anterior): separar en `mission.js` un modo **histórico**
+(eventos documentados: apagado, vuelo libre suborbital, inserción con un Raptor y su Δv por la
+ecuación del cohete con masa e Isp ≈, despliegue de 26 × masa de un V3 — dato a buscar, ≈ si no se
+publica —, órbita resultante, desorbitación real) y uno **hipotético** (el actual), etiquetados en la
+interfaz; y ampliar `tools/mission-check.mjs` con continuidad de estado en cada costura, conservación
+de energía en vuelo libre, contabilidad de masas y convergencia con el paso, sin usar como
+«validación» los mismos puntos con los que se ajusta.
+
+Fuentes secundarias: [Payload](https://payloadspace.com/starship-reaches-orbit-on-14th-test-flight/),
+[SpacePolicyOnline](https://spacepolicyonline.com/news/starship-achieves-orbit-for-the-first-time/),
+[Aerospace America](https://aerospaceamerica.aiaa.org/spacex-shortens-starships-first-orbital-flight-but-achieves-other-objectives/),
+[Basenor (cita a J. McDowell; menos fiable)](https://www.basenor.com/blogs/news/starship-flight-14-reaches-orbit-then-returns-early-after-1-orbit).
+
+## 7. Bloque 2a: el suelo de la sonda de reflejos (hecho; efecto pequeño)
+
+**Problema (confirmado, A4):** la mitad inferior de la sonda de entorno era un disco gris uniforme
+hasta el horizonte: ningún metal, pintura o cristal reflejaba el Golfo al este ni la marisma y la
+playa alrededor.
+
+**Hecho:** `environment.js probeGround()`: el disco lleva, vértice a vértice, lo que hay en esa
+dirección visto desde 6 m sobre el centro de la fila de expositores: el gris del recinto hasta
+≈150 m (el mismo 0,30 de antes), después los albedos del propio sombreador del terreno (hierba y
+paja de la llanura, matorral, arena seca y mojada) por las mismas funciones que los colocan, y el mar.
+Radiancia = albedo × 1,35, la proporción que el gris anterior suponía. ≈: un solo punto de vista
+para todo el recinto y el mar «como se ve en rasante». Interruptor de comparación en consola:
+`__vc.env.setProbeGround('flat')` / `'site'`. Prueba sin navegador `tools/probe-check.mjs` (en
+`check:static`): el mar al este, tierra al oeste, el gris junto a la fila, colores finitos.
+
+**Validación visual (misma sesión, misma cámara, solo cambia la sonda):** en el acero de Starship
+(vista *lee*) y en el costado del Porsche la diferencia es **apenas perceptible**: esas superficies
+reflejan sobre todo la franja del horizonte, que no cambia. Es una corrección de coherencia, sin
+coste por fotograma (la sonda se rehace solo al cambiar el sol), no el salto visual que pide el
+encargo.
+
+**Siguiente (2b, propuesto):** sondas locales capturadas de la escena real (`CubeCamera` + PMREM,
+solo al cambiar el sol y sin el propio vehículo), empezando por Starship junto a la torre, con sus
+materiales propios apuntando a esa sonda. Riesgos a medir: materiales compartidos entre vehículos
+(clonarlos sube la cuenta, hoy 363 de 420), el coste de seis pasadas de la escena por cambio de sol
+(en el arrastre del deslizador habría que diferirlas a cuando se suelta) y las pruebas que comparan
+luminancias.

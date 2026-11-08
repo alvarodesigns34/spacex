@@ -1,0 +1,6 @@
+[
+  { "name": "refl-starship-lee.jpg", "jump": ["starship", "lee"], "labels": false, "ruler": false, "hud": false, "wait": 1400 },
+  { "name": "refl-gt3rs-side.jpg", "jump": ["gt3rs", "side"], "labels": false, "ruler": false, "hud": false, "wait": 1400 },
+  { "name": "refl-roadster.jpg", "jump": ["roadster", "overview"], "labels": false, "ruler": false, "hud": false, "wait": 1400 },
+  { "name": "refl-falcon9.jpg", "jump": ["falcon9", "overview"], "labels": false, "ruler": false, "hud": false, "wait": 1400 }
+]
