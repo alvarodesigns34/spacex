@@ -410,8 +410,16 @@ general ni ambiente: sin un motor encendido, el centro era mudo.
   orilla, ≈0,10 a 300 m y ≈0,03 a 1 km, con cada cresta de 0,45 a 1; el viento mudo en calma, un
   susurro a los 6,2 m/s del sitio (0,12) y saturado en un temporal.
 
-**Pendiente:** reverberación contextual (la torre, la zanja) y sonidos de mecanismos (brazos de la
-torre, pinzas). Los niveles relativos están ajustados de oído, ≈.
+**Reverberación contextual (hecha después, misma sesión):** un envío del bus maestro por un
+convolvedor (`audioBus.js`) con una respuesta al impulso generada por código: tres ecos discretos
+(≈90, 170 y 260 ms: las caras de la torre y los muros del pad, ≈) y una cola corta (RT60 ≈0,9 s),
+no una sala. Se mezcla por la distancia de la cámara a la plataforma: entera junto a ella, 0,84 a
+100 m, 0,39 a 300 m, nada pasados ≈600 m. Lo que más lo nota es el lanzamiento oído desde cerca.
+Prueba en `tools/ambience-check.mjs`: la cola cae 50 dB en un segundo, el primer eco destaca y la
+mezcla decrece con la distancia.
+
+**Pendiente:** sonidos de mecanismos (brazos de la torre, pinzas). Los niveles relativos están
+ajustados de oído, ≈.
 
 ## 14. ¿WebGPU? (§35): estudio, sin migración
 

@@ -56,7 +56,7 @@ import { createPhotoMode } from './ui/photoMode.js';
 import { createAdaptive } from './core/adaptive.js';
 import { createTechPanel } from './ui/techPanel.js';
 import { createAmbience } from './sim/ambience.js';
-import { getVolume, setVolume } from './sim/audioBus.js';
+import { getVolume, setVolume, setSpace } from './sim/audioBus.js';
 import { buildColliders, CELL } from './core/colliders.js';
 import { toRunway } from './core/terrain.js';
 import { buildOrbitalBackdrop } from './core/backdrop.js';
@@ -1554,6 +1554,8 @@ async function main() {
     localProbes.update(scene);
     // Silent in space and while a vehicle's own sound (and its cockpit) takes over.
     ambience.update(camera, env.inSpace || view.orbital || launch.running || reentry.running || f16fly.running || gt3drive.running || h2rRide.running);
+    // The launch complex's reflections (sim/audioBus.js setSpace): by the camera's distance to the pad.
+    if (exhibits.starship) setSpace(Math.hypot(camera.position.x - exhibits.starship.lay.x, camera.position.y, camera.position.z - exhibits.starship.lay.z));
     // The ground past the disc (outerGround.js): not under the launch's stretched disc and globe,
     // nor the re-entry's Pacific.
     env.outer.visible = !env.inSpace && !launch.running && !reentry.running;

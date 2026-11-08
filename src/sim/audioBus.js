@@ -20,7 +20,45 @@
  * listener rides with the source.
  */
 
-let ctx = null, bus = null, comp = null;
+let ctx = null, bus = null, comp = null, space = null, spaceGain = null;
+
+/**
+ * An impulse response for a big hard structure in open country: a few discrete echoes (the
+ * tower's faces and the pad's walls, `echoes` as [delay s, gain]) and a short diffuse tail
+ * (RT60 `rt60` s) — not a hall. Pure: samples for a sample rate, so it can be tested offline.
+ */
+export function impulseResponse(sampleRate, { rt60 = 0.9, echoes = [[0.09, 0.45], [0.17, 0.3], [0.26, 0.2]], seed = 1 } = {}) {
+  const n = Math.ceil(sampleRate * Math.min(2, rt60 * 1.3)), L = new Float32Array(n), R = new Float32Array(n);
+  let x = seed >>> 0;
+  const rnd = () => { x = (x * 1664525 + 1013904223) >>> 0; return x / 4294967296 * 2 - 1; };
+  const k = 6.91 / rt60;                              // ln(1000): -60 dB at rt60
+  const onset = Math.round(0.04 * sampleRate);        // the tail builds after the first echoes
+  for (let i = 0; i < n; i++) {
+    const t = i / sampleRate, env = Math.exp(-k * t) * Math.min(1, i / onset) * 0.18;
+    L[i] = rnd() * env; R[i] = rnd() * env;
+  }
+  for (const [d, g] of echoes) {
+    const i = Math.round(d * sampleRate);
+    if (i < n) { L[i] += g; R[Math.min(n - 1, i + Math.round(0.0009 * sampleRate))] += g * 0.9; }
+  }
+  return [L, R];
+}
+function impulseBuffer(ctx) {
+  const [L, R] = impulseResponse(ctx.sampleRate);
+  const b = ctx.createBuffer(2, L.length, ctx.sampleRate);
+  b.copyToChannel(L, 0); b.copyToChannel(R, 1);
+  return b;
+}
+/** How much of the structure's reflections a listener d metres from the launch tower hears, 0..1. */
+export function spaceMix(d) {
+  // Close in, the echoes are strong; past ≈600 m the complex is a small thing on the horizon.
+  return Math.max(0, Math.min(1, 1 - (d - 40) / 560)) ** 1.5;
+}
+/** Sets the reflections' level from the listener's distance to the launch tower (m). */
+export function setSpace(d) {
+  if (!spaceGain) return;
+  spaceGain.gain.setTargetAtTime(0.35 * spaceMix(d), ctx.currentTime, 0.3);
+}
 const users = new Set();
 
 // The master volume, 0..1, kept between visits (the Guide's control, ui/hud.js). Applied as its
@@ -46,6 +84,12 @@ export function audio() {
   comp.threshold.value = -12; comp.knee.value = 10; comp.ratio.value = 3; comp.attack.value = 0.004; comp.release.value = 0.25;
   bus = ctx.createGain(); bus.gain.value = volume * volume;
   bus.connect(comp); comp.connect(ctx.destination);
+  // The room the sound is in (setSpace): a send from the bus through a convolver, mixed in near
+  // the launch complex, where the tower and the pad's steel and concrete throw it back.
+  space = ctx.createConvolver();
+  space.buffer = impulseBuffer(ctx);
+  spaceGain = ctx.createGain(); spaceGain.gain.value = 0;
+  bus.connect(space); space.connect(spaceGain); spaceGain.connect(comp);
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) ctx.suspend?.();
