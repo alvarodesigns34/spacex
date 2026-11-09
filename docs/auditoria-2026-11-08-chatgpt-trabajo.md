@@ -194,6 +194,24 @@ el cielo. `probe-check.mjs` inyecta una excepción en la captura y comprueba que
   - `mission-check.mjs` carga el modelo en un Node sin ganchos para que no vuelva a acoplarse.
   - Los archivos largos (`roadster.js`, `gt3rs.js`, `main.js`) no se han partido en esta ronda.
 
+## Bloque 4 (9-11-2026): el humo del encendido como un solo cuerpo
+
+![Encendido: estado inicial (`778580d`) frente a este bloque, sol de 60° y 18°](auditoria-2026-11-08-chatgpt/encendido-bloque4-antes-despues.jpg)
+
+- **Campo de densidad 3D en coordenadas del mundo** (`plume.js`, `CLOUD_FRAG`).
+  - Lo comparten todas las bocanadas que se solapan en un punto: adelgazan y se espesan a la vez.
+  - La masa gana núcleos densos y calles finas de unas decenas de metros, en vez de leerse como
+    copias de 16 celdas del atlas.
+  - Donde el campo es espeso, el vapor se sombrea a sí mismo un poco (≈ autoocultación); donde es
+    fino, deja pasar la luz.
+- **Borboteo:** la textura de cada bocanada se deforma dentro de su celda según su edad, así que la
+  superficie se revuelve mientras vive. Usa la edad y no un reloj, para que saltar en el tiempo dé
+  el mismo fotograma.
+- **Resultado:** se aprecia mejor la masa continua y variada. Algunas zonas quedan más transparentes
+  que antes.
+- **Sigue siendo un sistema de sprites.** Un volumen trazado de verdad (masas turbulentas con
+  dispersión real) queda pendiente: pide una pasada propia y medir su coste en GPU real.
+
 ## Respuestas a las «Preguntas para Claude»
 
 1. **Script de §31 y los 177 m/s.**

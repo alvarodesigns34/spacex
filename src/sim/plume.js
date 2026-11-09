@@ -897,6 +897,7 @@ const CLOUD_VERT = /* glsl */`
   varying float vAge;
   varying float vGround;
   varying float vVar;
+  varying vec3 vWorld;
   uniform float uFlame;
   // The ground a puff can sink into, in world metres: grade, and the Pad 2 plateau (5 m over
   // the trench's 0,8 m floor, the 2,5 m berm and its 1:3 embankment; pad.js). The cloud writes
@@ -935,6 +936,7 @@ const CLOUD_VERT = /* glsl */`
       + vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]) * q.x
       + vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]) * q.y;
     vGround = (wc.y - groundUnder(wc.xz)) / max(aSize, 1.0);
+    vWorld = wc;
 
     // Soft camera fade so nearby puffs never clip into the near frustum
     vAlpha = aAlpha * smoothstep(1.5, 16.0, -c.z);
@@ -964,9 +966,27 @@ const CLOUD_FRAG = /* glsl */`
   varying float vAge;
   varying float vGround;
   varying float vVar;
+  varying vec3 vWorld;
+
+  // A density field in world space, shared by every puff that overlaps a point (9-11-2026): the
+  // puffs' own outlines repeated sixteen atlas cells, and stacked they read as a heap of copies.
+  // Modulated by one field, overlapping puffs thin and thicken together — one body of vapour with
+  // its own denser cores and thinner lanes, a few tens of metres across (≈).
+  float cH(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+  float cN(vec3 p) {
+    vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(cH(i), cH(i + vec3(1, 0, 0)), f.x), mix(cH(i + vec3(0, 1, 0)), cH(i + vec3(1, 1, 0)), f.x), f.y),
+               mix(mix(cH(i + vec3(0, 0, 1)), cH(i + vec3(1, 0, 1)), f.x), mix(cH(i + vec3(0, 1, 1)), cH(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+  }
+  float cField(vec3 p) { return cN(p) * 0.55 + cN(p * 2.3 + 7.1) * 0.3 + cN(p * 5.1 - 3.3) * 0.15; }
 
   void main() {
-    vec4 tex = texture2D(uMap, vUv);
+    // Boiling: the puff's own texture is pushed about inside its cell as it ages (the age, not a
+    // clock, so a seek shows the same frame), so a puff's surface turns over while it lives instead
+    // of sliding by as a fixed picture.
+    vec2 cell0 = vUv - vLocal * 0.24;
+    vec2 wob = vec2(cN(vec3(vLocal * 3.0, vAge * 2.2 + vVar * 9.0)), cN(vec3(vLocal * 3.0 + 5.3, vAge * 2.2 - vVar * 7.0))) - 0.5;
+    vec4 tex = texture2D(uMap, cell0 + clamp(vLocal + wob * 0.05, 0.0, 1.0) * 0.24);
     // The edge is eaten away as the puff ages: the density threshold rises, so the thin
     // turrets go first and the puff frays into wisps, instead of every outline fading evenly.
     float th = 0.02 + 0.28 * pow(vAge, 2.5);
@@ -977,6 +997,9 @@ const CLOUD_FRAG = /* glsl */`
     dens *= mix(0.5, 1.0, smoothstep(0.18, 0.62, tex.b));
     // Soft contact: the lowest tenth of a puff's size fades into the ground it touches.
     dens *= smoothstep(-0.02, 0.12, vGround);
+    // The shared field, drifting up slowly with the puff's age: denser cores, thinner lanes.
+    float field = cField(vWorld / 26.0 + vec3(0.0, -vAge * 0.8, 0.0));
+    dens *= mix(0.5, 1.3, smoothstep(0.2, 0.8, field));
     float a = dens * vAlpha * (0.84 + 0.16 * vVar);
     if (a < 0.003) discard;
 
@@ -999,7 +1022,10 @@ const CLOUD_FRAG = /* glsl */`
     // Underside of each puff darker than its top, within the puff as well as across the mass.
     float under = mix(0.72, 1.0, smoothstep(0.15, 0.75, vLocal.y));
 
-    vec3 steam = mix(uShadowColor, uSunColor, wrap * wrap * (3.0 - 2.0 * wrap)) * vShade * under * (0.93 + 0.12 * vVar);
+    // Where the shared field is thick the vapour shades itself a little (≈ self-shadowing inside
+    // the mass), where it is thin the light comes through.
+    float selfShade = mix(1.06, 0.84, smoothstep(0.35, 0.85, field));
+    vec3 steam = mix(uShadowColor, uSunColor, wrap * wrap * (3.0 - 2.0 * wrap)) * vShade * under * (0.93 + 0.12 * vVar) * selfShade;
     // Dust: the brown haze the blast raises off the pad and the flats, which in the Flight 12
     // photographs spreads low between and under the two white steam towers. Duller, browner,
     // and less lit by the sun (it is optically thin: the sky shows through it).
