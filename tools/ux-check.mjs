@@ -160,13 +160,14 @@ try {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.evaluate(() => { const v = window.__vc; v.launch.reset(false); v.jump('falcon9', 'interstage'); });
   await page.waitForTimeout(300);
-  const pressed = async (group) => page.getByRole('group', { name: group }).getByRole('button', { pressed: true }).allInnerTexts();
-  const a11y = { vehicles: await pressed('Vehicles'), views: await pressed('Views') };
+  // The vehicle rail is a navigation landmark (axe, 9-11-2026), the view bar a group.
+  const pressed = async (role, group) => page.getByRole(role, { name: group }).getByRole('button', { pressed: true }).allInnerTexts();
+  const a11y = { vehicles: await pressed('navigation', 'Vehicles'), views: await pressed('group', 'Views') };
   // Speed, with a real click on the ×5 button of a running sequence.
   await page.evaluate(() => window.__vc.launch.start());
   await page.getByRole('group', { name: 'Playback speed' }).getByRole('button', { name: 'Speed ×5' }).click();
   // Read at once: the state must change with the click, not a frame later.
-  a11y.speed = await pressed('Playback speed');
+  a11y.speed = await pressed('group', 'Playback speed');
   a11y.applied = await page.evaluate(() => window.__vc.launch.state.speed);
   a11y.tabs = await page.locator('[role="tab"], [role="tablist"]').count();
   report(a11y.vehicles.length === 1 && /Falcon 9/.test(a11y.vehicles[0]) && a11y.views.length === 1 && /grid fins/i.test(a11y.views[0])
