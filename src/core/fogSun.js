@@ -29,10 +29,17 @@ export function installFogSun() {
   if (installed) return;
   installed = true;
   const C = THREE.ShaderChunk;
-  C.fog_pars_vertex = C.fog_pars_vertex.replace('varying float vFogDepth;', 'varying float vFogDepth;\n\tvarying vec3 vFogDir;');
-  C.fog_vertex = C.fog_vertex.replace('vFogDepth = - mvPosition.z;', 'vFogDepth = - mvPosition.z;\n\tvFogDir = mvPosition.xyz;');
-  C.fog_pars_fragment = C.fog_pars_fragment.replace('uniform vec3 fogColor;', 'uniform vec3 fogColor;\n\tuniform vec3 fogSunDir;\n\tuniform vec3 fogSunTint;\n\tvarying vec3 vFogDir;');
-  C.fog_fragment = C.fog_fragment.replace('gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );',
+  // Every replacement must find its line: a three.js update that rewords a chunk would otherwise
+  // drop the lobe silently (external audit 8-11, finding 10). It throws at start-up instead.
+  const patch = (name, from, to) => {
+    const next = C[name].replace(from, to);
+    if (next === C[name]) throw new Error(`fogSun: three.js chunk ${name} no longer has the line it patches`);
+    C[name] = next;
+  };
+  patch('fog_pars_vertex', 'varying float vFogDepth;', 'varying float vFogDepth;\n\tvarying vec3 vFogDir;');
+  patch('fog_vertex', 'vFogDepth = - mvPosition.z;', 'vFogDepth = - mvPosition.z;\n\tvFogDir = mvPosition.xyz;');
+  patch('fog_pars_fragment', 'uniform vec3 fogColor;', 'uniform vec3 fogColor;\n\tuniform vec3 fogSunDir;\n\tuniform vec3 fogSunTint;\n\tvarying vec3 vFogDir;');
+  patch('fog_fragment', 'gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );',
     `vec3 fogLit = fogColor + fogSunTint * pow( max( dot( normalize( vFogDir ), fogSunDir ), 0.0 ), ${LOBE.toFixed(1)} );
 \tgl_FragColor.rgb = mix( gl_FragColor.rgb, fogLit, fogFactor );`);
   for (const name of Object.keys(THREE.ShaderLib)) {

@@ -207,13 +207,13 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
   root.add(ocean);
   // The open sea moves (8-11-2026; until then a flat disc with drifting normal maps, so the ship
   // came down on a sheet of glass): the coast's six Gerstner waves (core/ocean.js) with no coast and
-  // OPEN_SEA_AMP (≈ Hs 1.6 m, chosen), on a polar grid that follows the camera, 3 km across, in the
+  // OPEN_SEA_AMP (≈ Hs 1.6 m, chosen), on a polar grid that follows the camera, 12 km in radius (its rim out in the haze), in the
   // ocean's own frame — fixed to the water, so the splash point stays where it is in it — and the
   // splash's own waves on top: a ring running out from where the ship came down and a second from
   // the hull's slap (≈: the ring's speed is the foam's, a wave packet ≈1.3 m high fading over tens
   // of seconds; not measured). The flat 300 km disc beyond it gives way inside the grid. The foam
   // rides the same surface, and the hull floats on it.
-  const SEA_R = 3000, SEA_NS = 256;
+  const SEA_R = 12000, SEA_NS = 256;
   const seaU = {
     uOceanPhase: { value: new Float32Array(WAVES.length) }, uCenter: { value: new THREE.Vector2() },
     uSeaR: { value: SEA_R }, uSeaSeg: { value: (2 * Math.PI) / SEA_NS }, uImpactAge: { value: -1 }, uSlapAge: { value: -1 },
@@ -253,12 +253,17 @@ vec2 vcImpactG(vec2 p) {
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vSeaO;')
         .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSeaO = vec2(position.x, -position.y);');
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vSeaO;\nuniform vec2 uCenter; uniform float uSeaR;')
-        .replace('void main() {', 'void main() {\n  if (length(vSeaO - uCenter) < uSeaR * 0.995) discard;');
+        // Exactly where the grid is, no further: the grid's rim is a 256-gon, so the disc gives way
+        // inside its inscribed circle. Overlapping it (0.995 R before) the two fought in the depth
+        // buffer 3 km out, ≈1 m per depth step there, and drew bright lines on the horizon.
+        .replace('void main() {', `void main() {\n  if (length(vSeaO - uCenter) < uSeaR * ${Math.cos(Math.PI / SEA_NS).toFixed(6)}) discard;`);
     };
     mat.customProgramCacheKey = () => 'reentry-sea-flat';
+    // Where the two still overlap (the strip between the inscribed circle and the grid's rim) the
+    // disc sits behind in the depth test, coplanar or not, so the grid wins.
+    mat.polygonOffset = true; mat.polygonOffsetFactor = 4; mat.polygonOffsetUnits = 4;
     const sea = new THREE.Mesh(g, mat);
     sea.rotation.x = -Math.PI / 2;
-    sea.position.y = -0.05;
     sea.name = 'reentry-sea';
     sea.receiveShadow = false;
     ocean.add(sea);

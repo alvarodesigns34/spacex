@@ -45,5 +45,19 @@ installFogSun();
 report(THREE.ShaderChunk.fog_fragment.includes('fogLit') && THREE.ShaderChunk.fog_vertex.includes('vFogDir') && THREE.ShaderLib.physical.uniforms.fogSunTint?.value instanceof Float32Array,
   'el parche entra en los fragmentos de niebla de three.js y comparte sus uniformes por referencia');
 
+// Shared, not just present (finding 10): the uniforms each material gets (three.js clones the
+// ShaderLib's per material, as here) must be the same Float32Array, so one write reaches both;
+// and a chunk that no longer carries the patched line must throw, not pass silently.
+{
+  const { FOG_SUN } = await import('../src/core/fogSun.js');
+  const a = THREE.UniformsUtils.clone(THREE.ShaderLib.physical.uniforms), b = THREE.UniformsUtils.clone(THREE.ShaderLib.lambert.uniforms);
+  FOG_SUN.tint[0] = 0.125;
+  report(a.fogSunTint.value === FOG_SUN.tint && b.fogSunTint.value === FOG_SUN.tint && b.fogSunTint.value[0] === 0.125 && a.fogSunDir.value === b.fogSunDir.value,
+    'dos materiales distintos leen el mismo uniforme: una escritura llega a ambos', `${a.fogSunTint.value === FOG_SUN.tint} ${b.fogSunTint?.value === FOG_SUN.tint} ${b.fogSunTint?.value?.[0]}`);
+  FOG_SUN.tint[0] = 0;
+  const src = (await import('node:fs')).readFileSync(new URL('../src/core/fogSun.js', import.meta.url), 'utf8');
+  report(/if \(next === C\[name\]\) throw/.test(src) && (src.match(/patch\('fog_/g) ?? []).length === 4, 'cada reemplazo del parche falla en voz alta si three.js cambia el fragmento (4 reemplazos vigilados)');
+}
+
 if (failed) { console.error(`\n${failed} comprobación(es) de la luz del sol fallan`); process.exit(1); }
 console.log('\nLuz del sol: todo correcto');

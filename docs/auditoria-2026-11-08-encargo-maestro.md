@@ -745,7 +745,9 @@ generan por código al arrancar (§20), así que KTX2/Basis no se les puede apli
   en el Model Y. Ahora, además, sus neumáticos ceden a un torno a distancia (§23), que es memoria y
   dibujo, no descarga.
 
-## 28. Liberación de recursos (§32): sin fugas en los ciclos de las secuencias (medido)
+## 28. Liberación de recursos (§32): sin crecimiento de esos contadores en los ciclos ensayados (medido)
+
+*(Título acotado el 9-11-2026, hallazgo 12 de la auditoría externa: `renderer.info` cuenta objetos, no bytes de VRAM. Esto no descarta fugas lentas ni las de recorridos no ensayados.)*
 
 `renderer.info.memory` (geometrías y texturas vivas en la GPU, fiable también por software) y los
 programas compilados, tras arrancar y detener tres veces cada secuencia (calidad media):
@@ -1050,7 +1052,7 @@ Resultado, por filas (antes a la izquierda, después a la derecha): mediodía, m
   circulares entre los dos módulos, que es peor que el archivo largo.
 
 **Revisados sin cambios** (con la matriz de §34 como referencia):
-- Las cámaras de cada capítulo: no se ha visto ningún encuadre roto en las 66 capturas.
+- Las cámaras de cada capítulo: no se observó ningún encuadre roto en las vistas y condiciones de las 66 capturas. Son una muestra; no prueban que no haya fallos en general.
 - La oclusión ambiental, que solo existe en calidad alta y ya escala su radio con la distancia de
   la cámara. Ajustarla sin fotos de referencia sería inventar números.
 

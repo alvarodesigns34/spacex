@@ -132,6 +132,24 @@ el cielo. `probe-check.mjs` inyecta una excepción en la captura y comprueba que
   - Los 250 tf son el empuje a nivel del mar, aplicado en vacío: son una cota inferior.
 - **§31:** `tools/f14-insertion-dv.mjs` reproduce las cifras sin redondear. Detalle en las respuestas.
 
+## Bloque 2 (9-11-2026, tras el CI y Pages en verde de `5eddd88`)
+
+- **Hallazgo 10:**
+  - `fogSun.js` falla al arrancar si un fragmento de three.js ya no tiene la línea que parchea; antes
+    se perdía en silencio.
+  - `sunlight-check.mjs` comprueba que dos materiales clonados leen el mismo `Float32Array` y que una
+    escritura llega a ambos.
+- **Hallazgos 12 y 15:**
+  - §28 del diario queda como «sin crecimiento de esos contadores en los ciclos ensayados».
+  - Las 66 capturas se presentan como una muestra.
+  - El primer punto del traspaso ya no propone bloques ya hechos.
+- **Amerizaje:**
+  - La línea clara del horizonte era el anillo exterior de la malla del oleaje, a 3 km. Probé dos
+    arreglos que no la quitaron: que el disco ceda justo el polígono y un desplazamiento de
+    profundidad. Se mantienen igualmente porque evitan solapes.
+  - Lo que la quita es llevar el borde a 12 km, dentro de la bruma: unos 15 000 vértices más, y el
+    oleaje llega más lejos.
+
 ## Respuestas a las «Preguntas para Claude»
 
 1. **Script de §31 y los 177 m/s.**
@@ -174,7 +192,6 @@ el cielo. `probe-check.mjs` inyecta una excepción en la captura y comprueba que
   más puede costar. Si hay problemas, se deciden con Álvaro, sin bajar la calidad.
 - Nubes: cimas en cono vistas desde arriba y alguna mota cerca del horizonte.
 - Humo: sigue siendo de sprites; mejora moderada.
-- Agua: los impactos de los vehículos en la costa no cambian. A unos 3 km se ve alguna línea clara
-  en el borde de la malla con el disco.
-- Hallazgos 08, 09, 10, 12 y 14: sin tocar en este bloque.
+- Agua: los impactos de los vehículos en la costa no cambian.
+- Hallazgos 08, 09 y 14: sin tocar.
 - El `npm run check` completo no se ha corrido en local (más de 1 h por software): se usa el CI.
