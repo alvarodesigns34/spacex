@@ -212,6 +212,88 @@ el cielo. `probe-check.mjs` inyecta una excepción en la captura y comprueba que
 - **Sigue siendo un sistema de sprites.** Un volumen trazado de verdad (masas turbulentas con
   dispersión real) queda pendiente: pide una pasada propia y medir su coste en GPU real.
 
+## Crítica del subagente (9-11-2026) y su bloque 1: solidez, correcciones claras y documentación
+
+Álvaro pidió a un subagente (Haiku, solo lectura) una crítica ambiciosa del repositorio: 6 hallazgos
+altos, 16 medios y 7 bajos, más diez mejoras visuales. Su orden posterior: hacerlas todas en tres
+bloques, menos el amerizaje del propulsor (el propulsor acaba en la torre y solo la nave cae al mar),
+y sin bajar calidad. Primero se comprobó cada hallazgo en el código. Este es el bloque 1.
+
+- **Fallo del CI del bloque 4 (`377e5c1`):**
+  - Era el trabajo de interfaz: la captura de 1366 × 768 superaba el límite de 120 s.
+  - En esta máquina falla igual con los bloques 2, 3 y 4, así que no es un fallo funcional: el
+    render por software está al límite con la calidad completa.
+  - El límite pasa a 300 s (`SHOT_MS` en `tools/ux-check.mjs`): se sube el límite, no se baja la imagen.
+  - En `tools/check.mjs`, por el mismo motivo, las esperas por defecto y la explícita de 30 s pasan
+    a 180 s.
+  - En local, con todo el bloque, `ux-check` sale en verde (90 comprobaciones, código 0) y
+    `check.mjs` también (código 0). Para ejecutarlos aquí hizo falta un gancho fuera del
+    repositorio que apunta Playwright al navegador del entorno.
+- **A1, barrera de errores (`main.js`):**
+  - El siguiente fotograma se pide al principio.
+  - Cada parte del fotograma va protegida: cámara, secuencias, vuelo, conducción, sonido, sondas,
+    render y etiquetas.
+  - Un fallo se registra en la consola y se avisa una vez en el HUD, y lo demás sigue.
+  - Hay manejadores globales de `error` y `unhandledrejection`; los fallos se cuentan en
+    `__vc.frameErrors`.
+  - `check.mjs` inyecta un fallo en la actualización del lanzamiento y exige que quede anotado en
+    tres fotogramas seguidos.
+- **A6, el README:** las secciones «Nivel de detalle» y «Niveles de calidad» dicen ya que en calidad
+  alta no hay LOD ni adaptación. No se había bajado la calidad: el texto se había quedado antiguo.
+- **A5, la nave amerizada cabecea con la ola:**
+  - Se ajusta una línea de flotación a cinco estaciones de los 52 m del casco (`ocean.js
+    openWaterline`). El casco toma su pendiente y la altura en el centro de masas.
+  - Holgura media frente al agua a lo largo del casco: 32 cm, frente a 62 cm con un solo punto
+    (`ocean-check.mjs`).
+  - ≈, sin flotabilidad.
+  - Comparativa (sutil: la popa se asienta en la ola en vez de quedar posada a una sola altura):
+    ![Nave amerizada, 22 s después: antes y después](auditoria-2026-11-08-chatgpt/nave-flotacion-antes-despues.jpg)
+- **M1, cambio de pantalla:** si la ventana pasa a un monitor con otra densidad de píxeles, la
+  resolución del búfer se vuelve a ajustar (hasta el tope de 2 de la calidad alta).
+- **M2, reflejo del Lab:** se crea y se mantiene a resolución física completa. Antes nacía a la mitad
+  y saltaba al doble al redimensionar.
+- **M3, espuma sobre la ola:** cada mancha se inclina con la pendiente del mar bajo ella.
+- **B2, azar con semilla:** las marcas y la salpicadura usan un generador con semilla que `clear()`
+  reinicia.
+- **M5 y M6, nubes:** el corte a 40 km se funde en los últimos 15 km, y la sombra de las nubes entra
+  con una rampa entre 1,1° y 4,6° de sol, en vez de apagarse de golpe a 2,9°.
+- **M7, espuma del amerizaje:** desplazamiento de profundidad para que no parpadee contra el mar de
+  lejos.
+- **M8, sonido:**
+  - `soundSpeedAt` sigue las capas de la USSA 1976 también por encima de 47 km. Antes se quedaba en
+    270,65 K hasta el espacio; ahora llega a ≈187 K a 86 km.
+  - El tiempo de viaje del sonido integra 1/c(h) a lo largo del camino. Antes era una constante de
+    343 m/s; a 3,43 km, a nivel del mar, el retardo es ya 10,08 s.
+- **M14, pruebas del sonido:** el resolutor (`solveEmission`) es una función pura con la trayectoria
+  inyectable. Se prueba con la solución cerrada de una fuente en vuelo recto, subsónica y
+  supersónica, dentro y fuera del cono de Mach: 24 casos.
+- **M10, Starlink:** los 4,1 m pasan a `breadth` (anchura del cuerpo). La altura no está publicada y
+  queda sin dato.
+- **M11, Falcon 9:** comprobado y correcto. La verificación mide la cofia (casco con cofia) frente a
+  los 5,2 m de la cofia; el cuerpo de 3,66 m solo figura como texto.
+- **M13, pruebas de nubes:**
+  - `cloud-check.mjs` pasa a llamarse `launch-regressions-check.mjs`, porque prueba el lanzamiento y
+    la reentrada.
+  - Nuevo `sky-clouds-check.mjs`: reproduce en JS el marcado sobre la cobertura real (el mismo ruido)
+    en 4 500 rayos.
+  - Encontró que el 14 % de los rayos bajos superaba el tope de 256 iteraciones y quedaba cortado:
+    eran las motas cerca del horizonte.
+  - El tope pasa a 640 en calidad alta, que cubre el percentil 99 (546), y a 384 en la media.
+- **B3, olas:** van con el tiempo de pared, como los vehículos que las cruzan.
+- **M16:** no se reproduce. La hierba de las dunas, que se mueve en el sombreador, no proyecta
+  sombra, y la manga de viento se mueve con su transformación, que la firma de la escena detecta.
+- **B1:** los archivos «huérfanos» de `tools/` son manifiestos manuales de `shot.mjs` y herramientas
+  manuales. No se borran; quedan descritos en la «Estructura» del README.
+- **B5:** el aviso de la pantalla de carga sigue siendo cierto (sin adaptación automática a móviles).
+- **Para el bloque 2:** sombras en cascada o PCSS (A2), olas lejanas por píxel (A3), antialiasing
+  temporal y reproyección de nubes (M4), texturas de 2048 (M9), acero cepillado, barniz y reflejos
+  en pantalla.
+- **Para el bloque 3:**
+  - humo volumétrico, fuego por temperatura y anillos del chorro, salpicadura horneada en Blender,
+    atmósfera física;
+  - módulo común de ruido (M12), partir los archivos largos (M15), hash sin seno (B4), three.js (B6)
+    y accesibilidad (B7).
+
 ## Respuestas a las «Preguntas para Claude»
 
 1. **Script de §31 y los 177 m/s.**

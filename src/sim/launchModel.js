@@ -3,7 +3,7 @@
  * docs/auditoria-2026-11-08-encargo-maestro.md): the cited event times, the ascent profile, the
  * booster's integrated return, the throttles and lit engines, the milestones. Pure: no scene, no
  * renderer. launch.js builds the sequence on it and re-exports all of it, so every import of
- * './launch.js' keeps working; tools/cloud-check.mjs and tools/mission-check.mjs test it.
+ * './launch.js' keeps working; tools/launch-regressions-check.mjs and tools/mission-check.mjs test it.
  */
 // Pure since 9-11-2026 (external audit 8-11, finding 14): no three.js, no vehicle builders. The
 // figures come from data modules and the few helpers below are three.js's MathUtils, same formulas.
@@ -678,10 +678,16 @@ export const shipLit = (t) => (shipThrottle(t) > 0.01 ? 6 : 0);
  * lapse, the isothermal tropopause, the two stratospheric gradients), a = √(γ·R·T).
  */
 export function soundSpeedAt(h) {
+  // USSA 1976 temperature layers on the height as given (≈: geometric height used as geopotential,
+  // under 1 % off below 86 km). Above 47 km it used to stay at 270.65 K into space; the mesosphere
+  // cools to ≈187 K at 86 km (audit of 9-11-2026, M8), held there above.
   const T = h < 11000 ? 288.15 - 0.0065 * h
     : h < 20000 ? 216.65
     : h < 32000 ? 216.65 + 0.001 * (h - 20000)
-    : h < 47000 ? 228.65 + 0.0028 * (h - 32000) : 270.65;
+    : h < 47000 ? 228.65 + 0.0028 * (h - 32000)
+    : h < 51000 ? 270.65
+    : h < 71000 ? 270.65 - 0.0028 * (h - 51000)
+    : h < 84852 ? 214.65 - 0.002 * (h - 71000) : 186.946;
   return Math.sqrt(1.4 * 287.05 * T);
 }
 

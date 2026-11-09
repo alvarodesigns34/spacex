@@ -75,12 +75,16 @@ export function createWaterMarks(scene, surfaceAt, max = 256) {
 
   const m = Array.from({ length: max }, () => ({ live: false, kind: FOAM, x: 0, z: 0, r: 1, grow: 0, life: 1, age: 0, op: 1, rot: 0 }));
   let next = 0, used = 0;
-  const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
+  // Seeded, and reseeded by clear(): the same drive into the water throws the same marks (audit of
+  // 9-11-2026, B2; Math.random made every run, and every check, different).
+  let seed = 0x9e3779b9;
+  const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0), _n = new THREE.Vector3(), _qr = new THREE.Quaternion();
 
   function add(kind, x, z, r, grow, life, op) {
     const i = next; next = (next + 1) % max; used = Math.max(used, next === 0 ? max : next);
-    Object.assign(m[i], { live: true, kind, x, z, r, grow, life, age: 0, op, rot: Math.random() * Math.PI * 2 });
-    aKind[i] = kind; aSeed[i] = Math.random();
+    Object.assign(m[i], { live: true, kind, x, z, r, grow, life, age: 0, op, rot: rnd() * Math.PI * 2 });
+    aKind[i] = kind; aSeed[i] = rnd();
     geo.attributes.aKind.needsUpdate = true; geo.attributes.aSeed.needsUpdate = true;
   }
 
@@ -103,14 +107,23 @@ export function createWaterMarks(scene, surfaceAt, max = 256) {
         aWidth[i] = k.kind === RING ? Math.min(0.5, 0.6 / Math.max(r, 0.6)) : 0;
         const y = surfaceAt(k.x, k.z);
         if (y === null || y === undefined) { aFade[i] = 0; continue; }
-        _p.set(k.x, y + 0.02, k.z); _q.setFromAxisAngle(_up, k.rot); _s.set(r, 1, r);
+        // Tilted to the swell under it (audit of 9-11-2026, M3: flat at the centre's height, a 5 m
+        // patch on a 0.05 slope sank under one side and stood over the other): the slope across
+        // half its radius each way, from the same surface.
+        const e = Math.max(0.5, r * 0.5);
+        const hx0 = surfaceAt(k.x - e, k.z), hx1 = surfaceAt(k.x + e, k.z), hz0 = surfaceAt(k.x, k.z - e), hz1 = surfaceAt(k.x, k.z + e);
+        _n.set(0, 1, 0);
+        if (hx0 != null && hx1 != null && hz0 != null && hz1 != null) _n.set(-(hx1 - hx0) / (2 * e), 1, -(hz1 - hz0) / (2 * e)).normalize();
+        _q.setFromUnitVectors(_up, _n).multiply(_qr.setFromAxisAngle(_up, k.rot));
+        _p.set(k.x, y + 0.02, k.z); _s.set(r, 1, r);
         mesh.setMatrixAt(i, _m.compose(_p, _q, _s));
       }
       mesh.instanceMatrix.needsUpdate = true;
       geo.attributes.aFade.needsUpdate = true;
       geo.attributes.aWidth.needsUpdate = true;
     },
-    clear() { for (const k of m) k.live = false; for (let i = 0; i < max; i++) aFade[i] = 0; geo.attributes.aFade.needsUpdate = true; used = 0; next = 0; mesh.count = 0; },
+    rnd,
+    clear() { seed = 0x9e3779b9; for (const k of m) k.live = false; for (let i = 0; i < max; i++) aFade[i] = 0; geo.attributes.aFade.needsUpdate = true; used = 0; next = 0; mesh.count = 0; },
     get live() { return m.reduce((n, k) => n + (k.live ? 1 : 0), 0); },
   };
 }
@@ -123,13 +136,14 @@ export function createWaterMarks(scene, surfaceAt, max = 256) {
 export function splashInto({ spray, marks, x, z, surf, speed, width = 2, dx = 1, dz = 0 }) {
   const v = Math.max(0, speed);
   if (v < 1) return 0;
+  const R = marks?.rnd ?? Math.random;
   const n = Math.round(Math.min(500, 30 + v * width * 6));
   for (let k = 0; k < n; k++) {
-    const a = Math.random() * Math.PI * 2, out = (0.15 + 0.45 * Math.random()) * v * 0.35;
-    const up = (0.35 + 0.65 * Math.random()) * Math.min(14, 1.5 + v * 0.45);
-    const fwd = (0.2 + 0.6 * Math.random()) * v * 0.45;
-    spray?.emit(x + (Math.random() - 0.5) * width, surf + 0.05, z + (Math.random() - 0.5) * width,
-      dx * fwd + Math.cos(a) * out, up, dz * fwd + Math.sin(a) * out, surf, Math.random() < 0.25 ? 1 : 0);
+    const a = R() * Math.PI * 2, out = (0.15 + 0.45 * R()) * v * 0.35;
+    const up = (0.35 + 0.65 * R()) * Math.min(14, 1.5 + v * 0.45);
+    const fwd = (0.2 + 0.6 * R()) * v * 0.45;
+    spray?.emit(x + (R() - 0.5) * width, surf + 0.05, z + (R() - 0.5) * width,
+      dx * fwd + Math.cos(a) * out, up, dz * fwd + Math.sin(a) * out, surf, R() < 0.25 ? 1 : 0);
   }
   const s = Math.min(3, 0.6 + v / 15);
   marks?.ring(x, z, width * 0.6, { speed: 1.5 + v * 0.06, life: 7, opacity: 0.55 * Math.min(1, 0.4 + v / 20) });

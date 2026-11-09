@@ -155,6 +155,20 @@ export function openOceanHeight(x, z, t, iters = 4) {
   return displace(x0, z0, t, _d, 0, OPEN_SEA_AMP, true).y;
 }
 
+/**
+ * The straight line h = a + b·x that best fits the open sea along a hull lying on +x from x0 to x1
+ * (z fixed), sampled at n stations, at time t: a floating hull's waterline (≈, no buoyancy).
+ */
+export function openWaterline(x0, x1, z, t, n = 5) {
+  let sx = 0, sh = 0, sxx = 0, sxh = 0;
+  for (let i = 0; i < n; i++) {
+    const x = x0 + (x1 - x0) * i / (n - 1), h = openOceanHeight(x, z, t);
+    sx += x; sh += h; sxx += x * x; sxh += x * h;
+  }
+  const den = n * sxx - sx * sx, b = den > 1e-9 ? (n * sxh - sx * sh) / den : 0;
+  return { a: (sh - b * sx) / n, b };
+}
+
 const f = (v) => {
   const s = Number(v).toPrecision(9);
   return s.includes('.') || s.includes('e') ? s : `${s}.0`;

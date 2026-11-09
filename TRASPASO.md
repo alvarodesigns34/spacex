@@ -299,7 +299,7 @@ Las secciones del README que este archivo cita por su nombre («*Auditoría del 
 - `src/ui/hud.js`: interfaz.
 - `tools/`: pruebas:
   - `check.mjs`: la principal;
-  - `cloud-check.mjs`, `hardware-check.mjs`, `ux-check.mjs`;
+  - `launch-regressions-check.mjs` (antes `cloud-check.mjs`), `hardware-check.mjs`, `ux-check.mjs`;
   - `lod-pop.mjs`: mide el salto visual al cambiar de nivel de detalle (está en `npm run check`);
   - `profile.mjs`, `shot.mjs`, `census.mjs`, `static.mjs`…
 - `.github/workflows/pages.yml`: valida con `npm run check` en `main`, `master`, `claude/**`, `codex/**` y `grok/**`, con una cola de concurrencia por rama, y despliega solo desde la rama por defecto.

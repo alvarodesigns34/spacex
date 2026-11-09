@@ -137,7 +137,7 @@ export function audit({ figures, pad, counts, vehicles, sources, readme, builder
   for (const v of vehicles) {
     const f = figures[v.id];
     if (!f) { bad(`${v.id}: sin cifras en figures.js`); continue; }
-    if (v.height !== f.height?.value) bad(`${v.id}: la ficha declara altura ${v.height} y figures.js ${f.height?.value}`);
+    if ((v.height ?? null) !== (f.height?.value ?? null)) bad(`${v.id}: la ficha declara altura ${v.height} y figures.js ${f.height?.value}`);
     if (v.footprint !== f.footprint?.value) bad(`${v.id}: la ficha declara huella ${v.footprint} y figures.js ${f.footprint?.value}`);
     for (const key of ['height', 'footprint', 'breadth', 'mirrors', 'length']) {
       const fig = f[key];

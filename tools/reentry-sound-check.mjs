@@ -11,7 +11,7 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 
-const { heardAt, BOOM_T, Q_PEAK, dynamicPressureAt, TAU_MIN } = await import('../src/sim/reentrySound.js');
+const { heardAt, BOOM_T, Q_PEAK, dynamicPressureAt, TAU_MIN, travelTime, solveEmission } = await import('../src/sim/reentrySound.js');
 const { RE, reentryState } = await import('../src/sim/reentryFlight.js');
 const { soundSpeedAt } = await import('../src/sim/launch.js');
 
@@ -24,11 +24,10 @@ for (const t of [RE.landingBurn - 30, RE.landingBurn + 2, RE.flip + 5, RE.splash
   for (const cam of [{ x: 30, y: 20, z: 40 }, { x: 1500, y: 2, z: -800 }, { x: -200, y: 3000, z: 0 }]) {
     const h = heardAt(t, cam);
     const s = reentryState(h.tau), s0 = reentryState(t).s;
-    const d = Math.hypot(s.s - s0 - cam.x, s.h - cam.y, cam.z);
-    worst = Math.max(worst, Math.abs(h.tau + d / 343 - t));
+    worst = Math.max(worst, Math.abs(h.tau + travelTime(s.s - s0, s.h, cam) - t));
   }
 }
-report(worst < 2e-3, 'el sonido llega cuando debe: τ + d(τ)/343 = t, cámaras a 50 m–3 km', `error máx. ${(worst * 1000).toFixed(2)} ms`);
+report(worst < 2e-3, 'el sonido llega cuando debe: τ + tiempo de viaje(τ) = t, con c(h) de la atmósfera estándar, cámaras a 50 m–3 km', `error máx. ${(worst * 1000).toFixed(2)} ms`);
 
 // 1b. Hypersonic, supersonic and through Mach 1 (external audit 8-11, finding 02: the old
 // fixed-point iteration returned τ ≈ −1,7 × 10¹⁷ s at entry + 300 s). Every answer is either a
@@ -41,7 +40,7 @@ report(worst < 2e-3, 'el sonido llega cuando debe: τ + d(τ)/343 = t, cámaras 
   for (const t of times) for (const cam of cams) {
     const h = heardAt(t, cam);
     const s0 = reentryState(t).s;
-    const g = (tau) => { const s = reentryState(tau); return tau + Math.hypot(s.s - s0 - cam.x, s.h - cam.y, cam.z) / 343 - t; };
+    const g = (tau) => { const s = reentryState(tau); return tau + travelTime(s.s - s0, s.h, cam) - t; };
     if (h.heard) {
       roots++;
       const r = Math.abs(g(h.tau));
@@ -60,16 +59,42 @@ report(worst < 2e-3, 'el sonido llega cuando debe: τ + d(τ)/343 = t, cámaras 
   report(bad === 0 && roots > 0 && silent > 0, 'retardo con la nave hipersónica, supersónica y en Mach 1: raíz más reciente o «aún no llega», nunca divergente',
     `${roots} raíces (residuo máx. ${(worstR * 1000).toFixed(3)} ms) · ${silent} casos sin llegar${detail ? ' · ' + detail : ''}`);
   // Negative control: the audit's case under the old iteration must be caught by the same test.
-  const old = (t, cam) => { const s0 = reentryState(t).s; let tau = t; for (let k = 0; k < 12; k++) { const s = reentryState(tau); tau = t - Math.hypot(s.s - s0 - cam.x, s.h - cam.y, cam.z) / 343; } return tau; };
+  const old = (t, cam) => { const s0 = reentryState(t).s; let tau = t; for (let k = 0; k < 12; k++) { const s = reentryState(tau); tau = t - Math.hypot(s.s - s0 - cam.x, s.h - cam.y, cam.z) / 343; } return tau; };   // the 8-11 code, as it was
   const o = old(RE.entry + 300, { x: 0, y: 2, z: 1000 });
   report(!(o >= TAU_MIN), 'control negativo: la iteración antigua diverge en el caso de la auditoría', `τ = ${o.toExponential(2)} s`);
 }
 
-// 2. A camera on the ship hears it at once; one 3.43 km away, ten seconds late (the ship nearly still).
+// 2. A camera on the ship hears it at once; one 3.43 km away at sea level, after the travel time
+// through 15 °C air (USSA sea level, c = 340.3 m/s): 10.08 s, not the 10.00 of a 343 m/s constant.
 const onShip = heardAt(RE.splash + 10, { x: 0, y: reentryState(RE.splash + 10).h, z: 0 });
 const far = heardAt(RE.splash + 10, { x: 0, y: 0, z: 3430 });
-report(Math.abs(onShip.tau - (RE.splash + 10)) < 1e-3 && Math.abs(far.tau - (RE.splash + 10 - 10)) < 0.05,
-  'a bordo se oye a la vez; a 3,43 km, diez segundos después', `retrasos ${(RE.splash + 10 - onShip.tau).toFixed(3)} s y ${(RE.splash + 10 - far.tau).toFixed(2)} s`);
+const expect = 3430 / soundSpeedAt(0);
+report(Math.abs(onShip.tau - (RE.splash + 10)) < 1e-3 && Math.abs((RE.splash + 10 - far.tau) - expect) < 0.05,
+  'a bordo se oye a la vez; a 3,43 km, tras el tiempo de viaje a 340,3 m/s', `retrasos ${(RE.splash + 10 - onShip.tau).toFixed(3)} s y ${(RE.splash + 10 - far.tau).toFixed(2)} s (esperado ${expect.toFixed(2)} s)`);
+
+// 2b. The solver on trajectories with a closed form (audit of 9-11-2026, M14: the checks above use
+// the module's own geometry). A source in straight, level flight at speed u, uniform sound speed c:
+// c(t − τ) = |p(τ) − cam| is a quadratic in τ; the latest root ≤ t, or none (outside the Mach cone).
+{
+  const c = 340;
+  let bad = 0, n = 0, silent = 0, detail = '';
+  for (const u of [-680, -250, 120, 300, 680, 1000]) {
+    for (const cam of [{ x: 0, y: 0, z: 400 }, { x: 3000, y: 0, z: 200 }, { x: -2500, y: 0, z: 1500 }, { x: 8000, y: 0, z: 100 }]) {
+      const x0 = -2000, y0 = 3000, t = 20;
+      const at = (tau) => ({ x: x0 + u * tau, y: y0 });
+      const got = solveEmission(t, cam, at, { tMin: -200, vMax: Math.abs(u), cMin: c, travel: (x, y, k) => Math.hypot(x - k.x, y - k.y, k.z) / c });
+      const dx = x0 - cam.x, D2 = (y0 - cam.y) ** 2 + cam.z ** 2;
+      const A = c * c - u * u, B = -2 * c * c * t - 2 * u * dx, C = c * c * t * t - dx * dx - D2;
+      const disc = B * B - 4 * A * C;
+      const roots = disc < 0 ? [] : [(-B - Math.sqrt(disc)) / (2 * A), (-B + Math.sqrt(disc)) / (2 * A)].filter(r => r <= t + 1e-9 && r >= -200);
+      const want = roots.length ? Math.max(...roots) : null;
+      n++;
+      if (want === null) { silent++; if (got.heard) { bad++; detail ||= `u=${u} cam=${JSON.stringify(cam)}: oye sin raíz`; } }
+      else if (!got.heard || Math.abs(got.tau - want) > 2e-3) { bad++; detail ||= `u=${u} cam=${JSON.stringify(cam)}: τ ${got.tau} frente a ${want}`; }
+    }
+  }
+  report(bad === 0 && silent > 0, 'resolutor frente a la solución cerrada de una fuente en vuelo recto (subsónica y supersónica, dentro y fuera del cono de Mach)', `${n} casos, ${silent} sin llegada${detail ? ' · ' + detail : ''}`);
+}
 
 // 3. The boom: made above Mach 1.2, before the cited transonic call, and the ship below Mach 1.2 after it.
 const mach = (t) => { const s = reentryState(t); return Math.hypot(s.vx, s.vh) / soundSpeedAt(s.h); };

@@ -111,4 +111,20 @@ for (const r of [5, 20, 40, 100, 300]) {
 }
 
 console.log(`\nOleaje: Hs ${fmt(O.HS, 2)} m · ${O.WAVES.length} olas · dibujo frente a física: ${table.join(' · ')}`);
+// A 52 m hull on the open sea (sim/reentry.js, audit of 9-11-2026 A5): the fitted waterline must
+// keep both ends closer to the water than riding one point's height with no pitch does.
+{
+  const { openWaterline, openOceanHeight } = await import('../src/core/ocean.js');
+  let fit = 0, flat = 0, n = 0;
+  for (let t = 0; t < 120; t += 1.7) {
+    const w = openWaterline(0, 52, 0, t), h0 = openOceanHeight(0, 0, t);
+    for (let i = 0; i <= 26; i++) {
+      const x = i * 2, h = openOceanHeight(x, 0, t);
+      fit += (w.a + w.b * x - h) ** 2; flat += (h0 - h) ** 2; n++;
+    }
+  }
+  fit = Math.sqrt(fit / n); flat = Math.sqrt(flat / n);
+  report(fit < flat * 0.8, 'un casco de 52 m sobre el mar abierto: la línea de flotación ajustada sigue el agua mejor que la altura de un punto sin cabeceo (holgura media cuadrática a lo largo del casco)', `${(fit * 100).toFixed(1)} cm frente a ${(flat * 100).toFixed(1)} cm`);
+}
+
 if (failed) { console.error(`${failed} comprobación(es) fallida(s)`); process.exit(1); }

@@ -69,7 +69,9 @@ export const FIGURES = {
     readme: ['height'],
   },
   starlink: {
-    height: { value: 4.1, grade: 'C', ref: 'sfn_v2mini', note: 'bus width, shown in the sheet header; not measured', unchecked: true },
+    // The bus's width, ≈4.1 m (press). Filed as `height` until 9-11-2026 (audit M10), which any
+    // reader of the data took for a height; the satellite's height is not published.
+    breadth: { value: 4.1, grade: 'C', ref: 'sfn_v2mini', note: 'bus width; not measured', unchecked: true },
     footprint: { value: 30, grade: 'C', ref: 'sfn_v2mini', note: '≈30 m deployed span' },
     readme: ['footprint'],
   },

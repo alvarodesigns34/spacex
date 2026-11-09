@@ -172,7 +172,10 @@ const VOLUME_MAIN = /* glsl */`
     // cloud is behind it, and an aircraft in front of one stays in front.
     vec4 clip = projectionMatrix * viewMatrix * vec4(o + d * max(hit, 0.0), 1.0);
     gl_FragDepth = clamp(clip.z / clip.w * 0.5 + 0.5, 0.0, 1.0);
-    gl_FragColor = vec4(col, alpha * haze * uFade);
+    // Fade the last 15 km before the 40 km cut instead of stopping there (audit of 9-11-2026, M5):
+    // with the haze leaving ≈20 % of a cloud at 40 km, the cut drew an edge a couple of degrees over
+    // the horizon.
+    gl_FragColor = vec4(col, alpha * haze * uFade * (1.0 - smoothstep(25000.0, 40000.0, t0)));
   }`;
 
 // The cover again, under names of its own, for lit materials' shaders (cloud shadows, below).
@@ -248,12 +251,14 @@ uniform vec3 uCsSun;
 uniform float uCsFade, uCover;
 ${SHADOW_COVER_GLSL}`)
         .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
-  if (uCsFade > 0.01 && uCsSun.y > 0.05) {
+  if (uCsFade > 0.01 && uCsSun.y > 0.02) {
     vec2 csQ = vCsW.xz + uCsSun.xz * ((1700.0 - vCsW.y) / uCsSun.y);
     // The same cover as the march (four octaves: with three it covered 38 % of the sky against
     // the drawn 51 %), and the same onset of the cloud's body (+0.07), deepening with its thickness.
     float csC = csCover(csQ, 4);
-    float csK = smoothstep(uCover, uCover + 0.07, csC) * (0.55 + 0.45 * smoothstep(uCover, uCover + 0.25, csC)) * uCsFade;
+    // Faded in as the Sun climbs from 1.1° to 4.6° (audit of 9-11-2026, M6: it switched off at 2.9°,
+    // a visible jump in a sunset).
+    float csK = smoothstep(uCover, uCover + 0.07, csC) * (0.55 + 0.45 * smoothstep(uCover, uCover + 0.25, csC)) * uCsFade * smoothstep(0.02, 0.08, uCsSun.y);
     reflectedLight.directDiffuse *= 1.0 - 0.85 * csK;
     reflectedLight.directSpecular *= 1.0 - 0.85 * csK;
     // Under a cloud part of the sky's own light is gone too (the cloud is where blue sky was).

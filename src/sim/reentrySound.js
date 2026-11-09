@@ -28,7 +28,6 @@ import { RE, CHAPTER, reentryState, reentrySpeedAt, reentryEnginesAt, densityAt,
 import { soundSpeedAt } from './launch.js';
 import { audio, claim } from './audioBus.js';
 
-const C_SOUND = 343;
 const REF_D = 160;          // engines at full level inside this distance (the launch's)
 const RIDE_D = 400;         // a camera this close to the ship rides in its air
 
@@ -58,41 +57,52 @@ export const BOOM_T = (() => {
 export const TAU_MIN = CHAPTER.start - 120;
 /** Fastest the ship flies over that span, m/s: the bound that keeps the root search from stepping over a root. */
 const V_MAX = (() => { let v = 0; for (let t = TAU_MIN; t <= CHAPTER.end + 60; t += 0.5) v = Math.max(v, reentrySpeedAt(t)); return v; })();
+/** The slowest sound anywhere on a path, m/s (the USSA's coldest layer, ≈187 K). */
+export const C_MIN = soundSpeedAt(1e6);
 
 /**
- * When a sound made by the ship reaches a listener at `cam` (scene frame) at mission time t.
- *
- * The emission time τ solves f(τ) = τ + d(τ)/c − t = 0 on [TAU_MIN, t]. f(t) = d(t)/c ≥ 0, and f
- * can change by at most L = 1 + V_MAX/c per second of τ, so stepping back from t by f(τ)/L never
- * jumps over a root: the search lands on the LATEST root — the most recent emission arriving now.
- * While the ship is supersonic along the line of sight f is not monotonic and there can be more
- * than one root (earlier emissions arriving together with later ones); the latest is the one kept,
- * which is the choice, not a measurement. (A fixed-point iteration was used before: with the ship
- * supersonic it diverged, to τ ≈ −1,7 × 10¹⁷ s at entry + 300 s; external audit 8-11, finding 02.)
- *
- * Returns { tau, d, x, y, heard, residual } — the ship then, in the scene frame of time t. With no
- * root on the span (nothing emitted since TAU_MIN has reached the listener yet) `heard` is false,
- * tau is −Infinity and d is Infinity, so every level computed from it is zero.
+ * Time for sound to go in a straight line from (x, y, 0) to `cam`, s: the path's length over the
+ * mean of 1/c(h) along it (eight points, midpoint rule), with c from the standard atmosphere
+ * (launch.js soundSpeedAt). Until 9-11-2026 it was 343 m/s at every height (audit M8): a 40 km
+ * path was ≈8 % late, 343 m/s being 20 °C air at sea level. Refraction is not modelled (≈).
+ */
+export function travelTime(x, y, cam) {
+  const d = Math.hypot(x - cam.x, y - cam.y, cam.z);
+  let inv = 0;
+  for (let i = 0; i < 8; i++) { const u = (i + 0.5) / 8; inv += 1 / soundSpeedAt(y + (cam.y - y) * u); }
+  return d * inv / 8;
+}
+
+/**
+ * The emission time τ ≤ t whose sound reaches `cam` at t, for a source at `at(τ)` = { x, y } (scene
+ * frame of time t): the LATEST root of f(τ) = τ + travel(τ) − t on [tMin, t]. f(t) ≥ 0, and f changes
+ * by at most L = 1 + vMax/cMin per second of τ, so stepping back from t by f/L never steps over a
+ * root. While the source is supersonic along the line of sight f is not monotonic and there can be
+ * more than one root; the latest is the one kept (a choice). Returns { tau, d, x, y, heard, residual };
+ * with no root, heard is false, tau −Infinity and d Infinity. Pure, so it is tested on analytic
+ * trajectories (tools/reentry-sound-check.mjs) as well as the re-entry's.
+ */
+export function solveEmission(t, cam, at, { tMin, vMax, travel = travelTime, cMin = C_MIN } = {}) {
+  const L = 1 + vMax / cMin;
+  const f = (tau) => { const p = at(tau); return { r: tau + travel(p.x, p.y, cam) - t, p }; };
+  let tau = t, e = f(tau);
+  for (let k = 0; k < 6000 && e.r > 1e-4; k++) {
+    const next = tau - e.r / L;
+    if (next < tMin) { const m = f(tMin); return { tau: -Infinity, d: Infinity, x: m.p.x, y: m.p.y, heard: false, residual: m.r }; }
+    tau = next; e = f(tau);
+  }
+  return { tau, d: Math.hypot(e.p.x - cam.x, e.p.y - cam.y, cam.z), x: e.p.x, y: e.p.y, heard: e.r <= 1e-4, residual: e.r };
+}
+
+/**
+ * When a sound made by the ship reaches a listener at `cam` (scene frame) at mission time t: the
+ * ship's emission time and where it was then, in the frame of time t (the chapter's scene moves
+ * with the ship). A fixed-point iteration was used before 8-11-2026: with the ship supersonic it
+ * diverged, to τ ≈ −1,7 × 10¹⁷ s at entry + 300 s (external audit 8-11, finding 02).
  */
 export function heardAt(t, cam) {
   const s0 = reentryState(t).s;
-  const L = 1 + V_MAX / C_SOUND;
-  const f = (tau) => {
-    const s = reentryState(tau);
-    const x = s.s - s0, y = s.h;
-    const d = Math.hypot(x - cam.x, y - cam.y, cam.z);
-    return { r: tau + d / C_SOUND - t, d, x, y };
-  };
-  let tau = t, e = f(tau);
-  for (let k = 0; k < 4000 && e.r > 1e-4; k++) {
-    const next = tau - e.r / L;
-    if (next < TAU_MIN) {
-      const m = f(TAU_MIN);
-      return { tau: -Infinity, d: Infinity, x: m.x, y: m.y, heard: false, residual: m.r };
-    }
-    tau = next; e = f(tau);
-  }
-  return { tau, d: e.d, x: e.x, y: e.y, heard: e.r <= 1e-4, residual: e.r };
+  return solveEmission(t, cam, (tau) => { const s = reentryState(tau); return { x: s.s - s0, y: s.h }; }, { tMin: TAU_MIN, vMax: V_MAX });
 }
 
 export function createReentrySound({ reentry, camera }) {
@@ -225,7 +235,7 @@ export function createReentrySound({ reentry, camera }) {
     // The splash, from the splash point: in the scene frame it is where the ocean puts it.
     const sp = { x: Math.max(0, toSplashAt(t)), y: 0 };
     const dSplash = Math.hypot(cp.x - sp.x, cp.y, cp.z);
-    const tSplash = t - dSplash / C_SOUND;
+    const tSplash = t - travelTime(sp.x, 0, cp);
     if (lastSplash !== null && lastSplash < RE.splash && tSplash >= RE.splash && tSplash - lastSplash < 30) {
       setPos(splashPan, sp.x, 0, 0);
       play('splash', { gain: Math.min(1, 0.25 + REF_D * 2 / Math.max(dSplash, 1)), pan: splashPan, lowpass: Math.max(300, Math.min(16000, 16000 * 250 / Math.max(dSplash, 250))) });

@@ -68,8 +68,11 @@ const TIERS = {
     lodPixels: 0,
     cloudParticles: 1600,
     // Most iterations per view ray through the cumulus (clouds.js: long steps through empty air,
-    // short ones, 18–70 m, inside cloud); 0 keeps the flat layer. 32 equal steps until 8-11-2026.
-    cloudSteps: 256,
+    // short ones, 18–70 m, inside cloud); 0 keeps the flat layer. 32 equal steps until 8-11-2026,
+    // 256 until 9-11: replaying the march on the real cover (tools/sky-clouds-check.mjs) put 14 % of
+    // rays over it, the low ones near the horizon, cut short — the specks there. 640 covers the 99th
+    // percentile of that conservative replay; the cost is paid only on long rays.
+    cloudSteps: 640,
     anisotropy: 16,
   },
   medium: {
@@ -83,7 +86,7 @@ const TIERS = {
     // The cloud grew (bigger, longer-lived puffs); on the mid tier the count rises only a
     // little, since fill rate, not count, is what a full-screen transparent cloud costs.
     cloudParticles: 640,
-    cloudSteps: 120,
+    cloudSteps: 384,
     anisotropy: 8,
   },
   low: {
@@ -126,6 +129,7 @@ export function pickQuality(renderer, force = null) {
   const tier = { ...TIERS[name], forced: !!force && !!TIERS[force], suggested, probe: info };
   // Never ask for more than the hardware admits to.
   tier.shadowMap = Math.min(tier.shadowMap, info.maxTexture || tier.shadowMap);
+  tier.maxPixelRatio = tier.pixelRatio;           // the tier's own ceiling, for a later change of screen
   tier.pixelRatio = Math.min(tier.pixelRatio, info.dpr);
   return tier;
 }

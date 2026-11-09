@@ -1,4 +1,6 @@
-/** Renderer-independent launch and re-entry regressions. Node 22.15+; no browser or GPU required.
+/** Renderer-independent launch and re-entry regressions (named cloud-check.mjs until 9-11-2026: it
+ * tests the ascent, the booster, the ground vapour and the re-entry, not the sky's clouds — those are
+ * tools/sky-clouds-check.mjs). Node 22.15+; no browser or GPU required.
  * Mutations deliberately restore earlier defects and must be caught by these assertions.
  */
 import assert from 'node:assert/strict';

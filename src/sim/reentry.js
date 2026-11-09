@@ -21,7 +21,7 @@ import * as THREE from 'three';
 import { Plume, Vapor, Glow, FlightEarth } from './plume.js';
 import { RE, CHAPTER, MILESTONES_RE, reentryState, reentryPitchAt, reentryEnginesAt, heatingAt, toSplashAt, densityAt } from './reentryFlight.js';
 import { sourceMaterial } from '../core/localProbes.js';
-import { WAVES, OPEN_SEA_AMP, oceanGLSL, oceanPhases, openOceanHeight } from '../core/ocean.js';
+import { WAVES, OPEN_SEA_AMP, oceanGLSL, oceanPhases, openWaterline } from '../core/ocean.js';
 
 // ---- Plasma ------------------------------------------------------------------------------
 const PLASMA_VERT = /* glsl */`
@@ -365,6 +365,9 @@ ${IMPACT_GLSL}`)
   // it spreads (≈). Drawn on the sea, 300 m across.
   const foam = new THREE.Mesh(new THREE.PlaneGeometry(300, 300, 240, 240), new THREE.ShaderMaterial({
     name: 'reentry-foam', transparent: true, depthWrite: false,
+    // In front of the sea in the depth test even where the 6 cm lift is under one depth step
+    // (≈12 cm at 1 km with the chapter's 0.5 m near plane; audit of 9-11-2026, M7).
+    polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
     uniforms: {
       uAge: { value: 0 }, uSlap: { value: SLAP - RE.splash + 4 },   // age from 4 s before the splash, when the jet reaches the water
       uOceanPhase: seaU.uOceanPhase, uImpactAge: seaU.uImpactAge, uSlapAge: seaU.uSlapAge,
@@ -449,20 +452,31 @@ ${IMPACT_GLSL}`)
     const s = reentryState(t);
     const pitch = reentryPitchAt(t);
     const lit = reentryEnginesAt(t);
+    // Where the splash point is, relative to the ship.
+    const ahead = toSplashAt(t);
+    // Once down it floats on the swell (audit of 9-11-2026, A5: it used to ride one point's height
+    // with no pitch, so on a 72 m swell one end sank and the other stood clear by ≈0.6 m). The sea's
+    // height is read at five stations along the 52 m hull and a straight line fitted to them: the
+    // hull takes its slope as pitch (only as it comes to lie flat) and its height at the centre of
+    // mass. ≈ — a waterline fit, not buoyancy: no displaced volume, no roll, no inertia.
+    let bob = 0, tilt = 0;
+    if (t >= RE.splash) {
+      const k = Math.min(1, (t - RE.splash) / 2), cp = Math.cos(pitch);
+      // In the ocean's frame the hull runs from −ahead to −ahead + cp·SHIP_H; the line is refitted to scene x.
+      const w = openWaterline(-ahead, -ahead + cp * SHIP_H, 0, t), b = w.b, a = w.a + w.b * ahead;
+      tilt = Math.atan(b) * (1 - Math.abs(Math.sin(pitch))) * k;
+      bob = (a + b * COM * cp) * k;
+    }
     // Attitude: nose along (cos θ, sin θ) in the trajectory plane (+X forward), belly into
     // the flow, i.e. (sin θ, −cos θ).
-    _n.set(Math.cos(pitch), Math.sin(pitch), 0);
-    _b.set(Math.sin(pitch), -Math.cos(pitch), 0);
+    const att = pitch + tilt;
+    _n.set(Math.cos(att), Math.sin(att), 0);
+    _b.set(Math.sin(att), -Math.cos(att), 0);
     _m.makeBasis(_x, _n, _b);
     holder.quaternion.setFromRotationMatrix(_m);
     // Standing on its engines at the end, the ship's base, not its centre, is at the height.
     const up = Math.max(0, Math.sin(pitch));
     // Toppling in the water it turns about its base, which stays where it splashed.
-    // Where the splash point is, relative to the ship.
-    const ahead = toSplashAt(t);
-    // Once down it floats on the swell: its base rides the open sea's height there (≈, a hull
-    // this long would average the short waves; no buoyancy is modelled).
-    const bob = t >= RE.splash ? openOceanHeight(-ahead, 0, t) * Math.min(1, (t - RE.splash) / 2) : 0;
     holder.position.set(t > RE.splash ? COM * Math.cos(pitch) : 0, s.h + COM * up + (t >= RE.splash ? -0.6 * Math.min(1, (t - RE.splash) / 3) : 0) + bob, 0);
     ocean.position.set(ahead, 0, 0);
     holder.updateMatrixWorld(true);

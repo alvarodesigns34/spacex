@@ -347,11 +347,12 @@ export const VEHICLES = [
     id: 'starlink',
     name: 'Starlink',
     subtitle: 'V2 Mini satellite',
-    height: FIGURES.starlink.height.value,
+    // No height: not published (the 4.1 m on the sheet is the bus's width, `breadth`).
+    height: null,
     footprint: FIGURES.starlink.footprint.value,
     summary: 'Second-generation satellite in the Falcon 9 compatible form factor. Flat bus with phased-array antennas facing Earth, inter-satellite laser links, argon Hall thrusters and two deployable solar wings spanning about 30 m.',
     specs: [
-      { fig: 'height', label: 'Bus width', value: '≈4.1 m', source: 'press', ref: 'sfn_v2mini' },
+      { fig: 'breadth', label: 'Bus width', value: '≈4.1 m', source: 'press', ref: 'sfn_v2mini' },
       { label: 'Launch mass', value: '≈800 kg (first batches)', source: 'press', ref: 'sfn_v2mini' },
       { label: 'Solar wings', value: '2 (V1.5 had 1)', source: 'press', ref: 'sfn_v2mini' },
       { fig: 'footprint', label: 'Deployed span', value: '≈30 m', source: 'press', ref: 'sfn_v2mini' },

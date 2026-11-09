@@ -1291,6 +1291,23 @@ async function main() {
     camera.aspect = w / h; camera.updateProjectionMatrix();
     renderer.setSize(w, h); composer.setSize(w, h); labelRenderer.setSize(w, h);
   });
+  // The pixel ratio follows the screen the window is on (audit of 9-11-2026, M1): it was read once
+  // at start, so a window dragged from a 1× to a 2× monitor kept a 1× buffer, blurred on the
+  // denser screen. A media query on the current resolution fires when it changes; re-armed each time.
+  const watchDpr = () => {
+    const mq = matchMedia?.(`(resolution: ${window.devicePixelRatio}dppx)`);
+    mq?.addEventListener?.('change', () => {
+      const pr = Math.min(quality.maxPixelRatio ?? quality.pixelRatio, window.devicePixelRatio || 1);
+      if (pr !== renderer.getPixelRatio()) {
+        quality.pixelRatio = pr;
+        renderer.setPixelRatio(pr);
+        composer.setPixelRatio(pr);
+        composer.setSize(window.innerWidth, window.innerHeight);
+      }
+      watchDpr();
+    }, { once: true });
+  };
+  watchDpr();
 
   // The frame is centred on the part of the screen the HUD leaves free. On a desktop the
   // vehicle rail takes the left 256 px, and a view centred on the whole window put its left
@@ -1444,28 +1461,49 @@ async function main() {
   // The technical panel (key I) and ?perf / ?perf=log: ui/techPanel.js.
   const tech = createTechPanel({ renderer, camera, env, quality, params, jump, toggleCybertruck, ctLab });
 
+  // A barrier round every part of the frame (audit of 9-11-2026, A1): until then one exception
+  // anywhere — a sequence's update, a probe capture, the render — ended the loop for good, since
+  // the next frame was only asked for at the end, and the scene froze without a word. Now the next
+  // frame is asked for first, each part runs guarded, and a failure is logged and told once
+  // (by its message) while everything else keeps running. __vc.frameErrors counts them.
+  const frameErrors = new Map();
+  const reportError = (where, e) => {
+    const key = `${where}: ${e?.message ?? e}`;
+    const n = frameErrors.get(key) ?? 0;
+    frameErrors.set(key, n + 1);
+    if (n === 0) {
+      console.error(`[frame] ${where}`, e);
+      hud.notice?.(`Something failed in ${where}; the rest keeps running (details in the console).`, 8000);
+    }
+  };
+  const guard = (where, fn) => { try { fn(); } catch (e) { reportError(where, e); } };
+  window.addEventListener('error', (ev) => reportError('the page', ev.error ?? ev.message));
+  window.addEventListener('unhandledrejection', (ev) => reportError('a background task', ev.reason));
+
   function frame() {
+    requestAnimationFrame(frame);
     // The Cybertruck Lab draws its own scene with this renderer; the site waits as it was left.
-    if (ctLab.active) { tech.perf?.begin(); ctLab.render(clock.getDelta()); tech.perf?.end(); requestAnimationFrame(frame); return; }
+    if (ctLab.active) { tech.perf?.begin(); guard('the Cybertruck Lab', () => ctLab.render(clock.getDelta())); tech.perf?.end(); return; }
     tech.perf?.begin();
     const steps = missionClock.step(clock.getDelta());
     const dt = steps.view;
-    rig.update(dt);
-    launch.update(steps.mission);
-    reentry.update(steps.mission);
+    guard('the camera', () => rig.update(dt));
+    guard('the launch', () => launch.update(steps.mission));
+    guard('the re-entry', () => reentry.update(steps.mission));
     // Wall time, like the launch: on the view's clamped step the flight ran in slow motion
     // under 20 fps (at 10 fps, at half speed).
-    f16fly.update(steps.mission);
-    gt3drive.update(steps.mission);
-    h2rRide.update(steps.mission);
-    sound?.update();
-    reentrySound?.update();
-    // Water keeps moving whatever the camera or the launch is doing.
-    WAVE_TIME.value += dt;
+    guard('the F-16', () => f16fly.update(steps.mission));
+    guard('the Porsche', () => gt3drive.update(steps.mission));
+    guard('the H2R', () => h2rRide.update(steps.mission));
+    guard('the sound', () => { sound?.update(); reentrySound?.update(); });
+    // Water keeps moving whatever the camera or the launch is doing, on wall time like the vehicles
+    // that cross it (audit of 9-11-2026, B3: on the view's clamped step it ran slow under 20 fps,
+    // while the F-16 over it and the cars in it kept wall time).
+    WAVE_TIME.value += steps.mission;
     windsock?.userData.tick?.(WAVE_TIME.value);
     // The sky is a finite box; centring it on the viewer is what lets it survive an ascent.
     env.followCamera(camera);
-    localProbes.update(scene, camera);
+    guard('the reflection probes', () => localProbes.update(scene, camera));
     // Silent in space and while a vehicle's own sound (and its cockpit) takes over.
     ambience.update(camera, env.inSpace || view.orbital || launch.running || reentry.running || f16fly.running || gt3drive.running || h2rRide.running);
     // The launch complex's reflections (sim/audioBus.js setSpace): by the camera's distance to the pad.
@@ -1501,14 +1539,14 @@ async function main() {
     updateLabelOcclusion();
     lod.update();
     const moving = launch.running || reentry.running || f16fly.running || gt3drive.running || h2rRide.running;
-    shadowCache.prepare(performance.now(), moving);
-    gbufferCache?.prepare(performance.now(), moving);
-    composer.render();
-    if (photoShot) { const cb = photoShot; photoShot = null; cb(renderer.domElement.toDataURL('image/png')); }
-    labelRenderer.render(scene, camera);
-    settleLabels();
+    guard('the render', () => {
+      shadowCache.prepare(performance.now(), moving);
+      gbufferCache?.prepare(performance.now(), moving);
+      composer.render();
+      if (photoShot) { const cb = photoShot; photoShot = null; cb(renderer.domElement.toDataURL('image/png')); }
+    });
+    guard('the labels', () => { labelRenderer.render(scene, camera); settleLabels(); });
     tech.perf?.end();
-    requestAnimationFrame(frame);
   }
   frame();
 
@@ -1592,7 +1630,7 @@ async function main() {
   }
 
   window.__vc = {
-    ctLab, textureCache: TEXTURE_CACHE, shadowCache, gbufferCache, localProbes, photo, ambience, M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, h2rRide, select, goPreset, jump, renderer, env,
+    frameErrors, ctLab, textureCache: TEXTURE_CACHE, shadowCache, gbufferCache, localProbes, photo, ambience, M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, h2rRide, select, goPreset, jump, renderer, env,
     setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour,
     claimUserControl, tourRunToEnd, toggleMode, toggleWalk,
     walkRouteFor: (hit) => { const r = walkRoute(hit); rig.travelTo(r.route, r.look); return r; },

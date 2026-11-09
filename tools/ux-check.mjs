@@ -51,7 +51,10 @@ const bounds = () => page.evaluate(() => {
 });
 // A DPR-2 frame of a wide view in software rendering can take longer than Playwright's 30 s
 // default on a shared runner; the check is about layout, not frame time (profile-check is).
-const SHOT_MS = 120000;
+// 300 s since 9-11-2026 (120 s before): with the full-quality clouds and ignition cloud a
+// software-rendered frame at 1366 × 768 can pass two minutes on a slow runner; the limit is raised,
+// the picture is not lowered (the user's rule). It bounds a hang, not a frame budget.
+const SHOT_MS = 300000;
 // The same holds for clicks: Playwright waits for the target to be stable over two animation
 // frames, and the first frames after a resize are that slow. On the runner one click took
 // 29.6 s in a passing run and timed out at 30 s in the next.

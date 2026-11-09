@@ -304,7 +304,7 @@ export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
       figure.name = 'cybertruck-lab-figure';
       scene.add(figure);
     }
-    if (quality.name === 'high') { reflector = createFloorReflector(14, Math.min(window.devicePixelRatio, 2) * 0.5); scene.add(reflector); }
+    if (quality.name === 'high') { reflector = createFloorReflector(14, Math.min(window.devicePixelRatio, 2)); scene.add(reflector); }
 
     // As the site's: a multisampled half-float target (MSAA by tier) and one output pass, which
     // applies the tone mapping set on opening.
@@ -867,7 +867,9 @@ export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
     frameFreeArea(w, h);
     camera.updateProjectionMatrix();
     composer.setSize(w, h);
-    reflector?.resize(w * renderer.getPixelRatio(), h * renderer.getPixelRatio());
+    // CSS pixels, as when it was created: its scale already carries the pixel ratio (full physical
+    // resolution since 9-11-2026; it was half until a resize took it to full on a 2× screen, audit M2).
+    reflector?.resize(w, h);
     dirty = true;
   }
 

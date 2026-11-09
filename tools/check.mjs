@@ -40,6 +40,8 @@ page.on('console', m => {
   // checked: web fonts are a progressive enhancement and are blocked on some CI networks.
   const where = `${m.text()} ${m.location()?.url ?? ''}`;
   if (/fonts\.(googleapis|gstatic)/.test(where)) return;
+  // The failure the frame-loop check injects on purpose, and nothing else.
+  if (where.includes('injected check failure')) return;
   consoleErrors.push(where.trim());
 });
 
@@ -51,6 +53,11 @@ const report = (ok, label, detail = '') => {
   if (!ok) failures++;
   console.log(`${ok ? '  ok  ' : ' FAIL '} ${label}${detail ? ` — ${detail}` : ''}`);
 };
+
+// Clicks and waits get 180 s, not Playwright's 30 (9-11-2026): a click waits for its button to be
+// stable over consecutive frames, and a software-rendered frame of the full-quality scene can take
+// tens of seconds on a slow machine. A limit for a hang, not a frame budget; the picture stays.
+page.setDefaultTimeout(180000);
 
 try {
   // ?quality=high, always. The tier probe demotes a software rasteriser to the cheapest
@@ -826,7 +833,7 @@ try {
       const c = window.__vc.camera;
       const shown = c.view?.enabled ? c.view.width / c.view.height : c.aspect;
       return !window.__vc.rig.transition && Math.abs(shown - window.innerWidth / window.innerHeight) < 1e-6;
-    }, null, { timeout: 30000 });
+    }, null, { timeout: 180000 });
     const afterResize = await page.evaluate(() => ({
       finite: window.__vc.camera.position.toArray().every(Number.isFinite),
       aspect: +(window.__vc.camera.view?.enabled ? window.__vc.camera.view.width / window.__vc.camera.view.height : window.__vc.camera.aspect).toFixed(3),
@@ -926,6 +933,17 @@ try {
       + `en la vista general · ${budget.meshes} mallas (${budget.visible} dibujadas) · `
       + `${budget.materials} materiales · ${budget.textures} texturas`
       + (over.length ? ` — POR ENCIMA: ${over.map(([k]) => k).join(', ')}` : ''));
+  }
+
+  // ---- The frame loop survives a failing part (audit of 9-11-2026, A1) -----------------------
+  // One exception used to end the loop for good. A throw injected into the launch's update must be
+  // logged once while frames keep coming.
+  {
+    await page.evaluate(() => { const v = window.__vc; v.__origLaunchUpdate = v.launch.update; v.launch.update = () => { throw new Error('injected check failure'); }; });
+    // The failing part runs once a frame: three logged failures are three frames the loop survived.
+    const ok = await page.waitForFunction(() => { const v = window.__vc; const k = [...v.frameErrors.keys()].find(x => x.includes('injected check failure')); return k && v.frameErrors.get(k) >= 3; }, null, { timeout: 300000 }).then(() => true).catch(() => false);
+    const r = await page.evaluate(() => { const v = window.__vc; v.launch.update = v.__origLaunchUpdate; delete v.__origLaunchUpdate; const k = [...v.frameErrors.keys()].find(x => x.includes('injected check failure')); return { logged: !!k, count: k ? v.frameErrors.get(k) : 0 }; });
+    report(ok && r.logged && r.count >= 3, 'el bucle de dibujo sigue tras un fallo inyectado en una de sus partes', `fallo anotado en ${r.count} fotogramas seguidos${ok ? '' : ' · el bucle se PARÓ'}`);
   }
 
   // ---- No stencil on the multisampled composer targets ------------------------------------
