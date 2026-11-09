@@ -44,6 +44,7 @@ La interfaz de la simulación (menús, ficha técnica, etiquetas y vistas) está
   - **Amerizaje:** oleaje de mar abierto, ondas del impacto, espuma sobre la superficie y la nave flotando. Corregido además un fallo previo: la nave quedaba ≈70 m sobre el mar.
   - **Sonido:** el retardo supersónico ya no diverge.
   - **Sondas:** se restauran con `try/finally`.
+  - **Bloque 3:** espuma, estela y anillos en el agua para el Porsche, la H2R y el F-16 (`core/waterMarks.js`); atmósfera de la reentrada según la USSA 1976, con prueba por capas; cita de Rayleigh corregida (Hansen y Travis 1974); `sim/launchModel.js` puro, sin three.js.
   - **Misión:** etiquetada como plan hipotético, con el salto de ≈22 min visible y las horas reales marcadas como no verificadas.
 
 - **Encargo maestro del 8 de noviembre de 2026** (auditoría integral e hiperrealismo): auditoría de partida, matriz de prioridades y primer bloque en [docs/auditoria-2026-11-08-encargo-maestro.md](docs/auditoria-2026-11-08-encargo-maestro.md). Lo de la auditoría externa se comprobó en el código antes de darlo por bueno (dos de sus hallazgos ya estaban corregidos: S13 y S14).
@@ -611,6 +612,10 @@ tools/lod-parts.mjs        con navegador: las piezas pequeñas de los coches se 
 tools/ocean-check.mjs      sin navegador: el oleaje (sin pliegues, continuo), su inversión y física frente a dibujo
 tools/ambience-check.mjs   sin navegador: los niveles de la rompiente y del viento
 tools/quality-check.mjs    sin navegador: calidad completa siempre (nivel alto, sin LOD, nadie baja las nubes en marcha)
+src/core/waterMarks.js     espuma y anillos de onda sobre el agua que se mueve (Porsche, H2R, F-16)
+src/data/stackFigures.js   cifras del propulsor sin geometría (las reexporta vehicles/starship.js)
+src/data/padFigures.js     dimensiones de la plataforma sin geometría (las reexporta vehicles/pad.js)
+src/geometry/curves.js     interpolación cúbica monótona, pura
 tools/f14-insertion-dv.mjs análisis reproducible de §31 (Δv de la inserción del vuelo 14 por vis viva)
 tools/probe-check.mjs      sin navegador: el suelo de la sonda de reflejos (el Golfo al este, tierra al oeste)
 tools/reflect-shots.json   cuatro vistas de superficies reflectantes (Starship, Porsche, Roadster, Falcon 9)

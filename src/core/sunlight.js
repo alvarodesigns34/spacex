@@ -4,9 +4,10 @@
  * sunset that did not redden. Now:
  *
  *  - Transmittance per channel, exp(−τ·m), at 650, 550 and 450 nm (≈ the R, G, B of the display):
- *      Rayleigh optical depth of the whole atmosphere, sea level (Bodhaine et al. 1999,
- *        J. Atmos. Ocean. Tech. 16: τ ≈ 0.008569 λ⁻⁴ (1 + 0.0113 λ⁻² + 0.00013 λ⁻⁴), λ in µm):
- *        0.049, 0.097, 0.221;
+ *      Rayleigh optical depth of the whole atmosphere, sea level, by Hansen & Travis (1974, Space
+ *        Sci. Rev. 16): τ ≈ 0.008569 λ⁻⁴ (1 + 0.0113 λ⁻² + 0.00013 λ⁻⁴), λ in µm: 0.049, 0.097,
+ *        0.221. (Credited to Bodhaine et al. 1999 until 9-11-2026; Bodhaine's own fit, its eq. 30,
+ *        agrees within ≈1 % here and is what tools/sunlight-check.mjs compares it with.)
  *      aerosol, Ångström's law τ = β λ^−α with α = 1.3 and β = 0.05 (≈ a clear coastal day:
  *        τ(550) ≈ 0.11; Starbase's own aerosol is not measured here);
  *      relative air mass m by Kasten and Young (1989), which stays finite at the horizon (≈38).
@@ -15,6 +16,9 @@
  *    transmittance against a daylight reference sun at 50°, with the white point carried a = 0.6 of
  *    the way towards the light (≈, chosen so the default 20° sun stays close to the neutral key
  *    the materials were calibrated under, (1, 0.96, 0.89) against the old (1, 0.98, 0.94)).
+ * Three wavelengths are not a spectral integration nor a colorimetric transform: α, β, the white
+ * point's 0.6 and the brightness ramp are choices (≈). A visual approximation with physical
+ * components (external audit 8-11, finding 09).
  * Pure: numbers in, numbers out, so it is tested without a browser (tools/sunlight-check.mjs).
  */
 const LAMBDA = [0.65, 0.55, 0.45];   // µm, R G B

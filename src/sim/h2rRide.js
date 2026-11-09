@@ -21,6 +21,7 @@ import { createH2rSound } from './h2rSound.js';
 import { windAt } from '../core/wind.js';
 import { createSkidMarks, createTyreSmoke, createSpray } from './gt3Drive.js';
 import { createEffects } from '../core/effects.js';
+import { createWaterMarks, splashInto } from '../core/waterMarks.js';
 import { STEER_AXIS, AXLE_F, AXLE_R } from '../vehicles/h2r.js';
 import { WHEELS, CHASSIS } from '../data/h2r.js';
 import { trackCoords, toLocal, LAP, START } from '../core/circuitPlan.js';
@@ -48,6 +49,9 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
   const marks = createSkidMarks(scene, 6000);
   const smoke = createTyreSmoke(scene, 500);
   const spray = createSpray(scene, 800);
+  // Foam and rings on the water (core/waterMarks.js): the wake behind each wheel, the ring where it went in.
+  const water = createWaterMarks(scene, (x, z) => ground(x, z).water ?? null, 160);
+  const wakeT = [0, 0];
   const fx = createEffects(scene);
   const sound = createH2rSound();
   // In the site's wind (core/wind.js).
@@ -231,14 +235,16 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
   function throwSpray(dt) {
     if (s.water < 0.005 || s.u < 1) return;
     const c = Math.cos(s.psi), sn = Math.sin(s.psi);
-    for (const ax of [BIKE.L / 2, -BIKE.L / 2]) {
+    [BIKE.L / 2, -BIKE.L / 2].forEach((ax, j) => {
       const x = s.x + ax * c, z = s.z - ax * sn, g = ground(x, z), w = g.water ?? g.h;
       const n = Math.min(30, s.u * Math.min(1, s.water / 0.05) * 2 * dt * 60);
+      wakeT[j] -= dt;
+      if (wakeT[j] <= 0 && g.water !== undefined) { wakeT[j] = 0.12 + 0.6 / Math.max(s.u, 1); water.foam(x, z, 0.3 + Math.min(0.4, s.water * 2), { grow: 0.12, life: 4 + Math.min(5, s.u * 0.3), opacity: Math.min(0.7, 0.25 + s.water * 3) }); }
       for (let k = 0; k < n; k++) {
         const side = Math.random() < 0.5 ? -1 : 1, out = (0.2 + 0.4 * Math.random()) * s.u * 0.3;
         spray.emit(x, w + 0.02, z, s.u * c * 0.4 + Math.sin(s.psi) * side * out, (0.3 + 0.5 * Math.random()) * Math.min(7, s.u * 0.4), -s.u * sn * 0.4 + Math.cos(s.psi) * side * out, w);
       }
-    }
+    });
   }
   // ---- Laps -------------------------------------------------------------------------------------
   let lastS = null;
@@ -262,7 +268,7 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
 
   // ---- Lifecycle --------------------------------------------------------------------------------
   function placeHome() {
-    spray.clear(); fx.clear(); marks.clear(); smoke.clear?.();
+    spray.clear(); water.clear(); fx.clear(); marks.clear(); smoke.clear?.();
     sim.reset(home());
     Object.assign(rider_, { throttle: 0, brake: 0, rear: 0, lean: 0 });
     Object.assign(state, { paused: false, lap: null });
@@ -315,7 +321,7 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
     if (spinR) spinR.rotation.z = 0;
     if (swing) swing.rotation.z = 0;
     if (impeller) impeller.rotation.z = 0;
-    fx.clear(); spray.clear(); marks.clear();
+    fx.clear(); spray.clear(); water.clear(); marks.clear();
     saved.parent.add(bike);
     bike.position.copy(saved.position); bike.quaternion.copy(saved.quaternion);
     holder.visible = false;
@@ -346,7 +352,12 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
     if (s.impact > 2 && s.t - lastHit > 1) { lastHit = s.t; note(s.crashed ? `Contact at ${Math.round(s.impact * 3.6)} km/h` : `Scraped along it at ${Math.round(s.impact * 3.6)} km/h`); }
     if (s.shiftRefused > lastRefused) { lastRefused = s.shiftRefused; note('Downshift refused: it would over-rev'); }
     if (leanHeld() && !leanNoted) { leanNoted = true; note(`Lean limit: the tyres hold ${Math.round(s.leanCap * R2D)}° here`); }
-    if (s.water > 0.02 && !splashed) { splashed = true; note('Into the water'); }
+    if (s.water > 0.02 && !splashed) {
+      splashed = true; note('Into the water');
+      // Going in: a crown of water and a ring from the front wheel, by the speed (≈).
+      const c = Math.cos(s.psi), sn = Math.sin(s.psi), x = s.x + BIKE.L / 2 * c, z = s.z - BIKE.L / 2 * sn, w = ground(x, z).water;
+      if (w !== undefined && w !== null) splashInto({ spray, marks: water, x, z, surf: w, speed: s.u, width: 0.8, dx: c, dz: -sn });
+    }
     if (s.drowned && !drownNoted) { drownNoted = true; note('Too deep: the water reached the intake and the engine drowned · R: pick it up on dry ground'); }
     if (s.water <= 0.02) splashed = false;
     // Scraping along a wall: sparks where the bike touches it.
@@ -368,6 +379,7 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
       throwSpray(h);
       fx.update(h);
       spray.update(h);
+      water.update(h);
       timeLaps();
     }
     pose(Math.min(dt, 0.25));

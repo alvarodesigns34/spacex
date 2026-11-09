@@ -57,10 +57,27 @@ const RE_M = R_EARTH;
 /** The mission chain from the ship's cutoff to the entry interface (mission.js). */
 export const CHAIN = missionChain();
 
-/** Air density, kg/m³: 8,5 km scale height to 25 km, 6,8 km above (≈, a two-piece fit). */
+/**
+ * Air density, kg/m³, from the U.S. Standard Atmosphere 1976 (NOAA/NASA/USAF), its tabulated density
+ * every 5 km to 100 km and at 110 and 120 km, interpolated log-linearly (exact where a layer is
+ * isothermal, within a few per cent between the nodes elsewhere); above 120 km, the last segment's
+ * scale height. A standard mean atmosphere, not the day's. Until 9-11-2026 this was a two-piece
+ * exponential fit (8.5 km scale height to 25 km, 6.8 km above), up to 78 % too dense at 30–50 km,
+ * where the ship brakes (external audit 8-11, finding 08; tools/mission-check.mjs compares).
+ */
+export const USSA76 = [
+  [0, 1.2250], [5, 0.73643], [10, 0.41351], [15, 0.19476], [20, 0.088910], [25, 0.040084],
+  [30, 0.018410], [35, 0.0084634], [40, 0.0039957], [45, 0.0019663], [50, 0.0010269], [55, 0.00056810],
+  [60, 0.00030968], [65, 0.00016321], [70, 8.2829e-5], [75, 3.9921e-5], [80, 1.8458e-5], [85, 8.2195e-6],
+  [90, 3.4160e-6], [95, 1.3930e-6], [100, 5.6040e-7], [110, 9.7080e-8], [120, 2.2220e-8],
+];
+const LN_RHO = USSA76.map(([, r]) => Math.log(r));
 export function densityAt(h) {
-  if (h < 25000) return 1.225 * Math.exp(-Math.max(h, 0) / 8500);
-  return 1.225 * Math.exp(-25000 / 8500) * Math.exp(-(h - 25000) / 6800);
+  const km = Math.max(0, h) / 1000;
+  let i = 0;
+  while (i < USSA76.length - 2 && km > USSA76[i + 1][0]) i++;
+  const [k0] = USSA76[i], [k1] = USSA76[i + 1];
+  return Math.exp(LN_RHO[i] + (LN_RHO[i + 1] - LN_RHO[i]) * (km - k0) / (k1 - k0));
 }
 
 /** Speed and flight-path angle at the entry interface, and the mass there: the mission chain's. */

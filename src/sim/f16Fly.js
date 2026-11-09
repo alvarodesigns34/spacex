@@ -18,6 +18,7 @@ import { runwayCue } from './f16Cue.js';
 import { createF16Sound } from './f16Sound.js';
 import { windAt } from '../core/wind.js';
 import { createEffects } from '../core/effects.js';
+import { createWaterMarks } from '../core/waterMarks.js';
 
 export { calibrated };
 import { RUNWAY, fromRunway, toRunway } from '../core/terrain.js';
@@ -41,6 +42,8 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
   // a collapsed gear or a belly landing, sparks and dust, the airframe where it stopped (≈ the
   // look of such crashes filmed; nothing here models fire or fracture).
   const fx = createEffects(scene);
+  // Rings and foam left on the sea where it came down (core/waterMarks.js).
+  const waterMarks = createWaterMarks(scene, (x, z) => { const g = ground(x, z); return g.water ? g.h : (g.surface ?? null); }, 64);
   let wreck = null;
   const holder = new THREE.Group();
   holder.name = 'f16-flight';
@@ -345,6 +348,10 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
         fx.burst('splash', p, Math.round(Math.min(60, 10 + v * 0.4) * w), { vel: carry, spread: 2 + v * 0.05, up: (4 + v * 0.1) * w, floor: surf });
       }
       fx.burst('mist', at, 30, { vel: carry, spread: 3 + v * 0.05, up: 3, floor: surf });
+      // On the surface: rings running out from where it struck and a long patch of foam along the
+      // track (≈, by the speed), riding the swell.
+      for (let k = 0; k < 3; k++) waterMarks.ring(at.x - dir.x * run * k / 2, at.z - dir.z * run * k / 2, 4 + k * 2, { speed: 2 + v * 0.03, life: 12, opacity: 0.5 });
+      for (let k = 0; k < 6; k++) waterMarks.foam(at.x - dir.x * run * k / 5, at.z - dir.z * run * k / 5, 5 + v * 0.05, { grow: 0.3, life: 25, opacity: 0.85 });
       // Fast, the water is as hard as the ground: the airframe breaks up, some fuel burns on the
       // surface; slower, a ditching: it settles whole and goes down.
       if (v > 60) {
@@ -372,6 +379,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
   /** The wreck: burning, and smoking for a while after; or going down in the water. */
   function tendWreck(dt) {
     fx.update(dt);
+    waterMarks.update(dt);
     if (!wreck) return;
     wreck.t += dt;
     if (wreck.t < wreck.burn) {
@@ -420,7 +428,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
   /** On runway 28's threshold where the exhibit stands, at rest, brakes on. */
   function placeOnRunway() {
     // A new start: the wreck cleared, the airframe whole.
-    wreck = null; fx.clear(); airframe.visible = true;
+    wreck = null; fx.clear(); waterMarks.clear(); airframe.visible = true;
     // The exhibit's spot: the airplane's middle 40 m + half its length in from the 28 threshold,
     // the nose towards the west end.
     const a = L2 - 40 - OVERALL.length / 2;
@@ -471,7 +479,7 @@ export function createF16Fly({ scene, exhibit, env, rig, camera, ground, solid =
     for (const h of [surf.stabL, surf.stabR, surf.rudder, surf.flapL, surf.flapR, surf.lefL, surf.lefR, ...surf.sb]) if (h) h.o.quaternion.copy(h.base);
     if (gearGroup) gearGroup.visible = true;
     flame.removeFromParent();
-    wreck = null; fx.clear(); airframe.visible = true;
+    wreck = null; fx.clear(); waterMarks.clear(); airframe.visible = true;
     saved.parent.add(airframe);
     airframe.position.copy(saved.position);
     airframe.quaternion.copy(saved.quaternion);

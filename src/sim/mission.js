@@ -22,7 +22,7 @@
  * modelled either — this chain is the planned one, from cutoff,
  * and the mass at entry is the cutoff mass less the deorbit propellant).
  */
-import { altitudeAt, speedAt, downrangeAt, shipMassAt, EVENTS } from './launch.js';
+import { altitudeAt, speedAt, downrangeAt, shipMassAt, EVENTS } from './launchModel.js';
 
 // One gravity for the whole mission: the ascent's (g0 at the surface of a 6,371 km sphere, μ = g0·R²).
 export const R_EARTH = 6371e3, G0 = 9.80665, MU = G0 * R_EARTH * R_EARTH;

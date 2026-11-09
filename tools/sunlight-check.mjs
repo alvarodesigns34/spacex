@@ -15,9 +15,19 @@ let failed = 0;
 const report = (ok, name, detail = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`); if (!ok) failed++; };
 const f = (a) => a.map((x) => x.toFixed(3)).join(' ');
 
-// Rayleigh at 550 nm, sea level: 0.0973 (Bodhaine et al. 1999, table 3: 0.09726 at 550 nm).
-const ray550 = 0.008569 * 0.55 ** -4 * (1 + 0.0113 * 0.55 ** -2 + 0.00013 * 0.55 ** -4);
-report(Math.abs(ray550 - 0.0973) < 5e-4 && TAU[0] < TAU[1] && TAU[1] < TAU[2], 'espesor óptico: Rayleigh a 550 nm 0,097 (Bodhaine 1999) y creciente hacia el azul', `R G B ${f(TAU)}`);
+// Rayleigh, checked on the production values (TAU less the aerosol term), not on a copy of the
+// formula: against Bodhaine et al. 1999's own fit (J. Atmos. Ocean. Tech. 16, eq. 30, sea level,
+// 1013.25 hPa), a different paper and form from the Hansen & Travis formula the code uses, at the
+// three wavelengths (external audit 8-11, finding 09).
+{
+  const bodhaine = (l) => 0.0021520 * (1.0455996 - 341.29061 * l ** -2 - 0.90230850 * l ** 2) / (1 + 0.0027059889 * l ** -2 - 85.968563 * l ** 2);
+  const L = [0.65, 0.55, 0.45], ray = TAU.map((t, i) => t - 0.05 * L[i] ** -1.3);
+  const err = ray.map((r, i) => Math.abs(r / bodhaine(L[i]) - 1));
+  report(Math.max(...err) < 0.015 && TAU[0] < TAU[1] && TAU[1] < TAU[2], 'espesor óptico de Rayleigh del código frente a Bodhaine 1999 (ec. 30) a 650, 550 y 450 nm, y creciente hacia el azul',
+    `${ray.map((r) => r.toFixed(4)).join(' ')} frente a ${L.map((l) => bodhaine(l).toFixed(4)).join(' ')} · error máx. ${(Math.max(...err) * 100).toFixed(2)} %`);
+  // Control: a λ⁻³ law, a plausible slip, is caught.
+  report(Math.abs(0.008569 * 0.45 ** -3 / bodhaine(0.45) - 1) > 0.015, 'control negativo: una ley en λ⁻³ no pasaría');
+}
 // Kasten–Young: 1 at the zenith, ≈2 at 30°, ≈38 at the horizon.
 report(Math.abs(airMass(90) - 1) < 1e-3 && Math.abs(airMass(30) - 1.995) < 0.01 && Math.abs(airMass(0) - 37.9) < 0.3, 'masa de aire de Kasten-Young: 1 en el cenit, ≈2 a 30°, ≈38 en el horizonte', `${airMass(90).toFixed(3)} · ${airMass(30).toFixed(3)} · ${airMass(0).toFixed(1)}`);
 // Every channel loses more as the Sun gets lower, blue fastest.

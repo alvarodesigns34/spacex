@@ -133,5 +133,46 @@ const report = (ok, name, detail = '') => {
     `perigeo ${(C.deorbitOrbit.perigee / 1e3).toFixed(0)} km, γ ${(C.entry.gamma * 180 / Math.PI).toFixed(2)}°`);
 }
 
+// The re-entry's air (reentryFlight.js densityAt: the USSA 1976 table, log-linear) against the same
+// standard computed independently from its layers — base temperatures and lapse rates, hydrostatic
+// pressure, ρ = pM/(RT) — at the points halfway between the table's nodes, where interpolation is
+// worst (external audit 8-11, finding 08). Control: the old two-exponential fit must fail it.
+{
+  const { densityAt } = await import('../src/sim/reentryFlight.js');
+  const LAYERS = [[0, 288.15, -6.5], [11, 216.65, 0], [20, 216.65, 1], [32, 228.65, 2.8], [47, 270.65, 0], [51, 270.65, -2.8], [71, 214.65, -2]];
+  const G = 9.80665, M = 0.0289644, Rg = 8.31432, r0 = 6356766;
+  const ussa = (hGeom) => {
+    const H = r0 * hGeom / (r0 + hGeom) / 1000;
+    let p = 101325;
+    for (let i = 0; i < LAYERS.length; i++) {
+      const [hb, Tb, L] = LAYERS[i], top = i + 1 < LAYERS.length ? LAYERS[i + 1][0] : 84.852, Lm = L / 1000;
+      const dh = (Math.min(H, top) - hb) * 1000, T = Tb + Lm * dh;
+      p *= Lm === 0 ? Math.exp(-G * M * dh / (Rg * Tb)) : Math.pow(Tb / T, G * M / (Rg * Lm));
+      if (H <= top) return p * M / (Rg * T);
+    }
+    return null;
+  };
+  const old = (h) => (h < 25000 ? 1.225 * Math.exp(-Math.max(h, 0) / 8500) : 1.225 * Math.exp(-25000 / 8500) * Math.exp(-(h - 25000) / 6800));
+  let worst = 0, worstOld = 0, at = 0;
+  for (let km = 2.5; km <= 82.5; km += 5) {
+    const ref = ussa(km * 1000), e = Math.abs(densityAt(km * 1000) / ref - 1), eo = Math.abs(old(km * 1000) / ref - 1);
+    if (e > worst) { worst = e; at = km; }
+    worstOld = Math.max(worstOld, eo);
+  }
+  report(worst < 0.03 && worstOld > 0.3, 'densidad de la reentrada frente a la USSA 1976 calculada por capas (0–85 km, entre nodos)',
+    `error máx. ${(worst * 100).toFixed(2)} % a ${at} km · el ajuste anterior llegaba al ${(worstOld * 100).toFixed(0)} % (control)`);
+}
+
+// The trajectory model stays pure (finding 14): it loads in a plain Node process with no module
+// hooks, so nothing in its import graph reaches three.js or a vehicle builder.
+{
+  const { execFileSync } = await import('node:child_process');
+  let ok = true, why = '';
+  try {
+    execFileSync(process.execPath, ['--input-type=module', '-e', `await import(${JSON.stringify(new URL('../src/sim/launchModel.js', import.meta.url).href)});`], { stdio: 'pipe' });
+  } catch (e) { ok = false; why = String(e.stderr || e).split('\n').find(l => /Error/.test(l)) ?? 'error'; }
+  report(ok, 'el modelo de trayectoria (sim/launchModel.js) carga sin three.js ni constructores de vehículos', why);
+}
+
 console.log(failed ? `\n${failed} fallo(s) en la misión` : '\nMisión (Flight 14): todo correcto');
 process.exit(failed ? 1 : 0);

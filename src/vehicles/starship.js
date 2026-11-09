@@ -15,15 +15,15 @@
  * density. Flap planforms, chines, raceways and fin lattices are approximations from imagery.
  */
 import * as THREE from 'three';
+import { BOOSTER_R, RAPTOR_EXIT_R, BOOSTER_AFT, BOOSTER_RINGS, ringAngle } from '../data/stackFigures.js';
 import {
   lathe, ogiveProfile, mesh, mergeAll, mat4, boxUV, hexPrism, tileSurfaceOfRevolution, tilePolygon,
   profileAt, seeded, plate, aeroPlate, spanTaper,
 } from '../geometry/utils.js';
 import { raptorGeometry, raptorVacGeometry, instanceEngines, ringLayout } from './engines.js';
 
-const R = 4.5;                 // 9 m diameter (spacex.com)
-/** The hull radius the pad's clamps and seat have to meet. Exported so they can derive it. */
-export const BOOSTER_R = R;
+const R = BOOSTER_R;           // 9 m diameter (spacex.com; data/stackFigures.js)
+export { BOOSTER_R };
 const RING = 1.83;             // steel ring height (Wikipedia)
 const BOOSTER_H = 236 * 0.3048;   // Super Heavy, 236 ft (spacex.com) = 71.93 m
 const SHIP_H = 171 * 0.3048;      // Starship, 171 ft (spacex.com) = 52.12 m; stack 407 ft = 124.05 m
@@ -58,35 +58,12 @@ const TILE_T = 0.016;
  * frosted lee side away from it. The grid-fin trio is clocked against this angle so the catch
  * pins sit over the arms whatever it is.
  */
-//
-// The pad frame is the flame trench's (it runs along Z). The tower is not square to it: on Pad 2
-// the tower–mount line meets the trench axis at ≈52,5°, from OpenStreetMap's traced footprints
-// (trench 84 × 18 m, tower 11,6 m square, 31 m from the trench centre) and an NSF aerial of the
-// trench under construction; Pad 1's footprints give ≈55°. The stack keeps its relation to the
-// tower (belly square to the tower–mount line), so it turns with the tower: −37,5° about Y
-// puts the tower at 52,5° to the trench. ≈, from traced footprints, not a survey.
-export const STACK_YAW_DEG = -37.5;
-export const RAPTOR_EXIT_R = 0.62;
-// Block 3 has no skirt round its engines: all 33 hang in the open below the black thrust
-// ring, powerheads and plumbing on show (NASASpaceflight, Booster 18/19 photographs, May 2026).
-// The ring's lower edge — what the pad's clamps hold — is therefore one Raptor 3 height
-// (2.9 m, spacex.com) plus the outer engines' exit-plane offset above the bells' exits.
-export const BOOSTER_AFT = 3.15;
-// The centre three are not 120° apart on Block 3: they are clocked 108°–108°–144°, and the
-// inner ten were rotated, so that no engine fires straight onto the ridge of the pad's flame
-// diverter (NASASpaceflight, "Super Heavy Block 3", May 2026). The fifth entry, where present,
-// gives each engine's angle explicitly; the inner ring's new clocking is not published.
-const DEG = Math.PI / 180;
-export const BOOSTER_RINGS = [[3, 1.02, 0.45, Math.PI / 6, [0, 108 * DEG, 216 * DEG]], [10, 2.48, 0.35, 0], [20, 3.86, 0.25, Math.PI / 20]];
-/** Azimuth of engine i of a BOOSTER_RINGS entry. */
-export const ringAngle = (ring, i) => ring[3] + (ring[4] ? ring[4][i] : (i / ring[0]) * Math.PI * 2);
+export { STACK_YAW_DEG, RAPTOR_EXIT_R, BOOSTER_AFT, BOOSTER_RINGS, ringAngle, RAPTOR_ENVELOPE_R } from '../data/stackFigures.js';
 /** ringLayout for a BOOSTER_RINGS entry, honouring explicit angles. */
 const boosterRingLayout = (ring) => Array.from({ length: ring[0] }, (_, i) => {
   const a = ringAngle(ring, i);
   return { position: [Math.sin(a) * ring[1], ring[2], Math.cos(a) * ring[1]], tilt: [0, 0], spin: a };
 });
-/** Radius the booster's engine bells actually reach. The pad derives its throat from this. */
-export const RAPTOR_ENVELOPE_R = Math.max(...BOOSTER_RINGS.map(([, r]) => r)) + RAPTOR_EXIT_R;
 
 // ---------------------------------------------------------------------------------------
 //  Shared sub-assemblies

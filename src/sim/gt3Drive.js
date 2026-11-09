@@ -25,6 +25,7 @@ import { trackCoords, toLocal, LAP, START } from '../core/circuitPlan.js';
 import { createGt3Sound } from './gt3Sound.js';
 import { windAt } from '../core/wind.js';
 import { createEffects } from '../core/effects.js';
+import { createWaterMarks, splashInto } from '../core/waterMarks.js';
 import { createGt3Damage } from './gt3Damage.js';
 import { readPad, rumbleFor } from './gt3Pad.js';
 import { createGt3Cameras, roadShake } from './gt3Camera.js';
@@ -203,6 +204,9 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
   const marks = createSkidMarks(scene);
   const smoke = createTyreSmoke(scene);
   const spray = createSpray(scene);
+  // Foam and rings on the water's surface (core/waterMarks.js): the wake, and the ring where it went in.
+  const water = createWaterMarks(scene, (x, z) => ground(x, z).water ?? null);
+  const wakeT = [0, 0, 0, 0, 0];
   // What a crash does to the car and throws about (gt3Damage.js, core/effects.js).
   const fx = createEffects(scene);
   const damage = createGt3Damage({ car, scene, effects: fx, ground });
@@ -454,6 +458,9 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
       const g = ground(x, z), wsf = g.water ?? g.h;
       const n = Math.min(40, V * Math.min(1, d / 0.05) * 3 * dt * 60);
       const side = py > 0 ? 1 : -1;
+      // The wake: a patch of churned water left behind each tyre every few tenths of a second.
+      wakeT[i] -= dt;
+      if (wakeT[i] <= 0) { wakeT[i] = 0.12 + 0.6 / Math.max(V, 1); water.foam(x, z, 0.35 + Math.min(0.5, d * 2), { grow: 0.12, life: 5 + Math.min(5, V * 0.3), opacity: Math.min(0.55, 0.2 + d * 2) }); }
       for (let k = 0; k < n; k++) {
         const out = (0.15 + 0.35 * Math.random()) * V * 0.35, up = (0.3 + 0.5 * Math.random()) * Math.min(9, V * 0.4), back = -(0.2 + 0.4 * Math.random()) * V * 0.3;
         const vx = s.u * c - s.v * sn, vz = -s.u * sn - s.v * c;
@@ -465,6 +472,13 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
       const [x, z] = sim.worldOf(OUTLINE.front, 0);
       const wsf = ground(x, z).water ?? 0;
       const n = Math.min(60, V * s.immersion * 40 * dt * 60);
+      // The bow wave's foam, and the ripple it sends out to the sides.
+      wakeT[4] -= dt;
+      if (wakeT[4] <= 0) {
+        wakeT[4] = 0.15;
+        water.foam(x, z, 1.0 + s.immersion, { grow: 0.3, life: 7, opacity: Math.min(0.6, 0.25 + s.immersion * 2) });
+        if (V > 2) water.ring(x, z, 1.2, { speed: 1.2 + V * 0.05, life: 5, opacity: 0.3 * Math.min(1, s.immersion * 4) });
+      }
       for (let k = 0; k < n; k++) {
         const across = (Math.random() - 0.5) * 1.9, side = Math.sign(across) || 1;
         spray.emit(x + lx * across, wsf + 0.02, z + lz * across,
@@ -497,7 +511,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
 
   // ---- Lifecycle ---------------------------------------------------------------------------------
   function placeHome() {
-    spray.clear(); fx.clear(); damage.reset();
+    spray.clear(); water.clear(); fx.clear(); damage.reset();
     sim.reset(home());
     Object.assign(driver, { throttle: 0, brake: 0, steer: 0, handbrake: 0 });
     Object.assign(state, { paused: false, lap: null });
@@ -542,7 +556,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
     if (brakeMat) brakeMat.emissiveIntensity = brakeOff;
     instruments?.update({ rpm: 0, gear: 'N', kmh: 0, steer: 0 });
     // Back on its plinth whole: dents out, parts back on.
-    damage.reset(); fx.clear(); spray.clear();
+    damage.reset(); fx.clear(); spray.clear(); water.clear();
     saved.parent.add(car);
     car.position.copy(saved.position); car.quaternion.copy(saved.quaternion);
     holder.visible = false;
@@ -571,6 +585,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
       damage.update(Math.min(dt, 0.25));
       fx.update(Math.min(dt, 0.25));
       spray.update(Math.min(dt, 0.25));
+      water.update(Math.min(dt, 0.25));
       timeLaps();
     }
     pose(Math.min(dt, 0.25));
@@ -586,7 +601,13 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
   function events() {
     if (s.impact > 2.5 && s.t - lastHit > 1) { lastHit = s.t; note(`Contact at ${Math.round(s.impact * 3.6)} km/h`); }
     const inWater = s.water.some(d => d > 0.05);
-    if (inWater && !splashed) { splashed = true; note('Into the water'); }
+    if (inWater && !splashed) {
+      splashed = true; note('Into the water');
+      // Going in: a crown of water and a ring, from the front of the car, by its speed (≈).
+      const c = Math.cos(s.psi), sn = Math.sin(s.psi), V = Math.hypot(s.u, s.v);
+      const [x, z] = sim.worldOf(OUTLINE.front, 0), w = ground(x, z).water;
+      if (w !== undefined && w !== null) splashInto({ spray, marks: water, x, z, surf: w, speed: V, width: 1.9, dx: c, dz: -sn });
+    }
     if (!inWater) splashed = false;
     if (s.drowned && !drowned) { drowned = true; note('The water has reached the intake: the engine has drowned · Enter: back to the pad'); }
     if (!s.drowned) drowned = false;
@@ -621,7 +642,7 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
     get state() { return state; },
     get running() { return state.running; },
     get position() { return holder.position; },
-    sim, marks, smoke, sound, driver, damage, fx, start, reset, restart, setPaused, setCamera, cycleCamera, setTraction, setPsm, cyclePsm, setSound, setPaddles, paddle, fmtTime,
+    sim, marks, smoke, sound, driver, damage, fx, water, start, reset, restart, setPaused, setCamera, cycleCamera, setTraction, setPsm, cyclePsm, setSound, setPaddles, paddle, fmtTime,
     update(dt) { if (state.running) apply(dt); },
     AXLE_F, AXLE_R, CAR,
   };

@@ -150,6 +150,50 @@ el cielo. `probe-check.mjs` inyecta una excepción en la captura y comprueba que
   - Lo que la quita es llevar el borde a 12 km, dentro de la bruma: unos 15 000 vértices más, y el
     oleaje llega más lejos.
 
+## Bloque 3 (9-11-2026): vehículos en el agua y hallazgos 08, 09 y 14
+
+![Porsche entrando en el mar: entrada (+0,3 s) y 2 s después](auditoria-2026-11-08-chatgpt/porsche-agua-antes-despues.jpg)
+
+- **Marcas en el agua** (`src/core/waterMarks.js`, nuevo): parches de espuma y anillos de onda.
+  - Van sobre la superficie que se mueve: se leen a la altura que lee la física (`ground().water`).
+  - Se usan en el Porsche (estela de cada rueda y espuma de proa), en la H2R (estela de cada rueda)
+    y en el F-16 (anillos y espuma a lo largo del amerizaje o del choque contra el agua).
+  - La entrada (`splashInto`) lanza una corona de gotas y láminas hacia arriba y hacia delante,
+    proporcional a la velocidad, más dos anillos y un parche de espuma.
+  - Valores ≈ (aspecto, no simulación de fluidos).
+- **Resultado en las capturas:**
+  - La estela de espuma con forma de encaje se aprecia claramente; antes no quedaba nada sobre el
+    agua.
+  - La corona de la entrada apenas destaca sobre las gotas que ya lanzaban las ruedas: mejora pequeña.
+  - El primer intento de espuma salió como una banda blanca y opaca que parecía niebla. Se corrigió
+    con más huecos y menos opacidad.
+- **Hallazgo 08, la atmósfera de la reentrada.**
+  - La densidad era un ajuste de dos exponenciales, hasta un 78 % más densa que la US Standard
+    Atmosphere 1976 entre 30 y 50 km. Ahora es la tabla de la USSA 1976, interpolada en logaritmo.
+  - Comprobación independiente en `mission-check.mjs`: la misma norma calculada por capas
+    (temperaturas, gradientes, presión hidrostática, ρ = pM/RT) en los puntos intermedios. Error
+    máximo 1,6 %; el ajuste anterior hace de control negativo.
+  - Esa comprobación detectó un nodo mal en la tabla que yo mismo había escrito: a 85 km había puesto
+    el valor de 86 km. Corregido.
+  - Los coeficientes de la reentrada se vuelven a resolver al cargar y siguen cumpliendo las horas
+    citadas. La presión dinámica máxima pasa de 5,0 kPa (11,8 km) a 5,3 kPa (11,2 km). Es una salida
+    del modelo, no una medida.
+- **Hallazgo 09, la luz del sol.**
+  - La fórmula de Rayleigh del código se atribuía a Bodhaine et al. (1999), pero es la de Hansen y
+    Travis (1974). Cita corregida.
+  - La prueba compara ahora los valores de producción con la ecuación 30 de Bodhaine, un ajuste
+    distinto calculado aparte. Error máximo 0,28 %, con un control en λ⁻³.
+  - `sunlight.js` y `fogSun.js` se describen como aproximación visual con componentes físicos; el
+    lóbulo cos⁶ no es Henyey–Greenstein.
+- **Hallazgo 14, `launchModel.js`.**
+  - Ya no importa three.js ni los constructores de vehículos. Las cifras del propulsor y de la
+    plataforma pasan a `src/data/stackFigures.js` y `src/data/padFigures.js`, y las curvas
+    monótonas a `src/geometry/curves.js`; los módulos de origen las reexportan.
+  - `mission.js` importa el modelo directamente.
+  - Resultado comprobado idéntico bit a bit: 8 275 valores, mismo SHA-256 antes y después.
+  - `mission-check.mjs` carga el modelo en un Node sin ganchos para que no vuelva a acoplarse.
+  - Los archivos largos (`roadster.js`, `gt3rs.js`, `main.js`) no se han partido en esta ronda.
+
 ## Respuestas a las «Preguntas para Claude»
 
 1. **Script de §31 y los 177 m/s.**
@@ -192,6 +236,5 @@ el cielo. `probe-check.mjs` inyecta una excepción en la captura y comprueba que
   más puede costar. Si hay problemas, se deciden con Álvaro, sin bajar la calidad.
 - Nubes: cimas en cono vistas desde arriba y alguna mota cerca del horizonte.
 - Humo: sigue siendo de sprites; mejora moderada.
-- Agua: los impactos de los vehículos en la costa no cambian.
-- Hallazgos 08, 09 y 14: sin tocar.
+- Agua: la corona de entrada de los coches es discreta.
 - El `npm run check` completo no se ha corrido en local (más de 1 h por software): se usa el CI.

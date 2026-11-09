@@ -5,10 +5,20 @@
  * renderer. launch.js builds the sequence on it and re-exports all of it, so every import of
  * './launch.js' keeps working; tools/cloud-check.mjs and tools/mission-check.mjs test it.
  */
-import * as THREE from 'three';
-import { BOOSTER_RINGS, RAPTOR_EXIT_R, BOOSTER_AFT } from '../vehicles/starship.js';
-import { monotoneSlopes, hermite } from '../geometry/utils.js';
-import { PAD } from '../vehicles/pad.js';
+// Pure since 9-11-2026 (external audit 8-11, finding 14): no three.js, no vehicle builders. The
+// figures come from data modules and the few helpers below are three.js's MathUtils, same formulas.
+import { BOOSTER_RINGS, RAPTOR_EXIT_R, BOOSTER_AFT } from '../data/stackFigures.js';
+import { monotoneSlopes, hermite } from '../geometry/curves.js';
+import { PAD } from '../data/padFigures.js';
+
+const MathUtils = {
+  clamp: (x, a, b) => Math.max(a, Math.min(b, x)),
+  lerp: (a, b, t) => (1 - t) * a + t * b,
+  smoothstep: (x, min, max) => { if (x <= min) return 0; if (x >= max) return 1; x = (x - min) / (max - min); return x * x * (3 - 2 * x); },
+  degToRad: (d) => d * (Math.PI / 180),
+  radToDeg: (r) => r * (180 / Math.PI),
+};
+const THREE = { MathUtils };
 
 // ---- Cited event times (seconds from T-0) ------------------------------------------------
 // SpaceX, flight 14 timeline (spacex.com/launches/starship-flight-14; "all times approximate").

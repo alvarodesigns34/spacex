@@ -9,9 +9,11 @@
  *
  * with v the direction from the camera to the fragment and s the Sun's, both in view space, and
  * `tint` the difference between the sunlit haze (the beam's colour at the haze's brightness,
- * HAZE_GAIN brighter) and the plain fog, faded in as the Sun gets low (below ≈25°). LOBE ≈ a
- * Henyey–Greenstein forward peak of g ≈ 0.7, the usual for continental and coastal aerosol, as a
- * power of the cosine (≈). One patch of three.js's own fog chunks, so every material's haze
+ * HAZE_GAIN brighter) and the plain fog, faded in as the Sun gets low (below ≈25°). The cos⁶
+ * lobe is a cheap stand-in chosen to look like the forward peak of aerosol scattering (a
+ * Henyey–Greenstein phase of g ≈ 0.7 is the usual figure); it is NOT that function — its width
+ * and fall-off differ — and LOBE, HAZE_GAIN and the 25° fade are set by eye. A visual approximation
+ * with physical ingredients, not a radiative-transfer result (external audit 8-11, finding 09). One patch of three.js's own fog chunks, so every material's haze
  * changes together — no seam between the materials that have it and those that do not.
  *
  * The two uniforms are shared by reference (Float32Arrays are not cloned per material by
