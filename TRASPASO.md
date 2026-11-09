@@ -8,6 +8,10 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ### Estado actual (08-11-2026): léelo primero
 
+0a. **Crítica del subagente del 9-11: los tres bloques están hechos** (todo salvo el amerizaje del propulsor). Detalle y límites en `docs/auditoria-2026-11-08-chatgpt-trabajo.md` («Crítica del subagente…»).
+   - Piezas nuevas: `core/pcss.js` (parchea el fragmento de sombras de three.js r170: **no actualizar three.js sin rehacerlo**), `core/ssr.js`, `core/stillAA.js` (apagado bajo automatización salvo `?stillaa`), `core/hashGLSL.js`, `sim/groundCloud.js` y `blender/spray/build.py`.
+   - Blender 5.2.2 sin interfaz: `blender -b --factory-startup --python blender/spray/build.py -- assets/spray/spray-atlas.png`.
+   - Pendiente: medir en la RTX 3070 (lo pidió el usuario para más adelante), three.js r187 como proyecto aparte, y partir el Roadster, el Porsche y `main.js`.
 0. **Última ronda: auditoría externa de ChatGPT del 8-11** (`docs/auditorias-externas/2026-11-08-chatgpt.md`). El bloque 1 está hecho: `docs/auditoria-2026-11-08-chatgpt-trabajo.md`.
    - **Regla del usuario:** calidad completa siempre. No hay calidad adaptativa, no hay bajada automática de nivel y no hay LOD en calidad alta. No reintroducir nada de eso.
    - Lo que quedó pendiente está en «Límites y pendientes» de ese documento: humo volumétrico, impactos de los vehículos en la costa, hallazgos 08–10, 12 y 14, y la medida en la RTX 3070.

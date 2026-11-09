@@ -21,6 +21,7 @@
  * does not carry them (a ShaderMaterial with fog) reads zero: no lobe, the plain fog as before.
  */
 import * as THREE from 'three';
+import { TAU } from './sunlight.js';
 
 export const FOG_SUN = { dir: new Float32Array([0, 1, 0]), tint: new Float32Array(3) };
 export const LOBE = 6, HAZE_GAIN = 1.5;
@@ -41,9 +42,15 @@ export function installFogSun() {
   patch('fog_pars_vertex', 'varying float vFogDepth;', 'varying float vFogDepth;\n\tvarying vec3 vFogDir;');
   patch('fog_vertex', 'vFogDepth = - mvPosition.z;', 'vFogDepth = - mvPosition.z;\n\tvFogDir = mvPosition.xyz;');
   patch('fog_pars_fragment', 'uniform vec3 fogColor;', 'uniform vec3 fogColor;\n\tuniform vec3 fogSunDir;\n\tuniform vec3 fogSunTint;\n\tvarying vec3 vFogDir;');
+  // Per wavelength (9-11-2026, block 3): the haze hides each channel by its own optical depth, the
+  // sun's (sunlight.js TAU: Rayleigh + aerosol at 650/550/450 nm) relative to green, so with distance
+  // blue goes first, as aerial perspective does. fogFactor is green's; the others follow
+  // 1 − (1 − f)^k. A one-layer stand-in for a sky-and-aerial-perspective model, not one (≈).
+  const k = TAU.map((t) => (t / TAU[1]).toFixed(4));
   patch('fog_fragment', 'gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );',
     `vec3 fogLit = fogColor + fogSunTint * pow( max( dot( normalize( vFogDir ), fogSunDir ), 0.0 ), ${LOBE.toFixed(1)} );
-\tgl_FragColor.rgb = mix( gl_FragColor.rgb, fogLit, fogFactor );`);
+\tvec3 fogF = 1.0 - pow( vec3( 1.0 - clamp( fogFactor, 0.0, 1.0 ) ), vec3( ${k[0]}, ${k[1]}, ${k[2]} ) );
+\tgl_FragColor.rgb = mix( gl_FragColor.rgb, fogLit, fogF );`);
   for (const name of Object.keys(THREE.ShaderLib)) {
     const u = THREE.ShaderLib[name].uniforms;
     if (u && u.fogColor) { u.fogSunDir = { value: FOG_SUN.dir }; u.fogSunTint = { value: FOG_SUN.tint }; }

@@ -6,6 +6,7 @@
  * physical surface appears, and each map is sized for the distance it is actually seen from
  * rather than at a uniform resolution.
  */
+import { HASH_GLSL } from '../core/hashGLSL.js';
 import * as THREE from 'three';
 import * as TX from './textures.js';
 import { openTextureCache, loadStep, noteStep, savePending } from './textureCache.js';
@@ -94,7 +95,8 @@ function ringsAndPlates(m) {
     prev?.(sh, r);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
-float vcPlateHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }`)
+${HASH_GLSL}
+float vcPlateHash(vec2 p) { return hk12(p * 0.0137 + 0.5); }`)
       .replace('void main() {', `void main() {
   float vcRing = floor(vMapUv.y);
   vec2 vcSteelUv = vec2(vMapUv.x + vcPlateHash(vec2(vcRing, 3.1)), vMapUv.y);

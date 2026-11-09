@@ -113,9 +113,10 @@ try {
   {
     const q = await page.evaluate(() => {
       const v = window.__vc;
-      return { name: v.quality.name, forced: v.quality.forced, shadow: v.env.sun.shadow.mapSize.x, lod: v.lod.pixels };
+      return { name: v.quality.name, forced: v.quality.forced, shadow: v.env.sun.shadow.mapSize.x, tierShadow: v.quality.shadowMap, lod: v.lod.pixels };
     });
-    report(q.name === 'high' && q.forced && q.shadow === 4096,
+    // The tier's map (8 192² since 9-11-2026, held to what the GPU allows), never under 4 096.
+    report(q.name === 'high' && q.forced && q.shadow >= 4096 && q.shadow === q.tierShadow,
       'la comprobación corre con la calidad completa',
       `nivel ${q.name}${q.forced ? ' (forzado)' : ''}, sombras ${q.shadow}, lod ${q.lod} px`);
   }

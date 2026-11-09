@@ -189,6 +189,31 @@ float ${name}(vec2 p) {
 }
 
 /**
+ * GLSL for the fragment stage (audit of 9-11-2026, A3): the slope (∂h/∂x, ∂h/∂z) of the waves the
+ * drawing mesh does NOT carry, per pixel. The mesh keeps a wave only while its vertices are under a
+ * quarter of its length apart (waveFilter), so a few hundred metres out the long swell was gone from
+ * the picture though the physics still had it; and the flat sheets beyond the patch had none. Here
+ * each wave counts by what the mesh leaves of it — 1 − filter(spacing) · carried, `carried` being
+ * the patch's own fade (0 on the flat sheets) — so near and far draw the same sea. A wave whose length
+ * shrinks under two pixels fades out (the pixel footprint `fp`, from fwidth): that is anti-aliasing,
+ * a wave the pixel cannot hold would only sparkle. Uses uOceanPhase; `env` is the shore envelope.
+ */
+export function oceanFarSlopeGLSL(name) {
+  const waves = WAVES.map((w, i) => `
+  {
+    float keep = 1.0 - (1.0 - smoothstep(${f(w.lambda / 8)}, ${f(w.lambda / 4)}, spacing)) * carried;
+    float A = ${f(w.a)} * env * keep * (1.0 - smoothstep(${f(w.lambda / 4)}, ${f(w.lambda / 2)}, fp));
+    float c = cos(${f(w.k)} * dot(vec2(${f(w.dx)}, ${f(w.dz)}), p) - uOceanPhase[${i}] + ${f(w.ph)});
+    g += vec2(${f(w.dx * w.k)}, ${f(w.dz * w.k)}) * A * c;
+  }`).join('');
+  return `
+vec2 ${name}(vec2 p, float spacing, float carried, float env, float fp) {
+  vec2 g = vec2(0.0);${waves}
+  return g;
+}`;
+}
+
+/**
  * GLSL for the vertex stage: uniforms uShore (the shore samples, R32F) and uOceanPhase, and
  * vcOffshore(p), vcEnvelope(d), vcOcean(p, spacing, amp, out n) mirroring offshore, envelope and
  * displace above (p = world (x, z)).

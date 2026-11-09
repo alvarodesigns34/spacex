@@ -35,7 +35,7 @@ El entorno es contexto verosímil, no un levantamiento: la llanura costera de Bo
 
 La interfaz de la simulación (menús, ficha técnica, etiquetas y vistas) está en inglés; esta documentación, en español.
 
-## Estado actual (8 de noviembre de 2026)
+## Estado actual (9 de noviembre de 2026)
 
 - **Auditoría externa de ChatGPT del 8-11 (bloque 1)**, trabajo y comparativas en [docs/auditoria-2026-11-08-chatgpt-trabajo.md](docs/auditoria-2026-11-08-chatgpt-trabajo.md):
   - **Calidad completa siempre:** sin calidad adaptativa (borrado `core/adaptive.js`), sin bajada automática de nivel por dispositivo (solo `?quality=`) y sin LOD en calidad alta, incluidos los neumáticos del Model Y (borrado `latheLod.js`). Prueba `tools/quality-check.mjs`.
@@ -47,6 +47,14 @@ La interfaz de la simulación (menús, ficha técnica, etiquetas y vistas) está
   - **Bloque 3:** espuma, estela y anillos en el agua para el Porsche, la H2R y el F-16 (`core/waterMarks.js`); atmósfera de la reentrada según la USSA 1976, con prueba por capas; cita de Rayleigh corregida (Hansen y Travis 1974); `sim/launchModel.js` puro, sin three.js.
   - **Misión:** etiquetada como plan hipotético, con el salto de ≈22 min visible y las horas reales marcadas como no verificadas.
 
+- **Crítica del subagente (9-11-2026), sus tres bloques** (todo salvo el amerizaje del propulsor; detalle en [docs/auditoria-2026-11-08-chatgpt-trabajo.md](docs/auditoria-2026-11-08-chatgpt-trabajo.md)):
+  - **Solidez:** barrera de errores por fotograma (`__vc.frameErrors`), la nave amerizada cabecea con la ola, sonido con c(h) de la USSA 1976 y tope de 640 iteraciones en las nubes del cielo.
+  - **Sombras del Sol con penumbra física** (PCSS, `core/pcss.js`; mapa de 8 192 en calidad alta), olas lejanas por píxel, **reflejos en pantalla sobre el mar** (`core/ssr.js`) y **antialiasing temporal con la cámara quieta** (`core/stillAA.js`).
+  - Texturas del Roadster a 4×.
+  - **Humo del encendido con sombra propia** (Beer–Lambert sobre una rejilla, `sim/groundCloud.js`), fuego con el color de un cuerpo negro y salpicadura del amerizaje horneada en Blender (`blender/spray/`, `assets/spray/`).
+  - Niebla por longitud de onda, hash sin seno común (`core/hashGLSL.js`) y accesibilidad (región principal).
+  - **No hecho:** three.js r187, que rehace las sombras y rompería los parches. Tampoco se han partido el Roadster, el Porsche ni `main.js`. Coste en GPU real **sin medir**.
+
 - **Encargo maestro del 8 de noviembre de 2026** (auditoría integral e hiperrealismo): auditoría de partida, matriz de prioridades y primer bloque en [docs/auditoria-2026-11-08-encargo-maestro.md](docs/auditoria-2026-11-08-encargo-maestro.md). Lo de la auditoría externa se comprobó en el código antes de darlo por bueno (dos de sus hallazgos ya estaban corregidos: S13 y S14).
 - **El mar tiene oleaje de verdad (bloque 1).** Antes era una lámina plana a −0,9 m con cuatro capas de normales animadas, y la física leía un nivel fijo. Ahora:
   - `src/core/ocean.js`: seis ondas de Gerstner (GPU Gems 1, cap. 1), dos marejadas del ESE (72 y 51 m) y cuatro olas de viento ante la brisa del SSE de `wind.js`, con ω = √(g·k). Altura significativa ≈0,91 m: **≈, un día moderado elegido como verosímil, no una medida** de Boca Chica. Cerca de la costa, una envolvente por distancia a la línea de agua (reconstruida): leve subida fuera de la barra y pérdida de altura en la rompiente hasta cero en la orilla. No se modelan la refracción ni el acortamiento en aguas someras.
@@ -57,7 +65,7 @@ La interfaz de la simulación (menús, ficha técnica, etiquetas y vistas) está
   - Prueba sin navegador `tools/ocean-check.mjs` (en `check:static`): ninguna ola se pliega, inversión de Gerstner con error < 1 µm, continuidad en el tiempo (también tras días de sesión), costa muestreada frente a la exacta (4,5 cm), física frente a dibujo por distancia. Capturas comparables: `tools/sea-shots.json` (antes y después en la auditoría, §5).
 - **Reflejos (bloque 2):** la sonda de entorno común refleja ya el suelo real alrededor del recinto (marisma, arena, el Golfo al este) en vez de un disco gris (`probeGround`, prueba `tools/probe-check.mjs`; efecto pequeño), y Starship tiene su propia sonda capturada de la escena (`src/core/localProbes.js`): su acero refleja la torre y la plataforma en lugar de cielo (efecto moderado). Interruptores en consola: `__vc.env.setProbeGround('flat' | 'site')` y `__vc.localProbes.probes[0].active = () => false`. Detalle en la auditoría, §7–§8.
   - **Corregido (8-11):** la sonda de Starship le daba copias de sus materiales, y la reentrada, que buscaba los alerones y el brillo del calor por el material original, no encontraba ningún alerón: desde a bordo no salían las estelas de plasma de las puntas y las losetas no brillaban. Cada copia guarda ya su original (`sourceMaterial`) y la reentrada reúne los materiales que lleva la nave. Prueba en `tools/ux-check.mjs`; auditoría §33.
-- **Nubes con volumen (bloque 3):** `src/core/clouds.js` recorre el rayo por la capa de 1 400 a 2 600 m con la misma cobertura que la capa plana: cúmulos con cimas iluminadas, bases grises y sombra propia, que en vuelo se pueden atravesar y ver desde arriba. Desde el 8-11, pasos adaptados a la distancia, con un tope de 256 iteraciones en calidad alta y 120 en media; la baja conserva la capa plana. Coste en hardware real **sin medir**. Consola: `__vc.env.clouds.setMode('layer' | 'volume')`. Auditoría, §9.
+- **Nubes con volumen (bloque 3):** `src/core/clouds.js` recorre el rayo por la capa de 1 400 a 2 600 m con la misma cobertura que la capa plana: cúmulos con cimas iluminadas, bases grises y sombra propia, que en vuelo se pueden atravesar y ver desde arriba. Desde el 8-11, pasos adaptados a la distancia, con un tope de 640 iteraciones en calidad alta y 384 en media (desde el 9-11); la baja conserva la capa plana. Coste en hardware real **sin medir**. Consola: `__vc.env.clouds.setMode('layer' | 'volume')`. Auditoría, §9.
 - **Vuelo 14 (P0, corregido):** el capítulo de la reentrada presentaba como hecho el **plan previo** de SpaceX (amerizaje a las 9 h 50 min). El vuelo real se acortó tras fallar un Raptor Vacuum en el ascenso: desorbitación a T+2:12 y amerizaje al norte de Hawái unas tres horas después. La nota del capítulo, el aviso final y la ficha («Flight 14 · as flown», fuente `wiki_ft14`) lo dicen ahora; el capítulo sigue volando el plan, etiquetado como tal. Auditoría, §6 y §11.
 - **Sonido ambiente y volumen general** (guía, **H**): la rompiente, al ritmo de la marejada simulada y más débil lejos de la orilla, y el viento, con la velocidad del viento del sitio a la altura de la cámara; todo sintetizado (`src/sim/ambience.js`). Volumen general guardado entre visitas. Prueba `tools/ambience-check.mjs`.
 - **Reentrada: la estela de plasma ya no acaba en dos rectas.** Era un error de normales (un cono escalado de forma muy desigual transformado con `mat3(modelMatrix)`); ahora se difumina hacia sus bordes, deshilachada por remolinos y con una caída exponencial detrás de la nave. Auditoría, §16.
@@ -497,6 +505,10 @@ src/core/circuitPlan.js    trazado del circuito del Porsche y su explanada, sin 
 src/core/circuit.js        asfalto, arcenes, pianos, grava, líneas y parrilla del circuito, y la explanada
 src/core/f16Ground.js      el suelo que toca el F-16: pista, terreno, playa, mar y curvatura terrestre
 src/core/ao.js             oclusión ambiental GTAO (nivel alto) con radio ligado a la distancia
+src/core/pcss.js           sombras del Sol con penumbra física (PCSS), parche del fragmento de sombras
+src/core/ssr.js            reflejos en pantalla sobre el mar (usa la profundidad de la oclusión ambiental)
+src/core/stillAA.js        antialiasing temporal con la cámara quieta (desplazamiento de Halton e historia)
+src/core/hashGLSL.js       hash sin seno común a los sombreadores (Dave Hoskins)
 src/core/backdrop.js       fondo orbital (Tierra ilustrativa + estrellas) de la vista del Roadster
 src/core/cameraRig.js      órbita + vuelo libre + transiciones + límite polar sobre el suelo
 src/geometry/utils.js      lathe con normales analíticas, ojivas romas, losetas instanciadas,
@@ -509,7 +521,9 @@ src/vehicles/pad.js        complejo de lanzamiento (Pad 2 de Starbase) a escala
 src/vehicles/roadsterTextures.js  texturas de lienzo del Roadster (pantallas, rejilla, ópticas, pintura, neumáticos)
 src/sim/launch.js          secuencia de lanzamiento: escena (plumas, planos, cámaras y hardware)
 src/sim/launchModel.js     modelo puro de la trayectoria (perfil, fases, empuje, hitos), reexportado por launch.js
-src/sim/plume.js           penacho gobernado por la presión ambiente y nube de tierra
+src/sim/plume.js           penacho gobernado por la presión ambiente (color de cuerpo negro) y vapor
+src/sim/groundCloud.js     nube de tierra del encendido, con sombra propia por Beer–Lambert
+blender/spray/build.py     atlas de salpicadura renderizado en Cycles (assets/spray/spray-atlas.png)
 src/sim/flightEarth.js     la Tierra curva bajo el vuelo alto (ascenso y reentrada), con el golfo real
 src/sim/sound.js           sonido opcional del lanzamiento, retardado a la velocidad del sonido
 src/sim/reentrySound.js    sonido opcional de la reentrada: flujo por presión dinámica, estampido, encendido y amerizaje

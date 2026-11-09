@@ -1,6 +1,7 @@
 /**
  * Lighting, sky, ground and the image-based environment used for reflections.
  */
+import { installPcss, updatePcss } from './pcss.js';
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { mergeAll, chunkedInstances } from '../geometry/utils.js';
@@ -8,7 +9,7 @@ import { noise2 } from '../materials/textures.js';
 import { waveNormals, grassNormals } from '../materials/library.js';
 import { createClouds } from './clouds.js';
 import { buildOuterGround, OUTER } from './outerGround.js';
-import { WATERLINE, SEA_LEVEL, WAVES, oceanGLSL, offshoreGLSL, oceanPhases, shoreSamples, SHORE_TABLE } from './ocean.js';
+import { WATERLINE, SEA_LEVEL, WAVES, oceanGLSL, offshoreGLSL, oceanFarSlopeGLSL, oceanPhases, shoreSamples, SHORE_TABLE } from './ocean.js';
 import { WAVE_TIME } from '../materials/library.js';
 import { shoreZ, seaward, fromCoast, terrainHeight, thicket, marsh, poolDepth } from './terrain.js';
 import { sunTint } from './sunlight.js';
@@ -140,6 +141,7 @@ function seaMaterial(base, ocean, { patch = false } = {}) {
 varying float vSea;
 varying vec2 vSeaXY;
 varying float vSeaH;
+varying float vSeaSp, vSeaCarry;
 uniform float uPatchR, uPatchSeg, uPatchAmp;
 ${oceanGLSL()}`)
         .replace('#include <beginnormal_vertex>', `
@@ -149,7 +151,9 @@ ${oceanGLSL()}`)
   // flat sea; and the whole swell fades as the camera climbs away from it.
   float vcSp = max(0.6, vcR * uPatchSeg);
   vec3 vcN;
-  vec3 vcO = vcOcean(vcW.xz, vcSp, uPatchAmp * (1.0 - smoothstep(uPatchR * 0.55, uPatchR * 0.9, vcR)), vcN);
+  float vcCarry = uPatchAmp * (1.0 - smoothstep(uPatchR * 0.55, uPatchR * 0.9, vcR));
+  vec3 vcO = vcOcean(vcW.xz, vcSp, vcCarry, vcN);
+  vSeaSp = vcSp; vSeaCarry = vcCarry;
   vec3 objectNormal = vcN;`)
         .replace('#include <begin_vertex>', `
   vec3 transformed = position + vcO;
@@ -166,17 +170,19 @@ ${oceanGLSL()}`)
   transformed.y -= vcRw > ${OUTER_R0.toFixed(1)} ? (vcRw * vcRw - ${(OUTER_R0 * OUTER_R0).toFixed(1)}) / ${(2 * 6371000).toFixed(1)} : 0.0;
   if (vSea < -150.0) transformed.y -= 40.0;`)
       : sh.vertexShader
-        .replace('#include <common>', '#include <common>\nattribute float aSea;\nvarying float vSea;\nvarying vec2 vSeaXY;\nvarying float vSeaH;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSea = aSea;\nvSeaXY = position.xy;\nvSeaH = 0.0;');
+        .replace('#include <common>', '#include <common>\nattribute float aSea;\nvarying float vSea;\nvarying vec2 vSeaXY;\nvarying float vSeaH;\nvarying float vSeaSp, vSeaCarry;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSea = aSea;\nvSeaXY = position.xy;\nvSeaH = 0.0;\nvSeaSp = 1e6; vSeaCarry = 0.0;');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 varying float vSea;
 varying vec2 vSeaXY;
 varying float vSeaH;
+varying float vSeaSp, vSeaCarry;
 uniform vec2 uPatchC;
 uniform float uPatchR;
 uniform float uOceanPhase[${WAVES.length}];
 ${offshoreGLSL('vcOffshoreF')}
+${oceanFarSlopeGLSL('seaFarSlope')}
 float seaHash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float seaNoise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
   return mix(mix(seaHash(i), seaHash(i + vec2(1, 0)), u.x), mix(seaHash(i + vec2(0, 1)), seaHash(i + vec2(1, 1)), u.x), u.y); }`)
@@ -230,6 +236,20 @@ float seaNoise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 
   }`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
   roughnessFactor = mix(roughnessFactor, 0.85, vSeaFoam);`)
+      // The waves the mesh does not carry, as per-pixel slopes (core/ocean.js oceanFarSlopeGLSL;
+      // audit of 9-11-2026, A3): past a few hundred metres the patch's vertices are too far apart
+      // for the long swell, and the flat sheets beyond it had no swell at all — the sea went flat
+      // towards the horizon. Added to the normal the mesh and the normal maps give.
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+  {
+    vec2 wp = vec2(vSeaXY.x, -vSeaXY.y);
+    float od = max(vcOffshoreF(wp), 0.0), ob = (od - 80.0) / 45.0;
+    float env = smoothstep(2.0, 48.0, od) * (1.0 + 0.15 * exp(-ob * ob));
+    float fp = max(length(fwidth(vSeaXY)), 1e-4);
+    vec2 g = seaFarSlope(wp, vSeaSp, vSeaCarry, env, fp);
+    vec3 nW = normalize(vec3(-g.x, 1.0, -g.y));
+    normal = normalize(normal + (viewMatrix * vec4(nW, 0.0)).xyz - (viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+  }`)
       .replace('void main() {', 'float vSeaFoam = 0.0;\nvoid main() {')
       // A wave facet tilted far enough sends its reflected ray below the horizon, where the probe
       // holds its grey ground disc (createEnvironment, envGround): the open sea was flecked with
@@ -306,6 +326,8 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   // The haze's forward lobe towards a low Sun (fogSun.js): patched into three.js's fog chunks
   // before anything compiles.
   installFogSun();
+  // Soft shadows with a penumbra from the Sun's disc (core/pcss.js), before anything compiles.
+  installPcss();
   const sunDir = new THREE.Vector3();
   let onProbe = null;
 
@@ -377,8 +399,8 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   sun.shadow.camera.far = 1200;
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.032;
-  // No shadow.radius: with PCFSoftShadowMap three r170 uses a fixed kernel and ignores it (it
-  // acts only with PCFShadowMap and VSM). The 1.25 that stood here changed nothing (audit S13).
+  // No shadow.radius: the soft branch is PCSS since 9-11-2026 (core/pcss.js), whose penumbra comes
+  // from the Sun's disc and the caster's height, not from a radius.
   scene.add(sun, sun.target);
 
   const hemi = new THREE.HemisphereLight(0xbfd4ee, 0x6b6660, 0.45);
@@ -910,6 +932,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
       cam.left = -size; cam.right = size; cam.top = size; cam.bottom = -size;
       cam.updateProjectionMatrix();
     }
+    updatePcss(cam, sun.shadow.mapSize.x);
     // The light camera's axes, as lookAt builds them: x = up × toward-sun, y = toward-sun × x.
     _lx.crossVectors(_up, sunDir);
     if (_lx.lengthSq() < 1e-8) _lx.set(1, 0, 0);

@@ -2,16 +2,27 @@
  * The Roadster's procedural textures (the cockpit displays and circuit board, the grille mesh,
  * the badge, the lamp lenses, the paint's flakes, the tyres, the instrument dials), moved out
  * of roadster.js unchanged (8-11-2026, refactor §36). Each draws on a canvas at load time.
+ *
+ * Four times the pixels on each side since 9-11-2026 (audit M9): the lettering, the dials, the
+ * circuit board, the badge and the tyres' tread drawn at 512 px read soft in the Roadster's close
+ * views (≈1 cm a pixel on the dash). The drawings are the same — the 2D canvases scale their
+ * context, the tyre's noise and relief are rescaled to the finer grid.
  */
+const HI = 4;
+/** A canvas HI× the size, its context scaled so the drawing code keeps its 1× coordinates. */
+function hiCanvas(w, h) {
+  const c = document.createElement('canvas');
+  c.width = w * HI; c.height = h * HI;
+  const ctx = c.getContext('2d');
+  ctx.scale(HI, HI);
+  return { c, ctx };
+}
 import * as THREE from 'three';
 import { anisotropyLimit } from '../materials/textures.js';
 import { canvas, shade, fbm, noise2, heightToNormal, toTexture } from '../materials/textures.js';
 
 export function makeDontPanicTexture() {
-  const c = document.createElement('canvas');
-  c.width = 512;
-  c.height = 256;
-  const ctx = c.getContext('2d');
+  const { c, ctx } = hiCanvas(512, 256);
 
   // Deep space obsidian background
   ctx.fillStyle = '#05070d';
@@ -55,10 +66,7 @@ export function makeDontPanicTexture() {
 }
 
 export function makePcbTexture() {
-  const c = document.createElement('canvas');
-  c.width = 512;
-  c.height = 256;
-  const ctx = c.getContext('2d');
+  const { c, ctx } = hiCanvas(512, 256);
   ctx.fillStyle = '#0b2b17';
   ctx.fillRect(0, 0, 512, 256);
 
@@ -103,10 +111,7 @@ export function makePcbTexture() {
 }
 
 export function makeGrilleTexture() {
-  const c = document.createElement('canvas');
-  c.width = 128;
-  c.height = 128;
-  const ctx = c.getContext('2d');
+  const { c, ctx } = hiCanvas(128, 128);
   ctx.fillStyle = '#0a0c0f';
   ctx.fillRect(0, 0, 128, 128);
 
@@ -132,9 +137,7 @@ export function makeGrilleTexture() {
  * sits proud of the disc behind it. No other marking is added anywhere on the car.
  */
 export function makeEmblemTexture() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 256;
-  const x = c.getContext('2d');
+  const { c, ctx: x } = hiCanvas(256, 256);
   x.clearRect(0, 0, 256, 256);
   x.fillStyle = '#e9edf2';
   // Crossbar with the tapered ends the mark has.
@@ -195,8 +198,9 @@ export function makeFlakeMaps() {
 
 /** Tread blocks and sidewall lettering relief for the tyres. */
 export function makeTyreMaps() {
-  const c = canvas(512, 128);
-  shade(c, (x, y, u, v) => {
+  const c = canvas(512 * HI, 128 * HI);
+  shade(c, (px, py, u, v) => {
+    const x = px / HI, y = py / HI;   // the 1× grid the pattern was drawn on
     // v across the section: 0..0.24 and 0.76..1 are sidewall, the middle is the tread.
     const shoulder = Math.min(v, 1 - v);
     if (shoulder < 0.24) {
@@ -211,15 +215,14 @@ export function makeTyreMaps() {
     const v2 = 62 + groove * circ * 88 + fbm(x * 0.7, y * 0.7, 3) * 10;
     return [v2, v2, v2];
   });
-  return { normalMap: toTexture(heightToNormal(c, 2.6), { tileSize: 1 }) };
+  // The relief per pixel is HI× smaller on the finer grid: the strength is HI× to keep the slope.
+  return { normalMap: toTexture(heightToNormal(c, 2.6 * HI), { tileSize: 1 }) };
 }
 
 
 /** Speedometer and power-meter faces: one texture, two dials, rather than blank discs. */
 export function makeDialTexture() {
-  const c = document.createElement('canvas');
-  c.width = 512; c.height = 256;
-  const x = c.getContext('2d');
+  const { c, ctx: x } = hiCanvas(512, 256);
   x.fillStyle = '#0d0f12'; x.fillRect(0, 0, 512, 256);
   for (const [cx, major, label] of [[128, 20, 'km/h'], [384, 10, 'kW']]) {
     x.strokeStyle = '#c8cdd6'; x.fillStyle = '#c8cdd6';

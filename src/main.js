@@ -7,6 +7,8 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { createSeaSSR } from './core/ssr.js';
+import { createStillAA } from './core/stillAA.js';
 import { createAO } from './core/ao.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
@@ -195,6 +197,13 @@ async function main() {
   // Contact shadow in the creases the sun does not reach; before bloom, so it acts on light.
   const ao = quality.ao ? createAO(scene, camera, window.innerWidth, window.innerHeight) : null;
   if (ao) composer.addPass(ao.pass);
+  // Reflections of what is on screen in the sea (core/ssr.js), on the AO's depth and normal buffer.
+  const seaSSR = ao ? createSeaSSR(ao.pass, camera, env.ocean) : null;
+  if (seaSSR) composer.addPass(seaSSR.pass);
+  // Accumulated, jittered frames while the view holds still (core/stillAA.js): shader aliasing and
+  // the clouds' dither average away. Off under automation unless ?stillaa (the checks compare frames).
+  const stillAA = createStillAA(camera, { enabled: !navigator.webdriver || params.has('stillaa') });
+  composer.addPass(stillAA.pass);
   // Its depth and normal buffer is drawn again only when the camera or something in view changed.
   const gbufferCache = ao ? createGBufferCache(ao.pass, scene, camera) : null;
   // Bloom is the first thing a weak machine gives up: it costs a full-resolution blur chain
@@ -1536,13 +1545,16 @@ async function main() {
     // so the occlusion of the ground BEHIND them was multiplied over them, and the cloud wore a
     // band across it wherever the horizon fell.
     ao?.update(dist, camera.far < 20000 && !view.orbital && renderPass.camera === camera && !launch.running);
+    seaSSR?.update(camera.far < 20000 && !view.orbital && renderPass.camera === camera && !launch.running && !reentry.running);
     updateLabelOcclusion();
     lod.update();
     const moving = launch.running || reentry.running || f16fly.running || gt3drive.running || h2rRide.running;
     guard('the render', () => {
       shadowCache.prepare(performance.now(), moving);
       gbufferCache?.prepare(performance.now(), moving);
-      composer.render();
+      stillAA.begin(renderer.domElement.width, renderer.domElement.height, moving);
+      env.clouds.stillFrame = stillAA.frames;
+      try { composer.render(); } finally { stillAA.end(); }
       if (photoShot) { const cb = photoShot; photoShot = null; cb(renderer.domElement.toDataURL('image/png')); }
     });
     guard('the labels', () => { labelRenderer.render(scene, camera); settleLabels(); });
@@ -1630,7 +1642,7 @@ async function main() {
   }
 
   window.__vc = {
-    frameErrors, ctLab, textureCache: TEXTURE_CACHE, shadowCache, gbufferCache, localProbes, photo, ambience, M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, h2rRide, select, goPreset, jump, renderer, env,
+    frameErrors, seaSSR, stillAA, ctLab, textureCache: TEXTURE_CACHE, shadowCache, gbufferCache, localProbes, photo, ambience, M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, h2rRide, select, goPreset, jump, renderer, env,
     setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour,
     claimUserControl, tourRunToEnd, toggleMode, toggleWalk,
     walkRouteFor: (hit) => { const r = walkRoute(hit); rig.travelTo(r.route, r.look); return r; },

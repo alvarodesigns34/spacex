@@ -16,7 +16,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
       <div class="subtitle" id="hud-subtitle"></div>
     </header>
 
-    <div class="rail" id="rail" role="group" aria-label="Vehicles"></div>
+    <nav class="rail" id="rail" aria-label="Vehicles"></nav>
 
     <aside class="sheet" id="sheet" aria-label="Data sheet">
       <div class="sheet-head">
@@ -39,7 +39,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
 
     <div class="presets" id="presets" role="group" aria-label="Views"></div>
 
-    <div class="tools">
+    <div class="tools" role="region" aria-label="Tools and sequences">
       <label class="tool"><input type="checkbox" id="tg-labels" checked> Labels <kbd>L</kbd></label>
       <label class="tool"><input type="checkbox" id="tg-ruler" checked> Ruler <kbd>R</kbd></label>
       <label class="tool"><input type="checkbox" id="tg-humans" checked> 1.80 m figures</label>
@@ -113,7 +113,7 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
       <a class="tour-src" id="tour-src" target="_blank" rel="noopener"></a>
     </aside>
 
-    <div class="scale" id="scale">
+    <div class="scale" id="scale" role="region" aria-label="Scale">
       <div class="scale-bar"><span id="scale-label">10 m</span></div>
       <div class="scale-info" id="scale-info"></div>
     </div>

@@ -17,8 +17,9 @@
  * splash point and the globe move under it, so a ≈5 400 km glide keeps single-precision
  * vertices steady.
  */
+import { HASH_GLSL } from '../core/hashGLSL.js';
 import * as THREE from 'three';
-import { Plume, Vapor, Glow, FlightEarth } from './plume.js';
+import { Plume, Vapor, Glow, FlightEarth, sprayTexture } from './plume.js';
 import { RE, CHAPTER, MILESTONES_RE, reentryState, reentryPitchAt, reentryEnginesAt, heatingAt, toSplashAt, densityAt } from './reentryFlight.js';
 import { sourceMaterial } from '../core/localProbes.js';
 import { WAVES, OPEN_SEA_AMP, oceanGLSL, oceanPhases, openWaterline } from '../core/ocean.js';
@@ -64,7 +65,8 @@ const WAKE_FRAG = /* glsl */`
   uniform vec3 uCool, uHot;
   varying vec2 vUv;
   varying vec3 vN, vV;
-  float h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  ${HASH_GLSL}
+  float h(vec2 p) { return hk12(p); }
   float n2(vec2 x) { vec2 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
     return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
   void main() {
@@ -351,7 +353,8 @@ ${IMPACT_GLSL}`)
     size: 3.0, grow: 3.0, jitter: 9, window: [SLAP - 0.1 + 0.003 * (46 - x), SLAP + 0.35],
   }));
   const water = new Vapor({
-    name: 'reentry-water', rng, accel: [0, -9.81, 0], tau: 6, opacity: 0.6, fadeIn: 0.02, colors: [0xf4f8fa, 0x6c8293],
+    // Drawn with the Blender-rendered spray atlas (plume.js sprayTexture): droplets, streaks, sheets.
+    name: 'reentry-water', rng, accel: [0, -9.81, 0], tau: 6, opacity: 0.6, fadeIn: 0.02, colors: [0xf4f8fa, 0x6c8293], map: sprayTexture(),
     emitters: [
       { at: [0, 0.4, 0], dir: [0, 0.3, 0], speed: 16, spread: 2.2, count: 900, life: 2.0, size: 3.0, grow: 3.0, jitter: 8, window: [RE.splash - 6, RE.splash - 3] },
       { at: [0, 0.4, 0], dir: [0, 0.3, 0], speed: 24, spread: 2.2, count: 1800, life: 2.4, size: 3.5, grow: 3.5, jitter: 9, window: [RE.splash - 3, RE.splash] },
@@ -387,7 +390,8 @@ ${IMPACT_GLSL}`)
       }`,
     fragmentShader: `
       uniform float uAge, uSlap; varying vec2 vP;
-      float h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      ${HASH_GLSL}
+  float h(vec2 p) { return hk12(p); }
       float n(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
       float fbm(vec2 p) { return 0.5 * n(p) + 0.3 * n(p * 2.3 + 7.1) + 0.2 * n(p * 5.1 - 3.7); }

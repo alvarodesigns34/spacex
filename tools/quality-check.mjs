@@ -56,7 +56,7 @@ report(pickQuality(fakeRenderer).suggested === 'low', 'control: la sonda sigue r
 Object.assign(device, DEVICES['escritorio 144 Hz']);
 report(pickQuality(fakeRenderer, 'medium').name === 'medium' && pickQuality(fakeRenderer, 'low').forced, 'solo ?quality= cambia el nivel');
 const high = pickQuality(fakeRenderer);
-report(high.lodPixels === 0 && high.cloudSteps >= 32 && high.msaa >= 4 && high.shadowMap >= 4096,
+report(high.lodPixels === 0 && high.cloudSteps >= 32 && high.msaa >= 4 && high.shadowMap >= 8192,
   'el nivel alto: sin LOD, muestras de nubes, MSAA y sombras completos', `LOD ${high.lodPixels} · ${high.cloudSteps} pasos · MSAA ${high.msaa} · sombras ${high.shadowMap}`);
 
 // 2.

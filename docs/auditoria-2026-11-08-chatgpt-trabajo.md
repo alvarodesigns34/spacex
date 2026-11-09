@@ -294,6 +294,101 @@ y sin bajar calidad. Primero se comprobó cada hallazgo en el código. Este es e
   - módulo común de ruido (M12), partir los archivos largos (M15), hash sin seno (B4), three.js (B6)
     y accesibilidad (B7).
 
+## Crítica del subagente: bloques 2 y 3 (9-11-2026)
+
+Todo lo de la crítica salvo el amerizaje del propulsor y la medida en la RTX (para más adelante).
+Ninguna mejora baja la calidad de otra cosa ni añade un recorte automático.
+
+### Bloque 2: sombras, agua, antialiasing y texturas
+
+- **A2, sombras del Sol con penumbra física (`src/core/pcss.js`, nuevo):**
+  - Sombras suaves por porcentaje de cercanía (PCSS; Fernando, NVIDIA 2005) en lugar del filtro de
+    cuatro muestras de three.js, que daba el mismo borde de un téxel a la sombra de una rueda y a la
+    de la torre sobre el suelo 80 m más abajo.
+  - Por píxel: búsqueda de oclusores (16 muestras en espiral de Vogel), anchura de la penumbra =
+    distancia oclusor–receptor × diámetro aparente del Sol (0,533°) y filtro de 32 muestras, girado
+    por ruido de gradiente entrelazado. Radio entre 1 y 32 téxeles.
+  - El mapa de sombras de calidad alta pasa de 4 096 a **8 192** téxeles (≈8 cm por téxel en la
+    vista general). `quality-check.mjs` y `check.mjs` lo exigen.
+  - Se instala como parche del fragmento de sombras de three.js, con reemplazos que fallan al
+    arrancar si dejan de encontrar su línea (como `fogSun.js`).
+  - Corregido el mismo día: al principio se usó la anchura como radio, lo que duplicaba cada
+    penumbra y borraba la sombra del Falcon Heavy.
+  - ≈: la media de oclusores y el tope de 32 téxeles son aproximaciones del método.
+  - Comparativa (vista general; el cambio se ve sobre todo en la celosía de la torre):
+    ![Sombras: antes y después](auditoria-2026-11-08-chatgpt/critica-b2-sombras-pcss.jpg)
+- **A3, olas lejanas por píxel (`ocean.js oceanFarSlopeGLSL`):** donde la malla polar ya no puede
+  llevar una ola (su separación supera λ/4), el sombreador añade su pendiente a la normal, con un
+  fundido de antialiasing según el tamaño del píxel. Antes, lejos, el mar solo tenía las normales
+  de textura.
+- **Reflejos en pantalla sobre el mar (`src/core/ssr.js`, nuevo):** el agua reflejaba solo la sonda
+  (cielo y un suelo genérico); desde la playa no se veían la plataforma, la torre ni los vehículos
+  en el mar. Ahora:
+  - se reutiliza el búfer de profundidad de la oclusión ambiental (calidad alta) y solo se actúa
+    sobre el agua (altura del mar y mar adentro de la línea de costa muestreada);
+  - el rayo reflejado con la normal de las olas se marcha en espacio de vista (64 pasos que crecen
+    un 7 %, hasta ≈1 km, con bisección), mezclado por el Fresnel de Schlick del agua (F0 ≈ 0,02);
+  - límites del método: solo refleja lo que está en pantalla y el búfer tiene una sola capa.
+- **M4, antialiasing temporal con la cámara quieta (`src/core/stillAA.js`, nuevo):**
+  - El MSAA 4× solo suaviza aristas. El grano de las nubes, la celosía y las losetas por debajo del
+    píxel, las muestras de sombra y los brillos parpadeaban dentro de los triángulos.
+  - Cuando la cámara y la secuencia están quietas (expositor, modo foto, pausa), cada fotograma
+    desplaza la proyección un subpíxel de Halton (2, 3) y se promedia con la historia: a las pocas
+    decenas de fotogramas la imagen está supermuestreada. Al moverse se reinicia sin estela.
+  - Las nubes cambian su desfase de marcha con el mismo contador, así que su grano también se
+    promedia.
+  - No es TAA completo con reproyección: la escena no dibuja vectores de movimiento. Bajo
+    automatización se apaga (las pruebas comparan fotogramas exactos) salvo con `?stillaa`.
+- **M9, texturas del Roadster a 4×:** las pantallas, la placa, la rejilla, el emblema y la esfera
+  se dibujan a 4× (hasta 2 048 px), y los neumáticos a 2 048 × 512 con la normal escalada.
+- **Acero cepillado y barniz:** ya estaban (anisotropía del acero de Starship; `clearcoat: 1` en el
+  Porsche y el Model Y). No se ha tocado nada.
+
+### Bloque 3: humo, fuego, salpicadura, atmósfera y código
+
+- **Humo con volumen (`src/sim/groundCloud.js`):**
+  - La nube del encendido se oscurece por dentro según la luz que le llega: cada fotograma se
+    reparten las bocanadas en una rejilla de 70 × 24 × 70 celdas de 12 m.
+  - Cada bocanada recibe su transmitancia hacia el Sol por Beer–Lambert (25 pasos, σ = 0,06 m⁻¹, ≈).
+  - Resultado: el interior y la cara opuesta al Sol quedan en sombra, y las cimas, iluminadas.
+- **Fuego por temperatura (`plume.js`):** el color del penacho mezcla el de un cuerpo negro (ajuste
+  de Tanner Helland, linealizado) entre ≈2 700 K en el núcleo y ≈1 300 K en la cola, conservando la
+  luminancia. Los **anillos del chorro** (diamantes de Mach) ya existían en el núcleo y en cada motor.
+- **Salpicadura horneada en Blender (`blender/spray/build.py`, `assets/spray/spray-atlas.png`):**
+  - Cycles, sin interfaz, renderiza 16 racimos de gotas, con tamaños en ley de potencias, hilos y
+    láminas, en un atlas de 1 024² (normal en espacio de cámara en RGB y cobertura en A).
+  - El vapor del amerizaje de la nave lo usa en lugar de manchas redondas.
+  - Atlas, sobre fondo azul:
+    ![Atlas de salpicadura de Blender](auditoria-2026-11-08-chatgpt/atlas-salpicadura-blender.jpg)
+- **Atmósfera por longitud de onda (`fogSun.js`):** la niebla atenúa cada canal según la razón de
+  profundidades ópticas de Rayleigh de `sunlight.js` (0,664 : 1 : 1,759 en R : G : B). Lo lejano se
+  vuelve azul y pierde el rojo antes. ≈: no es un modelo completo de tablas de dispersión
+  (Bruneton/Hillaire).
+- **B4 y M12, hash sin seno y ruido común (`src/core/hashGLSL.js`, nuevo):** el hash de Dave Hoskins
+  sustituye a `fract(sin(…))`, que en GPU de media precisión forma bandas. Lo usan las nubes del
+  cielo, el penacho, la nube de tierra, la reentrada, las marcas del agua y las placas de los
+  materiales.
+- **M15, archivos largos:**
+  - La nube de tierra sale de `plume.js` a `groundCloud.js`, y `plume.js` pasa de ≈1 600 a 1 033
+    líneas.
+  - El Roadster, el Porsche y `main.js` no se parten todavía: sus partes comparten estado interno
+    (`bodyPoint`, barridos, el bucle), y partirlos a ciegas arriesgaría más de lo que gana.
+- **B6, three.js r187:**
+  - Investigado y no hecho. La r187 rehace las sombras (`sampler2DShadow`, cascadas del Sol y sin la
+    rama `PCF_SOFT`), así que se romperían PCSS y otros parches de fragmentos.
+  - Queda como proyecto aparte. Sus cascadas nativas podrían sustituir más adelante a parte de A2.
+- **B7, accesibilidad:**
+  - axe-core 4.10.2 solo encontró «region» (11 nodos fuera de una región).
+  - El lienzo va ahora dentro de `<main id="scene-main">`. La barra de herramientas y la escala son
+    regiones con nombre, y la barra de vehículos es un `<nav>`.
+- Comparativa del encendido (fuego más naranja, vapor más claro) y del amerizaje (gotas en hilos
+  del atlas junto al casco):
+  ![Encendido y amerizaje: antes y después](auditoria-2026-11-08-chatgpt/critica-b3-encendido-amerizaje.jpg)
+- **Comprobación:**
+  - en el arnés: ninguna consola con errores, `frameErrors` vacío y 201 programas compilados;
+  - `check:static` en verde;
+  - el `check` completo, en el CI.
+
 ## Respuestas a las «Preguntas para Claude»
 
 1. **Script de §31 y los 177 m/s.**
@@ -338,3 +433,7 @@ y sin bajar calidad. Primero se comprobó cada hallazgo en el código. Este es e
 - Humo: sigue siendo de sprites; mejora moderada.
 - Agua: la corona de entrada de los coches es discreta.
 - El `npm run check` completo no se ha corrido en local (más de 1 h por software): se usa el CI.
+- Sin medir en GPU real: el mapa de sombras de 8 192, el PCSS de 48 muestras, los reflejos en
+  pantalla y el antialiasing con la cámara quieta son lo que más puede costar.
+- Pendiente de la crítica: three.js r187 (proyecto aparte) y partir el Roadster, el Porsche y
+  `main.js`.

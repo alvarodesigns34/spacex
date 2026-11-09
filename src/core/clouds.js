@@ -24,6 +24,7 @@
  * sky pixels only. It is scenery, not data: no cloud here is a real cloud, and the depth, the
  * densities and the optical constants are chosen to look like cumulus, not measured (≈).
  */
+import { HASH_GLSL } from './hashGLSL.js';
 import * as THREE from 'three';
 import { sunTint } from './sunlight.js';
 
@@ -71,7 +72,9 @@ const LAYER_MAIN = /* glsl */`
 
 const VOLUME_MAIN = /* glsl */`
   uniform int uSteps;
-  float h3(float k) { return fract(sin(k) * 43758.5453); }
+  uniform float uJit;
+  ${HASH_GLSL}
+  float h3(float k) { return hk11(k); }
   float n3(vec3 p) {
     vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     float k = i.x + i.y * 57.0 + i.z * 113.0;
@@ -109,7 +112,9 @@ const VOLUME_MAIN = /* glsl */`
     // (a fraction of a pixel's footprint), 18 to 70 m, until eight short steps in a row find no
     // cloud. The offset is interleaved gradient noise, a low-discrepancy pattern: what is left of
     // the sampling error is a fine, even dither instead of clumps. uSteps caps the iterations.
-    float jit = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+    // Plus a golden-ratio step per still frame (uJit, core/stillAA.js): the accumulation then averages
+    // the dither away; with the camera moving uJit holds at 0 and the pattern does not crawl.
+    float jit = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))) + uJit);
     vec3 sun = normalize(uSun);
     float mu = dot(d, sun);
     float phase = mix(hg(mu, 0.55), hg(mu, -0.2), 0.3);
@@ -195,6 +200,7 @@ export function createClouds(scene, { mode = 'volume', steps = 32 } = {}) {
     uSunColor: { value: new THREE.Color(1, 0.97, 0.92) },
     uShade: { value: new THREE.Color(0.66, 0.70, 0.77) },
     uSteps: { value: Math.max(1, steps) },
+    uJit: { value: 0 },
   };
   const make = (m) => new THREE.ShaderMaterial({
     uniforms,
@@ -279,6 +285,8 @@ ${SHADOW_COVER_GLSL}`)
     /** Switch between the two ways (console: __vc.env.clouds.setMode('layer')). */
     setMode(m) { current = m === 'layer' ? 'layer' : 'volume'; dome.material = materials[current]; },
     /** Samples per ray in 'volume', changed live (no recompile). */
+    /** The still-frame counter of core/stillAA.js: steps the march's offset by the golden ratio. */
+    set stillFrame(n) { uniforms.uJit.value = (n * 0.6180339887) % 1; },
     get steps() { return uniforms.uSteps.value; },
     set steps(n) { uniforms.uSteps.value = Math.max(1, Math.round(n)); },
     follow(camera) { dome.position.copy(camera.position); },

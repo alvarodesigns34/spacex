@@ -56,7 +56,9 @@ const TIERS = {
   high: {
     name: 'high',
     pixelRatio: 2,
-    shadowMap: 4096,
+    // 8 192² since 9-11-2026 (audit A2; 4 096 before): ≈8 cm a texel over the overview's 680 m
+    // frustum instead of ≈17. Held to what the GPU allows (pickQuality).
+    shadowMap: 8192,
     shadows: true,
     bloom: true,
     // Ambient occlusion: a second full-scene pass for the G-buffer plus two screen passes.

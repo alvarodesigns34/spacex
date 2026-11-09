@@ -16,6 +16,7 @@
  * (with the spray pool the vehicle already has), a ring and a foam patch scaled by the speed and
  * the width that went in. It is a look, not a fluid simulation.
  */
+import { HASH_GLSL } from './hashGLSL.js';
 import * as THREE from 'three';
 
 const FOAM = 0, RING = 1;
@@ -40,7 +41,8 @@ export function createWaterMarks(scene, surfaceAt, max = 256) {
       }`,
     fragmentShader: /* glsl */`
       varying vec2 vP; varying float vKind, vFade, vSeed, vWidth;
-      float h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      ${HASH_GLSL}
+      float h(vec2 p) { return hk12(p); }
       float n(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
       float fbm(vec2 p) { return 0.5 * n(p) + 0.28 * n(p * 2.1 + 3.7) + 0.14 * n(p * 4.3 - 1.9) + 0.08 * n(p * 8.9 + 5.3); }
