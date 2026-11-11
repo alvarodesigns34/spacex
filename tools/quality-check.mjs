@@ -14,6 +14,7 @@
 import { registerHooks } from 'node:module';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 registerHooks({ resolve(specifier, context, next) {
   if (specifier === 'three') return next(new URL('../vendor/three/build/three.module.js', import.meta.url).href, context);
@@ -74,7 +75,8 @@ report(lodAt(high.lodPixels), 'nivel alto: una entrada de detalle a 10 km sigue 
 report(!lodAt(5), 'control: con el umbral del nivel medio esa entrada sí cae');
 
 // 3.
-const SRC = new URL('../src/', import.meta.url).pathname;
+// fileURLToPath, not .pathname: on Windows the latter is '/C:/…' with the non-ASCII still escaped.
+const SRC = fileURLToPath(new URL('../src/', import.meta.url));
 const files = [];
 const walk = (d) => { for (const f of readdirSync(d)) { const p = join(d, f); if (statSync(p).isDirectory()) walk(p); else if (p.endsWith('.js')) files.push(p); } };
 walk(SRC);

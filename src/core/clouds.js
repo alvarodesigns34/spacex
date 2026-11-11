@@ -27,13 +27,14 @@
 import { HASH_GLSL } from './hashGLSL.js';
 import * as THREE from 'three';
 import { sunTint } from './sunlight.js';
+import { createCloudTemporal } from './cloudsTemporal.js';
 
 const BASE = 1400;     // cloud base above the ground, m
 const TOP = 2600;      // highest cloud tops, m (≈)
 const RADIUS = 4200;   // dome radius; inside the camera's far plane
 
 /** The cover, in the shader's words, shared by the two ways of drawing it. */
-const COVER_GLSL = /* glsl */`
+export const COVER_GLSL = /* glsl */`
   float h(vec2 p) { p = fract(p * vec2(233.34, 851.73)); p += dot(p, p + 23.45); return fract(p.x * p.y); }
   float n(vec2 p) {
     vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
@@ -70,7 +71,7 @@ const LAYER_MAIN = /* glsl */`
     gl_FragColor = vec4(col, cover * horizon * uFade * 0.92);
   }`;
 
-const VOLUME_MAIN = /* glsl */`
+export const VOLUME_FN = /* glsl */`
   uniform int uSteps;
   uniform float uJit;
   ${HASH_GLSL}
@@ -94,16 +95,17 @@ const VOLUME_MAIN = /* glsl */`
     float e = n3(p / 340.0) * 0.38 + n3(p / 150.0 + 5.0) * 0.32 + n3(p / 60.0 + 17.0) * 0.2 + n3(p / 24.0 + 31.0) * 0.1;
     return clamp(body * 1.4 - (1.0 - e) * (0.5 + 0.6 * hf), 0.0, 1.0);
   }
-  uniform mat4 projectionMatrix;
   float hg(float c, float g) { float g2 = g * g; return (1.0 - g2) / pow(1.0 + g2 - 2.0 * g * c, 1.5); }
-  void main() {
-    vec3 d = normalize(vDir), o = cameraPosition;
+  // One view ray through the slab: premultiplied colour and coverage (what the dome blends), and
+  // the distance of the first cloud met (hitOut, 1e5 when none). frag: the pixel, for the dither.
+  vec4 cloudMarch(vec3 o, vec3 d, vec2 frag, float jitAdd, out float hitOut) {
+    hitOut = 1e5;
     // The stretch of the ray inside the slab.
     float t0, t1;
-    if (o.y < B) { if (d.y <= 0.004) discard; t0 = (B - o.y) / d.y; t1 = (T - o.y) / d.y; }
-    else if (o.y > T) { if (d.y >= -0.004) discard; t0 = (T - o.y) / d.y; t1 = (B - o.y) / d.y; }
+    if (o.y < B) { if (d.y <= 0.004) return vec4(0.0); t0 = (B - o.y) / d.y; t1 = (T - o.y) / d.y; }
+    else if (o.y > T) { if (d.y >= -0.004) return vec4(0.0); t0 = (T - o.y) / d.y; t1 = (B - o.y) / d.y; }
     else { t0 = 0.0; t1 = d.y > 0.004 ? (T - o.y) / d.y : d.y < -0.004 ? (B - o.y) / d.y : 40000.0; }
-    if (t0 > 40000.0) discard;
+    if (t0 > 40000.0) return vec4(0.0);
     t1 = min(t1, t0 + 16000.0);
     // Two step lengths (8-11-2026; before, the slab was cut into uSteps equal steps, up to 500 m
     // long near the horizon, with a white-noise offset per pixel: the grain the user saw). Empty
@@ -114,7 +116,7 @@ const VOLUME_MAIN = /* glsl */`
     // the sampling error is a fine, even dither instead of clumps. uSteps caps the iterations.
     // Plus a golden-ratio step per still frame (uJit, core/stillAA.js): the accumulation then averages
     // the dither away; with the camera moving uJit holds at 0 and the pattern does not crawl.
-    float jit = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))) + uJit);
+    float jit = fract(52.9829189 * fract(dot(frag, vec2(0.06711056, 0.00583715))) + jitAdd);
     vec3 sun = normalize(uSun);
     float mu = dot(d, sun);
     float phase = mix(hg(mu, 0.55), hg(mu, -0.2), 0.3);
@@ -169,18 +171,32 @@ const VOLUME_MAIN = /* glsl */`
       t += dtF;
     }
     float alpha = 1.0 - Tr;
-    if (alpha < 0.004) discard;
+    if (alpha < 0.004) return vec4(0.0);
     vec3 col = L / alpha * mix(0.08, 1.0, uLight);
     // Aerial perspective: far clouds sink into the haze.
     float haze = exp(-max(hit, 0.0) / 26000.0);
-    // At the depth of the first cloud met, not on the far plane: from above, the ground under a
-    // cloud is behind it, and an aircraft in front of one stays in front.
-    vec4 clip = projectionMatrix * viewMatrix * vec4(o + d * max(hit, 0.0), 1.0);
-    gl_FragDepth = clamp(clip.z / clip.w * 0.5 + 0.5, 0.0, 1.0);
+    hitOut = max(hit, 0.0);
     // Fade the last 15 km before the 40 km cut instead of stopping there (audit of 9-11-2026, M5):
     // with the haze leaving ≈20 % of a cloud at 40 km, the cut drew an edge a couple of degrees over
     // the horizon.
-    gl_FragColor = vec4(col, alpha * haze * uFade * (1.0 - smoothstep(25000.0, 40000.0, t0)));
+    float a = alpha * haze * uFade * (1.0 - smoothstep(25000.0, 40000.0, t0));
+    return vec4(col * a, a);
+  }`;
+
+// The dome marching every pixel itself: what the reflection probes' cube cameras see (and the
+// whole view before the temporal march of core/cloudsTemporal.js).
+const VOLUME_MAIN = VOLUME_FN + /* glsl */`
+  uniform mat4 projectionMatrix;
+  void main() {
+    vec3 d = normalize(vDir);
+    float hit;
+    vec4 c = cloudMarch(cameraPosition, d, gl_FragCoord.xy, uJit, hit);
+    if (c.a < 0.004) discard;
+    // At the depth of the first cloud met, not on the far plane: from above, the ground under a
+    // cloud is behind it, and an aircraft in front of one stays in front.
+    vec4 clip = projectionMatrix * viewMatrix * vec4(cameraPosition + d * hit, 1.0);
+    gl_FragDepth = clamp(clip.z / clip.w * 0.5 + 0.5, 0.0, 1.0);
+    gl_FragColor = vec4(c.rgb / c.a, c.a);
   }`;
 
 // The cover again, under names of its own, for lit materials' shaders (cloud shadows, below).
@@ -191,7 +207,7 @@ const SHADOW_COVER_GLSL = COVER_GLSL
  * @param o.mode  'volume' or 'layer' (see the header)
  * @param o.steps samples per ray in 'volume'
  */
-export function createClouds(scene, { mode = 'volume', steps = 32 } = {}) {
+export function createClouds(scene, { mode = 'volume', steps = 32, temporal = false } = {}) {
   const uniforms = {
     uSun: { value: new THREE.Vector3(0, 1, 0) },
     uLight: { value: 1 },          // 1 by day, towards 0 at night
@@ -229,6 +245,37 @@ export function createClouds(scene, { mode = 'volume', steps = 32 } = {}) {
   dome.renderOrder = -1;        // after the sky dome, before everything else
   scene.add(dome);
   let current = mode === 'layer' ? 'layer' : 'volume';
+
+  // The main view's clouds marched over frames (core/cloudsTemporal.js); the dome then only draws
+  // the resolved picture, at the depth of its clouds. The per-pixel dome stays for the probes.
+  const temporalMarch = temporal ? createCloudTemporal(uniforms) : null;
+  const screenU = { uCloudC: { value: null }, uCloudD: { value: null }, uRes: { value: new THREE.Vector2(1, 1) } };
+  const screen = new THREE.ShaderMaterial({
+    name: 'clouds-resolved',
+    uniforms: screenU,
+    transparent: true, premultipliedAlpha: true, depthWrite: false, side: THREE.BackSide, fog: false,
+    vertexShader: /* glsl */`
+      varying vec3 vDir;
+      void main() {
+        vDir = normalize((modelMatrix * vec4(position, 1.0)).xyz - cameraPosition);
+        vec4 p = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0);
+        gl_Position = p.xyww;
+      }`,
+    fragmentShader: /* glsl */`
+      uniform sampler2D uCloudC, uCloudD;
+      uniform vec2 uRes;
+      uniform mat4 projectionMatrix;
+      varying vec3 vDir;
+      void main() {
+        vec2 uv = gl_FragCoord.xy / uRes;
+        vec4 c = texture2D(uCloudC, uv);
+        if (c.a < 0.004) discard;
+        vec4 clip = projectionMatrix * viewMatrix * vec4(cameraPosition + normalize(vDir) * texture2D(uCloudD, uv).r, 1.0);
+        gl_FragDepth = clamp(clip.z / clip.w * 0.5 + 0.5, 0.0, 1.0);
+        gl_FragColor = c;
+      }`,
+  });
+  let onScreen = false;
 
   // Cloud shadows on what the Sun lights. A point's direct light is dimmed by the cover where its
   // ray to the Sun crosses the layer (≈ 1.7 km, low in the slab): the same cover the clouds are
@@ -283,7 +330,24 @@ ${SHADOW_COVER_GLSL}`)
     get shadows() { return shadowsOn; },
     set shadows(v) { shadowsOn = !!v; shadowU.uCsFade.value = shadowsOn ? shadowFade : 0; },
     /** Switch between the two ways (console: __vc.env.clouds.setMode('layer')). */
-    setMode(m) { current = m === 'layer' ? 'layer' : 'volume'; dome.material = materials[current]; },
+    setMode(m) { current = m === 'layer' ? 'layer' : 'volume'; dome.material = materials[current]; temporalMarch?.invalidate(); },
+    /** The temporal march (core/cloudsTemporal.js), or null where every pixel is marched. */
+    get temporal() { return temporalMarch; },
+    /** False draws the main view per pixel again, as before 11-11-2026 (console, to compare). */
+    temporalOn: !!temporalMarch,
+    /**
+     * Before the main view's scene pass, with its camera unjittered: march this frame's pixels and
+     * have the dome draw the resolved picture. endMain() after the pass gives the dome back to the
+     * probes' cube cameras.
+     */
+    beginMain(renderer, camera, mark = null) {
+      if (!temporalMarch || !this.temporalOn || current !== 'volume' || !dome.visible) { temporalMarch?.invalidate(); return; }
+      temporalMarch.render(renderer, camera, mark);
+      screenU.uCloudC.value = temporalMarch.color; screenU.uCloudD.value = temporalMarch.dist;
+      screenU.uRes.value.copy(temporalMarch.resolution);
+      dome.material = screen; onScreen = true;
+    },
+    endMain() { if (onScreen) { dome.material = materials[current]; onScreen = false; } },
     /** Samples per ray in 'volume', changed live (no recompile). */
     /** The still-frame counter of core/stillAA.js: steps the march's offset by the golden ratio. */
     set stillFrame(n) { uniforms.uJit.value = (n * 0.6180339887) % 1; },

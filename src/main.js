@@ -9,6 +9,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { createSeaSSR } from './core/ssr.js';
 import { createStillAA } from './core/stillAA.js';
+import { createGpuProfiler } from './core/gpuProfiler.js';
 import { createAO } from './core/ao.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
@@ -86,6 +87,20 @@ async function main() {
   // would be checking geometry the viewer never sees.
   const params = new URLSearchParams(location.search);
   const quality = pickQuality(renderer, params.get('quality'));
+  // Diagnostic switches, one costly piece at a time (measuring on real hardware): ?off=ao,ssr,
+  // stillaa,bloom,pcss,shadows,cloudshadows,probes · ?pr=1 · ?shadow=4096 · ?msaa=0 · ?clouds=N
+  // (cloud march steps, 0 = the flat layer). Reported in the technical panel; never set otherwise.
+  const off = new Set((params.get('off') ?? '').split(',').filter(Boolean));
+  quality.off = off;
+  if (off.has('ao')) quality.ao = false;
+  if (off.has('bloom')) quality.bloom = false;
+  if (off.has('shadows')) quality.shadows = false;
+  if (off.has('pcss')) quality.pcss = false;
+  if (off.has('cloudshadows')) quality.cloudShadows = false;
+  if (params.has('pr')) quality.pixelRatio = Math.min(Number(params.get('pr')) || 1, window.devicePixelRatio || 1);
+  if (params.has('shadow')) quality.shadowMap = Number(params.get('shadow')) || quality.shadowMap;
+  if (params.has('msaa')) quality.msaa = Number(params.get('msaa')) || 0;
+  if (/^\d+$/.test(params.get('clouds') ?? '')) quality.cloudSteps = Number(params.get('clouds'));
   applyQuality(renderer, quality);
   // The Blender assets (~100 MB between them) start downloading now, while the procedural textures
   // are generated and the other exhibits built; their loaders pick the bytes up when their turn comes.
@@ -198,11 +213,11 @@ async function main() {
   const ao = quality.ao ? createAO(scene, camera, window.innerWidth, window.innerHeight) : null;
   if (ao) composer.addPass(ao.pass);
   // Reflections of what is on screen in the sea (core/ssr.js), on the AO's depth and normal buffer.
-  const seaSSR = ao ? createSeaSSR(ao.pass, camera, env.ocean) : null;
+  const seaSSR = ao && !off.has('ssr') ? createSeaSSR(ao.pass, camera, env.ocean) : null;
   if (seaSSR) composer.addPass(seaSSR.pass);
   // Accumulated, jittered frames while the view holds still (core/stillAA.js): shader aliasing and
   // the clouds' dither average away. Off under automation unless ?stillaa (the checks compare frames).
-  const stillAA = createStillAA(camera, { enabled: !navigator.webdriver || params.has('stillaa') });
+  const stillAA = createStillAA(camera, { enabled: (!navigator.webdriver || params.has('stillaa')) && !off.has('stillaa') });
   composer.addPass(stillAA.pass);
   // Its depth and normal buffer is drawn again only when the camera or something in view changed.
   const gbufferCache = ao ? createGBufferCache(ao.pass, scene, camera) : null;
@@ -577,7 +592,7 @@ async function main() {
   // copy them, so the copies carry it.
   env.shadeUnderClouds(scene);
   const localProbes = createLocalProbes(renderer, scene);
-  {
+  if (!off.has('probes')) {
     const ex = exhibits.starship;
     if (ex) {
       const at = new THREE.Vector3(ex.lay.x, ex.model.position.y + 45, ex.lay.z);
@@ -830,7 +845,7 @@ async function main() {
   const sanitized = sanitizeNormals(scene);
   hud.setProgress('Compiling shaders…', 0.95);
   await nextFrame();
-  performance.mark('vc:compile');
+  performance.mark('vc:compile', { detail: renderer.info.programs.length });
   // Warm-up, one part of the scene at a time — each exhibit, the pad, the ground — with a
   // frame between parts so the progress bar keeps moving. The profile (tools/perceived.mjs)
   // showed that precompiling programs was not where the time went: the FIRST RENDER was one
@@ -848,28 +863,38 @@ async function main() {
     const culled = [];
     scene.traverse(o => { if (o.frustumCulled) { culled.push(o); o.frustumCulled = false; } });
     const prevTarget = renderer.getRenderTarget();
+    // The other parts' drawables are hidden, never the parts themselves: a hidden part hid the
+    // lights inside it (Starship's six bay spotlights and three point lights), and three.js builds a
+    // program per number of lights, so every part but Starship's was compiled for a lighting the
+    // view never has and compiled again in the first frames — ≈110 of the ≈250 programs twice,
+    // ≈30 s on the user's RTX 3070 (ANGLE / Direct3D 11, measured 11-11-2026).
+    const drawable = (o) => o.isMesh || o.isLine || o.isPoints || o.isSprite;
+    const partDrawables = parts.map(p => { const d = []; p.traverse(o => { if (drawable(o)) d.push(o); }); return d; });
+    const drawShown = partDrawables.map(d => d.map(o => o.visible));
     for (let i = 0; i < parts.length; i++) {
-      for (const p of parts) p.visible = p === parts[i];
+      parts.forEach((p, j) => { p.visible = shown[j]; partDrawables[j].forEach((o, k) => { o.visible = j === i ? drawShown[j][k] : false; }); });
+      parts[i].visible = true;
       // Everything under this part is drawn, not only what shows at rest: the launch
       // effects (plumes, engine jets, vapour, the ground cloud, the curved Earth) and the
       // detail the LOD is holding back. Hidden, they were compiled the first time they
-      // appeared — 27 programs at the moment of ignition, a stall right at liftoff.
+      // appeared — 27 programs at the moment of ignition, a stall right at liftoff. Lights keep
+      // the state the view has.
       const hidden = [];
-      parts[i].traverse(o => { if (!o.visible && o !== parts[i]) { hidden.push(o); o.visible = true; } });
+      parts[i].traverse(o => { if (!o.visible && o !== parts[i] && !o.isLight) { hidden.push(o); o.visible = true; } });
       renderer.setRenderTarget(warmRT);
       renderer.render(scene, camera);
       for (const o of hidden) o.visible = false;
       hud.setProgress('Preparing the scene…', 0.95 + 0.05 * (i + 1) / parts.length);
       await nextFrame();
     }
-    parts.forEach((p, i) => { p.visible = shown[i]; });
+    parts.forEach((p, i) => { p.visible = shown[i]; partDrawables[i].forEach((o, k) => { o.visible = drawShown[i][k]; }); });
     for (const o of culled) o.frustumCulled = true;
     renderer.setRenderTarget(prevTarget);
     warmRT.dispose();
   }
-  performance.mark('vc:first-render');
+  performance.mark('vc:first-render', { detail: renderer.info.programs.length });
   composer.render();
-  performance.mark('vc:first-render-done');
+  performance.mark('vc:first-render-done', { detail: renderer.info.programs.length });
   await nextFrame();
   // Site plan for the HUD map, read off the built scene rather than restated: the apron and
   // the pad's parts by their world bounds (the complex is not rotated), the stops from the
@@ -1292,7 +1317,7 @@ async function main() {
   // A lost and restored context comes back without the reflection probe (a render target has
   // no source to re-upload), which darkened the whole ground by half. Named so the gate can
   // take it away and prove that its own test notices.
-  function onContextRestored() { env.rebuildProbe(); shadowCache.invalidate(); gbufferCache?.invalidate(); }
+  function onContextRestored() { env.rebuildProbe(); shadowCache.invalidate(); gbufferCache?.invalidate(); env.clouds.temporal?.invalidate(); }
   canvas.addEventListener('webglcontextrestored', onContextRestored);
 
   window.addEventListener('resize', () => {
@@ -1469,6 +1494,10 @@ async function main() {
   });
   // The technical panel (key I) and ?perf / ?perf=log: ui/techPanel.js.
   const tech = createTechPanel({ renderer, camera, env, quality, params, jump, toggleCybertruck, ctLab });
+  // ?gpu: GPU time per pass (shadow map, scene, AO, …); ?gpu=objects also per scene group
+  // (core/gpuProfiler.js). Read from the console: __vc.gpu.report().
+  const gpu = params.has('gpu') ? createGpuProfiler(renderer, scene, { objects: params.get('gpu') === 'objects' }) : null;
+  if (gpu) { gpu.watchComposer(composer); gpu.watchObjects(); setTimeout(() => gpu.watchObjects(), 15000); }
 
   // A barrier round every part of the frame (audit of 9-11-2026, A1): until then one exception
   // anywhere — a sequence's update, a probe capture, the render — ended the loop for good, since
@@ -1494,6 +1523,7 @@ async function main() {
     // The Cybertruck Lab draws its own scene with this renderer; the site waits as it was left.
     if (ctLab.active) { tech.perf?.begin(); guard('the Cybertruck Lab', () => ctLab.render(clock.getDelta())); tech.perf?.end(); return; }
     tech.perf?.begin();
+    gpu?.frameStart();
     const steps = missionClock.step(clock.getDelta());
     const dt = steps.view;
     guard('the camera', () => rig.update(dt));
@@ -1552,12 +1582,16 @@ async function main() {
     guard('the render', () => {
       shadowCache.prepare(performance.now(), moving);
       gbufferCache?.prepare(performance.now(), moving);
+      // This frame's share of the cloud march (core/cloudsTemporal.js), from the unjittered camera.
+      gpu?.mark('cloud march');
+      env.clouds.beginMain(renderer, renderPass.camera, gpu?.mark);
       stillAA.begin(renderer.domElement.width, renderer.domElement.height, moving);
       env.clouds.stillFrame = stillAA.frames;
-      try { composer.render(); } finally { stillAA.end(); }
+      try { composer.render(); } finally { stillAA.end(); env.clouds.endMain(); }
       if (photoShot) { const cb = photoShot; photoShot = null; cb(renderer.domElement.toDataURL('image/png')); }
     });
     guard('the labels', () => { labelRenderer.render(scene, camera); settleLabels(); });
+    gpu?.frameEnd();
     tech.perf?.end();
   }
   frame();
@@ -1642,7 +1676,9 @@ async function main() {
   }
 
   window.__vc = {
-    frameErrors, seaSSR, stillAA, ctLab, textureCache: TEXTURE_CACHE, shadowCache, gbufferCache, localProbes, photo, ambience, M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, h2rRide, select, goPreset, jump, renderer, env,
+    /** The next frame as drawn, a PNG data URL (for the checks). */
+    grab: () => new Promise(r => { photoShot = r; }),
+    frameErrors, gpu, seaSSR, stillAA, ctLab, textureCache: TEXTURE_CACHE, shadowCache, gbufferCache, localProbes, photo, ambience, M, scene, camera, rig, exhibits, complex, launch, reentry, f16fly, gt3drive, h2rRide, select, goPreset, jump, renderer, env,
     setToggle, timings, verify, spaceState, lightState, ortho, startTour, stopTour,
     claimUserControl, tourRunToEnd, toggleMode, toggleWalk,
     walkRouteFor: (hit) => { const r = walkRoute(hit); rig.travelTo(r.route, r.look); return r; },

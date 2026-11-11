@@ -1,18 +1,36 @@
 # Instrucciones para Claude
 
-- **Idioma:** habla SIEMPRE en español con el usuario, sin excepción. Ni una palabra en inglés en los mensajes, resúmenes, preguntas, avisos de progreso ni descripciones de comandos. (El texto de la interfaz de la simulación sigue en inglés, y los comentarios del código siguen el estilo del código existente.)
-- El README se escribe en español y se actualiza con cada cambio.
-- No crear pull requests. **Empujes por bloques** (orden del usuario del 08-11-2026): el trabajo se agrupa en bloques con sentido y pocos commits; durante el bloque solo se empuja de vez en cuando a la rama de la sesión, como copia de seguridad (el contenedor es efímero), sin vigilar CI. Al cerrar cada bloque se empuja a las cinco ramas —`claude/dreamy-bell-qn1eth`, `grok/sun18-audit-10c9929`, `claude/elegant-ptolemy-l99qgo`, `claude/affectionate-euler-o447rh` y `claude/spacex-vehicle-center-3d-48zlkm`— más la de la sesión, y se comprueba una sola vez el CI y el despliegue de Pages. (`claude/amazing-ramanujan-dj19ea`, rama de una sesión anterior, ya no recibe empujes: se quedó en `587e49c`.)
-- **Empezar o retomar:** lee este archivo, después `TRASPASO.md` (sección «Empieza aquí», primero «Estado actual») y del `README.md` la sección «Estado actual», «Estructura» y la del trabajo en curso (el diario de las rondas anteriores está en `docs/rondas/`, con su índice). Comprueba que las seis ramas están en el mismo commit y que el último CI y el despliegue de Pages están en verde. No hay un objetivo fijo: el usuario dice en cada sesión qué toca.
-- **Flujos, subagentes y esfuerzo:** Flujos de trabajo (`Workflow`), subagentes (`Agent`), nivel de esfuerzo, `ultracode` y demás modos o ajustes de Claude Code: **los decide el usuario en cada tarea y punto; no hay configuración fija ni regla permanente.** Haz lo que diga en ese momento y, si no dice nada, trabaja directamente tú.
-- **Commits y código:** los mensajes de commit van en inglés, con el pie de atribución que indique el sistema; los comentarios del código siguen el estilo del que hay. Lee el código de alrededor antes de añadir nada.
-- No regenerar la galería de capturas hasta que el usuario lo apruebe.
-- Escala 1:1, solo medidas verificables, y las aproximaciones marcadas como tales. Sin plataformas de lanzamiento extra, sin modo noche, sin plantas ni objetos nuevos en el entorno. **Logotipos y rótulos:** desde el 14-10-2026 (orden del usuario) se permiten y se añaden los que lleva el vehículo real (marcas, rótulos de fábrica, insignias y banderas pintadas en el propio vehículo), fieles a las fotos y a escala.
-- Las fotos con derechos de autor solo como referencia, nunca en el repositorio; nunca eludir protecciones antibots ni límites de peticiones; el email del usuario nunca va a servicios externos.
-- **Comprobación por niveles** (orden del usuario del 03-10-2026):
-  - Antes de cada commit, `npm run check:static` (lint, procedencia y las pruebas de física de todos los vehículos, ≈2–3 min) tiene que terminar con código 0.
-  - El `npm run check` completo (≈25–30 min, con navegador) se ejecuta una vez al cerrar cada bloque de trabajo o al final de la sesión, antes del último push.
-  - CI ya ejecuta el check completo en cada push y no despliega si falla: tras empujar, comprueba que los trabajos y el despliegue salen en verde y, si algo falla, arréglalo enseguida.
-- **Blender sin MCP** (orden del usuario del 23-10-2026, sustituye a la «regla absoluta» del 15-10 de trabajar en su Blender por MCP): no se usa el Blender de escritorio del usuario por Blender MCP. Claude usa **su propio Blender 5.2.2 LTS sin interfaz** en el entorno del agente (`blender -b --factory-startup --python …`), con los scripts de `blender/`. Instalación, diferencias con el MCP y prueba real: `TRASPASO.md` («Estado actual (23-10-2026)») y la auditoría `docs/auditoria-2026-10-20-spacex-cybertruck.md` §11.
-- **El Cybertruck Lab** (desde el 23-10-2026): el Cybertruck no es un expositor ni entra en la escena principal; vive en `src/ui/cybertruckLab.js` (botón *Cybertruck · Lab*, tecla **U**), con su GLB copiado en `assets/cybertruck/` por `node tools/cybertruck-sync.mjs` desde el repositorio `cybertruck`. Si cambia allí el GLB, vuelve a sincronizar y pasa `node tools/cybertruck-check.mjs` y `npm run check:cybertruck`. Plan por fases: auditoría §4.10; estado en `TRASPASO.md` («Estado actual (23-10-2026)»).
-- **La H2R y Blender:** el modelo de la Kawasaki Ninja H2R sale de `assets/h2r/h2r.glb`, generado por `blender/h2r/build.py`; el pilotaje, la física, el sonido y las animaciones siguen en código (`src/sim/h2r*.js`) y buscan sus piezas por nombre. Si cambias el `.glb` o `blender/`, pasa también `node tools/check.mjs`. El procedimiento está en `TRASPASO.md` («Estado actual») y en `docs/rondas/h2r.md` («La H2R pasa a Blender»; el README ya solo lleva el estado actual y su índice de rondas).
+Reglas vigentes, cada una con su porqué. Lo histórico está en `TRASPASO.md` y en `docs/rondas/`.
+
+## Comunicación
+- **Siempre en español con el usuario**: mensajes, resúmenes, preguntas, avisos y descripciones de comandos. El usuario solo habla español. La interfaz de la simulación y los comentarios del código siguen en inglés.
+- Una línea al empezar, avisos breves mientras se trabaja y, al final, un resumen que se entienda solo: qué se encontró, qué se hizo, qué está comprobado y qué no, y qué falta. Si algo no se pudo medir o verificar, se dice así.
+- Cuando algo cambie lo que se ve, una imagen de antes y después en `docs/`.
+
+## Empezar o retomar
+- Lee este archivo, después `TRASPASO.md` («Empieza aquí») y del `README.md` «Estado actual» y «Estructura».
+- Comprueba que las seis ramas están en el mismo commit y que el último CI y el despliegue de Pages están en verde. Si la copia local tiene cambios sin subir de otra sesión, guárdalos en una rama local antes de tocar nada.
+- No hay objetivo fijo: el usuario dice en cada sesión qué toca. Flujos, subagentes y nivel de esfuerzo los decide él en cada tarea; si no dice nada, trabaja directamente.
+
+## Git y comprobaciones
+- Sin pull requests. Al cerrar un bloque, el mismo commit va a las seis ramas: `claude/spacex-vehicle-center-3d-48zlkm` (la que despliega Pages), `claude/vigilant-bohr-mlvmxf`, `claude/dreamy-bell-qn1eth`, `grok/sun18-audit-10c9929`, `claude/elegant-ptolemy-l99qgo` y `claude/affectionate-euler-o447rh`, más la de la sesión si es otra. Porque el usuario sigue el proyecto desde todas ellas.
+- Commits en inglés con el pie de atribución que indique el sistema; comentarios del código en el estilo del que hay. Lee el código de alrededor antes de añadir nada.
+- `npm run check:static` (lint, procedencia y física, ≈2–3 min en Linux, más en Windows) antes de cada commit. El `npm run check` completo (≈25–30 min, con navegador) al cerrar cada bloque, antes del último empuje. El CI lo vuelve a pasar en cada empuje y no despliega si falla: tras empujar, comprueba que todo sale en verde y, si algo falla, arréglalo enseguida. Un empuje nuevo a `…48zlkm` cancela el CI en marcha de esa rama.
+
+## Rendimiento
+- El usuario quiere ganar calidad, no perderla, y que funcione bien en su RTX 3070 a 3440 × 1440. Nada de calidad adaptativa ni bajadas automáticas de nivel; las mejoras de rendimiento vienen de técnicas más inteligentes y de medir.
+- **Medir en GPU real antes de opinar.** Si la sesión corre en el PC del usuario (Windows, RTX 3070), `npm run bench:gpu` mide con su GPU (`docs/rendimiento-2026-11-11.md`). Las cifras de SwiftShader (contenedor y CI) no valen para rendimiento.
+- Si una mejora de rendimiento cambiaría la imagen, se enseña antes y después y se habla con el usuario.
+
+## Contenido
+- Escala 1:1, solo medidas verificables, y las aproximaciones marcadas (≈, «reconstruido», `approx: true`): es una exposición técnica y su valor es que lo que muestra sea cierto o diga que no lo es.
+- El propulsor acaba en los brazos de la torre; al mar solo va la nave.
+- Sin plataformas de lanzamiento extra, sin modo noche y sin objetos nuevos en el entorno (plantas, decorado). Si algo nuevo mejoraría la escena de verdad, se propone.
+- Logotipos y rótulos: sí los que lleva el vehículo real, fieles a las fotos y a escala.
+- Fotos con derechos de autor solo como referencia, nunca en el repositorio. Nunca eludir protecciones antibots ni límites de peticiones. El email del usuario nunca va a servicios externos.
+- No regenerar la galería de capturas (`docs/screenshots`, `docs/hud`, `npm run shots`) sin la aprobación del usuario.
+
+## Herramientas
+- **Blender 5.2.2.** El Blender de escritorio del usuario responde por MCP (comprobado el 11-11-2026, a petición suya); también vale Blender sin interfaz con los scripts de `blender/` (`blender -b --factory-startup --python …`). Los `.glb` que salen de Blender (H2R, Model Y, Porsche) se generan desde esos scripts; el pilotaje, la física, el sonido y las animaciones siguen en código y buscan sus piezas por nombre. Si cambias un `.glb` o `blender/`, pasa también `node tools/check.mjs`.
+- **El Cybertruck Lab** (tecla U, `src/ui/cybertruckLab.js`) trae su GLB del repositorio `cybertruck` con `node tools/cybertruck-sync.mjs`; si cambia allí, vuelve a sincronizar y pasa `node tools/cybertruck-check.mjs` y `npm run check:cybertruck`.
+- **three.js r170** con parches de fragmentos (`core/pcss.js`, `core/fogSun.js`) que fallan al arrancar si three.js cambia: actualizarlo exige rehacerlos.

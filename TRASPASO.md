@@ -4,9 +4,22 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ---
 
-## ⭐ Empieza aquí (estado real al 08-11-2026: lee primero «Estado actual (08-11-2026)», después «Estado actual (23-10-2026)», «Estado actual (17-10-2026)», «Estado actual (08-10-2026)», «Sesión del 05-10-2026 (quinta)», «Sesión del 04-10-2026 (cuarta)» y «Cierre de la sesión del 04-10-2026 (tercera)»)
+## ⭐ Empieza aquí (estado real al 11-11-2026: lee primero «Estado actual (11-11-2026)»; lo de debajo es historia, más antigua cuanto más abajo)
 
-### Estado actual (08-11-2026): léelo primero
+### Estado actual (11-11-2026): léelo primero
+
+- **Encargo del usuario (11-11):** el mayor salto de calidad y realismo del proyecto, en todo (imagen, modelos, física, sonido, interfaz, código), sin perder calidad y funcionando bien en su RTX 3070 a 3440 × 1440. Lo primero era el rendimiento: «ni siquiera he podido completar `?perf=log`».
+- **Esta sesión corrió en el PC del usuario** (Windows 11, RTX 3070, i7-12700F), no en un contenedor: por primera vez hay cifras de GPU real. Todo está en `docs/rendimiento-2026-11-11.md`.
+- **Bloque 1 hecho, rendimiento:**
+  - Herramientas: `npm run bench:gpu` (`tools/gpu-bench.mjs`, Chrome con la GPU real), `?gpu` / `?gpu=objects` (`core/gpuProfiler.js`, temporizadores de GPU por pasada y por grupo) e interruptores al cargar (`?off=…`, `?pr=`, `?shadow=`, `?msaa=`, `?clouds=`).
+  - Hallazgo: las nubes volumétricas eran 62 de los 76 ms de la vista general; PCSS, sombras de 8 192, MSAA y la densidad de píxeles casi no pesaban.
+  - Arreglos: nubes marchadas a 1/16 por fotograma con reproyección (`core/cloudsTemporal.js`, prueba `tools/clouds-temporal-check.mjs`); la manga de viento ya no obliga a redibujar la oclusión (`gbufferCache.js`, umbral de 48 px); el calentamiento ya no oculta las luces de Starship (los programas se compilaban dos veces).
+  - Resultado: 12–13 → 44–54 FPS en todas las vistas, 47–59 en el lanzamiento; primera carga 53 → 42–45 s; desde la segunda visita ≈10 s.
+- **Trabajo viejo sin subir:** la copia local tenía cambios de octubre nunca empujados (el Roadster en Blender, a medias, y un Audi Lab que después se borró). Están en la rama **local** `wip/roadster-blender-2026-10` (`c506f4c`), no empujada.
+- **Blender:** el Blender de escritorio del usuario responde por MCP (5.2.2 LTS, comprobado el 11-11). `CLAUDE.md` se reescribió: seis ramas, cada regla con su motivo.
+- **Siguiente** (propuesto, sin hacer): bajar la marcha de nubes (≈7 ms) y la CPU (6–12 ms) para pasar de 60 FPS; las 9 luces locales de Starship (≈1,5 ms y compilación); y después los saltos de calidad: atmósfera física, humo volumétrico, materiales y modelos.
+
+### Estado actual (08-11-2026)
 
 0a. **Crítica del subagente del 9-11: los tres bloques están hechos** (todo salvo el amerizaje del propulsor). Detalle y límites en `docs/auditoria-2026-11-08-chatgpt-trabajo.md` («Crítica del subagente…»).
    - Piezas nuevas: `core/pcss.js` (parchea el fragmento de sombras de three.js r170: **no actualizar three.js sin rehacerlo**), `core/ssr.js`, `core/stillAA.js` (apagado bajo automatización salvo `?stillaa`), `core/hashGLSL.js`, `sim/groundCloud.js` y `blender/spray/build.py`.

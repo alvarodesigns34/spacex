@@ -38,7 +38,10 @@ const sha = (buf) => createHash('sha256').update(buf).digest('hex');
   };
   const bad = [];
   for (const [f, h] of Object.entries(R170)) {
-    const got = await readFile(at('vendor/three/examples/jsm/' + f)).then(sha, () => 'missing');
+    // Text files with their line ends as the repository stores them (LF): a Windows checkout with
+    // core.autocrlf writes CRLF, the same file.
+    const lf = (b) => (f.endsWith('.wasm') ? b : Buffer.from(b.toString('latin1').replace(/\r\n/g, '\n'), 'latin1'));
+    const got = await readFile(at('vendor/three/examples/jsm/' + f)).then(b => sha(lf(b)), () => 'missing');
     if (got !== h) bad.push(`${f} (${got === 'missing' ? 'missing' : 'differs'})`);
   }
   report(!bad.length, 'vendor: DRACOLoader, el decodificador Draco y Reflector son los de three r170, byte a byte', bad.length ? bad.join(', ') : `${Object.keys(R170).length} archivos`);

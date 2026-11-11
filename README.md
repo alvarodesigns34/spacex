@@ -35,7 +35,16 @@ El entorno es contexto verosímil, no un levantamiento: la llanura costera de Bo
 
 La interfaz de la simulación (menús, ficha técnica, etiquetas y vistas) está en inglés; esta documentación, en español.
 
-## Estado actual (9 de noviembre de 2026)
+## Estado actual (11 de noviembre de 2026)
+
+- **Rendimiento medido por primera vez en una GPU real** (la RTX 3070 del usuario, a 3424 × 1345). Todo el detalle, con tablas y la comparativa de imagen, en [docs/rendimiento-2026-11-11.md](docs/rendimiento-2026-11-11.md).
+  - **De 12–13 FPS a 44–54 en todas las vistas**, y 47–59 durante el lanzamiento, sin bajar ningún ajuste.
+  - La causa eran las **nubes volumétricas**: 62 de los 76 ms de cada fotograma. Ahora cada fotograma marcha un píxel de cada 16 y el resto se reproyecta de los anteriores (`src/core/cloudsTemporal.js`), con la misma función de marcha: **62 → 7 ms**, y el cielo queda igual, con menos grano (diferencia media de 0,69 niveles de gris de 255, prueba `tools/clouds-temporal-check.mjs`).
+  - La **oclusión ambiental** se redibujaba entera cada fotograma por la manga de viento de la pista; ahora no (`gbufferCache.js`): la CPU de la vista general baja de 15 a 10 ms.
+  - **Carga**: el calentamiento de sombreadores ocultaba las luces de Starship y compilaba casi todo dos veces. Programas: 249 → 154; primera visita: 53 → 42–45 s; **desde la segunda, ≈10 s**.
+- **Para medir** (en un PC con GPU): `npm run bench:gpu` recorre vistas fijas en Chrome con la GPU real; en la web, `?gpu` (y `?gpu=objects`) añade temporizadores de GPU por pasada que se leen en la consola con `__vc.gpu.report()`; y `?off=ao,ssr,stillaa,bloom,pcss,shadows,cloudshadows,probes`, `?pr=1`, `?shadow=4096`, `?msaa=0` o `?clouds=N` apagan una pieza al cargar.
+
+### Hasta el 9 de noviembre de 2026
 
 - **Auditoría externa de ChatGPT del 8-11 (bloque 1)**, trabajo y comparativas en [docs/auditoria-2026-11-08-chatgpt-trabajo.md](docs/auditoria-2026-11-08-chatgpt-trabajo.md):
   - **Calidad completa siempre:** sin calidad adaptativa (borrado `core/adaptive.js`), sin bajada automática de nivel por dispositivo (solo `?quality=`) y sin LOD en calidad alta, incluidos los neumáticos del Model Y (borrado `latheLod.js`). Prueba `tools/quality-check.mjs`.
@@ -567,6 +576,8 @@ src/ui/hud.js              interfaz
 src/ui/telemetryList.js    lecturas de conducción y vuelo como texto, para lectores de pantalla
 src/core/campus.js         el recinto alrededor de los expositores (explanada, viales, valla, mobiliario): verosímil, no un levantamiento
 src/core/clouds.js         cúmulos de buen tiempo sobre la llanura costera
+src/core/cloudsTemporal.js la marcha de las nubes repartida entre fotogramas, con reproyección
+src/core/gpuProfiler.js    temporizadores de GPU por pasada y por grupo (?gpu, ?gpu=objects)
 src/core/outerGround.js    el suelo más allá del disco (llanura, playa y golfo hasta 450 km), para lo que vuela desde el sitio
 src/core/runway.js         la pista 10/28 del F-16, su calle de rodaje, la plataforma, marcas, luces y manga de viento
 src/core/wind.js           el viento del sitio: un solo campo para el F-16, el Porsche, la H2R, la manga y el vapor del pad
