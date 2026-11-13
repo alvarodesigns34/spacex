@@ -584,7 +584,9 @@ export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'tr
       const { px, py, cd, sd, wx, gr, R, tyre, bt, drive } = W[i];
       let w = wn[i];
       // A brake stops a wheel; it cannot turn it backwards.
-      if (bt > Math.abs(drive) && Math.sign(w) !== Math.sign(s.w[i]) && Math.abs(s.w[i]) > 0) w = 0;
+      // Nor a wheel at rest on a car at rest (it was pushed back a little each step and let go the
+      // next: a wheel speed that buzzed about zero, and tyre forces with it).
+      if (bt > Math.abs(drive) && (Math.sign(w) !== Math.sign(s.w[i]) || s.w[i] === 0) && (Math.abs(s.w[i]) > 0 || Math.abs(wx) < 0.25)) w = 0;
       // A wheel all but off the ground (the inner front in a fast corner) has nothing turning it
       // but the road's air and its bearings: it runs at the road's speed (≈), not on, lagging, as
       // a phantom slip.

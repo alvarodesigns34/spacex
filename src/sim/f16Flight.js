@@ -321,7 +321,8 @@ export function createF16Flight({ ground, solid = null, wind = null }) {
     // Out of fuel, the engine stops.
     if (s.fuel <= 0) { s.fuel = 0; s.flameout = true; s.power = 0; }
     s.thrust = s.flameout ? 0 : thrust(s.power, GEO.h, air.mach);
-    if (!s.flameout) { const dm = fuelFlow(s.power, s.thrust) * dt; s.fuel -= dm; s.mass -= dm; }
+    // No more than there is: the last step's burn is what is left in the tank, not a full step's.
+    if (!s.flameout) { const dm = Math.min(s.fuel, fuelFlow(s.power, s.thrust) * dt); s.fuel -= dm; s.mass -= dm; }
     // Gear (≈ 6 s each way) and speed brakes (≈ 2 s).
     s.gearCmd = input.gearDown || s.wow ? 1 : 0;
     s.gear += clamp(s.gearCmd - s.gear, -dt / 6, dt / 6);
@@ -375,7 +376,9 @@ export function createF16Flight({ ground, solid = null, wind = null }) {
     const Fw = modelFromBody(Fb[0], Fb[1], Fb[2], X.Fw);
     toWorld(Fw);
     // The aerodynamic load factor, body z (positive up), for the pitch law.
-    s.nz = -Fb[2] / W;
+    // Against the aircraft's weight now, not the table's reference: with 3 t of fuel burnt the
+    // same force is a third more g, and the pitch law limits what it is told (13-11-2026).
+    s.nz = -Fb[2] / (s.mass * G0);
 
     // Gear and hard points against the ground.
     s.wow = false;
@@ -472,7 +475,7 @@ export function createF16Flight({ ground, solid = null, wind = null }) {
     }
 
     // The load factor the pilot feels: every force but gravity, along the airframe's up.
-    s.load = Fw.dot(tmpV.set(0, 1, 0).applyQuaternion(s.q)) / W;
+    s.load = Fw.dot(tmpV.set(0, 1, 0).applyQuaternion(s.q)) / (s.mass * G0);
     // Translation.
     // Gravity down the normal of the sea beneath, falling with height (geodesy()).
     const acc = Fw.multiplyScalar(1 / s.mass);

@@ -19,6 +19,7 @@
  */
 import * as THREE from 'three';
 import { createSceneSignature } from './sceneSignature.js';
+import { drawsDepth } from './ao.js';
 
 const MAX_AGE_MS = 1000;
 // 1.5 px until 11-11-2026. Measured on the user's RTX 3070: from the overview the windsock spans
@@ -33,8 +34,7 @@ function inBuffer(o) {
   if (!o.isMesh) return false;
   const m = o.material;
   if (!m) return false;
-  const first = Array.isArray(m) ? m[0] : m;
-  return !(first && (first.transparent || first.depthWrite === false || first.blending === THREE.AdditiveBlending));
+  return drawsDepth(m);
 }
 
 export function createGBufferCache(pass, scene, camera) {

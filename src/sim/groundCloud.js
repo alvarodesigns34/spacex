@@ -506,7 +506,12 @@ export class GroundCloud {
     }
   }
 
-  update(dt, camera, sun) {
+  /**
+   * @param light false steps the puffs only: their light (selfShadow) and the upload depend on the
+   *        state alone, so a caller stepping many ticks in a row (a seek, ×10) asks for them once,
+   *        with finish(), instead of once per tick — a seek to T+40 was 1 200 shadow passes.
+   */
+  update(dt, camera, sun, light = true) {
     if (camera && sun) {
       if (sun.target) {
         _sunDir.subVectors(sun.position, sun.target.position).normalize();
@@ -579,6 +584,11 @@ export class GroundCloud {
       extra[i * 3 + 1] = kind[i];
     }
     this.live = hi + 1;
+    if (light) this.finish();
+  }
+
+  /** The light through the cloud and the upload, for the state as it stands. */
+  finish() {
     this.selfShadow();
     this.flush();
   }
@@ -646,6 +656,6 @@ export class GroundCloud {
   dispose() {
     this.points.geometry.dispose();
     this.points.material.dispose();
-    this.map.dispose();
+    // Not the map: puffTexture() is one texture shared by every cloud and the vapour.
   }
 }

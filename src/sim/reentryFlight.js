@@ -40,7 +40,7 @@
  * (the belly flop is at its terminal speed there: ≈0,5 m/s² is left, which the quintic drops),
  * and ending at rest on the water with no acceleration left.
  */
-import { soundSpeedAt } from './launch.js';
+import { soundSpeedAt } from './launchModel.js';
 import { missionChain, MU, R_EARTH, MISSION } from './mission.js';
 
 const hms = (h, m, s) => h * 3600 + m * 60 + s;

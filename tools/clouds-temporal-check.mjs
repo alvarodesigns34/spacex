@@ -75,6 +75,21 @@ try {
     const turnedRef = await sky();
     res.turnedVsRef = diff(turned, turnedRef);
     res.turnedVsBefore = diff(turned, before);
+    // A change of Sun with the camera still: after one round of the 16 the whole picture is the new
+    // light's (it used to keep half the old one in 15 pixels of every 16).
+    clouds.temporalOn = true; await frames(40);
+    const { elev: sun0, azim: az0 } = vc.env.sunAngles ?? {};
+    if (typeof vc.env.setSun === 'function' && Number.isFinite(sun0)) {
+      vc.env.setSun(sun0 > 30 ? 8 : 55, az0, { immediate: true }); await frames(22);
+      const relit = await sky();
+      res.relightingLeft = t.relighting;
+      clouds.temporalOn = false; await frames(3);
+      const relitRef = await sky();
+      res.relit = diff(relit, relitRef);
+      res.relitVsOld = diff(relit, turned);
+      vc.env.setSun(sun0, az0, { immediate: true }); await frames(3);
+    }
+    // No pixel of the stored distance is infinite or NaN (1e5 did not fit a 16-bit float).
     res.errors = [...vc.frameErrors.keys()];
     return res;
   });
@@ -85,6 +100,10 @@ try {
   ok(r.still.mean < 4 && r.still.p99 < 24, `still camera: the same sky as the per-pixel march (mean ${r.still.mean.toFixed(2)}, p99 ${r.still.p99})`);
   ok(r.turnedVsRef.mean < r.turnedVsBefore.mean, `turned camera: the clouds follow the view (vs turned reference ${r.turnedVsRef.mean.toFixed(2)}, vs the frame before ${r.turnedVsBefore.mean.toFixed(2)})`);
   ok(r.turnedVsRef.mean < 6, `turned camera: close to the per-pixel march of the new view (mean ${r.turnedVsRef.mean.toFixed(2)})`);
+  if (r.relit) {
+    ok(r.relightingLeft === 0, 'a change of Sun: the replacing round is over after 22 frames');
+    ok(r.relit.mean < 4 && r.relit.p99 < 24, `a change of Sun: the whole sky is the new light's after one round (mean ${r.relit.mean.toFixed(2)}, p99 ${r.relit.p99}; against the old light ${r.relitVsOld.mean.toFixed(2)})`);
+  } else ok(false, 'a change of Sun could not be driven (env.setSun / env.sunAngles)');
   ok(r.errors.length === 0, `no frame errors${r.errors.length ? ': ' + r.errors.join('; ') : ''}`);
 } finally {
   await browser.close();

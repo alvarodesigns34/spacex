@@ -431,7 +431,8 @@ export function createH2rBike({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 't
         s.air = false; s.y = gy; s.vy = vSlope; s.gradePitch = pitch;
       }
     }
-    s.wheelAngleF += s.u / BIKE.RF * dt; s.wheelAngleR += s.wR * dt;
+    // A locked front does not turn: it skids (s.lock counts the time it has been locked).
+    s.wheelAngleF += (s.lock > 0 ? 0 : s.u / BIKE.RF) * dt; s.wheelAngleR += s.wR * dt;
   }
 
   /**

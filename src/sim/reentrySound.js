@@ -25,7 +25,7 @@
  * It is not a measured spectrum, and the boom's time is the model's, not the flight's.
  */
 import { RE, CHAPTER, reentryState, reentrySpeedAt, reentryEnginesAt, densityAt, toSplashAt } from './reentryFlight.js';
-import { soundSpeedAt } from './launch.js';
+import { soundSpeedAt } from './launchModel.js';
 import { audio, claim } from './audioBus.js';
 
 const REF_D = 160;          // engines at full level inside this distance (the launch's)

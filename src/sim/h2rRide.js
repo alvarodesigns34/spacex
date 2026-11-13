@@ -197,7 +197,7 @@ export function createH2rRide({ scene, exhibit, rig, camera, ground, obstacles, 
     if (steer) steer.quaternion.copy(steerBase).multiply(new THREE.Quaternion().setFromAxisAngle(STEER_AXIS, -s.steer));
     if (spinF) spinF.rotation.z = -(s.wheelAngleF % (Math.PI * 2));
     if (spinR) spinR.rotation.z = -(s.wheelAngleR % (Math.PI * 2));
-    if (swing) swing.rotation.z = -s.susR * 1.2;
+    if (swing) swing.rotation.z = -(s.susR - SAG.r) * 1.2;
     if (impeller) { impellerAngle = (impellerAngle + s.rpm / 60 * 9.2 * Math.PI * 2 * dt) % (Math.PI * 2); impeller.rotation.z = impellerAngle; }
     // The dash, redrawn at ≈15 Hz.
     if (dash?.userData.draw && (dashT += dt) > 1 / 15) { dashT = 0; dash.userData.draw(s.rpm, s.crashed ? '-' : s.gear + 1, s.u * 3.6, s.phi * R2D, s.aids); }

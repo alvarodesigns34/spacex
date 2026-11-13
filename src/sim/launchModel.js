@@ -186,8 +186,12 @@ function buildProfile() {
         const aT = thr * S.thrust / m;
         const want = Math.PI / 2 - Math.atan(Math.tan(e0) - c * (tt - EVENTS.separation));
         a += THREE.MathUtils.clamp(want - a, -MAX_RATE * dt, MAX_RATE * dt);
-        vx += aT * Math.sin(a) * dt;
-        vh += (aT * Math.cos(a) - g + (vx * vx) / r) * dt;
+        // Local horizontal and vertical on a sphere: both carry a term of the turning frame — the
+        // centrifugal one on the vertical and −vx·vh/r on the horizontal. Without the second (as
+        // it was until 13-11-2026) a coasting ship's angular momentum r·vx grew as it climbed.
+        const ax = aT * Math.sin(a) - (vx * vh) / r, ah = aT * Math.cos(a) - g + (vx * vx) / r;
+        vx += ax * dt;
+        vh += ah * dt;
         xx += vx * dt; hh += vh * dt;
         if (burning) m = Math.max(S.dry, m - thr * mdot * dt);
         tt += dt;

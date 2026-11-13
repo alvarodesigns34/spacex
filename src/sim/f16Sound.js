@@ -216,7 +216,7 @@ export function createF16Sound() {
     let engine = null;
     try {
       const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
-      await ctx.audioWorklet.addModule(url);
+      try { await ctx.audioWorklet.addModule(url); } finally { URL.revokeObjectURL(url); }
       engine = new AudioWorkletNode(ctx, 'f16-f100', { numberOfInputs: 0, numberOfOutputs: 2, outputChannelCount: [1, 1] });
       engine.connect(inlet.input, 0); engine.connect(jet.input, 1);
     } catch {

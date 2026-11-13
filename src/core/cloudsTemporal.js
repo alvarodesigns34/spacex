@@ -23,12 +23,16 @@
  * What it changes on screen: with a still or slowly turning camera, nothing but less grain (each
  * pixel averages its marches). A view that swings fast shows its newly uncovered edge at 4-pixel
  * resolution for up to a quarter of a second; a change of Sun or cover re-marches every pixel over
- * the next 16 frames from the old picture. The cube cameras of the reflection probes still see the
+ * the next 16 frames from the old picture. Where a ray meets no cloud the stored distance is
+ * CLOUD_FAR, which a 16-bit float holds (1e5, as it was, is past its 65 504 and was stored as
+ * infinity: every reprojection through it was invalid, so cloud edges fell back to the 4-pixel grid
+ * whenever the camera moved). The cube cameras of the reflection probes still see the
  * per-pixel dome (this needs a history in screen space).
  */
 import * as THREE from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { COVER_GLSL, VOLUME_FN } from './clouds.js';
+import { CLOUD_FAR } from './cloudConstants.js';
 
 const BLOCK = 4;
 // The pixel of a 4 × 4 block marched at frame n: a Bayer order, so each frame's samples are spread.
@@ -54,7 +58,15 @@ export function createCloudTemporal(uniforms) {
   const opts = { type: THREE.HalfFloatType, depthBuffer: false, count: 2, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter };
   const fresh = new THREE.WebGLRenderTarget(1, 1, { ...opts, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
   let hist = [new THREE.WebGLRenderTarget(1, 1, opts), new THREE.WebGLRenderTarget(1, 1, opts)];
-  for (const t of [fresh, ...hist]) for (const tx of t.textures) tx.generateMipmaps = false;
+  for (const t of [fresh, ...hist]) {
+    for (const tx of t.textures) tx.generateMipmaps = false;
+    // The distance is one number: a single 16-bit channel, not four (13-11-2026; at 3440 × 1440 the
+    // two histories' distances were 79 MB of the 158 they took, by the formats). And it is never
+    // blended between texels: halfway between a cloud at 3 km and the empty sky is not a place.
+    const d = t.textures[1];
+    d.format = THREE.RedFormat; d.internalFormat = 'R16F';
+    d.minFilter = d.magFilter = THREE.NearestFilter;
+  }
 
   const tu = {
     uInvVP: { value: new THREE.Matrix4() }, uPrevVP: { value: new THREE.Matrix4() },
@@ -84,7 +96,7 @@ export function createCloudTemporal(uniforms) {
         vec2 px = floor(gl_FragCoord.xy) * ${BLOCK.toFixed(1)} + uOffset + 0.5;
         float hit;
         oColor = cloudMarch(uCam, rayOf(px), px, fract(uFrame * 0.6180339887), hit);
-        oDist = vec4(hit, 0.0, 0.0, 1.0);
+        oDist = vec4(min(hit, ${CLOUD_FAR.toFixed(1)}), 0.0, 0.0, 1.0);
       }`,
     depthTest: false, depthWrite: false,
   }));
@@ -103,6 +115,25 @@ export function createCloudTemporal(uniforms) {
       layout(location = 0) out vec4 oColor;
       layout(location = 1) out vec4 oDist;
       ${RAY_GLSL}
+      // The history read with a Catmull-Rom filter in five bilinear taps (Jimenez, "Filmic SMAA",
+      // SIGGRAPH 2016): a history reprojected every frame of a turning camera is resampled every
+      // frame, and a bilinear read each time is a blur that builds up; this one keeps the edges.
+      // On a texel's centre (a still camera) it returns that texel exactly.
+      vec4 history(vec2 uv) {
+        vec2 pos = uv * uRes, tc = floor(pos - 0.5) + 0.5, f = pos - tc, f2 = f * f, f3 = f2 * f;
+        vec2 w0 = f2 - 0.5 * (f3 + f), w1 = 1.5 * f3 - 2.5 * f2 + 1.0, w3 = 0.5 * (f3 - f2), w2 = 1.0 - w0 - w1 - w3;
+        vec2 w12 = w1 + w2, t12 = (tc + w2 / w12) / uRes, t0 = (tc - 1.0) / uRes, t3 = (tc + 2.0) / uRes;
+        vec4 c = texture(uHistC, vec2(t12.x, t0.y)) * (w12.x * w0.y)
+               + texture(uHistC, vec2(t0.x, t12.y)) * (w0.x * w12.y)
+               + texture(uHistC, vec2(t12.x, t12.y)) * (w12.x * w12.y)
+               + texture(uHistC, vec2(t3.x, t12.y)) * (w3.x * w12.y)
+               + texture(uHistC, vec2(t12.x, t3.y)) * (w12.x * w3.y);
+        c /= w12.x * w0.y + (w0.x + w12.x + w3.x) * w12.y + w12.x * w3.y;
+        // The filter's negative lobes can undershoot at a bright edge: light is not negative, and
+        // premultiplied colour does not exceed what its coverage allows by much.
+        c = max(c, vec4(0.0)); c.a = min(c.a, 1.0);
+        return c;
+      }
       vec2 prevUv(vec3 p, out bool on) {
         vec4 c = uPrevVP * vec4(p, 1.0);
         vec2 uv = c.xy / c.w * 0.5 + 0.5;
@@ -123,7 +154,7 @@ export function createCloudTemporal(uniforms) {
         vec2 p1 = prevUv(uCam + d * dist, on);
         if (on) { dist = texture(uHistD, p1).r; p1 = prevUv(uCam + d * dist, on); }
         bool valid = uValid > 0.5 && on;
-        vec4 hc = texture(uHistC, p1);
+        vec4 hc = history(p1);
         float hd = texture(uHistD, p1).r;
         if (marched) {
           vec4 fc = texelFetch(uFreshC, cell, 0);
@@ -146,8 +177,15 @@ export function createCloudTemporal(uniforms) {
   fresh.textures[1].minFilter = fresh.textures[1].magFilter = THREE.LinearFilter;
 
   const vp = new THREE.Matrix4(), prevVP = new THREE.Matrix4();
-  const lastSun = new THREE.Vector3(), lastCover = { v: -1 };
-  let frame = 0, valid = false, w = 0, h = 0;
+  const lastSun = new THREE.Vector3();
+  // Everything the march's light depends on besides the Sun's direction.
+  const LIGHT = [
+    () => uniforms.uCover.value, () => uniforms.uLight.value, () => uniforms.uFade.value,
+    () => uniforms.uSunColor.value.r, () => uniforms.uSunColor.value.g, () => uniforms.uSunColor.value.b,
+    () => uniforms.uShade.value.r, () => uniforms.uShade.value.g, () => uniforms.uShade.value.b,
+  ];
+  const lastLight = LIGHT.map(() => NaN);
+  let frame = 0, valid = false, w = 0, h = 0, relitLeft = 0;
   const size = new THREE.Vector2();
   const stats = { marched: 0, resets: 0 };
 
@@ -157,6 +195,8 @@ export function createCloudTemporal(uniforms) {
     get color() { return hist[0].textures[0]; },
     get dist() { return hist[0].textures[1]; },
     get resolution() { return tu.uRes.value; },
+    /** Frames left of the round that replaces the picture after a change of light (0: settled). */
+    get relighting() { return relitLeft; },
     /** Forget the history (a lost context, a change of size). */
     invalidate() { valid = false; },
     /** Once a frame, before the scene is drawn, with the camera as it will be drawn (unjittered). */
@@ -177,28 +217,46 @@ export function createCloudTemporal(uniforms) {
       const [ox, oy] = ORDER[frame % ORDER.length];
       tu.uOffset.value.set(ox, oy);
       tu.uFrame.value = frame;
-      // A new Sun or cover: the old picture is still the best guess, but a pixel's turn replaces it.
-      const relit = lastSun.distanceToSquared(uniforms.uSun.value) > 1e-10 || lastCover.v !== uniforms.uCover.value;
-      lastSun.copy(uniforms.uSun.value); lastCover.v = uniforms.uCover.value;
-      tu.uMix.value = relit ? 1 : 0.5;
+      // A new light (Sun, cover, day or the fade with height): the old picture is still the best
+      // guess, but each pixel's next march replaces it instead of being averaged into it — for a
+      // whole round of the 16, not for the one frame of the change (13-11-2026: that replaced one
+      // pixel in 16 and left the other 15 half the old light for good).
+      let relit = lastSun.distanceToSquared(uniforms.uSun.value) > 1e-10;
+      for (let i = 0; i < LIGHT.length; i++) {
+        const v = LIGHT[i]();
+        if (Math.abs(v - lastLight[i]) > 1e-4) relit = true;
+        lastLight[i] = v;
+      }
+      lastSun.copy(uniforms.uSun.value);
+      if (relit) { relitLeft = ORDER.length; stats.resets++; }
+      tu.uMix.value = relitLeft > 0 ? 1 : 0.5;
+      if (relitLeft > 0) relitLeft--;
       tu.uValid.value = valid ? 1 : 0;
 
       const prevTarget = renderer.getRenderTarget(), prevAuto = renderer.autoClear;
       renderer.autoClear = false;
-      renderer.setRenderTarget(fresh);
-      march.render(renderer);
-      tu.uHistC.value = hist[0].textures[0]; tu.uHistD.value = hist[0].textures[1];
-      mark?.('cloud resolve');
-      renderer.setRenderTarget(hist[1]);
-      resolve.render(renderer);
-      renderer.setRenderTarget(prevTarget);
-      renderer.autoClear = prevAuto;
-      hist = [hist[1], hist[0]];
-      prevVP.copy(vp);
-      valid = true;
+      try {
+        renderer.setRenderTarget(fresh);
+        march.render(renderer);
+        tu.uHistC.value = hist[0].textures[0]; tu.uHistD.value = hist[0].textures[1];
+        mark?.('cloud resolve');
+        renderer.setRenderTarget(hist[1]);
+        resolve.render(renderer);
+        hist = [hist[1], hist[0]];
+        prevVP.copy(vp);
+        valid = true;
+      } catch (e) {
+        // Half a march is not a history.
+        valid = false;
+        throw e;
+      } finally {
+        // Whatever happened, the renderer goes back as it came (the frame's error barrier in
+        // main.js catches the throw, but cannot know what was left bound).
+        renderer.setRenderTarget(prevTarget);
+        renderer.autoClear = prevAuto;
+      }
       frame++;
       stats.marched++;
-      if (relit) stats.resets++;
     },
     dispose() { fresh.dispose(); for (const t of hist) t.dispose(); march.dispose(); resolve.dispose(); },
   };

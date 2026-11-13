@@ -49,7 +49,9 @@ export function adoptGt3rs(scene, M, associations = null) {
   // Only the Porsche's own materials take the occlusion: a library material the car shares with the
   // rest of the centre (the generic aluminium, the honeycomb its gt3Mesh points at) would carry it
   // onto meshes that have no second UV set.
-  const own = (lib) => /^gt3-/.test(lib.name);
+  // Nor the cabin's cloth: the procedural cabin (gt3Cabin.js) wears M.gt3Interior too, on meshes
+  // with one UV set, where the body's atlas printed as stray dark patches.
+  const own = (lib) => /^gt3-/.test(lib.name) && lib.name !== 'gt3-interior';
   const swap = (m) => {
     const key = strip(m.name);
     const lib = M[key];

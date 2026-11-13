@@ -71,10 +71,19 @@ class SceneAOPass extends GTAOPass {
       if (o.isPoints || o.isLine || o.isSprite) { o.visible = false; return; }
       const m = o.material;
       if (!m) return;
-      const first = Array.isArray(m) ? m[0] : m;
-      if (first && (first.transparent || first.depthWrite === false || first.blending === THREE.AdditiveBlending)) o.visible = false;
+      if (!drawsDepth(m)) o.visible = false;
     });
   }
+}
+
+/**
+ * Whether a mesh with this material (or these) belongs in the depth and normal buffer: any opaque
+ * part of it does. (Until 13-11-2026 only the first of a mesh's materials was looked at, so a mesh
+ * whose first group was glass lost its whole body's occlusion.)
+ */
+export function drawsDepth(m) {
+  const list = Array.isArray(m) ? m : [m];
+  return list.some(x => x && !(x.transparent || x.depthWrite === false || x.blending === THREE.AdditiveBlending));
 }
 
 export function createAO(scene, camera, width, height) {

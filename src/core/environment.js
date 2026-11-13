@@ -805,7 +805,9 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     // horizon, so the stretch is handed back over the same 9-20 km as the globe fades in.
     const gs = air.flight ? 1 : 1 + (THREE.MathUtils.clamp(1 + h / 900, 1, 34) - 1) * (1 - THREE.MathUtils.smoothstep(h, 9000, 20000));
     if (ground.scale.x !== gs) {
-      ground.scale.setScalar(gs);
+      // In the plane only (the disc lies in its local xy): scaled in z too, the sea sheet it carries
+      // sank from −0.9 to −30.6 m at full stretch and every dune stood 34 times as tall.
+      ground.scale.set(gs, gs, 1);
       for (const t of groundMaps) t.repeat.set(baseRepeat.x * gs, baseRepeat.y * gs);
     }
 

@@ -88,8 +88,9 @@ export function createEffects(scene) {
       if (K === KINDS.fire) { P.col[o + 1] = K.col[1] * (1 - 0.7 * t); P.col[o + 2] = K.col[2] * (1 - t); }
       P.alpha[i] = K.alpha * Math.min(1, P.age[i] * 10) * (K.ground ? 1 - Math.max(0, t - 0.8) * 5 : 1 - t);
     }
+    // Uploaded only while something is alive (and once more as the last particle dies).
+    if (any || P.points.visible) for (const a of ['position', 'color', 'size', 'alpha']) P.geo.attributes[a].needsUpdate = true;
     P.points.visible = any;
-    for (const a of ['position', 'color', 'size', 'alpha']) P.geo.attributes[a].needsUpdate = true;
   }
   return {
     burst,

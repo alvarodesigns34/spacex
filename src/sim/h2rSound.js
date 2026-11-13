@@ -172,7 +172,7 @@ export function createH2rSound() {
     let engine = null, fallback = null;
     try {
       const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
-      await ctx.audioWorklet.addModule(url);
+      try { await ctx.audioWorklet.addModule(url); } finally { URL.revokeObjectURL(url); }
       engine = new AudioWorkletNode(ctx, 'h2r-exhaust', { numberOfOutputs: 1, outputChannelCount: [1] });
       engine.connect(master);
     } catch {

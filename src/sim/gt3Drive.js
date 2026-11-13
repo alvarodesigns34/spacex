@@ -286,8 +286,12 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
     const gas = k('KeyW', 'ArrowUp'), brake = k('KeyS', 'ArrowDown');
     const left = k('KeyA', 'ArrowLeft'), right = k('KeyD', 'ArrowRight');
     // Throttle and brake ramp in over ≈0.15 s, as a foot does.
-    driver.throttle = ramp(driver.throttle, s.reverse ? brake * 0.35 : gas, 7);
-    driver.brake = ramp(driver.brake, s.reverse ? gas : brake, 8);
+    // In reverse the pedals swap (S drives back, W brakes) — until the car has stopped with W still
+    // held: then W is the throttle again and the gearbox takes first. Without that the car stood
+    // on its own brake in reverse for good (W asked for the brake, and leaving reverse needs throttle).
+    const back = s.reverse && !(gas && !brake && Math.abs(s.u) < 0.5);
+    driver.throttle = ramp(driver.throttle, back ? brake * 0.35 : gas, 7);
+    driver.brake = ramp(driver.brake, back ? gas : brake, 8);
     // Reverse: S held at a standstill.
     sim.input.reverse = brake && !gas && Math.abs(s.u) < 0.5 ? true : (s.reverse && !gas);
     driver.handbrake = k('Space');

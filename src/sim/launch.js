@@ -738,6 +738,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   // time separately from mission time: doing so leaves smoke hanging around at ×10.
   function advanceCloud(t) {
     const target = Math.max(0, Math.floor((t - EVENTS.start) / CLOUD_STEP + 1e-7));
+    let stepped = false;
     while (cloudTick < target) {
       const u = EVENTS.start + cloudTick * CLOUD_STEP;
       // Once all launch puffs have died, the coast contains no cloud work to replay.
@@ -746,9 +747,11 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
         continue;
       }
       emitCloud(u, CLOUD_STEP);
-      cloud.update(CLOUD_STEP, camera, env.sun);
+      cloud.update(CLOUD_STEP, camera, env.sun, false);
       cloudTick++;
+      stepped = true;
     }
+    if (stepped) cloud.finish();
   }
   function emitCloud(t, dt) {
     // The landing burn kicks up its own cloud off the pad as the booster settles into the

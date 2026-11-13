@@ -28,6 +28,7 @@ import { HASH_GLSL } from './hashGLSL.js';
 import * as THREE from 'three';
 import { sunTint } from './sunlight.js';
 import { createCloudTemporal } from './cloudsTemporal.js';
+import { CLOUD_FAR } from './cloudConstants.js';
 
 const BASE = 1400;     // cloud base above the ground, m
 const TOP = 2600;      // highest cloud tops, m (≈)
@@ -97,9 +98,9 @@ export const VOLUME_FN = /* glsl */`
   }
   float hg(float c, float g) { float g2 = g * g; return (1.0 - g2) / pow(1.0 + g2 - 2.0 * g * c, 1.5); }
   // One view ray through the slab: premultiplied colour and coverage (what the dome blends), and
-  // the distance of the first cloud met (hitOut, 1e5 when none). frag: the pixel, for the dither.
+  // the distance of the first cloud met (hitOut, CLOUD_FAR when none). frag: the pixel, for the dither.
   vec4 cloudMarch(vec3 o, vec3 d, vec2 frag, float jitAdd, out float hitOut) {
-    hitOut = 1e5;
+    hitOut = ${CLOUD_FAR.toFixed(1)};
     // The stretch of the ray inside the slab.
     float t0, t1;
     if (o.y < B) { if (d.y <= 0.004) return vec4(0.0); t0 = (B - o.y) / d.y; t1 = (T - o.y) / d.y; }
