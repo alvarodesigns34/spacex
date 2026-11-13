@@ -132,6 +132,20 @@ export const SHIP_ASSUMED = {
 };
 /** Linear-tangent constants, solved at load (see buildProfile). */
 export const SHIP_STEERING = { e0: 0, c: 0, cutoffSpeed: 0 };
+/**
+ * The ship's acceleration in the local frame of a spherical Earth — horizontal (along the track)
+ * and vertical — from its velocity (vx, vh) at radius r, the thrust's acceleration aT and its
+ * angle a from the vertical. Both components carry a term of the turning frame: the centrifugal
+ * vx²/r on the vertical and −vx·vh/r on the horizontal. Without the second (as it was until
+ * 13-11-2026) a coasting ship's angular momentum r·vx grew as it climbed (external audit, C04);
+ * tools/launch-regressions-check.mjs flies a free arc with this and checks it is kept.
+ */
+export function localAccel(vx, vh, r, aT, a, out) {
+  out[0] = aT * Math.sin(a) - (vx * vh) / r;
+  out[1] = aT * Math.cos(a) - G0 * (R_EARTH / r) ** 2 + (vx * vx) / r;
+  return out;
+}
+const ACC = [0, 0];
 const G0 = 9.80665, R_EARTH = 6371e3;
 /** Ship mass flow at full thrust: each engine group's thrust over its own Isp·g0. */
 export const shipMassFlow = () => {
@@ -180,18 +194,15 @@ function buildProfile() {
     if (rec) mass[iSep] = m;
     for (let i = iSep + 1; i <= iEnd; i++) {
       for (let k = 0; k < sub; k++) {
-        const r = R_EARTH + hh, g = G0 * (R_EARTH / r) ** 2;
+        const r = R_EARTH + hh;
         const burning = m > S.dry;
         const thr = burning ? throttleAt(tt) : 0;
         const aT = thr * S.thrust / m;
         const want = Math.PI / 2 - Math.atan(Math.tan(e0) - c * (tt - EVENTS.separation));
         a += THREE.MathUtils.clamp(want - a, -MAX_RATE * dt, MAX_RATE * dt);
-        // Local horizontal and vertical on a sphere: both carry a term of the turning frame — the
-        // centrifugal one on the vertical and −vx·vh/r on the horizontal. Without the second (as
-        // it was until 13-11-2026) a coasting ship's angular momentum r·vx grew as it climbed.
-        const ax = aT * Math.sin(a) - (vx * vh) / r, ah = aT * Math.cos(a) - g + (vx * vx) / r;
-        vx += ax * dt;
-        vh += ah * dt;
+        localAccel(vx, vh, r, aT, a, ACC);
+        vx += ACC[0] * dt;
+        vh += ACC[1] * dt;
         xx += vx * dt; hh += vh * dt;
         if (burning) m = Math.max(S.dry, m - thr * mdot * dt);
         tt += dt;

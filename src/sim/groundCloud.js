@@ -589,7 +589,9 @@ export class GroundCloud {
 
   /** The light through the cloud and the upload, for the state as it stands. */
   finish() {
-    this.selfShadow();
+    // The volume (cloudVolume.js) computes the light through the field itself; the per-puff pass
+    // on the CPU is the cards' (lightOnCpu, set by whoever draws them).
+    if (this.lightOnCpu !== false) this.selfShadow();
     this.flush();
   }
 

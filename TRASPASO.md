@@ -6,7 +6,16 @@ Hola, Claude. Continúas un proyecto que llevo trabajando contigo durante muchas
 
 ## ⭐ Empieza aquí (estado real al 11-11-2026: lee primero «Estado actual (11-11-2026)»; lo de debajo es historia, más antigua cuanto más abajo)
 
-### Estado actual (11-11-2026): léelo primero
+### Estado actual (13-11-2026): léelo primero
+
+- **Encargo del usuario (13-11):** dos auditorías externas (Gemini y GPT) del commit `b6075e7` y la orden de contrastarlas, sintetizarlas y transformar el proyecto. Síntesis, lo hecho y lo pendiente: `docs/auditoria-2026-11-13-trabajo.md`. La de GPT está en `docs/auditorias-externas/2026-11-13-gpt.md`; la de Gemini venía pegada en el mensaje y no está en el repositorio.
+- **Esta sesión corrió en un contenedor sin GPU.** Nada de ella está medido en la RTX 3070.
+- **Hecho:** ≈ 20 defectos confirmados y corregidos con pruebas (nubes temporales, suelo estirado, Porsche, H2R, F-16, ascenso, cachés); y **la nube de ignición es ahora un volumen** (`src/sim/cloudVolume.js`): densidad y luz en texturas 3D, marcha por rayo contra la profundidad de la escena, y las plumas compuestas con el vapor. `main.js` da al compositor una textura de profundidad.
+- **Lo primero que toca:** `npm run bench:gpu` y un lanzamiento con `?gpu` en el PC del usuario, para medir el pase nuevo (`cloud volume`). Si pesa demasiado, `?off=cloudvolume` devuelve las tarjetas; la solución sería acumulación temporal, no bajar resolución.
+- **Pendiente con decisión del usuario:** la doble conversión de color de plumas y reentrada (confirmada; arreglarla cambia la paleta: enseñar antes y después).
+- **Cuidado:** en three.js r170 un destino multimuestra se invalida al resolverse; no dibujar dos veces en el mismo búfer del compositor. El arnés `tools/_dev.mjs` (fuera de git) tarda ≈ 4 min en arrancar; los shaders del volumen se pueden recargar en caliente reimportando `cloudVolume.js` y copiando los shaders a `__vc.launch.cloudVolume.materials`.
+
+### Estado actual (11-11-2026)
 
 - **Encargo del usuario (11-11):** el mayor salto de calidad y realismo del proyecto, en todo (imagen, modelos, física, sonido, interfaz, código), sin perder calidad y funcionando bien en su RTX 3070 a 3440 × 1440. Lo primero era el rendimiento: «ni siquiera he podido completar `?perf=log`».
 - **Esta sesión corrió en el PC del usuario** (Windows 11, RTX 3070, i7-12700F), no en un contenedor: por primera vez hay cifras de GPU real. Todo está en `docs/rendimiento-2026-11-11.md`.

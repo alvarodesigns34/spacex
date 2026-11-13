@@ -535,5 +535,31 @@ function assisted({ setup, plan, T, wind = null, watch = null }) {
     `δe ${trim.de.toFixed(2)} / ${back.de.toFixed(1)} / con 22° de α ${hiA.de.toFixed(1)} · δa ${right.da.toFixed(1)}`);
 }
 
+{
+  // The load factor is against the aircraft's weight now (external audits of 13-11-2026): the same
+  // flight state with 2.5 t less fuel is the same force on less mass, so more g, in proportion.
+  const nzAt = (burnt) => {
+    const { f, s } = make();
+    airborne(f, s, { h: 3000, V: 200, a: 4, power: 50 });
+    s.fuel -= burnt; s.mass -= burnt;
+    f.advance(1 / 240);
+    return { nz: s.nz, load: s.load, mass: s.mass };
+  };
+  const full = nzAt(0), light = nzAt(2500);
+  const ratio = light.nz / full.nz, want = full.mass / light.mass;
+  report(Math.abs(ratio / want - 1) < 0.01 && Math.abs(light.load / full.load / want - 1) < 0.02,
+    'factor de carga respecto al peso actual: la misma fuerza con 2,5 t menos de combustible son más g, en proporción a la masa',
+    `nz ${full.nz.toFixed(3)} → ${light.nz.toFixed(3)} g (×${ratio.toFixed(4)}, masa ×${want.toFixed(4)})`);
+  // The last of the fuel: no more is burnt than there is, and the mass falls by exactly that.
+  const { f, s, i } = make();
+  airborne(f, s, { h: 3000, V: 250, a: 3, power: 100 });
+  i.throttle = 1;
+  s.fuel = 0.004;
+  const m0 = s.mass - 0;
+  for (let k = 0; k < 8; k++) f.advance(1 / 240);
+  report(s.fuel === 0 && s.flameout && Math.abs((m0 - s.mass) - 0.004) < 1e-9,
+    'la última gota: no se quema más combustible del que queda y la masa baja justo eso', `combustible ${s.fuel} kg · masa −${((m0 - s.mass) * 1000).toFixed(3)} g`);
+}
+
 console.log(failed ? `\n${failed} comprobación(es) del F-16 fallida(s)` : '\nModelo de vuelo del F-16: todo correcto');
 process.exit(failed ? 1 : 0);

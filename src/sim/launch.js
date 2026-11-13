@@ -24,6 +24,7 @@
  * Time runs 1:1 by default. The speed control multiplies the mission clock, it does not skip.
  */
 import * as THREE from 'three';
+import { createCloudVolume } from './cloudVolume.js';
 import { Plume, GroundCloud, EngineJets, Vapor, CondensationCollar, FlightEarth, Glow, Fire } from './plume.js';
 import { BOOSTER_RINGS, RAPTOR_EXIT_R, ringAngle, BOOSTER_AFT } from '../vehicles/starship.js';
 import { seeded } from '../geometry/utils.js';
@@ -366,6 +367,9 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   cloud.points.position.set(ex.lay.x, 0, ex.lay.z);
   cloud.setPad(ex.lay.x, ex.lay.z);
   scene.add(cloud.points);
+  // Drawn as one volume of vapour (cloudVolume.js) by a pass main.js adds after the scene's; the
+  // cards stay as what ?off=cloudvolume shows.
+  const cloudVolume = createCloudVolume(cloud);
   // Emission is budgeted to the ring. At ~190 puffs a second living ~20 s, the high tier's 1600
   // slots were overwritten at ~8 s, halfway through each puff's life: the cloud popped away in
   // pieces and never built into a mass. Rates are now a share of the ring (≈ 0,95 of it alive
@@ -413,6 +417,9 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   baseGlare.mesh.position.set(0, -5, 0);
   booster.add(baseGlare.mesh);
   baseGlare.mesh.userData.fx = true;
+  // Everything that glows or drifts round the vapour is composed with it (cloudVolume.js addMedia).
+  scene.traverse((o) => { if (o.userData.fx) cloudVolume.addMedia(o, scene); });
+  for (const f of [trenchFire, deckFire]) cloudVolume.addMedia(f.mesh, scene);
   const trenchFireAt = (t) => boosterThrottle(t) * (1 - THREE.MathUtils.smoothstep(altitudeAt(t), 15, 160));
 
   // Above ~10 km the flat 1:1 site runs out long before the horizon: a curved Earth with a
@@ -732,6 +739,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
   function resetCloud() {
     cloud.reset(seeded(11));
     cloudTick = 0;
+    cloudVolume.touch();
   }
   // Integer ticks give playback and seeking the same random samples, emission counts and
   // integration intervals, independent of render rate or mission speed. Never cap cloud
@@ -751,7 +759,7 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
       cloudTick++;
       stepped = true;
     }
-    if (stepped) cloud.finish();
+    if (stepped) { cloud.finish(); cloudVolume.touch(); }
   }
   function emitCloud(t, dt) {
     // The landing burn kicks up its own cloud off the pad as the booster settles into the
@@ -1129,7 +1137,9 @@ export function createLaunch({ scene, exhibits, complex, env, rig, camera, quali
       s.altitude = altitudeAt(t);
       return out;
     },
-    start, reset, seek, update,
+    start, reset, seek, update, cloudVolume,
+    /** The ground cloud's own clock: mission seconds since the sequence began, in whole ticks. */
+    get cloudTime() { return cloudTick * CLOUD_STEP; },
     /** Used by verify(): measuring the vehicle mid-flight would measure the wrong thing. */
     get atRest() { return !state.running; },
   };

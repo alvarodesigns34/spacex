@@ -15,7 +15,7 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 
-const { createGt3Car, CAR, fullTorque, steerReach, steerRate, OUTLINE, relaxationLength } = await import('../src/sim/gt3Car.js');
+const { createGt3Car, CAR, fullTorque, steerReach, steerRate, OUTLINE, relaxationLength, pedals } = await import('../src/sim/gt3Car.js');
 const { ENGINE, GEARBOX, PERFORMANCE, AERO, BODY } = await import('../src/data/gt3rs.js');
 const { circuitSurface } = await import('../src/core/circuit.js');
 const { toWorld, LAP, CENTRE } = await import('../src/core/circuitPlan.js');
@@ -845,6 +845,28 @@ function drive({ v0 = 0, gear = 1, psm = true, keys, T = 5 }) {
   report(same && kerbA > 0.002 && trackA < 0.4 * kerbA && stillA < 1e-4 && two > one && one > 0.3 && none === 0 && parked === 0 && underWheels(st('kerb', 0, 0)).kerb === 4,
     'pianos: la vibración sale de la textura del suelo bajo las ruedas (la misma en el mismo sitio), mucho más en el piano que en el asfalto, y el mando vibra más con más ruedas encima',
     `piano ${(kerbA * 1000).toFixed(1)} mm · asfalto ${(trackA * 1000).toFixed(2)} mm · parado ${(stillA * 1000).toFixed(2)} mm · mando ${one.toFixed(2)} con una rueda, ${two.toFixed(2)} con dos`);
+}
+
+{
+  // Reverse and back (external audit of 13-11-2026): S held from a standstill backs the car; the
+  // keys let go, it is braked to a stop with W; W held on then takes first and drives off. It
+  // used to stand on its own brake in reverse for good.
+  const { c, s, i } = make();
+  const drive = (gas, brake, secs) => {
+    for (let t = 0; t < secs; t += DT) { const p = pedals(s, gas, brake); i.throttle = p.throttle; i.brake = p.brake; i.reverse = p.reverse; c.step(DT); }
+  };
+  drive(0, 1, 3);
+  const backing = s.reverse && s.u < -1, uBack = s.u;
+  drive(0, 0, 1);
+  drive(1, 0, 6);
+  report(backing && !s.reverse && s.u > 2,
+    'marcha atrás y vuelta: S desde parado retrocede; W frena hasta parar y, mantenida, mete primera y arranca', `atrás ${(uBack * 3.6).toFixed(1)} km/h · después ${(s.u * 3.6).toFixed(1)} km/h, marcha ${s.reverse ? 'R' : s.gear}`);
+  // A held brake holds a wheel at rest: no wheel speed, no creeping, for three seconds.
+  const b = make();
+  b.i.brake = 1;
+  let wMax = 0, uMax = 0;
+  for (let t = 0; t < 3; t += DT) { b.c.step(DT); wMax = Math.max(wMax, ...b.s.w.map(Math.abs)); uMax = Math.max(uMax, Math.abs(b.s.u)); }
+  report(wMax === 0 && uMax < 1e-6, 'parado con el freno pisado: las ruedas no giran ni oscilan', `|ω| máx ${wMax} rad/s · |u| máx ${uMax.toExponential(1)} m/s`);
 }
 
 void GEARBOX;

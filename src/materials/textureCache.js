@@ -28,7 +28,7 @@ import { anisotropyLimit } from './textures.js';
 const PREFIX = 'vc-textures-';
 // Every module a generated texture's pixels depend on: the generators, the noise and normal
 // conversion they call (texCore.js) and the seeded random source under those (geometry/utils.js).
-// tools/texture-cache-check.mjs checks this list against the generators' imports.
+// Kept by hand: a new module the generators come to depend on has to be added here.
 export const SOURCES = ['./textures.js', './library.js', './texCore.js', '../geometry/utils.js'];
 const PROPS = ['wrapS', 'wrapT', 'colorSpace', 'flipY', 'generateMipmaps', 'minFilter', 'magFilter'];
 

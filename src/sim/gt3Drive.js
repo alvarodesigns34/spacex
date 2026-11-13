@@ -17,7 +17,7 @@
  * 12,000 segments wraps.
  */
 import * as THREE from 'three';
-import { createGt3Car, CAR, steerReach, steerRate, OUTLINE } from './gt3Car.js';
+import { createGt3Car, CAR, steerReach, steerRate, OUTLINE, pedals } from './gt3Car.js';
 import { AXLE_F, AXLE_R } from '../vehicles/gt3rs.js';
 import { EYE } from '../vehicles/gt3Cabin.js';
 import { WHEELS } from '../data/gt3rs.js';
@@ -286,14 +286,11 @@ export function createGt3Drive({ scene, exhibit, env, rig, camera, ground, obsta
     const gas = k('KeyW', 'ArrowUp'), brake = k('KeyS', 'ArrowDown');
     const left = k('KeyA', 'ArrowLeft'), right = k('KeyD', 'ArrowRight');
     // Throttle and brake ramp in over ≈0.15 s, as a foot does.
-    // In reverse the pedals swap (S drives back, W brakes) — until the car has stopped with W still
-    // held: then W is the throttle again and the gearbox takes first. Without that the car stood
-    // on its own brake in reverse for good (W asked for the brake, and leaving reverse needs throttle).
-    const back = s.reverse && !(gas && !brake && Math.abs(s.u) < 0.5);
-    driver.throttle = ramp(driver.throttle, back ? brake * 0.35 : gas, 7);
-    driver.brake = ramp(driver.brake, back ? gas : brake, 8);
-    // Reverse: S held at a standstill.
-    sim.input.reverse = brake && !gas && Math.abs(s.u) < 0.5 ? true : (s.reverse && !gas);
+    // In reverse the pedals swap, until W alone at a standstill takes first again (gt3Car.js pedals).
+    const want2 = pedals(s, gas, brake);
+    driver.throttle = ramp(driver.throttle, want2.throttle, 7);
+    driver.brake = ramp(driver.brake, want2.brake, 8);
+    sim.input.reverse = want2.reverse;
     driver.handbrake = k('Space');
     // Steering: as much lock as the grip can use at this speed, more when the tail is out (the
     // counter-steer needs it); it turns in at a hand's pace and centres itself.

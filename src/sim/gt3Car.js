@@ -166,6 +166,23 @@ const WATER = {
 };
 const TYRE_W = [WHEELS.front.width, WHEELS.front.width, WHEELS.rear.width, WHEELS.rear.width];
 
+/**
+ * What the two pedals ask for, from the keys or a pad's triggers (gas and brake, 0..1): in reverse
+ * they swap (the brake pedal drives back, the throttle brakes) — until the car has stopped with
+ * the throttle alone held: then it is the throttle again and the gearbox takes first. Without that
+ * the car stood on its own brake in reverse for good (the throttle asked for the brake, and
+ * leaving reverse needs throttle; external audit of 13-11-2026).
+ * @returns {{ throttle, brake, reverse }} the pedals' targets and the reverse request
+ */
+export function pedals(s, gas, brake) {
+  const back = s.reverse && !(gas > 0 && !brake && Math.abs(s.u) < 0.5);
+  return {
+    throttle: back ? brake * 0.35 : gas,
+    brake: back ? gas : brake,
+    reverse: brake && !gas && Math.abs(s.u) < 0.5 ? true : (s.reverse && !gas),
+  };
+}
+
 export function createGt3Car({ ground = () => ({ h: 0, mu: 1, roll: 0, kind: 'track' }), obstacles = () => [], wind = null } = {}) {
   // The wind (core/wind.js), at ≈0.6 m (the body's centre of pressure, ≈); none in the checks unless given.
   const AIR = { x: 0, y: 0, z: 0 };

@@ -182,15 +182,41 @@ export function createReentry({ scene, exhibits, complex, env, rig, camera, M, o
         if (!HEAT_SOURCES.has(src) || seen.has(m)) continue;
         seen.add(m);
         const flap = src === M.steelFlap;
+        faceHeat(m);
         heatMats.push({ m, color: m.emissive.clone(), intensity: m.emissiveIntensity, flap, k: flap ? 0.35 : 1.5 });
       }
     });
+  }
+  // Where the heat is: on the faces the air meets. The glow is the material's emissive, which is
+  // one number for the whole material — so the lee side of every flap and the back of the skirt
+  // glowed like the windward tiles (external audit of 13-11-2026). Each fragment's share is now
+  // its face to the flow: full where the surface meets the air head on, falling to a few per cent
+  // (the plasma's own light on it, ≈) on what faces away. Off (uHeatFace 0) outside the re-entry.
+  const heatU = { uHeatFlow: plasmaU.uFlow, uHeatFace: { value: 0 } };
+  function faceHeat(m) {
+    if (!m.isMeshStandardMaterial || m.userData.heatFace) return;
+    m.userData.heatFace = true;
+    const prev = m.onBeforeCompile, prevKey = m.customProgramCacheKey();
+    m.onBeforeCompile = function (sh, r) {
+      prev.call(this, sh, r);
+      Object.assign(sh.uniforms, heatU);
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform vec3 uHeatFlow;\nuniform float uHeatFace;')
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+  if (uHeatFace > 0.0) {
+    float heatFacing = dot(inverseTransformDirection(normal, viewMatrix), -uHeatFlow);
+    totalEmissiveRadiance *= mix(1.0, 0.05 + 0.95 * smoothstep(-0.05, 0.7, heatFacing), uHeatFace);
+  }`);
+    };
+    m.customProgramCacheKey = () => `${prevKey}|heatface`;
+    m.needsUpdate = true;
   }
   const HEAT_COLOR = new THREE.Color(0xff5e1f);
   // The flaps' steel glows a duller, deeper red than the tiles: at 0.9 the whole flap went a
   // flat, saturated orange from on board, which read as paint rather than hot metal.
   const FLAP_HEAT = new THREE.Color(0xc7401c);
   function setHeatGlow(h) {
+    heatU.uHeatFace.value = h > 0.01 ? 1 : 0;
     for (const e of heatMats) {
       if (h > 0.01) { e.m.emissive.copy(e.flap ? FLAP_HEAT : HEAT_COLOR); e.m.emissiveIntensity = h * h * e.k; }
       else { e.m.emissive.copy(e.color); e.m.emissiveIntensity = e.intensity; }

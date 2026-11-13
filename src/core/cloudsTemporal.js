@@ -35,6 +35,8 @@ import { COVER_GLSL, VOLUME_FN } from './clouds.js';
 import { CLOUD_FAR } from './cloudConstants.js';
 
 const BLOCK = 4;
+// A camera that moved more than this in one frame (m), or turned more (cos of 25°), has cut.
+const CUT_M = 60, CUT_COS = 0.906;
 // The pixel of a 4 × 4 block marched at frame n: a Bayer order, so each frame's samples are spread.
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 const ORDER = BAYER.map((_, i) => BAYER.indexOf(i)).map(k => [k % BLOCK, Math.floor(k / BLOCK)]);
@@ -177,7 +179,7 @@ export function createCloudTemporal(uniforms) {
   fresh.textures[1].minFilter = fresh.textures[1].magFilter = THREE.LinearFilter;
 
   const vp = new THREE.Matrix4(), prevVP = new THREE.Matrix4();
-  const lastSun = new THREE.Vector3();
+  const lastSun = new THREE.Vector3(), lastCam = new THREE.Vector3(), lastFwd = new THREE.Vector3(), fwd = new THREE.Vector3();
   // Everything the march's light depends on besides the Sun's direction.
   const LIGHT = [
     () => uniforms.uCover.value, () => uniforms.uLight.value, () => uniforms.uFade.value,
@@ -187,7 +189,7 @@ export function createCloudTemporal(uniforms) {
   const lastLight = LIGHT.map(() => NaN);
   let frame = 0, valid = false, w = 0, h = 0, relitLeft = 0;
   const size = new THREE.Vector2();
-  const stats = { marched: 0, resets: 0 };
+  const stats = { marched: 0, resets: 0, cuts: 0 };
 
   return {
     stats,
@@ -213,6 +215,12 @@ export function createCloudTemporal(uniforms) {
       vp.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
       tu.uInvVP.value.copy(vp).invert();
       tu.uCam.value.setFromMatrixPosition(camera.matrixWorld);
+      // A cut (a preset, a seek, a change of camera): the history is another view's. Each pixel's
+      // stored distance is where *it* saw a cloud, which reprojects a pan or a walk, not a jump of
+      // hundreds of metres or a new heading; start again from this frame's grid.
+      camera.getWorldDirection(fwd);
+      if (valid && (tu.uCam.value.distanceToSquared(lastCam) > CUT_M * CUT_M || fwd.dot(lastFwd) < CUT_COS)) { valid = false; stats.cuts++; }
+      lastCam.copy(tu.uCam.value); lastFwd.copy(fwd);
       tu.uPrevVP.value.copy(valid ? prevVP : vp);
       const [ox, oy] = ORDER[frame % ORDER.length];
       tu.uOffset.value.set(ox, oy);

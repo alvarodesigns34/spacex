@@ -589,8 +589,13 @@ try {
     await settle(800);
     const held = await consistent();
     report(jumped.ok && held.ok && jumped.y < 100, 'A paused jump to the splash brings the ocean and the low sky with it', { jumped, held });
-    await page.evaluate(() => { window.__vc.camera.position.y = 120000; });
-    const stale = await consistent();
+    // Set and read in one task: paused, the chapter re-applies its camera every frame, so a frame
+    // slipping in between two calls put the camera back and the control read as consistent.
+    const stale = await page.evaluate(() => {
+      const v = window.__vc; v.camera.position.y = 120000;
+      const y = v.camera.position.y, ocean = v.scene.getObjectByName('reentry-ocean').visible;
+      return { y: Math.round(y), ocean, near: v.camera.near, ok: ocean === (y < 15000) && v.camera.near === (y > 20000 ? 2 : 0.5) };
+    });
     report(!stale.ok, 'Negative control: a camera moved without the chapter re-applying reads as inconsistent', stale);
     await page.evaluate(() => window.__vc.reentry.seek(35440));
     // The launch's reset with nothing launched (a shot, a key) must not tell the view the vehicle

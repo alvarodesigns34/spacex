@@ -28,7 +28,7 @@ registerHooks({
     // is an error, so a later move cannot quietly disarm a sabotage.
     const inScene = url.endsWith('/src/sim/launch.js'), inModel = url.endsWith('/src/sim/launchModel.js');
     if (!mutant || !(inScene || inModel)) return result;
-    const MODEL_MUTANTS = ['staging', 'shipmass', 'kink'], SCENE_MUTANTS = ['random', 'frozen', 'speed'];
+    const MODEL_MUTANTS = ['staging', 'shipmass', 'kink', 'frame'], SCENE_MUTANTS = ['random', 'frozen', 'speed'];
     if (!(inModel ? MODEL_MUTANTS : SCENE_MUTANTS).includes(mutant)) return result;
     let source = String(result.source).replace(/\r\n/g, '\n');
     const before = source;
@@ -45,6 +45,8 @@ registerHooks({
     // The defect found in the 28-09 audit: the ship's acceleration fell while it burned.
     if (mutant === 'shipmass') source = source.replace('if (burning) m = Math.max(S.dry, m - thr * mdot * dt);', '');
     if (mutant === 'kink') source = source.replace('v0 * Math.sin(p0) + R * w0 * Math.cos(p0)', '0.55 * v0 * Math.sin(p0) + R * w0 * Math.cos(p0)');
+    // The defect of the external audit of 13-11-2026 (C04): the horizontal's frame term left out.
+    if (mutant === 'frame') source = source.replace('out[0] = aT * Math.sin(a) - (vx * vh) / r;', 'out[0] = aT * Math.sin(a);');
     if (source === before) throw new Error(`mutation ${mutant} not applied: its code is no longer where the check expects it`);
     return { ...result, source };
   },
@@ -212,8 +214,27 @@ launch.reset(false); assert.equal(snapshot().count, 0, 'reset clears all particl
   console.log('PASS V3 engine counts: 5 through hot-staging, 33 → 13 (boostback), 13 → 5 → 3 (landing)');
 }
 console.log('PASS deterministic clouds, all playback rates, smoke expiry, reset and staging continuity');
+{
+  // A free arc in the ship's own equations (launchModel.js localAccel): no thrust, no air, from
+  // 150 km climbing at 300 m/s. Angular momentum r·vx and the energy per unit mass are kept; they
+  // were not while the horizontal lacked its frame term (the momentum grew with the height).
+  const { localAccel } = await import('../src/sim/launchModel.js');
+  const R = 6371e3, MU_ = 9.80665 * R * R, dt = 0.01, a = [0, 0];
+  let r = R + 150e3, vx = 7600, vh = 300;
+  const H0 = r * vx, E0 = (vx * vx + vh * vh) / 2 - MU_ / r;
+  let rMax = r;
+  for (let k = 0; k < 60000; k++) {
+    localAccel(vx, vh, r, 0, 0, a);
+    vx += a[0] * dt; vh += a[1] * dt; r += vh * dt;
+    rMax = Math.max(rMax, r);
+  }
+  const dH = Math.abs(r * vx / H0 - 1), dE = Math.abs(((vx * vx + vh * vh) / 2 - MU_ / r) / E0 - 1);
+  assert.ok(rMax - (R + 150e3) > 20e3, `the free arc must climb to test anything (${((rMax - R) / 1000).toFixed(0)} km)`);
+  assert.ok(dH < 1e-4 && dE < 1e-4, `a free arc must keep its angular momentum and energy (ΔH/H ${dH.toExponential(2)}, ΔE/E ${dE.toExponential(2)})`);
+  console.log(`PASS free arc: angular momentum kept to ${dH.toExponential(1)}, energy to ${dE.toExponential(1)}, over 600 s and ${((rMax - R - 150e3) / 1000).toFixed(0)} km of climb`);
+}
 if (!mutant) {
-  for (const name of ['random', 'frozen', 'speed', 'staging', 'kink', 'shipmass', 'skip']) {
+  for (const name of ['random', 'frozen', 'speed', 'staging', 'kink', 'shipmass', 'skip', 'frame']) {
     const run = spawnSync(process.execPath, [fileURLToPath(import.meta.url), `--mutant=${name}`], { encoding: 'utf8' });
     assert.notEqual(run.status, 0, `regression test must reject sabotage: ${name}`);
     assert.match(run.stderr, /AssertionError/, `sabotage ${name} must fail an assertion, not crash`);

@@ -203,7 +203,10 @@ async function main() {
   // multisampled depth-stencil buffer, which several drivers (ANGLE on Direct3D 11 among them)
   // have no fast path for: the whole scene fell to about 10 fps on real hardware while the
   // software renderer the checks use measured no difference. The shadow uses depth instead.
-  const rt = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { samples: quality.msaa, type: THREE.HalfFloatType });
+  // With its depth as a texture: the cloud volume's pass (sim/cloudVolume.js) marches each ray only
+  // as far as what the scene drew there. The depth was already resolved with the colour; this
+  // gives the resolve a texture to land in instead of a renderbuffer.
+  const rt = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { samples: quality.msaa, type: THREE.HalfFloatType, depthTexture: new THREE.DepthTexture(window.innerWidth, window.innerHeight) });
   const composer = new EffectComposer(renderer, rt);
   // The sun's shadow map is drawn when something that changes it has changed, once a frame at most.
   const shadowCache = createShadowCache(renderer, scene, env.sun);
@@ -501,6 +504,10 @@ async function main() {
       if (completed) hud.notice('The ship flies on: on flight 14 it reached orbit, deployed its payload and came back nine and a half hours in, splashing down in the Pacific. Press X to watch its re-entry.', 9000);
     },
   });
+  // The ignition cloud as a volume (sim/cloudVolume.js), right after the scene's pass: it needs the
+  // scene's colour and depth, and everything after it (bloom, the output) sees vapour, not cards.
+  const cloudVolume = off.has('cloudvolume') ? null : launch.cloudVolume;
+  if (cloudVolume) composer.insertPass(cloudVolume.pass, 1);
   // Whichever sequence reports, the vehicle has left its mount while either runs: the launch's
   // reset, called with nothing launched, used to clear it under a running re-entry and bring the
   // pad's callouts back over the Pacific (found in the October 2026 review).
@@ -1498,6 +1505,7 @@ async function main() {
   // (core/gpuProfiler.js). Read from the console: __vc.gpu.report().
   const gpu = params.has('gpu') ? createGpuProfiler(renderer, scene, { objects: params.get('gpu') === 'objects' }) : null;
   if (gpu) { gpu.watchComposer(composer); gpu.watchObjects(); setTimeout(() => gpu.watchObjects(), 15000); }
+  if (gpu && cloudVolume) cloudVolume.mark = gpu.mark;
 
   // A barrier round every part of the frame (audit of 9-11-2026, A1): until then one exception
   // anywhere — a sequence's update, a probe capture, the render — ended the loop for good, since
@@ -1578,6 +1586,8 @@ async function main() {
     seaSSR?.update(camera.far < 20000 && !view.orbital && renderPass.camera === camera && !launch.running && !reentry.running);
     updateLabelOcclusion();
     lod.update();
+    cloudVolume?.update(renderPass.camera, env.sun, env.sunAngles.elev, launch.cloudTime, true, launch.running);
+    if (launch.cloudVolume) launch.cloudVolume.cards.lightOnCpu = !cloudVolume;
     const moving = launch.running || reentry.running || f16fly.running || gt3drive.running || h2rRide.running;
     guard('the render', () => {
       shadowCache.prepare(performance.now(), moving);
@@ -1587,6 +1597,7 @@ async function main() {
       env.clouds.beginMain(renderer, renderPass.camera, gpu?.mark);
       stillAA.begin(renderer.domElement.width, renderer.domElement.height, moving);
       env.clouds.stillFrame = stillAA.frames;
+      if (cloudVolume) cloudVolume.stillFrame = stillAA.frames;
       try { composer.render(); } finally { stillAA.end(); env.clouds.endMain(); }
       if (photoShot) { const cb = photoShot; photoShot = null; cb(renderer.domElement.toDataURL('image/png')); }
     });

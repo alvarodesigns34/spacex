@@ -35,7 +35,11 @@ El entorno es contexto verosímil, no un levantamiento: la llanura costera de Bo
 
 La interfaz de la simulación (menús, ficha técnica, etiquetas y vistas) está en inglés; esta documentación, en español.
 
-## Estado actual (11 de noviembre de 2026)
+## Estado actual (13 de noviembre de 2026)
+
+Dos auditorías externas contrastadas con el código (`docs/auditoria-2026-11-13-trabajo.md`): una veintena de defectos confirmados y corregidos con pruebas, y la nube de ignición del lanzamiento dibujada como un volumen (`src/sim/cloudVolume.js`) en lugar de tarjetas, con las plumas compuestas con el vapor. Hecho en un contenedor sin GPU: el coste del pase nuevo está **sin medir** en hardware real. Antes y después en `docs/antes-despues/2026-11-13-nube-volumetrica/`.
+
+## Estado anterior (11 de noviembre de 2026)
 
 - **Rendimiento medido por primera vez en una GPU real** (la RTX 3070 del usuario, a 3424 × 1345). Todo el detalle, con tablas y la comparativa de imagen, en [docs/rendimiento-2026-11-11.md](docs/rendimiento-2026-11-11.md).
   - **De 12–13 FPS a 44–54 en todas las vistas**, y 47–59 durante el lanzamiento, sin bajar ningún ajuste.
@@ -532,6 +536,7 @@ src/sim/launch.js          secuencia de lanzamiento: escena (plumas, planos, cá
 src/sim/launchModel.js     modelo puro de la trayectoria (perfil, fases, empuje, hitos), reexportado por launch.js
 src/sim/plume.js           penacho gobernado por la presión ambiente (color de cuerpo negro) y vapor
 src/sim/groundCloud.js     nube de tierra del encendido, con sombra propia por Beer–Lambert
+src/sim/cloudVolume.js     la nube del encendido dibujada como volumen: densidad y luz en texturas 3D, marcha por rayo, plumas compuestas con el vapor
 blender/spray/build.py     atlas de salpicadura renderizado en Cycles (assets/spray/spray-atlas.png)
 src/sim/flightEarth.js     la Tierra curva bajo el vuelo alto (ascenso y reentrada), con el golfo real
 src/sim/sound.js           sonido opcional del lanzamiento, retardado a la velocidad del sonido
@@ -577,6 +582,7 @@ src/ui/telemetryList.js    lecturas de conducción y vuelo como texto, para lect
 src/core/campus.js         el recinto alrededor de los expositores (explanada, viales, valla, mobiliario): verosímil, no un levantamiento
 src/core/clouds.js         cúmulos de buen tiempo sobre la llanura costera
 src/core/cloudsTemporal.js la marcha de las nubes repartida entre fotogramas, con reproyección
+src/core/cloudConstants.js números que comparten la marcha de nubes y su resolución temporal
 src/core/gpuProfiler.js    temporizadores de GPU por pasada y por grupo (?gpu, ?gpu=objects)
 src/core/outerGround.js    el suelo más allá del disco (llanura, playa y golfo hasta 450 km), para lo que vuela desde el sitio
 src/core/runway.js         la pista 10/28 del F-16, su calle de rodaje, la plataforma, marcas, luces y manga de viento
