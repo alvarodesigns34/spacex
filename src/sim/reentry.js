@@ -658,7 +658,7 @@ ${IMPACT_GLSL}`)
     ship.quaternion.identity();
     holder.updateMatrixWorld(true);
     findFlapTips();
-    heatMats = []; collectHeatMats();
+    if (!heatMats.length) collectHeatMats();
     hideSite(true);
     root.visible = true;
     // The chapter's shots are framed for the orbit camera's field of view: started from the walk
@@ -718,6 +718,7 @@ ${IMPACT_GLSL}`)
     get running() { return state.running; },
     events: { start: CHAPTER.start, end: CHAPTER.end, ...RE },
     milestones: MILESTONES_RE,
+    warmup() { if (!heatMats.length) collectHeatMats(); },
     start, reset, seek, update,
     setSpeed: (k) => { state.speed = k; },
     setPaused: (on) => { if (!state.running) return; state.paused = !!on; onState(state); },

@@ -680,3 +680,74 @@ export function sanitizeNormals(root) {
   });
   return { triangles, meshes };
 }
+
+const TEX_SLOTS = [
+  'map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap',
+  'alphaMap', 'bumpMap', 'displacementMap', 'lightMap', 'envMap',
+  'clearcoatMap', 'clearcoatNormalMap', 'clearcoatRoughnessMap',
+  'sheenColorMap', 'sheenRoughnessMap',
+  'specularIntensityMap', 'specularColorMap',
+  'transmissionMap', 'thicknessMap',
+  'iridescenceMap', 'iridescenceThicknessMap', 'anisotropyMap',
+];
+
+function sameTexState(a, b) {
+  if (a.wrapS !== b.wrapS || a.wrapT !== b.wrapT ||
+      a.magFilter !== b.magFilter || a.minFilter !== b.minFilter ||
+      a.colorSpace !== b.colorSpace || a.flipY !== b.flipY ||
+      a.anisotropy !== b.anisotropy || a.mapping !== b.mapping ||
+      a.format !== b.format || a.type !== b.type || a.channel !== b.channel ||
+      a.generateMipmaps !== b.generateMipmaps || a.premultiplyAlpha !== b.premultiplyAlpha ||
+      a.unpackAlignment !== b.unpackAlignment || a.internalFormat !== b.internalFormat ||
+      a.matrixAutoUpdate !== b.matrixAutoUpdate || a.rotation !== b.rotation ||
+      a.repeat.x !== b.repeat.x || a.repeat.y !== b.repeat.y ||
+      a.offset.x !== b.offset.x || a.offset.y !== b.offset.y ||
+      a.center.x !== b.center.x || a.center.y !== b.center.y) return false;
+  if (!a.matrixAutoUpdate) {
+    const ae = a.matrix.elements, be = b.matrix.elements;
+    for (let i = 0; i < 9; i++) if (ae[i] !== be[i]) return false;
+  }
+  return true;
+}
+
+/**
+ * Collapses duplicate THREE.Texture instances exported for the same GLB image source and
+ * identical sampling state into one canonical THREE.Texture so WebGLTextures uploads each
+ * image + mipchain once rather than once per material slot.
+ */
+export function dedupTextures(root) {
+  const bySource = new Map();
+  const kept = new Set();
+  const evicted = new Set();
+  const seenMats = new Set();
+  let replaced = 0;
+  root.traverse((o) => {
+    if (!o.isMesh || !o.material) return;
+    const list = Array.isArray(o.material) ? o.material : [o.material];
+    for (const m of list) {
+      if (!m || seenMats.has(m)) continue;
+      seenMats.add(m);
+      for (const slot of TEX_SLOTS) {
+        const t = m[slot];
+        if (!t?.isTexture) continue;
+        const src = t.source ?? t.image;
+        if (!src) continue;
+        let bucket = bySource.get(src);
+        if (!bucket) { bucket = []; bySource.set(src, bucket); }
+        let canon = null;
+        for (let i = 0; i < bucket.length; i++) {
+          if (sameTexState(bucket[i], t)) { canon = bucket[i]; break; }
+        }
+        if (canon) {
+          if (canon !== t) { m[slot] = canon; evicted.add(t); replaced++; }
+        } else {
+          bucket.push(t);
+          kept.add(t);
+        }
+      }
+    }
+  });
+  for (const t of evicted) if (!kept.has(t)) t.dispose();
+  return replaced;
+}
+

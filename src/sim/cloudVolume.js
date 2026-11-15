@@ -219,31 +219,89 @@ export function createCloudVolume(cloud) {
   }));
 
   const _inv = new THREE.Matrix4(), _sun = new THREE.Vector3(), _col = new THREE.Color();
+  const _scissor = new THREE.Vector4(), _boxPt = new THREE.Vector3();
   let dirty = true, lastLive = -1;
+  let prevDy0 = 0, prevDy1 = -1, hasLive = false;
+  const liveMin = new THREE.Vector3(), liveMax = new THREE.Vector3();
+  const boxMinBound = new THREE.Vector3(BOX_MIN.x, 0, BOX_MIN.z);
+  const boxMaxBound = new THREE.Vector3(BOX_MIN.x + SIZE.x, SIZE.y, BOX_MIN.z + SIZE.z);
+
+  function computeLiveBounds(n) {
+    if (n <= 0) { hasLive = false; return; }
+    const { pos, size, alpha, extra } = cloud;
+    let x0 = Infinity, y0 = Infinity, z0 = Infinity;
+    let x1 = -Infinity, y1 = -Infinity, z1 = -Infinity;
+    const minRad = CELL * 0.9;
+    for (let i = 0; i < n; i++) {
+      if (alpha[i] <= 0.004) continue;
+      const j = i * 3;
+      const asp = extra[j + 2] > 0.2 ? extra[j + 2] : 0.2;
+      const sq = Math.sqrt(asp);
+      const s = size[i] * 0.47;
+      const rh = s * sq > minRad ? s * sq : minRad;
+      const rv = s / sq > minRad ? s / sq : minRad;
+      const px = pos[j], py = pos[j + 1], pz = pos[j + 2];
+      if (px - rh < x0) x0 = px - rh;
+      if (px + rh > x1) x1 = px + rh;
+      if (py - rv < y0) y0 = py - rv;
+      if (py + rv > y1) y1 = py + rv;
+      if (pz - rh < z0) z0 = pz - rh;
+      if (pz + rh > z1) z1 = pz + rh;
+    }
+    if (x0 > x1) { hasLive = false; return; }
+    hasLive = true;
+    liveMin.set(x0, y0, z0).clamp(boxMinBound, boxMaxBound);
+    liveMax.set(x1, y1, z1).clamp(boxMinBound, boxMaxBound);
+  }
 
   /** Draws the puffs' state into the two volumes. Called when the simulation has stepped. */
   function bake(renderer) {
     noise ??= buildNoise(renderer);
     const n = cloud.live ?? 0;
+    computeLiveBounds(n);
     const prevTarget = renderer.getRenderTarget(), prevAuto = renderer.autoClear, prevAlpha = renderer.getClearAlpha();
     renderer.getClearColor(_col);
     try {
       renderer.autoClear = true;
       renderer.setClearColor(0x000000, 0);
-      geo.instanceCount = n;
-      for (let y = 0; y < GRID.ny; y++) {
-        splat.material.uniforms.uY.value = (y + 0.5) * CELL;
-        renderer.setRenderTarget(density, y);
-        if (n > 0) renderer.render(splat, dummyCam); else renderer.clear();
+      let dy0 = 0, dy1 = -1;
+      if (hasLive) {
+        dy0 = Math.max(0, Math.floor(liveMin.y / CELL));
+        dy1 = Math.min(GRID.ny - 1, Math.floor(liveMax.y / CELL));
       }
-      if (n > 0 || lastLive > 0) {
-        for (let y = 0; y < GRID.ny / 2; y++) {
+      // Clear any density slice that held puffs on the previous tick and is now outside [dy0, dy1].
+      for (let y = prevDy0; y <= prevDy1; y++) {
+        if (y >= dy0 && y <= dy1) continue;
+        renderer.setRenderTarget(density, y);
+        renderer.clear();
+      }
+      if (hasLive) {
+        geo.instanceCount = n;
+        for (let y = dy0; y <= dy1; y++) {
+          splat.material.uniforms.uY.value = (y + 0.5) * CELL;
+          renderer.setRenderTarget(density, y);
+          renderer.render(splat, dummyCam);
+        }
+        // Light volume is 12 m/cell and only ever sampled inside density > 0 (+1 texel linear filter border).
+        const pad = CELL * 2;
+        const lStep = CELL * 2;
+        const lx0 = Math.max(0, Math.floor((liveMin.x - pad - BOX_MIN.x) / lStep));
+        const lx1 = Math.min(GRID.nx / 2 - 1, Math.floor((liveMax.x + pad - BOX_MIN.x) / lStep));
+        const lz0 = Math.max(0, Math.floor((liveMin.z - pad - BOX_MIN.z) / lStep));
+        const lz1 = Math.min(GRID.nz / 2 - 1, Math.floor((liveMax.z + pad - BOX_MIN.z) / lStep));
+        const ly0 = Math.max(0, Math.floor((liveMin.y - pad) / lStep));
+        const ly1 = Math.min(GRID.ny / 2 - 1, Math.floor((liveMax.y + pad) / lStep));
+        light.scissorTest = true;
+        light.scissor.set(lx0, lz0, lx1 - lx0 + 1, lz1 - lz0 + 1);
+        for (let y = ly0; y <= ly1; y++) {
           lightU.uZ.value = (y + 0.5) / (GRID.ny / 2);
           renderer.setRenderTarget(light, y);
           lightQuad.render(renderer);
         }
       }
+      prevDy0 = dy0; prevDy1 = dy1;
     } finally {
+      light.scissorTest = false;
       renderer.setRenderTarget(prevTarget);
       renderer.autoClear = prevAuto;
       renderer.setClearColor(_col, prevAlpha);
@@ -258,6 +316,7 @@ export function createCloudVolume(cloud) {
     uDens: { value: density.texture }, uLight: { value: light.texture }, uNoise: { value: null },
     uInvVP: { value: new THREE.Matrix4() }, uCam: { value: new THREE.Vector3() },
     uOrigin: { value: new THREE.Vector3() },
+    uLiveMin: { value: BOX_MIN.clone() }, uLiveMax: { value: BOX_MIN.clone().add(SIZE) },
     uSunL: lightU.uSunL, uSunColor: { value: new THREE.Color(1, 1, 1) }, uSkyColor: { value: new THREE.Color(0.27, 0.28, 0.31) },
     uFireColor: { value: new THREE.Color(0xff8a2a) }, uFlame: { value: 0 },
     uTime: { value: 0 }, uJit: { value: 0 }, uSteps: { value: 96 },
@@ -305,7 +364,7 @@ export function createCloudVolume(cloud) {
       precision highp float;
       uniform sampler2D tDepth;
       uniform mat4 uInvVP;
-      uniform vec3 uCam, uSunL, uSunColor, uSkyColor, uFireColor;
+      uniform vec3 uCam, uLiveMin, uLiveMax, uSunL, uSunColor, uSkyColor, uFireColor;
       uniform float uFlame, uJit;
       uniform int uSteps;
       in vec2 vUv;
@@ -322,8 +381,8 @@ export function createCloudVolume(cloud) {
         vec3 o = uCam - uOrigin, d = hitW - uCam;
         float tScene = length(d); d /= tScene;
         if (z >= 1.0) tScene = 1e9;
-        // The ray's stretch inside the box.
-        vec3 inv = 1.0 / d, ta = (BOX_MIN - o) * inv, tb = (BOX_MIN + BOX_SIZE - o) * inv;
+        // The ray's stretch inside the live puffs' bounding box.
+        vec3 inv = 1.0 / d, ta = (uLiveMin - o) * inv, tb = (uLiveMax - o) * inv;
         vec3 tmn = min(ta, tb), tmx = max(ta, tb);
         float t0 = max(max(tmn.x, tmn.y), max(tmn.z, 0.0)), t1 = min(min(tmx.x, tmx.y), min(tmx.z, tScene));
         oLight = vec4(0.0, 0.0, 0.0, 1.0); oRange = vec4(1e5, 1e5, 0.0, 1.0);
@@ -406,7 +465,7 @@ export function createCloudVolume(cloud) {
   dummy.needsUpdate = true;
   const MU = {
     uMediaDepth: { value: dummy }, uMediaInvVP: U.uInvVP, uMediaCam: U.uCam, uMediaRes: { value: new THREE.Vector2(1, 1) },
-    uMediaOn: { value: 0 }, uMediaVapour: { value: 0 },
+    uMediaOn: { value: 0 }, uMediaVapour: { value: 0 }, uMediaRect: { value: new THREE.Vector4(0, 0, 1, 1) },
     uMediaRange: { value: dummy }, uMediaLight: { value: dummy },
   };
   const media = [];          // { object, material }
@@ -423,6 +482,7 @@ export function createCloudVolume(cloud) {
       uniform vec3 uMediaCam;
       uniform vec2 uMediaRes;
       uniform float uMediaOn, uMediaVapour;
+      uniform vec4 uMediaRect;
       uniform sampler2D uMediaRange, uMediaLight;
       float mediaFactor() {
         if (uMediaOn < 0.5) return 1.0;
@@ -437,7 +497,7 @@ export function createCloudVolume(cloud) {
           // Faded over the last ≈ 2 % of its distance (0.3 to 3 m) before the surface behind it.
           k = smoothstep(0.0, clamp(df * 0.02, 0.3, 3.0), distance(b.xyz / b.w, uMediaCam) - df);
         }
-        if (uMediaVapour > 0.5) {
+        if (uMediaVapour > 0.5 && all(greaterThanEqual(uv, uMediaRect.xy)) && all(lessThan(uv, uMediaRect.zw))) {
           // The vapour between the eye and this fragment, from what the volume's pass found along
           // this pixel's ray: clear up to where it starts, as dark as it gets past where it ends.
           vec2 range = texture(uMediaRange, uv).rg;
@@ -479,17 +539,21 @@ export function createCloudVolume(cloud) {
   // a launch first needs it and let go when the sequence is over.
   let marchRT = null;
   let mediaRT = null;
-  const composeU = { tDiffuse: U.tDiffuse, tVapour: { value: null }, uOn: { value: 0 }, tMedia: { value: null }, uMedia: { value: 0 } };
+  const composeU = {
+    tDiffuse: U.tDiffuse, tVapour: { value: null }, uOn: { value: 0 },
+    tMedia: { value: null }, uMedia: { value: 0 }, uRect: MU.uMediaRect,
+  };
   const composeQuad = new FullScreenQuad(new THREE.ShaderMaterial({
     name: 'cloud-volume-compose',
     uniforms: composeU,
     vertexShader: /* glsl */`varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
     fragmentShader: /* glsl */`
-      uniform sampler2D tDiffuse, tVapour, tMedia; uniform float uOn, uMedia; varying vec2 vUv;
+      uniform sampler2D tDiffuse, tVapour, tMedia; uniform float uOn, uMedia; uniform vec4 uRect; varying vec2 vUv;
       void main() {
         vec4 scene = texture2D(tDiffuse, vUv);
         // The scene through the vapour, plus the vapour's own light — or the scene as it is.
-        vec4 v = uOn > 0.5 ? texture2D(tVapour, vUv) : vec4(0.0, 0.0, 0.0, 1.0);
+        bool inVap = uOn > 0.5 && all(greaterThanEqual(vUv, uRect.xy)) && all(lessThan(vUv, uRect.zw));
+        vec4 v = inVap ? texture2D(tVapour, vUv) : vec4(0.0, 0.0, 0.0, 1.0);
         vec3 c = scene.rgb * v.a + v.rgb;
         // Then the plumes and the steam: their light, and what they hide of all that.
         if (uMedia > 0.5) { vec4 m = texture2D(tMedia, vUv); c = c * (1.0 - clamp(m.a, 0.0, 1.0)) + m.rgb; }
@@ -513,6 +577,38 @@ export function createCloudVolume(cloud) {
     return marchRT;
   }
 
+  const vp = new THREE.Matrix4();
+  function screenRectForLive(w, h) {
+    if (!hasLive) return null;
+    const pad = CELL * 2;
+    const x0 = Math.max(BOX_MIN.x, liveMin.x - pad), x1 = Math.min(BOX_MIN.x + SIZE.x, liveMax.x + pad);
+    const y0 = Math.max(0, liveMin.y - pad), y1 = Math.min(SIZE.y, liveMax.y + pad);
+    const z0 = Math.max(BOX_MIN.z, liveMin.z - pad), z1 = Math.min(BOX_MIN.z + SIZE.z, liveMax.z + pad);
+    U.uLiveMin.value.set(x0, y0, z0);
+    U.uLiveMax.value.set(x1, y1, z1);
+    const ox = U.uOrigin.value.x, oy = U.uOrigin.value.y, oz = U.uOrigin.value.z;
+    const cx = U.uCam.value.x - ox, cy = U.uCam.value.y - oy, cz = U.uCam.value.z - oz;
+    // Inside or straddling near plane: fall back to full screen.
+    if (cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1 && cz >= z0 && cz <= z1) return [0, 0, w, h];
+    let u0 = 1, v0 = 1, u1 = 0, v1 = 0;
+    const xs = [x0 + ox, x1 + ox], ys = [y0 + oy, y1 + oy], zs = [z0 + oz, z1 + oz];
+    for (let ix = 0; ix < 2; ix++) for (let iy = 0; iy < 2; iy++) for (let iz = 0; iz < 2; iz++) {
+      _boxPt.set(xs[ix], ys[iy], zs[iz]);
+      // transform manually with vp to preserve w
+      const e = vp.elements;
+      const cw = e[3] * _boxPt.x + e[7] * _boxPt.y + e[11] * _boxPt.z + e[15];
+      if (cw <= 0.001) return [0, 0, w, h];
+      const u = ((e[0] * _boxPt.x + e[4] * _boxPt.y + e[8] * _boxPt.z + e[12]) / cw) * 0.5 + 0.5;
+      const v = ((e[1] * _boxPt.x + e[5] * _boxPt.y + e[9] * _boxPt.z + e[13]) / cw) * 0.5 + 0.5;
+      if (u < u0) u0 = u; if (u > u1) u1 = u;
+      if (v < v0) v0 = v; if (v > v1) v1 = v;
+    }
+    const sx0 = Math.max(0, Math.floor(u0 * w)), sy0 = Math.max(0, Math.floor(v0 * h));
+    const sx1 = Math.min(w, Math.ceil(u1 * w)), sy1 = Math.min(h, Math.ceil(v1 * h));
+    if (sx1 <= sx0 || sy1 <= sy0) return null;
+    return [sx0, sy0, sx1 - sx0, sy1 - sy0];
+  }
+
   class CloudVolumePass extends Pass {
     constructor() { super(); this.needsSwap = true; this.enabled = false; this.name = 'cloud volume'; }
     render(renderer, writeBuffer, readBuffer) {
@@ -521,13 +617,25 @@ export function createCloudVolume(cloud) {
       U.tDepth.value = readBuffer.depthTexture;
       U.uNoise.value = noise.texture;
       const target = this.renderToScreen ? null : writeBuffer;
-      composeU.uOn.value = vapourOn ? 1 : 0;
-      if (vapourOn) {
+      const rect = vapourOn ? screenRectForLive(readBuffer.width, readBuffer.height) : null;
+      const drawVapour = vapourOn && !!rect;
+      composeU.uOn.value = drawVapour ? 1 : 0;
+      if (drawVapour) {
+        const [sx, sy, sw, sh] = rect;
+        MU.uMediaRect.value.set(sx / readBuffer.width, sy / readBuffer.height, (sx + sw) / readBuffer.width, (sy + sh) / readBuffer.height);
         const rt = marchTarget(readBuffer.width, readBuffer.height);
-        renderer.setRenderTarget(rt);
-        quad.render(renderer);
+        rt.scissorTest = true;
+        rt.scissor.set(sx, sy, sw, sh);
+        try {
+          renderer.setRenderTarget(rt);
+          quad.render(renderer);
+        } finally {
+          rt.scissorTest = false;
+        }
         composeU.tVapour.value = rt.textures[0];
         mark?.('cloud volume compose');
+      } else {
+        MU.uMediaRect.value.set(0, 0, 0, 0);
       }
       // What glows, on its own layer and into a target of its own, against the scene's depth as a
       // texture. (Not straight into the composer's buffer after the vapour: that buffer is
@@ -538,7 +646,8 @@ export function createCloudVolume(cloud) {
       if (drawMedia) {
         const mrt = mediaTarget(readBuffer.width, readBuffer.height);
         MU.uMediaDepth.value = readBuffer.depthTexture;
-        if (vapourOn) { MU.uMediaRange.value = marchRT.textures[1]; MU.uMediaLight.value = marchRT.textures[0]; }
+        MU.uMediaVapour.value = drawVapour ? 1 : 0;
+        if (drawVapour) { MU.uMediaRange.value = marchRT.textures[1]; MU.uMediaLight.value = marchRT.textures[0]; }
         MU.uMediaRes.value.set(mrt.width, mrt.height);
         mark?.('plumes and steam');
         const mask = viewCamera.layers.mask, bg = scene.background;
@@ -567,7 +676,6 @@ export function createCloudVolume(cloud) {
     dispose() { quad.dispose(); }
   }
   const pass = new CloudVolumePass();
-  const vp = new THREE.Matrix4();
 
   return {
     pass, density, light, GLSL: VOLUME_GLSL, uniforms: U, cards: cloud,
@@ -580,6 +688,37 @@ export function createCloudVolume(cloud) {
     rebuildNoise() { noise?.dispose(); noise = null; dirty = true; },
     /** The simulation stepped (or was reset): the volumes are redrawn before the next picture. */
     touch() { dirty = true; },
+    /** Pre-compiles noise + all 4 volumetric shaders once during loading so ignition does not stall. */
+    warmup(renderer) {
+      noise ??= buildNoise(renderer);
+      const prevTarget = renderer.getRenderTarget(), prevAuto = renderer.autoClear;
+      const prevScissor = renderer.getScissorTest();
+      const warm1 = new THREE.WebGLRenderTarget(1, 1, { format: THREE.RGBAFormat, type: THREE.HalfFloatType, depthBuffer: false });
+      const warmMRT = new THREE.WebGLRenderTarget(1, 1, { count: 2, type: THREE.HalfFloatType, depthBuffer: false });
+      try {
+        renderer.autoClear = false;
+        renderer.setScissorTest(false);
+        geo.instanceCount = 0;
+        renderer.setRenderTarget(warm1);
+        renderer.render(splat, dummyCam);
+        lightQuad.render(renderer);
+        U.tDiffuse.value = dummy; U.tDepth.value = dummy; U.uNoise.value = noise.texture;
+        renderer.setRenderTarget(warmMRT);
+        quad.render(renderer);
+        composeU.tDiffuse.value = dummy; composeU.tVapour.value = warmMRT.textures[0]; composeU.tMedia.value = dummy;
+        composeU.uOn.value = 1; composeU.uMedia.value = 1;
+        renderer.setRenderTarget(warm1);
+        composeQuad.render(renderer);
+      } finally {
+        composeU.uOn.value = 0; composeU.uMedia.value = 0;
+        composeU.tVapour.value = null; composeU.tMedia.value = null;
+        U.tDiffuse.value = null; U.tDepth.value = null;
+        renderer.setScissorTest(prevScissor);
+        renderer.setRenderTarget(prevTarget);
+        renderer.autoClear = prevAuto;
+        warm1.dispose(); warmMRT.dispose();
+      }
+    },
     /**
      * Once a frame before the composer: whether there is anything to draw, the camera, the light.
      * @param sun the scene's directional light; elevDeg its elevation; time the mission clock (s)

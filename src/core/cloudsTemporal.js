@@ -76,7 +76,7 @@ export function createCloudTemporal(uniforms) {
     uOffset: { value: new THREE.Vector2() }, uFrame: { value: 0 },
     uFreshC: { value: fresh.textures[0] }, uFreshD: { value: fresh.textures[1] },
     uHistC: { value: null }, uHistD: { value: null },
-    uValid: { value: 0 }, uMix: { value: 0.5 },
+    uValid: { value: 0 }, uStill: { value: 0 }, uMix: { value: 0.5 },
   };
 
   const march = new FullScreenQuad(new THREE.ShaderMaterial({
@@ -112,7 +112,7 @@ export function createCloudTemporal(uniforms) {
       uniform mat4 uPrevVP;
       uniform vec2 uOffset;
       uniform sampler2D uFreshC, uFreshD, uHistC, uHistD;
-      uniform float uValid, uMix;
+      uniform float uValid, uStill, uMix;
       in vec2 vUv;
       layout(location = 0) out vec4 oColor;
       layout(location = 1) out vec4 oDist;
@@ -147,6 +147,20 @@ export function createCloudTemporal(uniforms) {
         vec2 sub = mod(px, ${BLOCK.toFixed(1)});
         bool marched = all(equal(sub, uOffset));
         ivec2 cell = ivec2(px / ${BLOCK.toFixed(1)});
+        if (uStill > 0.5) {
+          ivec2 ipx = ivec2(px);
+          vec4 hc = texelFetch(uHistC, ipx, 0);
+          float hd = texelFetch(uHistD, ipx, 0).r;
+          if (marched) {
+            vec4 fc = texelFetch(uFreshC, cell, 0);
+            float fd = texelFetch(uFreshD, cell, 0).r;
+            oColor = mix(hc, fc, uMix);
+            oDist = vec4(hc.a > 0.004 && fc.a > 0.004 ? mix(hd, fd, uMix) : (fc.a > 0.004 ? fd : hd), 0.0, 0.0, 1.0);
+          } else {
+            oColor = hc; oDist = vec4(hd, 0.0, 0.0, 1.0);
+          }
+          return;
+        }
         vec3 d = rayOf(px + 0.5);
         // The cloud point this pixel sees, found from the history's distances (twice: the second
         // lookup at the first one's reprojection), then where it was on last frame's screen.
@@ -240,6 +254,7 @@ export function createCloudTemporal(uniforms) {
       tu.uMix.value = relitLeft > 0 ? 1 : 0.5;
       if (relitLeft > 0) relitLeft--;
       tu.uValid.value = valid ? 1 : 0;
+      tu.uStill.value = valid && vp.equals(prevVP) ? 1 : 0;
 
       const prevTarget = renderer.getRenderTarget(), prevAuto = renderer.autoClear;
       renderer.autoClear = false;

@@ -19,6 +19,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { takeBytes } from '../core/prefetch.js';
 import { markSmallParts } from './lodParts.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { dedupTextures } from '../geometry/utils.js';
 import { applyDetail } from '../materials/detail.js';
 import { partMaterials } from './h2r/materials.js';
 import { buildDash } from './h2r/dash.js';
@@ -43,6 +44,7 @@ export function adoptH2r(scene, M, associations = null) {
     }
   }
   root.traverse(o => { o.name = o.name.replace(/\.?\d{3}$/, ''); });
+  dedupTextures(root);
   const seen = new Set();
   root.traverse(o => {
     if (!o.isMesh) return;

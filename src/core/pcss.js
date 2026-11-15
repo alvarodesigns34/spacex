@@ -32,31 +32,37 @@ export const PCSS = { params: new Float32Array([1195, 0.0093, 680, 4096]) };
 export const SUN_ANGLE = 0.533 * Math.PI / 180;
 let installed = false;
 
+const vogelArray = (n, offset = 0) => Array.from({ length: n }, (_, i) => {
+  const r = Math.sqrt((i + 0.5) / n);
+  const th = i * 2.39996323 + offset;
+  return `vec2( ${(r * Math.cos(th)).toFixed(6)}, ${(r * Math.sin(th)).toFixed(6)} )`;
+}).join(', ');
+
 const PCSS_GLSL = /* glsl */`
 	uniform vec4 pcssParams;
+	const vec2 PCSS_B[16] = vec2[16]( ${vogelArray(16, 0)} );
+	const vec2 PCSS_P[32] = vec2[32]( ${vogelArray(32, 1.7)} );
 	float pcssNoise( vec2 p ) { return fract( 52.9829189 * fract( dot( p, vec2( 0.06711056, 0.00583715 ) ) ) ); }
-	vec2 pcssVogel( float i, float n, float rot ) {
-		float r = sqrt( ( i + 0.5 ) / n ), th = i * 2.39996323 + rot;
-		return r * vec2( cos( th ), sin( th ) );
-	}
 	float pcssShadow( sampler2D shadowMap, vec2 shadowMapSize, vec4 c ) {
 		float texel = 1.0 / shadowMapSize.x;
 		// Map UV of penumbra per unit of depth (depth 0..1 spans pcssParams.x metres).
 		float k = pcssParams.x * pcssParams.y / max( pcssParams.z, 1e-3 );
 		float rot = pcssNoise( gl_FragCoord.xy ) * 6.2831853;
+		float cr = cos( rot ), sr = sin( rot );
+		mat2 R = mat2( cr, sr, -sr, cr );
 		// Radii, half the widths: a penumbra Δ·θ wide is a disc of radius Δ·θ/2 (until a fix the same
 		// day it was used as the radius, doubling every penumbra).
 		float search = clamp( 0.5 * c.z * k, 2.0 * texel, 32.0 * texel );
 		float sum = 0.0, n = 0.0;
 		for ( int i = 0; i < 16; i ++ ) {
-			float d = unpackRGBAToDepth( texture2D( shadowMap, c.xy + pcssVogel( float( i ), 16.0, rot ) * search ) );
+			float d = unpackRGBAToDepth( texture2D( shadowMap, c.xy + ( R * PCSS_B[ i ] ) * search ) );
 			if ( d < c.z ) { sum += d; n += 1.0; }
 		}
 		if ( n < 0.5 ) return 1.0;
 		float pen = clamp( 0.5 * ( c.z - sum / n ) * k, 1.0 * texel, 32.0 * texel );
 		float lit = 0.0;
 		for ( int i = 0; i < 32; i ++ ) {
-			lit += step( c.z, unpackRGBAToDepth( texture2D( shadowMap, c.xy + pcssVogel( float( i ), 32.0, rot + 1.7 ) * pen ) ) );
+			lit += step( c.z, unpackRGBAToDepth( texture2D( shadowMap, c.xy + ( R * PCSS_P[ i ] ) * pen ) ) );
 		}
 		return lit / 32.0;
 	}

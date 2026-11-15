@@ -852,6 +852,9 @@ async function main() {
   const sanitized = sanitizeNormals(scene);
   hud.setProgress('Compiling shaders…', 0.95);
   await nextFrame();
+  reentry.warmup();
+  cloudVolume?.warmup(renderer);
+  env.followCamera(camera);
   performance.mark('vc:compile', { detail: renderer.info.programs.length });
   // Warm-up, one part of the scene at a time — each exhibit, the pad, the ground — with a
   // frame between parts so the progress bar keeps moving. The profile (tools/perceived.mjs)
@@ -1324,7 +1327,7 @@ async function main() {
   // A lost and restored context comes back without the reflection probe (a render target has
   // no source to re-upload), which darkened the whole ground by half. Named so the gate can
   // take it away and prove that its own test notices.
-  function onContextRestored() { env.rebuildProbe(); shadowCache.invalidate(); gbufferCache?.invalidate(); env.clouds.temporal?.invalidate(); }
+  function onContextRestored() { env.rebuildProbe(); shadowCache.invalidate(); gbufferCache?.invalidate(); env.clouds.temporal?.invalidate(); env.clouds.invalidateShadowMap?.(); }
   canvas.addEventListener('webglcontextrestored', onContextRestored);
 
   window.addEventListener('resize', () => {
@@ -1448,20 +1451,34 @@ async function main() {
    * The dot stays on the anchor; only the text moves. Occluded callouts stay
    * faint and do not take a slot.
    */
+  let labelsWereShown = false;
   function settleLabels() {
     const root = document.getElementById('labels');
     if (!root) return;
+    const shown = labels.children.some(g => g.visible && g.children.length > 0);
+    if (!shown) {
+      if (!labelsWereShown) return;
+      labelsWereShown = false;
+      for (const el of root.querySelectorAll('.label')) {
+        const text = el.querySelector('.label-text'), leader = el.querySelector('.label-leader');
+        if (text) text.style.transform = '';
+        if (leader) leader.style.transform = '';
+        el.classList.remove('is-culled');
+      }
+      return;
+    }
+    labelsWereShown = true;
     const cap = window.innerWidth < 520 ? 4 : window.innerWidth < 900 ? 6 : 8;
     // All the writes first, then all the reads: resetting a label and measuring it in the same
     // pass forced a layout per label, every frame (audit of 20-10-2026, S14). Now it is one.
-    const labels = [...root.querySelectorAll('.label')].map(el => ({ el, text: el.querySelector('.label-text'), leader: el.querySelector('.label-leader') }));
-    for (const { el, text, leader } of labels) {
+    const labelNodes = [...root.querySelectorAll('.label')].map(el => ({ el, text: el.querySelector('.label-text'), leader: el.querySelector('.label-leader') }));
+    for (const { el, text, leader } of labelNodes) {
       if (text) text.style.transform = '';
       if (leader) leader.style.transform = '';
       el.classList.remove('is-culled');
     }
     const items = [];
-    for (const { el, text, leader } of labels) {
+    for (const { el, text, leader } of labelNodes) {
       if (el.classList.contains('is-occluded')) continue;
       const r = el.getBoundingClientRect();
       if (r.width < 2 || r.height < 2) continue;

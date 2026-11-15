@@ -19,6 +19,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { takeBytes } from '../core/prefetch.js';
 import { markSmallParts } from './lodParts.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { dedupTextures } from '../geometry/utils.js';
 
 export const MODELY_ASSET = new URL('../../assets/modely/modely.glb', import.meta.url);
 
@@ -84,6 +85,7 @@ export function adoptModelY(scene, associations = null) {
     o.castShadow = !pane; o.receiveShadow = !pane;
     if (pane) o.renderOrder = 2;
   });
+  dedupTextures(root);
   // The tyres (142 016 triangles each, 47 % of the car) are drawn in full at every distance: the
   // lathe stand-in past 25 m (audit of 8-11-2026, §23) was withdrawn by the user's rule of the same
   // day — no geometry swapped out for speed.

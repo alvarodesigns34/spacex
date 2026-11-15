@@ -365,7 +365,7 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
   // checks compare single frames (?clouds=full brings it back there too, and ?cloudtaa alone with the
   // automation's short march, for tools/clouds-temporal-check.mjs).
   const cloudTaa = typeof location !== 'undefined' && /[?&]cloudtaa\b/.test(location.search);
-  const clouds = createClouds(scene, { mode: cloudSteps ? 'volume' : 'layer', steps: cloudSteps, temporal: !automated || cloudTaa });
+  const clouds = createClouds(scene, { mode: cloudSteps ? 'volume' : 'layer', steps: cloudSteps, temporal: !automated || cloudTaa, renderer });
   // Cloud shadows (clouds.js applyShadow) on every lit material of the library, the ground's,
   // the vehicles' and the sea's (below), where the clouds have volume; the flat layer's tier
   // keeps none.
@@ -688,7 +688,11 @@ export function createEnvironment(renderer, scene, M, quality = {}) {
     updateSea(camera);
     // The haze's lobe is the viewer's: a probe's cube capture (localProbes.js, a CubeCamera with no
     // view matrix of its own) keeps the last one.
-    if (camera.isCamera) { camera.updateMatrixWorld(); updateFogSun(camera, sunDir, air.elev, sunTint(air.elev), fog.color); }
+    if (camera.isCamera) {
+      clouds.updateShadowMap(camera);
+      camera.updateMatrixWorld();
+      updateFogSun(camera, sunDir, air.elev, sunTint(air.elev), fog.color);
+    }
   }
 
   // The swell's patch, under the camera: snapped to a 2 m grid so its vertices do not slide

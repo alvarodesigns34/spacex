@@ -42,6 +42,14 @@ class StillAAPass extends Pass {
   }
   setSize(w, h) { this.history.setSize(w, h); this.alpha = 1; }
   render(renderer, writeBuffer, readBuffer) {
+    if (this.alpha >= 1 && !this.renderToScreen) {
+      this.needsSwap = false;
+      this.copy.material.uniforms.tSrc.value = readBuffer.texture;
+      renderer.setRenderTarget(this.history);
+      this.copy.render(renderer);
+      return;
+    }
+    this.needsSwap = true;
     const b = this.blend.material.uniforms;
     b.tCur.value = readBuffer.texture; b.tHist.value = this.history.texture; b.uAlpha.value = this.alpha;
     renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
@@ -57,6 +65,7 @@ class StillAAPass extends Pass {
 export function createStillAA(camera, { enabled = true } = {}) {
   const pass = new StillAAPass();
   pass.name = 'still-aa';
+  pass.enabled = enabled;
   const last = new THREE.Matrix4(), lastP = new THREE.Matrix4(), saved = new THREE.Matrix4();
   let n = 0, jittered = false;
   return {
@@ -72,7 +81,9 @@ export function createStillAA(camera, { enabled = true } = {}) {
       const still = this.enabled && !moving && camera.matrixWorld.equals(last) && camera.projectionMatrix.equals(lastP);
       last.copy(camera.matrixWorld); lastP.copy(camera.projectionMatrix);
       n = still ? n + 1 : 0;
+      pass.enabled = this.enabled && !moving;
       pass.alpha = n === 0 ? 1 : Math.max(1 / (n + 1), 1 / 8);
+      pass.needsSwap = n > 0 || pass.renderToScreen;
       jittered = n > 0;
       if (jittered) {
         const [jx, jy] = JITTER[n % JITTER.length];

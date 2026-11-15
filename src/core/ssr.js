@@ -19,6 +19,20 @@
 import * as THREE from 'three';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { SEA_LEVEL, offshoreGLSL, oceanFarSlopeGLSL, WAVES } from './ocean.js';
+import { COAST_FRAME } from './terrain.js';
+
+const SEA_Y0 = SEA_LEVEL - 2.6, SEA_Y1 = SEA_LEVEL + 2.6;
+// shoreZ(u) is bounded above by -638 and WATERLINE = 35.3, so offshore > 0 requires w < -673.3.
+const SEA_W_MAX = -665;
+const NDC = [
+  [-1, -1, -1], [1, -1, -1], [-1, 1, -1], [1, 1, -1],
+  [-1, -1, 1], [1, -1, 1], [-1, 1, 1], [1, 1, 1],
+];
+const EDGES = [
+  [0, 1], [1, 3], [3, 2], [2, 0],
+  [4, 5], [5, 7], [7, 6], [6, 4],
+  [0, 4], [1, 5], [2, 6], [3, 7],
+];
 
 export function createSeaSSR(aoPass, camera, oceanU) {
   const shader = {
@@ -113,12 +127,44 @@ export function createSeaSSR(aoPass, camera, oceanU) {
   };
   const pass = new ShaderPass(shader);
   pass.name = 'sea-ssr';
+  const corners = Array.from({ length: 8 }, () => new THREE.Vector3());
+  const vpInv = new THREE.Matrix4();
+  const seaVisible = () => {
+    const { cos: CB, sin: SB, padZ } = COAST_FRAME;
+    vpInv.multiplyMatrices(camera.matrixWorld, camera.projectionMatrixInverse);
+    for (let i = 0; i < 8; i++) {
+      corners[i].set(NDC[i][0], NDC[i][1], NDC[i][2]).applyMatrix4(vpInv);
+      const y = corners[i].y;
+      if (y >= SEA_Y0 && y <= SEA_Y1) {
+        const w = padZ - SB * corners[i].x + CB * (corners[i].z - padZ);
+        if (w < SEA_W_MAX) return true;
+      }
+    }
+    for (let i = 0; i < 12; i++) {
+      const a = corners[EDGES[i][0]], b = corners[EDGES[i][1]];
+      const dy = b.y - a.y;
+      if (Math.abs(dy) < 1e-8) continue;
+      for (const yPlane of [SEA_Y0, SEA_Y1]) {
+        const t = (yPlane - a.y) / dy;
+        if (t >= 0 && t <= 1) {
+          const x = a.x + (b.x - a.x) * t;
+          const z = a.z + (b.z - a.z) * t;
+          const w = padZ - SB * x + CB * (z - padZ);
+          if (w < SEA_W_MAX) return true;
+        }
+      }
+    }
+    return false;
+  };
   return {
     pass,
     /** Per frame, before the composer renders. */
     update(on) {
+      const active = !!on && seaVisible();
+      pass.enabled = active;
       const u = pass.material.uniforms;
-      u.uOn.value = on ? 1 : 0;
+      u.uOn.value = active ? 1 : 0;
+      if (!active) return;
       u.tDepth.value = aoPass.depthTexture;
       u.uProj.value.copy(camera.projectionMatrix);
       u.uProjInv.value.copy(camera.projectionMatrixInverse);

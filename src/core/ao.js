@@ -82,8 +82,12 @@ class SceneAOPass extends GTAOPass {
  * whose first group was glass lost its whole body's occlusion.)
  */
 export function drawsDepth(m) {
-  const list = Array.isArray(m) ? m : [m];
-  return list.some(x => x && !(x.transparent || x.depthWrite === false || x.blending === THREE.AdditiveBlending));
+  if (!Array.isArray(m)) return !!m && !(m.transparent || m.depthWrite === false || m.blending === THREE.AdditiveBlending);
+  for (let i = 0; i < m.length; i++) {
+    const x = m[i];
+    if (x && !(x.transparent || x.depthWrite === false || x.blending === THREE.AdditiveBlending)) return true;
+  }
+  return false;
 }
 
 export function createAO(scene, camera, width, height) {

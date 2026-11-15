@@ -599,38 +599,51 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
     return [...ts].reverse().find(x => x < t - 0.5) ?? plotSpan?.t0 ?? null;
   }
   /** Called every frame while a sequence runs; null puts the panel away. */
+  let missionShown = false, lastReentry = null, lastClockTxt = '', lastPhaseTxt = '', lastNextTxt = '', lastCursorX = '', curEl = null;
   function setMission(st) {
     if (!st) {
-      mission.classList.add('hidden');
-      document.body.classList.remove('is-flying');
-      launchBtn.classList.remove('is-live');
-      reentryBtn.classList.remove('is-live');
-      callout.classList.remove('is-on');
-      lastT = null;
+      if (missionShown) {
+        missionShown = false;
+        mission.classList.add('hidden');
+        document.body.classList.remove('is-flying');
+        launchBtn.classList.remove('is-live');
+        reentryBtn.classList.remove('is-live');
+        callout.classList.remove('is-on');
+      }
+      lastT = null; lastReentry = null; lastClockTxt = ''; lastPhaseTxt = ''; lastNextTxt = ''; lastCursorX = '';
       return;
     }
-    mission.classList.remove('hidden');
+    if (!missionShown) {
+      missionShown = true;
+      mission.classList.remove('hidden');
+      hideCoach();
+      document.body.classList.add('is-flying');
+    }
     const reentry = st.chapter === 'reentry';
-    mission.classList.toggle('is-reentry', reentry);
-    hideCoach();
-    document.body.classList.add('is-flying');
-    launchBtn.classList.toggle('is-live', !reentry);
-    reentryBtn.classList.toggle('is-live', reentry);
-    mClock.textContent = clockText(st.t);
-    mPhase.textContent = st.phase;
+    if (reentry !== lastReentry) {
+      lastReentry = reentry;
+      mission.classList.toggle('is-reentry', reentry);
+      launchBtn.classList.toggle('is-live', !reentry);
+      reentryBtn.classList.toggle('is-live', reentry);
+    }
+    const clk = clockText(st.t);
+    if (clk !== lastClockTxt) { lastClockTxt = clk; mClock.textContent = clk; }
+    if (st.phase !== lastPhaseTxt) { lastPhaseTxt = st.phase; mPhase.textContent = st.phase; }
     // "T+01:02", without the hours the main clock carries.
     const short = st.next && clockText(st.next.t);
     // A time read off the model (tower clear, supersonic, booster apogee, booster transonic) is
     // marked ≈, so it is not taken for a flight's published timeline.
     const est = st.next?.src === 'model' ? '≈' : '';   // ('scenario' events say so in their label)
     // Without the hours while there are none; the re-entry runs nine and a half hours in.
-    const nextTxt = short && (short.slice(2, 4) === '00' ? `${short.slice(0, 2)}${short.slice(5)}` : short);
-    mNext.textContent = short ? `Next · ${st.next.label} ${est}${nextTxt}` : '';
+    const nextTxt = short ? `Next · ${st.next.label} ${est}${short.slice(2, 4) === '00' ? `${short.slice(0, 2)}${short.slice(5)}` : short}` : '';
+    if (nextTxt !== lastNextTxt) { lastNextTxt = nextTxt; mNext.textContent = nextTxt; }
     for (const key of ['booster', 'ship']) {
       const r = readout[key], v = st[key];
       if (!v) continue;
-      r.vel.textContent = `${Math.round(v.velocity * 3.6).toLocaleString('en-US')} km/h`;
-      r.alt.textContent = dist(v.altitude);
+      const vt = `${Math.round(v.velocity * 3.6).toLocaleString('en-US')} km/h`;
+      if (vt !== r.velText) { r.velText = vt; r.vel.textContent = vt; }
+      const at = dist(v.altitude);
+      if (at !== r.altText) { r.altText = at; r.alt.textContent = at; }
       if (v.lit !== r.last) {
         r.last = v.lit;
         r.dots.forEach((d, i) => d.classList.toggle('on', i < v.lit));
@@ -649,13 +662,15 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
     showCamera(st);
     for (const b of speeds) {
       const on = Number(b.dataset.k) === st.speed;
-      b.classList.toggle('active', on);
+      if (b.classList.contains('active') !== on) b.classList.toggle('active', on);
       if (b.getAttribute('aria-pressed') !== String(on)) b.setAttribute('aria-pressed', String(on));
     }
-    const cur = plotSpan && plot.querySelector('#mp-cursor');
-    if (cur) {
-      const x = Math.max(0, Math.min(400, ((st.t - plotSpan.t0) / (plotSpan.t1 - plotSpan.t0)) * 400));
-      cur.setAttribute('x1', x); cur.setAttribute('x2', x);
+    if (plotSpan) {
+      if (!curEl || !curEl.isConnected) curEl = plot.querySelector('#mp-cursor');
+      if (curEl) {
+        const x = Math.max(0, Math.min(400, ((st.t - plotSpan.t0) / (plotSpan.t1 - plotSpan.t0)) * 400)).toFixed(2);
+        if (x !== lastCursorX) { lastCursorX = x; curEl.setAttribute('x1', x); curEl.setAttribute('x2', x); }
+      }
     }
   }
 
@@ -669,15 +684,18 @@ export function createHUD({ vehicles, onSelect, onPreset, onToggle, onMode, onWa
   const scaleLabel = el('#scale-label');
   const scaleBar = root.querySelector('.scale-bar');
   const scaleInfo = el('#scale-info');
+  let lastScalePx = '', lastScaleLabel = '', lastScaleInfo = '';
   function setScale(metresPerPixel, distance) {
     // choose a "nice" length that fits in ~90-220 px
     const candidates = [0.5, 1, 2, 5, 10, 20, 50, 100];
     let best = 10;
     for (const c of candidates) { const px = c / metresPerPixel; if (px >= 90) { best = c; break; } best = c; }
-    const px = Math.min(best / metresPerPixel, 320);
-    scaleBar.style.width = `${px.toFixed(0)}px`;
-    scaleLabel.textContent = best < 1 ? `${best * 100} cm` : `${best} m`;
-    scaleInfo.textContent = `distance to target ${distance < 10 ? distance.toFixed(1) : Math.round(distance)} m`;
+    const px = Math.min(best / metresPerPixel, 320).toFixed(0);
+    if (px !== lastScalePx) { lastScalePx = px; scaleBar.style.width = `${px}px`; }
+    const lbl = best < 1 ? `${best * 100} cm` : `${best} m`;
+    if (lbl !== lastScaleLabel) { lastScaleLabel = lbl; scaleLabel.textContent = lbl; }
+    const info = `distance to target ${distance < 10 ? distance.toFixed(1) : Math.round(distance)} m`;
+    if (info !== lastScaleInfo) { lastScaleInfo = info; scaleInfo.textContent = info; }
   }
 
   // ---- Site map ----------------------------------------------------------------------

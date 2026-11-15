@@ -37,6 +37,7 @@ import { ENVIRONMENTS, environmentMaps, createFloors, createFloorReflector, fini
 import { CT_FIGURES, CT_SOURCES, CT_SYSTEMS, CT_STAGES, CT_FIDELITY, CT_SUSPENSION, CT_OPENINGS } from '../data/cybertruck.js';
 import { buildHumanCrowd } from '../vehicles/common.js';
 import { fireflyClampPass } from '../core/fireflyClamp.js';
+import { dedupTextures } from '../geometry/utils.js';
 
 export const CYBERTRUCK_ASSET = new URL('../../assets/cybertruck/cybertruck.glb', import.meta.url);
 /** What tools/cybertruck-sync.mjs recorded: the GLB's uncompressed size is the progress bar's total. */
@@ -465,6 +466,7 @@ export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
         if (m.transmission > 0) o.castShadow = false;
       }
     });
+    dedupTextures(truck);
     scene.add(truck);
     truck.updateMatrixWorld(true);
     // Measured on the decoded vertices, assembled: what the data card shows next to Tesla's figures.

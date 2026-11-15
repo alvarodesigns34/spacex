@@ -26,6 +26,7 @@
  */
 import { HASH_GLSL } from './hashGLSL.js';
 import * as THREE from 'three';
+import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { sunTint } from './sunlight.js';
 import { createCloudTemporal } from './cloudsTemporal.js';
 import { CLOUD_FAR } from './cloudConstants.js';
@@ -208,7 +209,7 @@ const SHADOW_COVER_GLSL = COVER_GLSL
  * @param o.mode  'volume' or 'layer' (see the header)
  * @param o.steps samples per ray in 'volume'
  */
-export function createClouds(scene, { mode = 'volume', steps = 32, temporal = false } = {}) {
+export function createClouds(scene, { mode = 'volume', steps = 32, temporal = false, renderer = null } = {}) {
   const uniforms = {
     uSun: { value: new THREE.Vector3(0, 1, 0) },
     uLight: { value: 1 },          // 1 by day, towards 0 at night
@@ -284,8 +285,63 @@ export function createClouds(scene, { mode = 'volume', steps = 32, temporal = fa
   // (applyShadow), chained after their own onBeforeCompile and keyed apart in three's program
   // cache. ≈ 85 % of the direct light at most under a thick cloud (the rest scatters through), and
   // 15 % of the sky's diffuse light.
-  let shadowsOn = true, shadowFade = 0;
-  const shadowU = { uCsSun: { value: new THREE.Vector3(0, 1, 0) }, uCsFade: { value: 0 }, uCover: uniforms.uCover };
+  // The 4-octave cover is cached into a snapped 1024×1024 R16F map (12 288 m across, 12 m/texel,
+  // re-baked only when the projected camera footprint shifts > 960 m), avoiding 32 hash/fbm evals
+  // in every lit fragment; outside the map (> ~5–6 km horizon) it falls back to csCover.
+  const SHADOW_RES = 1024, SHADOW_SPAN = 12288, SHADOW_SNAP = 1920;
+  let shadowsOn = true, shadowFade = 0, shadowRT = null, shadowBake = null, shadowMapValid = false;
+  const shadowU = {
+    uCsSun: { value: new THREE.Vector3(0, 1, 0) },
+    uCsFade: { value: 0 },
+    uCover: uniforms.uCover,
+    uCsMap: { value: null },
+    uCsOrigin: { value: new THREE.Vector2() },
+    uCsSpan: { value: SHADOW_SPAN },
+    uCsOn: { value: 0 },
+  };
+  function updateShadowMap(cam) {
+    if (!renderer || !cam || !shadowsOn || shadowFade <= 0.01 || shadowU.uCsSun.value.y <= 0.02) return;
+    const sun = shadowU.uCsSun.value;
+    const shift = (1700 - Math.max(0, cam.position.y)) / Math.max(0.08, sun.y);
+    const tx = cam.position.x + sun.x * shift;
+    const tz = cam.position.z + sun.z * shift;
+    const ox = shadowU.uCsOrigin.value.x, oz = shadowU.uCsOrigin.value.y;
+    if (shadowMapValid && Math.abs(tx - ox) <= SHADOW_SNAP * 0.5 && Math.abs(tz - oz) <= SHADOW_SNAP * 0.5) return;
+    const nx = Math.round(tx / SHADOW_SNAP) * SHADOW_SNAP;
+    const nz = Math.round(tz / SHADOW_SNAP) * SHADOW_SNAP;
+    if (!shadowRT) {
+      shadowRT = new THREE.WebGLRenderTarget(SHADOW_RES, SHADOW_RES, {
+        format: THREE.RedFormat, type: THREE.HalfFloatType, depthBuffer: false,
+        minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+      });
+      shadowRT.texture.internalFormat = 'R16F';
+      shadowRT.texture.generateMipmaps = false;
+      shadowBake = new FullScreenQuad(new THREE.ShaderMaterial({
+        uniforms: { uCsOrigin: shadowU.uCsOrigin, uCsSpan: shadowU.uCsSpan },
+        vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+        fragmentShader: /* glsl */`
+          precision highp float;
+          uniform vec2 uCsOrigin; uniform float uCsSpan;
+          varying vec2 vUv;
+          ${SHADOW_COVER_GLSL}
+          void main() { gl_FragColor = vec4(csCover(uCsOrigin + (vUv - 0.5) * uCsSpan, 4), 0.0, 0.0, 1.0); }`,
+        depthTest: false, depthWrite: false,
+      }));
+    }
+    shadowU.uCsOrigin.value.set(nx, nz);
+    const prevTarget = renderer.getRenderTarget(), prevAuto = renderer.autoClear;
+    renderer.autoClear = false;
+    try {
+      renderer.setRenderTarget(shadowRT);
+      shadowBake.render(renderer);
+      shadowU.uCsMap.value = shadowRT.texture;
+      shadowU.uCsOn.value = 1;
+      shadowMapValid = true;
+    } finally {
+      renderer.setRenderTarget(prevTarget);
+      renderer.autoClear = prevAuto;
+    }
+  }
   function applyShadow(material) {
     if (!material?.isMeshStandardMaterial || material.userData.cloudShadow) return;
     const prev = material.onBeforeCompile, prevKey = material.customProgramCacheKey();
@@ -302,14 +358,19 @@ export function createClouds(scene, { mode = 'volume', steps = 32, temporal = fa
         .replace('#include <common>', `#include <common>
 varying vec3 vCsW;
 uniform vec3 uCsSun;
-uniform float uCsFade, uCover;
+uniform vec2 uCsOrigin;
+uniform float uCsFade, uCover, uCsSpan, uCsOn;
+uniform sampler2D uCsMap;
 ${SHADOW_COVER_GLSL}`)
         .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
   if (uCsFade > 0.01 && uCsSun.y > 0.02) {
     vec2 csQ = vCsW.xz + uCsSun.xz * ((1700.0 - vCsW.y) / uCsSun.y);
     // The same cover as the march (four octaves: with three it covered 38 % of the sky against
     // the drawn 51 %), and the same onset of the cloud's body (+0.07), deepening with its thickness.
-    float csC = csCover(csQ, 4);
+    vec2 csUv = (csQ - uCsOrigin) / uCsSpan + 0.5;
+    float csC = (uCsOn > 0.5 && all(greaterThan(csUv, vec2(0.001))) && all(lessThan(csUv, vec2(0.999))))
+      ? texture2D(uCsMap, csUv).r
+      : csCover(csQ, 4);
     // Faded in as the Sun climbs from 1.1° to 4.6° (audit of 9-11-2026, M6: it switched off at 2.9°,
     // a visible jump in a sunset).
     float csK = smoothstep(uCover, uCover + 0.07, csC) * (0.55 + 0.45 * smoothstep(uCover, uCover + 0.25, csC)) * uCsFade * smoothstep(0.02, 0.08, uCsSun.y);
@@ -327,6 +388,8 @@ ${SHADOW_COVER_GLSL}`)
     mesh: dome,
     get mode() { return current; },
     applyShadow,
+    updateShadowMap,
+    invalidateShadowMap() { shadowMapValid = false; shadowU.uCsOn.value = 0; },
     /** Cloud shadows on or off (console: __vc.env.clouds.shadows = false, to compare). */
     get shadows() { return shadowsOn; },
     set shadows(v) { shadowsOn = !!v; shadowU.uCsFade.value = shadowsOn ? shadowFade : 0; },
