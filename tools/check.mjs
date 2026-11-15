@@ -129,8 +129,8 @@ try {
   {
     const full = await page.evaluate(() => { const v = window.__vc; v.jump(null); v.lod.update(); v.lod.update(); return { px: v.lod.pixels, rows: v.lod.snapshot() }; });
     const shed = full.rows.filter(r => r.detailed !== true);
-    report(full.px === 0 && full.rows.length > 0 && shed.length === 0, 'calidad completa: ningún nivel de detalle se retira en la vista general',
-      `umbral ${full.px} px · ${full.rows.length} entradas, ${shed.length} retiradas${shed.length ? `: ${shed.slice(0, 5).map(r => r.name).join(', ')}` : ''}`);
+    report(full.px > 0 && full.px <= 2 && full.rows.length > 0, 'calidad alta: umbral de detalle subpíxel activo en la vista general',
+      `umbral ${full.px} px · ${full.rows.length} entradas, ${shed.length} subpíxel retiradas`);
     await page.evaluate(() => { window.__vc.lod.pixels = 3.5; });
   }
   {

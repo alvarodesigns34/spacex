@@ -97,9 +97,9 @@ export function createAO(scene, camera, width, height) {
     thickness: 1,
     distanceFallOff: 1,
     scale: 1.5,
-    samples: 16,
+    samples: 8,
   }, {
-    lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, rings: 2, samples: 16,
+    lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, rings: 1, samples: 8,
   });
   pass.blendIntensity = 1;
   let lastRadius = 1;

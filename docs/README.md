@@ -9,5 +9,7 @@ Qué hay en cada parte de `docs/`. Los dos documentos principales están en la r
 | [auditoria-2026-10-20-spacex-cybertruck.md](auditoria-2026-10-20-spacex-cybertruck.md) | Auditoría conjunta de `spacex` y `cybertruck` (20-10-2026, revisada el 23-10): integración del Cybertruck en un espacio aparte, hallazgos, correcciones, mejoras de los modelos y Blender sin MCP. El mismo texto está en el repositorio `cybertruck`. |
 | [historial.md](historial.md) | Las rondas más antiguas, sacadas del README el 28 de septiembre de 2026, rotuladas como históricas. |
 | [diagnostico-2026-10-04/](diagnostico-2026-10-04/LEEME.md) | Las seis auditorías de solo lectura de la pasada decisiva del 4 de octubre de 2026 (JSON), con su estado. |
+| [rendimiento-2026-11-15.md](rendimiento-2026-11-15.md) | Optimización de VRAM, pases GPU, sombreadores, nube volumétrica y Cybertruck Lab sin pérdida visual apreciable (15-11-2026). |
+| [rendimiento-2026-11-11.md](rendimiento-2026-11-11.md) | Primera medición en GPU real (RTX 3070) y marcha temporal de las nubes (11-11-2026). |
 | `screenshots/` | La galería de capturas del README (se regenera con `npm run shots`, solo con la aprobación del usuario). |
 | `hero-check/`, `hud/`, `review-sun18/` | Capturas de comprobaciones concretas: la de los encuadres principales, la de la interfaz en escritorio, tableta y móvil, y la de la revisión del sol a 18°. |

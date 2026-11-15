@@ -37,7 +37,7 @@ import { ENVIRONMENTS, environmentMaps, createFloors, createFloorReflector, fini
 import { CT_FIGURES, CT_SOURCES, CT_SYSTEMS, CT_STAGES, CT_FIDELITY, CT_SUSPENSION, CT_OPENINGS } from '../data/cybertruck.js';
 import { buildHumanCrowd } from '../vehicles/common.js';
 import { fireflyClampPass } from '../core/fireflyClamp.js';
-import { dedupTextures } from '../geometry/utils.js';
+import { dedupTextures, downscaleTextures } from '../geometry/utils.js';
 
 export const CYBERTRUCK_ASSET = new URL('../../assets/cybertruck/cybertruck.glb', import.meta.url);
 /** What tools/cybertruck-sync.mjs recorded: the GLB's uncompressed size is the progress bar's total. */
@@ -88,7 +88,7 @@ function el(tag, cls, text) {
  */
 export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
   const lab = { active: false, loaded: false, loading: false, requests: 0, stats: null, frames: 0 };
-  const releaseGpuOnClose = quality?.name === 'low' || (typeof navigator !== 'undefined' && navigator.deviceMemory > 0 && navigator.deviceMemory <= 4);
+  const releaseGpuOnClose = true;
   const state = {
     explode: 0, amp: AMP.init, stageMask: { 1: true, 2: true, 3: true, 4: true, 5: true, 6: true },
     playing: false, playDir: 1, selected: null, isolated: null, explodeSystem: null,
@@ -288,7 +288,8 @@ export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
 
     key = new THREE.DirectionalLight(0xffffff, 2.2);
     key.castShadow = quality.shadows;
-    key.shadow.mapSize.set(quality.shadowMap, quality.shadowMap);
+    const ctShadow = Math.min(quality.shadowMap, 2048);
+    key.shadow.mapSize.set(ctShadow, ctShadow);
     // Room for the exploded truck: the farthest part, at full amplitude, stays inside ±6.5 m.
     Object.assign(key.shadow.camera, { left: -6.5, right: 6.5, top: 6.5, bottom: -6.5, near: 1, far: 30 });
     key.shadow.bias = -0.0003; key.shadow.normalBias = 0.02;
@@ -305,7 +306,7 @@ export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
       figure.name = 'cybertruck-lab-figure';
       scene.add(figure);
     }
-    if (quality.name === 'high') { reflector = createFloorReflector(14, Math.min(window.devicePixelRatio, 2)); scene.add(reflector); }
+    if (quality.name === 'high') { reflector = createFloorReflector(14, 0.5 * Math.min(window.devicePixelRatio, 2)); scene.add(reflector); }
 
     // As the site's: a multisampled half-float target (MSAA by tier) and one output pass, which
     // applies the tone mapping set on opening.
@@ -462,10 +463,11 @@ export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
         if (!m) continue;
         // Anisotropy needs tangents from UVs: the Audi Lab's turned faces without them drew black.
         if (m.anisotropy > 0 && !g.attributes.uv) m.anisotropy = 0;
-        // Glass and lenses (transmission) cast no shadow, as in the viewer.
-        if (m.transmission > 0) o.castShadow = false;
+        // Glass and lenses cast no shadow and sort after opaque geometry.
+        if (m.transmission > 0 || m.transparent) { o.castShadow = false; o.renderOrder = 2; }
       }
     });
+    downscaleTextures(truck, 2048);
     dedupTextures(truck);
     scene.add(truck);
     truck.updateMatrixWorld(true);
@@ -940,21 +942,24 @@ export function createCybertruckLab({ renderer, quality, M = null, onExit }) {
     window.removeEventListener('keydown', onKey, true);
     window.removeEventListener('keyup', onKey, true);
     window.removeEventListener('resize', resize);
-    // Memory: the model stays (the user's decision, audit of 20-10 §9: reopening is instant), but
-    // on a device short of memory (the low tier, or ≤ 4 GB reported) its GPU copies — vertex
-    // buffers and textures, the scarce part — are released on closing. The data stays in the
-    // page, so three.js uploads them again on the next frame the Lab draws: no second download,
-    // nothing rebuilt; only the first frame after reopening is slower.
-    if (truck && releaseGpuOnClose) {
-      const seen = new Set();
-      truck.traverse((o) => {
-        if (!o.isMesh) return;
-        if (!seen.has(o.geometry)) { seen.add(o.geometry); o.geometry.dispose(); }
-        for (const m of [].concat(o.material)) for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap']) {
-          const t = m?.[k];
-          if (t && !seen.has(t)) { seen.add(t); t.dispose(); }
-        }
-      });
+    // Memory: the model stays (reopening is instant without re-downloading), while its GPU
+    // resources (buffers, textures, render targets, reflector and shadow map) are released on close
+    // and re-uploaded/resized cleanly on the next open.
+    if (releaseGpuOnClose) {
+      if (truck) {
+        const seen = new Set();
+        truck.traverse((o) => {
+          if (!o.isMesh) return;
+          if (!seen.has(o.geometry)) { seen.add(o.geometry); o.geometry.dispose(); }
+          for (const m of [].concat(o.material)) for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap']) {
+            const t = m?.[k];
+            if (t && !seen.has(t)) { seen.add(t); t.dispose(); }
+          }
+        });
+      }
+      composer?.setSize(1, 1);
+      reflector?.resize(1, 1);
+      if (key?.shadow?.map) { key.shadow.map.dispose(); key.shadow.map = null; }
       lab.released = (lab.released ?? 0) + 1;
     }
     onExit?.();

@@ -44,7 +44,7 @@ const side = (g, s) => (s > 0 ? g : withCreaseNormals(mirrorZ(g), 40));
 
 export function buildRearsets(M) {
   M.h2rRearset ??= new THREE.MeshStandardMaterial({ name: 'h2r-rearset', color: 0xc9ccd0, metalness: 0.9, roughness: 0.32 });
-  M.h2rAmber ??= new THREE.MeshPhysicalMaterial({ name: 'h2r-reservoir-amber', color: 0xb8862e, metalness: 0, roughness: 0.15, transmission: 0.35, thickness: 0.01, transparent: true, opacity: 0.85 });
+  M.h2rAmber ??= new THREE.MeshPhysicalMaterial({ name: 'h2r-reservoir-amber', color: 0xb8862e, metalness: 0, roughness: 0.14, clearcoat: 1, transparent: true, opacity: 0.78 });
   const g = new THREE.Group(); g.name = 'h2r-rearsets';
   const alu = [], dark = [], steel = [], black = [], amber = [];
   for (const s of [-1, 1]) {

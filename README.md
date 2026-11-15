@@ -35,11 +35,21 @@ El entorno es contexto verosímil, no un levantamiento: la llanura costera de Bo
 
 La interfaz de la simulación (menús, ficha técnica, etiquetas y vistas) está en inglés; esta documentación, en español.
 
-## Estado actual (13 de noviembre de 2026)
+## Estado actual (15 de noviembre de 2026)
 
-Dos auditorías externas contrastadas con el código (`docs/auditoria-2026-11-13-trabajo.md`): una veintena de defectos confirmados y corregidos con pruebas, y la nube de ignición del lanzamiento dibujada como un volumen (`src/sim/cloudVolume.js`) en lugar de tarjetas, con las plumas compuestas con el vapor. Hecho en un contenedor sin GPU: el coste del pase nuevo está **sin medir** en hardware real. Antes y después en `docs/antes-despues/2026-11-13-nube-volumetrica/`.
+- **Optimización integral de VRAM, pases GPU y sombreadores sin pérdida visual apreciable** ([docs/rendimiento-2026-11-15.md](docs/rendimiento-2026-11-15.md)):
+  - **VRAM y texturas (−92,9 % en escena principal):** `dedupTextures()` y `downscaleTextures(2048)` en `src/geometry/utils.js` (GT3 RS, Model Y, H2R y Cybertruck Lab) bajan las texturas de material de **5.782,2 MB (234 texturas)** a **409,67 MB (123 texturas)**.
+  - **Sin pase extra de transmisión (`hasTransmissionRT = false`):** eliminada `transmission` en `M.h2rAmber` y en los cristales del Cybertruck Lab (`clearcoat` + transparencia ordenada).
+  - **Perfil `high` equilibrado (`src/core/quality.js`):** sombras `8192 → 4096`, `msaa: 4 → 2`, `lodPixels: 0 → 1.5` (solo retira detalles subpíxel `< 1,5 px`, 338 de 497 entradas en la vista general, restaurando todo al acercarse) y `cloudSteps: 640 → 544` (`clouds.js`: `dtF = clamp(t * 0.00025, 22, 70)`, `dtC = dtF * 7.5`; `p99 = 531`).
+  - **Pases GPU y luces:** caché de sombras de nubes `1024×1024 R16F` y ruta `uStill`; PCSS `16/32 → 8/16` con Vogel precalculado; GTAO `16 → 8` y Poisson `2×16 → 1×8`; `SeaSSR` con descarte temprano por frustum y `36` pasos + `4` bisecciones; `stillAA` apagado en movimiento; cachés de sombras y G-buffer con `MAX_AGE_MS = 5000 ms`; sondas locales capturando nubes en modo `'layer'`; `cloudVolume` en lanzamiento con `marchTarget` a `0.5×` y *scissor*; luces del foso consolidadas (`11 → 6` luces activas en escena).
+  - **Terreno y detalles (`src/materials/library.js`, `detail.js`):** ruido `M.terrain` vía `DataTexture` `256×256` `vcN4()` y atenuación por distancia (`75 m` en terreno, `14–26 m` en triplanar).
+  - **Cybertruck Lab (`src/ui/cybertruckLab.js`):** `releaseGpuOnClose = true` en todos los niveles (`textures 227 → 175`, `geometries 3793 → 1755`, `reflector 1×1` y `shadow.map = null` al cerrar, reapertura instantánea con `U` sin repetir descargas GLB), `Reflector` a `0.5×` y sombra `≤ 2048`.
 
-## Estado anterior (11 de noviembre de 2026)
+### Estado anterior (13 de noviembre de 2026)
+
+Dos auditorías externas contrastadas con el código (`docs/auditoria-2026-11-13-trabajo.md`): una veintena de defectos confirmados y corregidos con pruebas, y la nube de ignición del lanzamiento dibujada como un volumen (`src/sim/cloudVolume.js`) en lugar de tarjetas, con las plumas compuestas con el vapor. Antes y después en `docs/antes-despues/2026-11-13-nube-volumetrica/`.
+
+### Estado anterior (11 de noviembre de 2026)
 
 - **Rendimiento medido por primera vez en una GPU real** (la RTX 3070 del usuario, a 3424 × 1345). Todo el detalle, con tablas y la comparativa de imagen, en [docs/rendimiento-2026-11-11.md](docs/rendimiento-2026-11-11.md).
   - **De 12–13 FPS a 44–54 en todas las vistas**, y 47–59 durante el lanzamiento, sin bajar ningún ajuste.
@@ -729,13 +739,13 @@ Dibujar menos no cambia nada de lo dibujado, y se comprueba:
 
 ### Nivel de detalle
 
-> **Estado actual (desde el 8-11-2026, regla de calidad del usuario):** en calidad alta, que es siempre la de partida, **no hay nivel de detalle**. `lodPixels` vale 0 y `LODManager` mantiene cada entrada en su estado detallado a cualquier distancia. El escudo térmico conserva sus 13 267 losetas, el interior del Roadster y la filigrana de la Dragon se dibujan siempre y los neumáticos del Model Y llevan su malla completa. `tools/check.mjs` lo exige en la vista general y `tools/quality-check.mjs` lo comprueba sin navegador. Lo que sigue describe el mecanismo, que solo actúa en los niveles medio y bajo, y únicamente si se piden a mano con `?quality=`. Las cifras de ahorro son históricas.
+> **Estado actual (desde el 15-11-2026):** en calidad alta, que sigue siendo siempre la de partida, `lodPixels` vale **1,5 px** (antes `0` entre el 8-11 y el 15-11): `LODManager` mantiene cada vehículo con todo su detalle al acercarse y únicamente retira a gran distancia piezas subpíxel por debajo de 1,5 px (tornillos, herrajes, interruptores, mosaico lejano), sin merma apreciable en la imagen. `tools/check.mjs` y `tools/quality-check.mjs` lo verifican junto con el presupuesto y la fidelidad de medidas. Lo que sigue describe el mecanismo, compartido con los niveles medio (`5 px`) y bajo (`9 px`) si se piden con `?quality=`.
 
 `src/core/lod.js` hace una sola pregunta por entrada — *¿cuántos píxeles ocupa ahora mismo el detalle más pequeño que esto dibuja?* — y con la respuesta cambia entre estados que los constructores ya produjeron, o deja de dibujar lo que nadie puede ver. **No simplifica mallas ni construye modelos alternativos**, así que las vistas cercanas quedan exactamente igual.
 
 Cada entrada declara `lodFeature`: el tamaño real, en metros, de la pieza más pequeña que contiene. Así el mismo umbral significa lo mismo en una loseta de 0,26 m, en el marco de una ventana de la Dragon y en la junta de 2 cm de su panel trasero.
 
-Hay dos umbrales. **Sustituir** una cosa por otra (las losetas por la carcasa del escudo) se hacía a 3,5 px en calidad alta hasta el 8-11-2026 (hoy, 5 px en la media y 9 en la baja), porque hacerlo antes no se nota. **Ocultar** usa el 30 % de ese umbral, unos 1 px. Lo que se registra es la dimensión más fina, como una junta de 2 cm o un larguero de 3 cm de varios metros de largo, y una línea de un píxel se sigue viendo como línea. Con un único umbral, cada vehículo perdía costuras, marcos, bisagras y herrajes en su propia vista general: el Starlink ocultaba 17 de 18 grupos a 35 m y el Falcon 9 los 10. En el Starlink, además, cada pieza se registra ahora por el tamaño que el ojo resuelve (un terminal láser de 0,4 m, no los 4,5 cm de sus brazos). Tras el cambio oculta 1 de 18 (la cinta de 2,5 cm) en su vista general, que también se acerca de 35 a 25 m. Sus células solares se oscurecen hacia el negro azulado de las fotos.
+Hay dos umbrales. **Sustituir** una cosa por otra (las losetas por la carcasa del escudo) se hacía a 3,5 px en calidad alta hasta el 8-11-2026 (hoy, 1,5 px en alta, 5 px en la media y 9 en la baja), porque hacerlo antes no se nota. **Ocultar** usa el 30 % de ese umbral. Lo que se registra es la dimensión más fina, como una junta de 2 cm o un larguero de 3 cm de varios metros de largo, y una línea de un píxel se sigue viendo como línea. Con un único umbral, cada vehículo perdía costuras, marcos, bisagras y herrajes en su propia vista general: el Starlink ocultaba 17 de 18 grupos a 35 m y el Falcon 9 los 10. En el Starlink, además, cada pieza se registra ahora por el tamaño que el ojo resuelve (un terminal láser de 0,4 m, no los 4,5 cm de sus brazos). Tras el cambio oculta 1 de 18 (la cinta de 2,5 cm) en su vista general, que también se acerca de 35 a 25 m. Sus células solares se oscurecen hacia el negro azulado de las fotos.
 
 - **Escudo térmico.** Trece mil hexágonos de 0,26 m se vuelven ruido sub-píxel a unas decenas de metros. Pasados ~90 m las instancias se sustituyen por una superficie de revolución con el mismo mosaico horneado, cubriendo la misma ventana angular: de cerca se ve la geometría real; de lejos, un panel limpio — y 373 000 triángulos menos.
 - **Interior del Roadster y Starman.** 86 mallas sobre un coche de 3,9 m que en la vista general mide ocho píxeles. Los asientos cosidos, el Hot Wheels del salpicadero y la placa de circuito dejan de dibujarse; la carrocería, las ruedas y el cristal no, porque son la silueta.
@@ -756,7 +766,7 @@ Un tercer fallo tenía la misma familia de causa: una pieza metálica fina y cur
 ### Niveles de calidad
 
 
-> **Desde el 8-11-2026** el centro arranca **siempre en calidad alta**, sin calidad adaptativa ni LOD. Lo que la sonda del dispositivo habría elegido solo se muestra en el panel técnico (tecla **I**); los niveles medio y bajo solo se usan si se piden con `?quality=`. El párrafo siguiente describe la elección automática anterior.
+> **Desde el 8-11-2026** el centro arranca **siempre en calidad alta**, sin calidad adaptativa (desde el 15-11-2026 con LOD subpíxel a `1,5 px`). Lo que la sonda del dispositivo habría elegido solo se muestra en el panel técnico (tecla **I**); los niveles medio y bajo solo se usan si se piden con `?quality=`. El párrafo siguiente describe la elección automática anterior.
 
 `src/core/quality.js` elige uno de tres niveles al arrancar, a partir de lo que la máquina declara —no de su *user-agent*— y fija con él la densidad de píxeles, la resolución del mapa de sombras, la oclusión ambiental, el bloom, el MSAA, el umbral de detalle y el número de partículas de la nube. **El nivel cambia el coste, nunca la corrección**: los vehículos se siguen construyendo a 1:1 desde las mismas cifras y la verificación mide lo mismo. `?quality=low|medium|high` fuerza uno, que es como se prueba un nivel que no tienes — y cómo la puerta de CI se asegura de estar midiendo la escena completa, ya que el rasterizador por software sobre el que corre caería si no en el nivel más bajo.
 

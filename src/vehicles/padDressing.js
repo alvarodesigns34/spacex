@@ -73,14 +73,14 @@ function addBayLights(parent, M) {
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2 + 0.3;
     const x = Math.cos(a) * 5.4, z = Math.sin(a) * 5.4;
-    const spot = new THREE.SpotLight(0xfff1d4, 48, 22, 0.7, 0.35, 1.2);
-    spot.position.set(x, 16.4, z);
-    spot.target.position.set(Math.cos(a) * 1.4, 20.2, Math.sin(a) * 1.4);
-    spot.castShadow = false;
-    spot.name = 'bay-closeout-lamp';
-    g.add(spot, spot.target);
     heads.push({ geometry: box(0.28, 0.12, 0.18), matrix: mat4([x, 16.35, z]) });
   }
+  const spot = new THREE.SpotLight(0xfff1d4, 150, 24, 1.1, 0.7, 1.2);
+  spot.position.set(0, 15.8, 0);
+  spot.target.position.set(0, 21.5, 0);
+  spot.castShadow = false;
+  spot.name = 'bay-closeout-lamp';
+  g.add(spot, spot.target);
   const bounce = new THREE.PointLight(0xd5dde8, 14, 20, 2);
   bounce.position.set(0, 15.4, 0);
   bounce.castShadow = false;

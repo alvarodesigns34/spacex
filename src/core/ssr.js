@@ -83,10 +83,10 @@ export function createSeaSSR(aoPass, camera, oceanU) {
         if (R.z > 0.0 && P.z > -5.0) return;
         float cosT = clamp(dot(-V, N), 0.0, 1.0);
         float F = 0.02 + 0.98 * pow(1.0 - cosT, 5.0);
-        // March: steps growing 7 % each, from 0.5 m.
+        // March: steps growing 12 % each, from 0.5 m.
         float t = 0.5, dt = 0.5, prevT = 0.0;
         vec2 hitUv = vec2(-1.0);
-        for (int i = 0; i < 64; i++) {
+        for (int i = 0; i < 36; i++) {
           vec3 Q = P + R * t;
           vec4 c = uProj * vec4(Q, 1.0);
           vec2 uv = c.xy / c.w * 0.5 + 0.5;
@@ -98,7 +98,7 @@ export function createSeaSSR(aoPass, camera, oceanU) {
             if (Q.z < sz && sz - Q.z < thick) {
               // Bisection between the last step in front and this one behind.
               float a = prevT, b = t;
-              for (int k = 0; k < 6; k++) {
+              for (int k = 0; k < 4; k++) {
                 float m = 0.5 * (a + b);
                 vec3 M = P + R * m;
                 vec4 mc = uProj * vec4(M, 1.0);
@@ -112,7 +112,7 @@ export function createSeaSSR(aoPass, camera, oceanU) {
             }
           }
           prevT = t;
-          dt *= 1.07;
+          dt *= 1.12;
           t += dt;
         }
         if (hitUv.x < 0.0) return;

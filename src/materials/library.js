@@ -386,21 +386,36 @@ export async function createMaterials(onProgress = () => {}, pause = null) {
   //    irrational scale make the two lookups incommensurate: they never line up again.
   //
   // Cheap: five noise evaluations and one extra texture fetch per ground fragment.
+  const VC_N = 256;
+  const vcData = new Uint8Array(VC_N * VC_N * 4);
+  {
+    let s = 0x13572468;
+    for (let i = 0; i < vcData.length; i++) {
+      s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+      vcData[i] = s >>> 24;
+    }
+  }
+  const vcTex = new THREE.DataTexture(vcData, VC_N, VC_N, THREE.RGBAFormat);
+  vcTex.wrapS = vcTex.wrapT = THREE.RepeatWrapping;
+  vcTex.minFilter = vcTex.magFilter = THREE.LinearFilter;
+  vcTex.generateMipmaps = false;
+  vcTex.needsUpdate = true;
+
   M.terrain.onBeforeCompile = (sh) => {
+    sh.uniforms.vcTex = { value: vcTex };
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vVcWorld;\nattribute vec2 aShore;\nvarying vec2 vShore;\nattribute float aLand;\nvarying float vLand;\nattribute float aMarsh;\nvarying float vMarsh;')
       .replace('#include <project_vertex>', '#include <project_vertex>\nvVcWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvShore = aShore;\nvLand = aLand;\nvMarsh = aMarsh;');
     const NOISE = `
+uniform sampler2D vcTex;
 varying vec3 vVcWorld;
 varying vec2 vShore;
 varying float vLand;
 varying float vMarsh;
-float vcHash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
-float vcNoise(vec2 p) {
+vec4 vcN4(vec2 p) {
   vec2 i = floor(p), f = fract(p);
   vec2 u = f * f * (3.0 - 2.0 * f);
-  return mix(mix(vcHash(i), vcHash(i + vec2(1.0, 0.0)), u.x),
-             mix(vcHash(i + vec2(0.0, 1.0)), vcHash(i + vec2(1.0, 1.0)), u.x), u.y);
+  return texture2D(vcTex, (i + u + 0.5) / 256.0);
 }`;
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>\n${NOISE}`)
@@ -409,12 +424,13 @@ float vcNoise(vec2 p) {
   vec4 sampledDiffuseColor = texture2D( map, vMapUv );
   vec2 vcUv2 = mat2(0.8, -0.6, 0.6, 0.8) * vMapUv * 0.618 + vec2(0.31, 0.17);
   vec4 vcAlt = texture2D( map, vcUv2 );
-  float vcMix = smoothstep(0.3, 0.7, vcNoise(vVcWorld.xz / 57.0 + vec2(3.7, -1.9)));
+  float vcMix = smoothstep(0.3, 0.7, vcN4(vVcWorld.xz / 57.0 + vec2(3.7, -1.9)).r);
   sampledDiffuseColor = mix( sampledDiffuseColor, vcAlt, vcMix );
   // Close up, a third lookup 6,7 × finer and turned again, applied as contrast only (its own
   // value over its own blurred mean, read from a coarse mip): grain a few millimetres across
   // under a visitor's feet, fading out by 45 m where the base map already holds.
-  float vcNear = 1.0 - smoothstep(8.0, 45.0, length(vViewPosition));
+  float vcDist = length(vViewPosition);
+  float vcNear = 1.0 - smoothstep(8.0, 45.0, vcDist);
   if (vcNear > 0.0) {
     vec2 vcUv3 = mat2(0.28, 0.96, -0.96, 0.28) * vMapUv * 6.7 + vec2(0.57, 0.11);
     float vcFine = dot(texture2D( map, vcUv3 ).rgb, vec3(0.3, 0.59, 0.11));
@@ -430,71 +446,42 @@ float vcNoise(vec2 p) {
     float beach = max(vShore.x, vShore.y);
     // Land cover, the way the ISS photographs of the Boca Chica plain show it: a blanket of
     // olive grass and scrub, broken by pale bare flats — salt crust and dry sand — in large
-    // irregular districts, with darker damp ground where the flats are lowest. The old
-    // version did the opposite (a pale tan plain with small green specks), which read as a
-    // sandbox from the overview. Every field is domain-warped so the edges are ragged and
-    // drawn out rather than the round blobs plain value noise makes.
-    vec2 wq = wp / 23.0;
-    vec2 warp = vec2(vcNoise(wq + 7.1), vcNoise(wq - 3.3)) - 0.5;
-    vec2 bw = vec2(vcNoise(wp / 310.0 + 4.2), vcNoise(wp / 310.0 - 6.6)) - 0.5;
-    float cover = vcNoise(wp / 260.0 + bw * 1.4 + 11.0) * 0.6
-                + vcNoise(wp / 85.0 + bw * 2.0 - 3.0) * 0.3
-                + vcNoise(wp / 27.0 + warp * 2.0) * 0.1;
+    // irregular districts, with darker damp ground where the flats are lowest.
+    vec2 warp = vcN4(wp / 23.0 + vec2(7.1, -3.3)).rg - 0.5;
+    vec2 bw = vcN4(wp / 310.0 + vec2(4.2, -6.6)).rg - 0.5;
+    float cover = vcN4(wp / 260.0 + bw * 1.4 + 11.0).r * 0.6
+                + vcN4(wp / 85.0 + bw * 2.0 - 3.0).g * 0.3
+                + vcN4(wp / 27.0 + warp * 2.0).b * 0.1;
     float veg = smoothstep(0.31, 0.45, cover) * (1.0 - beach);
-    // Bare flats: the map's own sand-and-salt grain, paler on the crust, darker and greyer in
-    // the damp lows.
     float low = smoothstep(0.30, 0.18, cover);
-    // Grey-tan, not yellow: half-way to the map's own luminance, which is what sun-bleached
-    // salt crust and dry sand look like beside grass.
-    // Greyer than it was (0.22): SpaceX's Pad 2 photographs show the bare flats round the pad as
-    // grey-brown silt and salt crust, not tan sand.
     vec3 bareBase = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), 0.32);
-    // A touch warmer than neutral: under a low sun half the light on flat ground is blue
-    // skylight, and a neutral pale ground came out blue-grey.
     vec3 bare = bareBase * mix(vec3(0.97, 0.92, 0.85), vec3(0.64, 0.61, 0.56), low);
-    // Vegetation, in linear colour: green grass and dry straw by district, dark shrub clumps a
-    // few metres across. The map's luminance is kept as grain so the grass is not flat paint.
     float lum = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11)) / 0.40;
-    // More of it cured to straw, as the coastal prairie is for most of the year: seen at eye
-    // level the plain was one grey-green lawn to the horizon.
-    float straw = smoothstep(0.25, 0.64, vcNoise(wp / 140.0 - 9.0) + warp.x * 0.3);
+    float straw = smoothstep(0.25, 0.64, vcN4(wp / 140.0 - 9.0).a + warp.x * 0.3);
     vec3 vegCol = mix(vec3(0.160, 0.168, 0.072), vec3(0.300, 0.250, 0.118), straw);
-    float clump = vcNoise(wp / 6.0 + warp * 3.0 + 41.0) * 0.6 + vcNoise(wp / 2.3 - 13.0) * 0.4;
-    // Darker shrub clumps: soft-edged and lighter than they were. At 0.62–0.80 and 0.55 they
-    // were crisp dark blobs that read, from the tower, as camouflage paint on the plain.
+    float clump = vcN4(wp / 6.0 + warp * 3.0 + 41.0).r * 0.6 + vcN4(wp / 2.3 - 13.0).g * 0.4;
     vegCol = mix(vegCol, vec3(0.095, 0.112, 0.052), smoothstep(0.58, 0.92, clump) * 0.38);
     vegCol *= mix(0.8, 1.2, clamp(lum, 0.0, 1.5) / 1.5);
-    // Tussocks. At eye level a prairie is not one tone: every metre or two a clump of cured
-    // straw stands among the green, with shadowed ground between the stems. Averaged away from
-    // the tower; from a visitor's height it is what makes the ground read as grass.
-    float tussock = smoothstep(0.45, 0.85, vcNoise(wp / 1.7 + warp * 2.0 + 5.0));
-    vegCol = mix(vegCol, vec3(0.300, 0.250, 0.118) * (0.85 + 0.3 * lum), 0.45 * tussock);
-    vegCol *= 0.82 + 0.34 * vcNoise(wp / 0.55 - 3.0);
-    // Thornscrub cover on the lomas and the small rises of the plain (terrain.js thicket, per
-    // vertex), as a ground tone: a dark olive mottle with bare clay between, not grass.
+    if (vcDist < 75.0) {
+      float microFade = 1.0 - smoothstep(45.0, 75.0, vcDist);
+      float tussock = smoothstep(0.45, 0.85, vcN4(wp / 1.7 + warp * 2.0 + 5.0).b);
+      vegCol = mix(vegCol, vec3(0.300, 0.250, 0.118) * (0.85 + 0.3 * lum), 0.45 * tussock * microFade);
+      vegCol *= mix(1.0, 0.82 + 0.34 * vcN4(wp / 0.55 - 3.0).a, microFade);
+    }
     float thick = smoothstep(0.08, 0.7, vLand);
     veg = max(veg, thick);
     vec3 scrubCol = mix(vec3(0.050, 0.064, 0.030), vec3(0.120, 0.112, 0.062), smoothstep(0.35, 0.75, clump));
     vegCol = mix(vegCol, scrubCol, thick * 0.85);
-    // The fringe between the two is sparse: grass thinning out over bare ground.
     float fringe = smoothstep(0.0, 1.0, veg) * smoothstep(0.28, 0.78, clump + veg * 0.6);
     diffuseColor.rgb = mix(bare, vegCol, max(fringe, smoothstep(0.7, 1.0, veg)));
-    // Tidal channels (terrain.js marsh): winding, water-filled cuts through the marsh grass
-    // and the flats, the way SpaceX's Pad 2 photographs show the ground round the pad. Each
-    // is an isoline of warped noise, so it wanders and never closes on a grid: main channels
-    // a few metres to ten across, tapering out, with narrower creeks feeding them. Dark
-    // silty water that mirrors the sky, inside a band of wet grey mud. Drawn, not surveyed.
+    // Tidal channels (computed outside any branch for fwidth derivatives).
     {
-      // Stretched across the plain, the way the creeks drain: an isotropic field closes its
-      // isolines into rings round every bump, and a marsh has no circular channels.
-      vec2 cw = vec2(vcNoise(wp / 150.0 + 2.3), vcNoise(wp / 150.0 - 5.1)) - 0.5;
-      float n1 = vcNoise(vec2(wp.x / 620.0, wp.y / 240.0) + cw * 1.5 + 17.0);
-      float n2 = vcNoise(vec2(wp.x / 180.0, wp.y / 80.0) + cw * 2.2 - 8.0);
-      float taper1 = smoothstep(0.3, 0.55, vcNoise(wp / 380.0 + 3.0));
-      float taper2 = smoothstep(0.5, 0.72, vcNoise(wp / 190.0 - 21.0)) * smoothstep(0.3, 0.5, taper1 + vcNoise(wp / 90.0));
-      // Antialiased against the pixel footprint (fwidth, so computed outside any branch): a
-      // channel narrower than a pixel fades instead of breaking into a flickering thread, which
-      // near the horizon drew rows of little rings.
+      vec2 cw = vcN4(wp / 150.0 + vec2(2.3, -5.1)).rg - 0.5;
+      float n1 = vcN4(vec2(wp.x / 620.0, wp.y / 240.0) + cw * 1.5 + 17.0).r;
+      float n2 = vcN4(vec2(wp.x / 180.0, wp.y / 80.0) + cw * 2.2 - 8.0).g;
+      vec2 tap = vcN4(wp / 380.0 + 3.0).ba;
+      float taper1 = smoothstep(0.3, 0.55, tap.x);
+      float taper2 = smoothstep(0.5, 0.72, vcN4(wp / 190.0 - 21.0).b) * smoothstep(0.3, 0.5, taper1 + vcN4(wp / 90.0).a);
       float e1 = abs(n1 - 0.5), e2 = abs(n2 - 0.5);
       float f1 = max(fwidth(n1), 1e-5), f2 = max(fwidth(n2), 1e-5);
       float w1 = 0.02 * taper1, w2 = 0.013 * taper2;
@@ -502,17 +489,12 @@ float vcNoise(vec2 p) {
                         (1.0 - smoothstep(w2 - f2, w2 + f2, e2)) * clamp(w2 / f2, 0.0, 1.0)) * vMarsh;
       float mud = max((1.0 - smoothstep(2.6 * w1 - f1, 2.6 * w1 + f1, e1)) * clamp(2.6 * w1 / f1, 0.0, 1.0),
                       (1.0 - smoothstep(2.6 * w2 - f2, 2.6 * w2 + f2, e2)) * clamp(2.6 * w2 / f2, 0.0, 1.0)) * vMarsh;
-      vec3 mudCol = vec3(0.105, 0.095, 0.078) * (0.9 + 0.2 * vcNoise(wp / 3.0));
+      vec3 mudCol = vec3(0.105, 0.095, 0.078) * (0.9 + 0.2 * vcN4(wp / 3.0).r);
       diffuseColor.rgb = mix(diffuseColor.rgb, mudCol, mud * 0.85);
       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.11, 0.115, 0.095), water);
       vcWater = water;
     }
-    // The beach (ground mesh only; other meshes on this material have no aShore and read 0):
-    // pale quartz sand with a faint ripple of tone, darkening to wet sand at the water. A beach
-    // tinted from the plain's olive map stayed grass-coloured all the way into the sea.
-    float grain = 0.93 + 0.14 * vcNoise(wp / 5.0 + 71.0);
-    // Linear values (this is after the sRGB map decode): dry sand ≈ sRGB (0.80, 0.70, 0.54),
-    // wet sand ≈ sRGB (0.52, 0.46, 0.37). Warm on purpose: the low sky light cools it.
+    float grain = 0.93 + 0.14 * vcN4(wp / 5.0 + 71.0).g;
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.70, 0.48, 0.21) * grain, vShore.x * 0.92);
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.26, 0.19, 0.10) * grain, vShore.y * 0.85);
   }`)

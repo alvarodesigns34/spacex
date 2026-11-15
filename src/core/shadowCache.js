@@ -26,7 +26,7 @@
 import * as THREE from 'three';
 import { createSceneSignature } from './sceneSignature.js';
 
-const MAX_AGE_MS = 1000;
+const MAX_AGE_MS = 5000;
 const LIGHT_VALUES = 12;
 
 export function createShadowCache(renderer, scene, sun) {

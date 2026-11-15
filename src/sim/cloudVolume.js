@@ -571,7 +571,7 @@ export function createCloudVolume(cloud) {
   function marchTarget(w, h) {
     if (marchRT && marchRT.width === w && marchRT.height === h) return marchRT;
     marchRT?.dispose();
-    marchRT = new THREE.WebGLRenderTarget(w, h, { count: 2, type: THREE.HalfFloatType, depthBuffer: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+    marchRT = new THREE.WebGLRenderTarget(w, h, { count: 2, type: THREE.HalfFloatType, depthBuffer: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
     for (const t of marchRT.textures) t.generateMipmaps = false;
     marchRT.textures[1].format = THREE.RGFormat; marchRT.textures[1].internalFormat = 'RG16F';
     return marchRT;
@@ -617,15 +617,19 @@ export function createCloudVolume(cloud) {
       U.tDepth.value = readBuffer.depthTexture;
       U.uNoise.value = noise.texture;
       const target = this.renderToScreen ? null : writeBuffer;
-      const rect = vapourOn ? screenRectForLive(readBuffer.width, readBuffer.height) : null;
+      const mw = Math.max(1, Math.ceil(readBuffer.width * 0.5));
+      const mh = Math.max(1, Math.ceil(readBuffer.height * 0.5));
+      const rect = vapourOn ? screenRectForLive(mw, mh) : null;
       const drawVapour = vapourOn && !!rect;
       composeU.uOn.value = drawVapour ? 1 : 0;
       if (drawVapour) {
         const [sx, sy, sw, sh] = rect;
-        MU.uMediaRect.value.set(sx / readBuffer.width, sy / readBuffer.height, (sx + sw) / readBuffer.width, (sy + sh) / readBuffer.height);
-        const rt = marchTarget(readBuffer.width, readBuffer.height);
+        const bx = Math.max(0, sx - 1), by = Math.max(0, sy - 1);
+        const bw = Math.min(mw - bx, sw + 2), bh = Math.min(mh - by, sh + 2);
+        MU.uMediaRect.value.set(sx / mw, sy / mh, (sx + sw) / mw, (sy + sh) / mh);
+        const rt = marchTarget(mw, mh);
         rt.scissorTest = true;
-        rt.scissor.set(sx, sy, sw, sh);
+        rt.scissor.set(bx, by, bw, bh);
         try {
           renderer.setRenderTarget(rt);
           quad.render(renderer);

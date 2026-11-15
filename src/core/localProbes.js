@@ -79,7 +79,10 @@ export function createLocalProbes(renderer, scene, { size = 256, delay = 250 } =
     // Whatever throws in between (the camera follow, the cube capture, PMREM), the vehicle comes
     // back visible, the shadow map keeps its flags and the sky follows the real camera again
     // (external audit 8-11, finding 11; tools/probe-check.mjs injects the throw).
+    const clouds = envRef?.clouds;
+    const prevCloudMode = clouds?.mode === 'volume' ? 'volume' : null;
     try {
+      if (prevCloudMode) clouds.setMode('layer');
       for (const t of p.targets) t.visible = false;
       // The sky box and the cloud dome follow whatever camera draws; put them round the probe.
       envRef.followCamera(p.cam);
@@ -89,6 +92,7 @@ export function createLocalProbes(renderer, scene, { size = 256, delay = 250 } =
       p.map = pmrem.fromCubemap(p.rt.texture);
       p.stale = false;
     } finally {
+      if (prevCloudMode) clouds.setMode(prevCloudMode);
       p.targets.forEach((t, i) => { t.visible = was[i]; });
       sm.autoUpdate = auto; sm.needsUpdate = need;
       if (camera) envRef.followCamera(camera);

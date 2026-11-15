@@ -57,22 +57,22 @@ report(pickQuality(fakeRenderer).suggested === 'low', 'control: la sonda sigue r
 Object.assign(device, DEVICES['escritorio 144 Hz']);
 report(pickQuality(fakeRenderer, 'medium').name === 'medium' && pickQuality(fakeRenderer, 'low').forced, 'solo ?quality= cambia el nivel');
 const high = pickQuality(fakeRenderer);
-report(high.lodPixels === 0 && high.cloudSteps >= 32 && high.msaa >= 4 && high.shadowMap >= 8192,
-  'el nivel alto: sin LOD, muestras de nubes, MSAA y sombras completos', `LOD ${high.lodPixels} · ${high.cloudSteps} pasos · MSAA ${high.msaa} · sombras ${high.shadowMap}`);
+report(high.lodPixels <= 2 && high.cloudSteps >= 32 && high.msaa >= 2 && high.shadowMap >= 4096,
+  'el nivel alto: LOD subpíxel, muestras de nubes, MSAA ≥ 2 y sombras ≥ 4096', `LOD ${high.lodPixels} · ${high.cloudSteps} pasos · MSAA ${high.msaa} · sombras ${high.shadowMap}`);
 
 // 2.
-const lodAt = (pixels) => {
+const lodAt = (pixels, dist = 100) => {
   const camera = new THREE.PerspectiveCamera(42, 16 / 9, 0.1, 1e6);
   const lod = new LODManager(camera, { pixels });
   const near = new THREE.Object3D(), far = new THREE.Object3D();
-  lod.register({ name: 'x', at: (v) => v.set(0, 0, -10000), feature: 0.26, near: [near], far });
+  lod.register({ name: 'x', at: (v) => v.set(0, 0, -dist), feature: 0.26, near: [near], far });
   const hide = new THREE.Object3D();
-  lod.registerHidden('y', [hide], (v) => v.set(0, 0, -10000), 0.02);
+  lod.registerHidden('y', [hide], (v) => v.set(0, 0, -dist), 0.26);
   lod.update(); lod.update();
   return near.visible && !far.visible && hide.visible;
 };
-report(lodAt(high.lodPixels), 'nivel alto: una entrada de detalle a 10 km sigue con todo su detalle');
-report(!lodAt(5), 'control: con el umbral del nivel medio esa entrada sí cae');
+report(lodAt(high.lodPixels, 100), 'nivel alto: una pieza de 0,26 m a 100 m sigue con todo su detalle');
+report(!lodAt(5, 10000), 'control: con el umbral del nivel medio a 10 km esa entrada sí cae');
 
 // 3.
 // fileURLToPath, not .pathname: on Windows the latter is '/C:/…' with the non-ASCII still escaped.

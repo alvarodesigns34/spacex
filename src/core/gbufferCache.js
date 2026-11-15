@@ -21,7 +21,7 @@ import * as THREE from 'three';
 import { createSceneSignature } from './sceneSignature.js';
 import { drawsDepth } from './ao.js';
 
-const MAX_AGE_MS = 1000;
+const MAX_AGE_MS = 5000;
 // 1.5 px until 11-11-2026. Measured on the user's RTX 3070: from the overview the windsock spans
 // ≈17 px by its bounding sphere, so the whole opaque scene was drawn again every frame for it —
 // ≈4 ms of the main thread and part of the AO's GPU time. Its own occlusion a frame (at most the

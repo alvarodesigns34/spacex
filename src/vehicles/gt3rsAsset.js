@@ -23,7 +23,7 @@ import { BODY } from '../data/gt3rs.js';
 import { gt3Materials } from './gt3rs.js';
 import { buildCabin } from './gt3Cabin.js';
 import { applyMarkings, loadGt3rs, GT3RS_MARKINGS } from './gt3rsMarkings.js';
-import { dedupTextures } from '../geometry/utils.js';
+import { dedupTextures, downscaleTextures } from '../geometry/utils.js';
 
 export const GT3RS_ASSET = new URL('../../assets/gt3rs/gt3rs.glb', import.meta.url);
 const WHEELS = ['gt3-wheel-fl', 'gt3-wheel-fr', 'gt3-wheel-rl', 'gt3-wheel-rr'];
@@ -46,6 +46,7 @@ export function adoptGt3rs(scene, M, associations = null) {
     }
   }
   root.traverse(o => { o.name = strip(o.name); });
+  downscaleTextures(root, 2048);
   dedupTextures(root);
   // The library's materials back on, each with the baked occlusion (one atlas for the whole car).
   // Only the Porsche's own materials take the occlusion: a library material the car shares with the

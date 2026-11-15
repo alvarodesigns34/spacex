@@ -751,3 +751,47 @@ export function dedupTextures(root) {
   return replaced;
 }
 
+/**
+ * Downscales any GLB texture whose larger dimension exceeds `maxDim` (e.g. 4096->2048 for baked
+ * AO/detail maps), shrinking GPU texture memory by 4x per halved dimension without touching UVs.
+ */
+export function downscaleTextures(root, maxDim = 2048) {
+  if (typeof document === 'undefined') return 0;
+  const seen = new Set();
+  const seenMats = new Set();
+  let scaled = 0;
+  root.traverse((o) => {
+    if (!o.isMesh || !o.material) return;
+    const list = Array.isArray(o.material) ? o.material : [o.material];
+    for (const m of list) {
+      if (!m || seenMats.has(m)) continue;
+      seenMats.add(m);
+      for (const slot of TEX_SLOTS) {
+        const t = m[slot];
+        const src = t?.source;
+        const img = src?.data ?? t?.image;
+        if (!t?.isTexture || !img || seen.has(src ?? img)) continue;
+        seen.add(src ?? img);
+        const w = img.naturalWidth || img.width || 0;
+        const h = img.naturalHeight || img.height || 0;
+        if (Math.max(w, h) <= maxDim) continue;
+        const k = maxDim / Math.max(w, h);
+        const nw = Math.max(1, Math.round(w * k));
+        const nh = Math.max(1, Math.round(h * k));
+        const c = document.createElement('canvas');
+        c.width = nw; c.height = nh;
+        const ctx = c.getContext('2d');
+        if (!ctx) continue;
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, nw, nh);
+        img.close?.();
+        if (src) { src.data = c; src.needsUpdate = true; }
+        else { t.image = c; t.needsUpdate = true; }
+        scaled++;
+      }
+    }
+  });
+  return scaled;
+}
+

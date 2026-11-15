@@ -124,15 +124,15 @@ export const VOLUME_FN = /* glsl */`
     float phase = mix(hg(mu, 0.55), hg(mu, -0.2), 0.3);
     float Tr = 1.0, hit = -1.0;
     vec3 L = vec3(0.0);
-    float fine0 = clamp(t0 * 0.0002, 18.0, 70.0);
-    float t = t0 + jit * fine0 * 5.0;
+    float fine0 = clamp(t0 * 0.00025, 22.0, 70.0);
+    float t = t0 + jit * fine0 * 7.5;
     int fineLeft = 0;
     // A loop bound by a uniform: the compiler cannot unroll it (unrolled, the march took a
     // software renderer minutes to compile), and the count can change without a recompile.
     for (int i = 0; i < uSteps; i++) {
       if (t > t1) break;
-      float dtF = clamp(t * 0.0002, 18.0, 70.0);
-      float dtC = dtF * 5.0;
+      float dtF = clamp(t * 0.00025, 22.0, 70.0);
+      float dtC = dtF * 7.5;
       vec3 p = o + d * t;
       float hfP = (p.y - B) / (T - B);
       if (fineLeft == 0) {

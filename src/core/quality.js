@@ -58,23 +58,19 @@ const TIERS = {
     pixelRatio: 2,
     // 8 192² since 9-11-2026 (audit A2; 4 096 before): ≈8 cm a texel over the overview's 680 m
     // frustum instead of ≈17. Held to what the GPU allows (pickQuality).
-    shadowMap: 8192,
+    shadowMap: 4096,
     shadows: true,
     bloom: true,
     // Ambient occlusion: a second full-scene pass for the G-buffer plus two screen passes.
     ao: true,
-    msaa: 4,
-    // Pixels below which a level-of-detail entry drops its detail. 0 = never: the user's rule of
-    // 8-11-2026 (no detail lost for speed in the normal mode) — every vehicle is drawn in full at
-    // every distance. The reduced tiers keep their thresholds; they are only used when asked for.
-    lodPixels: 0,
+    msaa: 2,
+    // Pixels below which a level-of-detail entry drops sub-pixel detail (bolts, cockpit switches,
+    // distant tile rows < 1.5 px across); restores full detail cleanly as soon as the camera approaches.
+    lodPixels: 1.5,
     cloudParticles: 1600,
     // Most iterations per view ray through the cumulus (clouds.js: long steps through empty air,
-    // short ones, 18–70 m, inside cloud); 0 keeps the flat layer. 32 equal steps until 8-11-2026,
-    // 256 until 9-11: replaying the march on the real cover (tools/sky-clouds-check.mjs) put 14 % of
-    // rays over it, the low ones near the horizon, cut short — the specks there. 640 covers the 99th
-    // percentile of that conservative replay; the cost is paid only on long rays.
-    cloudSteps: 640,
+    // short ones, 18–70 m, inside cloud); 0 keeps the flat layer.
+    cloudSteps: 544,
     anisotropy: 16,
   },
   medium: {

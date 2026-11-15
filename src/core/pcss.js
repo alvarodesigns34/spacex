@@ -40,8 +40,8 @@ const vogelArray = (n, offset = 0) => Array.from({ length: n }, (_, i) => {
 
 const PCSS_GLSL = /* glsl */`
 	uniform vec4 pcssParams;
-	const vec2 PCSS_B[16] = vec2[16]( ${vogelArray(16, 0)} );
-	const vec2 PCSS_P[32] = vec2[32]( ${vogelArray(32, 1.7)} );
+	const vec2 PCSS_B[8] = vec2[8]( ${vogelArray(8, 0)} );
+	const vec2 PCSS_P[16] = vec2[16]( ${vogelArray(16, 1.7)} );
 	float pcssNoise( vec2 p ) { return fract( 52.9829189 * fract( dot( p, vec2( 0.06711056, 0.00583715 ) ) ) ); }
 	float pcssShadow( sampler2D shadowMap, vec2 shadowMapSize, vec4 c ) {
 		float texel = 1.0 / shadowMapSize.x;
@@ -54,17 +54,17 @@ const PCSS_GLSL = /* glsl */`
 		// day it was used as the radius, doubling every penumbra).
 		float search = clamp( 0.5 * c.z * k, 2.0 * texel, 32.0 * texel );
 		float sum = 0.0, n = 0.0;
-		for ( int i = 0; i < 16; i ++ ) {
+		for ( int i = 0; i < 8; i ++ ) {
 			float d = unpackRGBAToDepth( texture2D( shadowMap, c.xy + ( R * PCSS_B[ i ] ) * search ) );
 			if ( d < c.z ) { sum += d; n += 1.0; }
 		}
 		if ( n < 0.5 ) return 1.0;
 		float pen = clamp( 0.5 * ( c.z - sum / n ) * k, 1.0 * texel, 32.0 * texel );
 		float lit = 0.0;
-		for ( int i = 0; i < 32; i ++ ) {
+		for ( int i = 0; i < 16; i ++ ) {
 			lit += step( c.z, unpackRGBAToDepth( texture2D( shadowMap, c.xy + ( R * PCSS_P[ i ] ) * pen ) ) );
 		}
-		return lit / 32.0;
+		return lit / 16.0;
 	}
 `;
 

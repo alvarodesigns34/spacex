@@ -160,12 +160,14 @@ export function applyDetail(mat, kind, { size = 0.05, normal = 1, rough = 0.3, c
     prev?.(sh, r);
     Object.assign(sh.uniforms, U);
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vDetP;\nvarying vec3 vDetN;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvDetP = position; vDetN = objectNormal;');
+      .replace('#include <common>', '#include <common>\nvarying vec3 vDetP;\nvarying vec3 vDetN;\nvarying float vDetDist;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvDetP = position; vDetN = objectNormal;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvDetDist = length(mvPosition.xyz);');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 varying vec3 vDetP;
 varying vec3 vDetN;
+varying float vDetDist;
 uniform mat3 normalMatrix;
 uniform sampler2D uDetN, uDetR, uDetC;
 uniform float uDetScale, uDetStrength, uDetRough, uDetColor, uDetCoat;
@@ -188,16 +190,17 @@ vec3 detNormal(vec3 p, vec3 n) {
   return normalize(tx.zyx * w.x + ty.xzy * w.y + tz.xyz * w.z);
 }`)
       .replace('#include <map_fragment>', `#include <map_fragment>
+  float detFade = 1.0 - smoothstep(14.0, 26.0, vDetDist);
   vec3 detPS = vDetP * uDetScale, detNS = normalize(vDetN);
-  if (uDetColor > 0.0) diffuseColor.rgb *= mix(vec3(1.0), detColor(uDetC, detPS, detW(detNS)) * 2.4, uDetColor);`)
+  if (detFade > 0.001 && uDetColor > 0.0) diffuseColor.rgb *= mix(vec3(1.0), detColor(uDetC, detPS, detW(detNS)) * 2.4, uDetColor * detFade);`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-  roughnessFactor = clamp(roughnessFactor * mix(1.0, detScalar(uDetR, detPS, detW(detNS)) * 2.0, uDetRough), 0.02, 1.0);`)
+  if (detFade > 0.001) roughnessFactor = clamp(roughnessFactor * mix(1.0, detScalar(uDetR, detPS, detW(detNS)) * 2.0, uDetRough * detFade), 0.02, 1.0);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
-  vec3 detDelta = normalize(normalMatrix * detNormal(detPS, detNS)) * faceDirection - normalize(normalMatrix * detNS) * faceDirection;
-  normal = normalize(normal + detDelta * uDetStrength);`)
+  vec3 detDelta = detFade > 0.001 ? (normalize(normalMatrix * detNormal(detPS, detNS)) * faceDirection - normalize(normalMatrix * detNS) * faceDirection) * detFade : vec3(0.0);
+  if (detFade > 0.001) normal = normalize(normal + detDelta * uDetStrength);`)
       .replace('#include <clearcoat_normal_fragment_maps>', `#include <clearcoat_normal_fragment_maps>
 #ifdef USE_CLEARCOAT
-  clearcoatNormal = normalize(clearcoatNormal + detDelta * uDetCoat);
+  if (detFade > 0.001) clearcoatNormal = normalize(clearcoatNormal + detDelta * uDetCoat);
 #endif`);
   };
   const key = mat.customProgramCacheKey?.bind(mat);
